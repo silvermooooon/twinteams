@@ -1,4 +1,4 @@
-"""Bounded acceptance of invisible integration contracts using an isolated SQLite DB.
+"""Bounded acceptance of invisible integration contracts using an isolated PostgreSQL DB.
 
 This is a deterministic offline adapter used only by this check. The application
 never falls back to it. No provider request, API charge, or production DB is used.
@@ -13,7 +13,6 @@ import tempfile
 from uuid import uuid4
 
 TEMP = tempfile.TemporaryDirectory(prefix="twinteams-runtime-acceptance-")
-os.environ["DATABASE_URL"] = "sqlite:///" + str(Path(TEMP.name) / "acceptance.db")
 os.environ["TWINTEAMS_ENV"] = "local"
 os.environ["TWINTEAMS_DEVELOPMENT_MODE"] = "true"
 os.environ["TWINTEAMS_WORKSPACE_ROOT"] = str(Path(TEMP.name) / "workspace")
@@ -21,6 +20,9 @@ os.environ["AGENT_MEMORY_DIR"] = str(Path(TEMP.name) / "memory")
 os.environ["AGENT_API"] = "offline-acceptance"
 os.environ["OPENAI_API_KEY"] = "offline-adapter-no-network-no-real-key"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from postgres import TestDatabase
+DATABASE = TestDatabase().configure()
 
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from app.service import service
@@ -123,6 +125,8 @@ async def main():
                 break
             await asyncio.sleep(.01)
         await service.cancel_request("owner-alex", slow)
+        assert service.get_request(slow)["cancel_requested"]
+        await runtime.signal_stop(service.get_request(slow))
         await asyncio.wait_for(task, 5)
         await dispatch()
         assert service.get_request(slow)["status"] == "cancelled", service.get_request(slow)
@@ -159,7 +163,7 @@ async def main():
         reopened = await runtime.get_activity("private-alex", "owner-alex", sid, rid)
         assert any(e.get("output") == "A complete deterministic acceptance response." for e in reopened["events"])
         print("PASS reopen restores complete output; child notification replay creates no duplicate")
-        print("6 bounded Runtime↔product acceptance scenarios passed; live provider/PostgreSQL not exercised.")
+        print("6 bounded Runtime↔product acceptance scenarios passed; real PostgreSQL, offline model adapter.")
     finally:
         await service.close()
         await runtime.close()

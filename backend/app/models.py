@@ -1,7 +1,7 @@
-"""Portable Twinteams business schema; no SDK execution-event duplicates."""
+"""PostgreSQL Twinteams business schema; no SDK execution-event duplicates."""
 from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, BigInteger, JSON, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -31,16 +31,25 @@ class Actor(Base):
     name: Mapped[str] = mapped_column(String(128))
     initials: Mapped[str] = mapped_column(String(8))
     color: Mapped[str] = mapped_column(String(32))
+    avatar_data: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
+    avatar_digest: Mapped[str | None] = mapped_column(String(64))
+    avatar_preset: Mapped[str | None] = mapped_column(String(24))
+    profile_revision: Mapped[int] = mapped_column(BigInteger, default=1)
+    enabled_skill_names: Mapped[list] = mapped_column(JSON, default=list)
 
 
 class Chat(Base):
     __tablename__ = "tt_chats"
-    __table_args__ = (CheckConstraint("(kind = 'private' AND private_owner_id IS NOT NULL) OR (kind = 'group' AND private_owner_id IS NULL)", name="tt_chat_kind_owner"),)
+    __table_args__ = (CheckConstraint("(kind = 'private' AND private_owner_id IS NOT NULL) OR (kind = 'group' AND private_owner_id IS NULL)", name="tt_chat_kind_owner"), Index("tt_direct_pair_key", "direct_pair_key", unique=True))
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
     kind: Mapped[str] = mapped_column(String(16))
     title: Mapped[str] = mapped_column(String(256))
     private_owner_id: Mapped[str | None] = mapped_column(ForeignKey("tt_owners.id"), unique=True)
+    direct_pair_key: Mapped[str | None] = mapped_column(String(64))
+    revision: Mapped[int] = mapped_column(BigInteger, default=1)
     next_message_seq: Mapped[int] = mapped_column(Integer, default=1)
+    reset_generation: Mapped[int] = mapped_column(Integer, default=0)
+    reset_pending: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -106,6 +115,8 @@ class Message(Base):
     author_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id"))
     kind: Mapped[str] = mapped_column(String(20), default="human")
     body: Mapped[str] = mapped_column(Text)
+    attachment_ids: Mapped[list] = mapped_column(JSON, default=list)
+    command_fingerprint: Mapped[str | None] = mapped_column(String(64))
     raw_owner_input: Mapped[str | None] = mapped_column(Text)
     reply_to_message_id: Mapped[str | None] = mapped_column(ForeignKey("tt_messages.id"))
     request_id: Mapped[str | None] = mapped_column(String(80), index=True)
@@ -115,6 +126,33 @@ class Message(Base):
     source_floor_seq: Mapped[int | None] = mapped_column(Integer)
     sdk_output_key: Mapped[str | None] = mapped_column(String(256), unique=True)
     state: Mapped[str] = mapped_column(String(16), default="published")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MessageReaction(Base):
+    __tablename__ = "tt_message_reactions"
+    message_id: Mapped[str] = mapped_column(ForeignKey("tt_messages.id", ondelete="CASCADE"), primary_key=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id"), primary_key=True)
+    emoji: Mapped[str] = mapped_column(String(32), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ChatAttachment(Base):
+    __tablename__ = "tt_chat_attachments"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
+    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), index=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    mime_type: Mapped[str] = mapped_column(String(80))
+    kind: Mapped[str] = mapped_column(String(16))
+    size: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str] = mapped_column(String(64))
+    width: Mapped[int | None] = mapped_column(Integer)
+    height: Mapped[int | None] = mapped_column(Integer)
+    relative_path: Mapped[str] = mapped_column(String(256))
+    private_owner_input: Mapped[bool] = mapped_column(Boolean, default=False)
+    message_id: Mapped[str | None] = mapped_column(ForeignKey("tt_messages.id"), index=True)
+    request_id: Mapped[str | None] = mapped_column(ForeignKey("tt_reply_requests.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -189,6 +227,8 @@ class ReplyRequest(Base):
     accepted_seq: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(16), default="queued", index=True)
     accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    input_attachment_ids: Mapped[list] = mapped_column(JSON, default=list)
+    command_fingerprint: Mapped[str | None] = mapped_column(String(64))
     raw_owner_input: Mapped[str | None] = mapped_column(Text)
     input_body: Mapped[str | None] = mapped_column(Text)
     frozen_prompt: Mapped[str | None] = mapped_column(Text)
@@ -198,6 +238,8 @@ class ReplyRequest(Base):
     run_id: Mapped[str | None] = mapped_column(String(128))
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     context_grant_version: Mapped[int | None] = mapped_column(Integer)
+    execution_config: Mapped[dict | None] = mapped_column(JSON)
+    private_generation: Mapped[int | None] = mapped_column(Integer)
 
 
 class PendingChildResult(Base):
@@ -227,6 +269,59 @@ class DispatchCommand(Base):
     state: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class TwinFollowup(Base):
+    """One durable reply/deadline outcome and its existing-FIFO delivery intent."""
+    __tablename__ = "tt_twin_followups"
+    __table_args__ = (Index("tt_followup_due", "status", "due_at"),
+                      Index("tt_followup_delivery", "notification_state", "chat_id"))
+    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
+    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), index=True)
+    origin_request_id: Mapped[str] = mapped_column(ForeignKey("tt_reply_requests.id"), index=True)
+    target_chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), index=True)
+    sent_message_id: Mapped[str] = mapped_column(ForeignKey("tt_messages.id"), unique=True)
+    causal_chain_id: Mapped[str] = mapped_column(ForeignKey("tt_causal_chains.id"), index=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(16), default="waiting")
+    reply_message_id: Mapped[str | None] = mapped_column(ForeignKey("tt_messages.id"), index=True)
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    notification_state: Mapped[str] = mapped_column(String(16), default="waiting")
+    pause_reason: Mapped[str | None] = mapped_column(String(40))
+    continuation_request_id: Mapped[str | None] = mapped_column(ForeignKey("tt_reply_requests.id"))
+    source_provenance: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MemoryEditAudit(Base):
+    """Real owner configuration events referenced by user-authored Git memory."""
+    __tablename__ = "tt_memory_edit_audit"
+    __table_args__ = (Index("tt_memory_edit_owner_time", "owner_id", "created_at"),)
+    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), index=True)
+    private_generation: Mapped[int] = mapped_column(Integer, default=0)
+    key: Mapped[str] = mapped_column(String(512))
+    action: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str | None] = mapped_column(Text)
+    state: Mapped[str] = mapped_column(String(24), default="requested")
+    version: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MemoryDreamState(Base):
+    """Incremental consolidation cursor and ordinary FIFO scheduling intent."""
+    __tablename__ = "tt_memory_dream_state"
+    __table_args__ = (Index("tt_memory_dream_due", "due_at", "queued_request_id"),)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), primary_key=True)
+    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), unique=True)
+    cursor_seq: Mapped[int] = mapped_column(Integer, default=0)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    queued_request_id: Mapped[str | None] = mapped_column(ForeignKey("tt_reply_requests.id"))
+    last_status: Mapped[str] = mapped_column(String(24), default="idle")
+    last_version: Mapped[str | None] = mapped_column(String(64))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ChatSetting(Base):
@@ -393,3 +488,46 @@ class ReplyProjection(Base):
     last_event_id: Mapped[str | None] = mapped_column(String(256))
     last_event_seq: Mapped[int | None] = mapped_column(Integer)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ChangeOutbox(Base):
+    """Only delivery bookkeeping; never execution ownership or task status."""
+    __tablename__ = "tt_change_outbox"
+    __table_args__ = (Index("tt_change_pending", "published", "created_at"), Index("tt_change_scope_revision", "chat_id", "revision"))
+    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
+    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"))
+    revision: Mapped[int] = mapped_column(BigInteger)
+    kind: Mapped[str] = mapped_column(String(16), default="changed")
+    published: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ActivityProjection(Base):
+    __tablename__ = "tt_activity_runs"
+    __table_args__ = (Index("tt_activity_chat_order", "chat_id", "started_at", "session_id", "run_id"),)
+    session_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"))
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
+    private_generation: Mapped[int] = mapped_column(Integer, default=0)
+    parent_run_id: Mapped[str | None] = mapped_column(String(128))
+    source: Mapped[str] = mapped_column(String(32), default="user")
+    status: Mapped[str] = mapped_column(String(32), default="running")
+    title: Mapped[str] = mapped_column(Text, default="Twin response")
+    summary: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TwinReset(Base):
+    """An owner-confirmed generation transition, resumable using its original key."""
+    __tablename__ = "tt_twin_resets"
+    __table_args__ = (UniqueConstraint("owner_id", "idempotency_key"),)
+    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), index=True)
+    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"))
+    idempotency_key: Mapped[str] = mapped_column(String(160))
+    expected_generation: Mapped[int] = mapped_column(Integer)
+    generation: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

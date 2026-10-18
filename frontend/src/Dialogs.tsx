@@ -1,12 +1,91 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { Actor, ApiClient, Chat, ChatDetail, ChatSettings, HistoryPolicy, Reminder } from './api/client';
 import { Avatar, Icon, Modal, dateTime } from './ui';
 import { t } from './i18n';
-export function PeopleDialog({ api, ownerId, chat, initialPerson, onClose, onDone, onError }: { api: ApiClient; ownerId: string; chat?: Chat; initialPerson?: Actor; onClose: () => void; onDone: (chat: Chat) => void; onError: (error: unknown) => void }) {
-  const [query, setQuery] = useState(''); const [people, setPeople] = useState<Actor[]>([]); const [selected, setSelected] = useState<Actor[]>(initialPerson ? [initialPerson] : []); const [title, setTitle] = useState(''); const [policy, setPolicy] = useState<HistoryPolicy>('all'); const [busy, setBusy] = useState(false); const [loading, setLoading] = useState(false);
-  useEffect(() => { const abort = new AbortController(); const timer = setTimeout(() => { setLoading(true); api.get<Actor[]>(`/people?q=${encodeURIComponent(query)}`, abort.signal).then(setPeople).catch(error => { if (!abort.signal.aborted) onError(error); }).finally(() => { if (!abort.signal.aborted) setLoading(false); }); }, 180); return () => { clearTimeout(timer); abort.abort(); }; }, [api, query]);
+import './TeamsOverlays.css';
+type PeoplePickerProps = { api: ApiClient; ownerId: string; chat?: Chat; initialPerson?: Actor; onClose: () => void; onDone: (chat: Chat) => void; onError: (error: unknown) => void; inline?: boolean; onBusyChange?: (busy: boolean) => void };
+
+/** Shared recipient selection for a new message and the add-members dialog. */
+export function PeoplePicker({ api, ownerId, chat, initialPerson, onClose, onDone, onError, inline = false, onBusyChange }: PeoplePickerProps) {
+  const [query, setQuery] = useState('');
+  const [people, setPeople] = useState<Actor[]>([]);
+  const [selected, setSelected] = useState<Actor[]>(initialPerson ? [initialPerson] : []);
+  const [title, setTitle] = useState('');
+  const [policy, setPolicy] = useState<HistoryPolicy>('all');
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(!inline);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const input = useRef<HTMLInputElement>(null);
+  const recipients = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  useEffect(() => { if (activeIndex >= 0) document.getElementById(`${listId}-${activeIndex}`)?.scrollIntoView({ block: 'nearest' }); }, [activeIndex, listId]);
+  useEffect(() => {
+    const abort = new AbortController();
+    const timer = setTimeout(() => {
+      setLoading(true);
+      api.get<Actor[]>(`/people?q=${encodeURIComponent(query)}`, abort.signal).then(setPeople).catch(error => { if (!abort.signal.aborted) onError(error); }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
+    }, 180);
+    return () => { clearTimeout(timer); abort.abort(); };
+  }, [api, query]);
+  useEffect(() => {
+    if (!inline) return;
+    const frame = requestAnimationFrame(() => input.current?.focus());
+    const outside = (event: PointerEvent) => { if (!recipients.current?.contains(event.target as Node)) setSuggestionsOpen(false); };
+    document.addEventListener('pointerdown', outside);
+    return () => { cancelAnimationFrame(frame); document.removeEventListener('pointerdown', outside); };
+  }, [inline]);
   const available = people.filter(person => person.id !== ownerId && !chat?.member_owner_ids.includes(person.id));
-  return <Modal closeDisabled={busy} title={t(chat ? 'chat.addMembers' : 'chat.new')} onClose={onClose}><form onSubmit={async e => { e.preventDefault(); if (!selected.length || busy) return; setBusy(true); try { const result = await api.post<Chat>(chat ? `/chats/${chat.id}/members` : '/chats', { owner_ids: selected.map(p => p.id), history_policy: policy, ...(chat ? {} : { title: title.trim() || undefined }) }); onDone(result); } catch (error) { onError(error); } finally { setBusy(false); } }}><p className="form-note">{t('chat.paired')}</p><div className="input-with-icon"><Icon name="search" size={17} /><input aria-label={t('search.placeholder')} placeholder={t('search.placeholder')} value={query} onChange={e => setQuery(e.target.value)} /></div><div className="people-options">{loading && !people.length ? <p className="muted">{t('common.loading')}</p> : !available.length ? <p className="muted">{t('search.empty')}</p> : available.map(person => <label className="person-option" key={person.id}><input type="checkbox" checked={selected.some(p => p.id === person.id)} onChange={e => setSelected(p => e.target.checked ? [...p, person] : p.filter(a => a.id !== person.id))} /><Avatar actor={person} size={32} /><span>{person.name}</span></label>)}</div>{!!selected.length && <div className="selected-people">{selected.map(person => <button type="button" key={person.id} onClick={() => setSelected(p => p.filter(a => a.id !== person.id))}>{person.name}<Icon name="close" size={12} /></button>)}</div>}{!chat && <label>{t('chat.name')}<input value={title} onChange={e => setTitle(e.target.value)} /></label>}<label>{t('chat.history')}<select value={policy} onChange={e => setPolicy(e.target.value as HistoryPolicy)}><option value="all">{t('chat.historyAll')}</option><option value="fixed_7d">{t('chat.history7d')}</option><option value="no_prior">{t('chat.historyNone')}</option></select></label><div className="modal-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('common.cancel')}</button><button className="primary-button" disabled={!selected.length || busy}>{busy ? t('common.loading') : t(chat ? 'common.add' : 'search.start')}</button></div></form></Modal>;
+  const suggestions = inline ? available.filter(person => !selected.some(item => item.id === person.id)) : available;
+  function togglePerson(person: Actor) {
+    setSelected(previous => previous.some(item => item.id === person.id) ? previous.filter(item => item.id !== person.id) : [...previous, person]);
+    setActiveIndex(-1);
+    if (inline) { setQuery(''); input.current?.focus(); }
+  }
+  return <form className={`people-picker ${inline ? 'people-picker-inline' : ''}`} aria-busy={busy} onSubmit={async event => {
+    event.preventDefault(); if (!selected.length || busy) return;
+    setBusy(true); onBusyChange?.(true);
+    try {
+      const result = await api.post<Chat>(chat ? `/chats/${chat.id}/members` : '/chats', { owner_ids: selected.map(person => person.id), history_policy: policy, ...(!chat && selected.length >= 2 ? { title: title.trim() || undefined } : {}) });
+      onDone(result);
+    } catch (error) { onError(error); } finally { setBusy(false); onBusyChange?.(false); }
+  }}>
+    {!inline && <p className="form-note">{t('chat.paired')}</p>}
+    <div ref={recipients} className="people-recipient-section">
+      <div className="people-recipient-field">
+        {inline ? <label className="people-to-label" htmlFor={`${listId}-input`}>{t('chat.to')}</label> : <Icon name="search" size={17} />}
+        {inline && selected.map(person => <button disabled={busy} className="recipient-chip" type="button" key={person.id} aria-label={`${t('common.close')} ${person.name}`} onClick={() => togglePerson(person)}>{person.name}<Icon name="close" size={12} /></button>)}
+        <input ref={input} id={`${listId}-input`} role="combobox" aria-autocomplete="list" aria-expanded={suggestionsOpen} aria-controls={listId} aria-activedescendant={suggestionsOpen && activeIndex >= 0 && activeIndex < suggestions.length ? `${listId}-${activeIndex}` : undefined} autoComplete="off" aria-label={t('search.placeholder')} placeholder={t(inline ? 'chat.recipientPlaceholder' : 'search.placeholder')} value={query} disabled={busy} onFocus={() => setSuggestionsOpen(true)} onChange={event => { setQuery(event.target.value); setSuggestionsOpen(true); setActiveIndex(-1); }} onKeyDown={event => {
+          if (event.nativeEvent.isComposing) return;
+          if (event.key === 'Escape' && inline && suggestionsOpen) { event.stopPropagation(); event.preventDefault(); setSuggestionsOpen(false); }
+          else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setSuggestionsOpen(true); setActiveIndex(previous => suggestions.length ? previous < 0 ? (event.key === 'ArrowDown' ? 0 : suggestions.length - 1) : (previous + (event.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length : -1); }
+          else if (event.key === 'Enter') { event.preventDefault(); const person = suggestions[activeIndex >= 0 ? activeIndex : 0]; if (suggestionsOpen && person) togglePerson(person); }
+          else if (event.key === 'Backspace' && !query && inline && selected.length) setSelected(previous => previous.slice(0, -1));
+        }} />
+      </div>
+      {suggestionsOpen && <div className={`people-options ${inline ? 'people-suggestions' : ''}`} id={listId} role="listbox" aria-label={t('search.placeholder')} aria-multiselectable="true">
+        {loading && !people.length ? <p className="muted" role="status">{t('common.loading')}</p> : !suggestions.length ? <p className="muted">{t('search.empty')}</p> : suggestions.map((person, index) => <button type="button" role="option" aria-selected={selected.some(item => item.id === person.id)} id={`${listId}-${index}`} className={`person-option ${activeIndex === index ? 'keyboard-active' : ''}`} key={person.id} disabled={busy} onMouseDown={event => event.preventDefault()} onClick={() => togglePerson(person)}><Avatar actor={person} size={32} /><span>{person.name}</span>{selected.some(item => item.id === person.id) && <Icon name="check" size={16} />}</button>)}
+      </div>}
+    </div>
+    {!inline && !!selected.length && <div className="selected-people" aria-label={t('chat.selectedPeople')}>{selected.map(person => <button disabled={busy} type="button" key={person.id} aria-label={`${t('common.close')} ${person.name}`} onClick={() => togglePerson(person)}>{person.name}<Icon name="close" size={12} /></button>)}</div>}
+    {(!inline || !!selected.length) && <div className="people-picker-details">
+      {inline && <p className="form-note">{t('chat.paired')}</p>}
+      {!chat && selected.length >= 2 && <label>{t('chat.name')}<input maxLength={256} value={title} disabled={busy} onChange={event => setTitle(event.target.value)} /></label>}
+      <label>{t('chat.history')}<select value={policy} disabled={busy} onChange={event => setPolicy(event.target.value as HistoryPolicy)}><option value="all">{t('chat.historyAll')}</option><option value="fixed_7d">{t('chat.history7d')}</option><option value="no_prior">{t('chat.historyNone')}</option></select></label>
+      <div className="modal-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('common.cancel')}</button><button className="primary-button" disabled={!selected.length || busy}>{busy ? t('common.loading') : t(chat ? 'common.add' : 'search.start')}</button></div>
+    </div>}
+  </form>;
+}
+export function PeopleDialog(props: PeoplePickerProps) { const [busy, setBusy] = useState(false); return <Modal closeDisabled={busy} title={t(props.chat ? 'chat.addMembers' : 'chat.new')} onClose={props.onClose}><PeoplePicker {...props} onBusyChange={setBusy} /></Modal>; }
+export function RenameChatDialog({ api, chat, onClose, onSaved }: { api: ApiClient; chat: Chat; onClose: () => void; onSaved: (chat: Chat) => void }) {
+  const [title, setTitle] = useState(chat.title); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  return <Modal title={t('chat.rename')} closeDisabled={busy} onClose={onClose}><form onSubmit={async event => {
+    event.preventDefault(); if (!title.trim() || title.trim() === chat.title || busy) return;
+    setBusy(true); setError('');
+    try { const updated = await api.patch<Chat>(`/chats/${chat.id}`, { title: title.trim() }); onSaved(updated); onClose(); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : t('common.error')); }
+    finally { setBusy(false); }
+  }}><label>{t('chat.groupName')}<input aria-label={t('chat.groupName')} required maxLength={256} value={title} disabled={busy} onChange={event => setTitle(event.target.value)} /></label>{error && <p className="twin-inline-error" role="alert">{error}</p>}<div className="modal-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('common.cancel')}</button><button className="primary-button" disabled={busy || !title.trim() || title.trim() === chat.title}>{t(busy ? 'common.loading' : 'common.save')}</button></div></form></Modal>;
 }
 export function SettingsDialog({ api, detail, onClose, onSaved, onError }: { api: ApiClient; detail: ChatDetail; onClose: () => void; onSaved: () => void; onError: (error: unknown) => void }) {
   const [globalPrompt, setGlobalPrompt] = useState(''); const [chatPrompt, setChatPrompt] = useState(detail.settings.prompt_override || ''); const [override, setOverride] = useState(detail.settings.prompt_override !== null); const [busy, setBusy] = useState(false); const [loaded, setLoaded] = useState(false);

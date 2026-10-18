@@ -1,10 +1,13 @@
 # Twinteams 数据库设计 v1
 
+> Historical audit/design evidence, retained with its original date. Current accepted execution, notification and transport behavior is in [architecture.md](architecture.md). Earlier recommendations are not an implementation contract.
+
+
 评审稿 · 2026-10-17 · 仅设计，未执行迁移、修改应用或运行测试
 
 ## 1. 先看结论
 
-**数据库选型已确认**：来源 Sentinel_668b128c9bd481918ea969b8c14f4763。本地开发使用 SQLite，生产部署使用 PostgreSQL，替代此前仅建议 PostgreSQL、选型待确认的表述。Twinteams 数据库设计的主范围是身份、聊天、历史权限、消息、业务回复队列与产品资料，以及到现有 SDK Session/Run/Event 的映射；复用 SDK 原有七张表的逻辑模型、标识类型与事件日志，不假定原 PostgreSQL DDL 能直接用于 SQLite。
+**数据库选型已确认**：2026-10-18 起，本地开发和部署统一使用 PostgreSQL。业务表由 Twinteams 管理，SDK 事件日志、运行、审查、归档、checkpoint、命令和租约表由 Agent Runtime 管理，保持一个真实执行日志来源。
 
 **职责澄清（已确认）**：来源 Sentinel_8bdb5bcb16c08191869a24887683f37b。Agent 运行行为由 Agent Runtime 项目重点实现，Twinteams 不重建运行时。Session/Run/Event、Agent loop、模型/工具调用、subagent 通信、运行持久化、checkpoint、恢复和执行并发控制均归 SDK。本文第 2 节及第 9–13 节涉及的 Runtime 表与机制，是已有能力说明或 SDK 侧集成要求；新增 RT 表名只是供 Runtime 项目评审的建议，不属于 Twinteams 建表清单，更不代表已实现。
 
@@ -56,11 +59,11 @@ DatabaseSession(Session), durable=True → Session.commit → DatabaseSession._p
 
 ### 2.4 Schema 与所有权
 
-本地使用 SQLite，生产使用 PostgreSQL；两种后端保持一致的业务含义、身份关联、语义结果保存和权限边界。SDK 的 SQLite 适配如有缺口由 Runtime 项目解决，不以产品另写运行日志绕过。SQLite 开发运行不承诺生产跨 pod 调度行为。
+本地开发与部署统一使用 PostgreSQL，保持相同的身份关联、语义结果保存、恢复和权限边界。SDK 的执行数据缺口由 Runtime 项目补齐，产品不另建运行日志。
 
-生产可考虑同一 PostgreSQL 实例、同一数据库的部署提案；SDK 表保持原 schema/名称不变（当前脚本未写 schema，取决于部署 search_path），不移动或复制。新增 Runtime 表由 SDK 管理；业务表放 twinteams schema 的提案仅适用于 PostgreSQL。SQLite 使用适合其后端的逻辑命名与隔离，不机械复制 PostgreSQL schema 语法。文中 RT 表示 SDK 所属数据，不要求立即迁入名为 runtime 的 schema。
+业务表和 SDK 表使用同一 PostgreSQL 数据库。SDK 保持既有 agent_* 表名；产品使用 tt_* 表名。search_path 可选择隔离 schema。文中 RT 表示 SDK 所属数据，不要求创建名为 runtime 的 schema。
 
-下文字典中的 uuid/text、jsonb、timestamptz、部分索引、行锁/CAS 和跨表事务以逻辑需求及 PostgreSQL 示例表达；实际类型编码、约束、迁移与并发适配需分别支持 SQLite/PostgreSQL。不能把 PostgreSQL 专用 DDL 直接视为双后端 migration，也不能为兼容 SQLite 取消租户隔离、去重、可靠接受或 SDK 的执行安全要求。
+下文字典中的 uuid/text、jsonb、timestamptz、部分索引、行锁/CAS 和事务均以 PostgreSQL 为实现目标。约束和迁移必须保持租户隔离、去重、可靠接受及 SDK 执行安全要求。
 
 - Runtime：session、语义事件 journal、run、模型与工具尝试及完整结果、输入/回传、审批执行状态、操作账本、checkpoint、归档；token live 流不属于持久恢复数据。
 - Twinteams：身份配对、成员与历史边界、消息及读回执、触发判断与 FIFO、Chat→Session 映射、Tracking、摘要授权来源、工作空间和 UI 设置。
@@ -181,7 +184,7 @@ Runtime 的 root_run_id、parent_run_id、task_id 不能替代业务 chain_id；
 ### 7.3 原子接受、去重、恢复与暂停
 
 1. 在同一业务事务内校验来源 chain、needs_response、来源 Owner 排除、目标成员/权限、presence/已读证据与确定性精确重复；锁 chain 与目标 intent/lane，采用统一顺序避免跨目标死锁。
-2. 先按 intent、client_request_key、retry 操作键返回已有接受/预留结果；不能先扣预算再发现重复。新自动请求仅在 auto_accepted_total < allowance_total 时预留一次、增加累计计数、分配 lane FIFO、写 request 与业务 outbox，并一起提交；达到本段累计上限时记录 paused/pause_epoch，但已接受请求保持原状态。PostgreSQL 行锁/条件更新与 SQLite 串行写入/条件更新分别适配同一原子不变量。
+2. 先按 intent、client_request_key、retry 操作键返回已有接受/预留结果；不能先扣预算再发现重复。新自动请求仅在 auto_accepted_total < allowance_total 时预留一次、增加累计计数、分配 lane FIFO、写 request 与业务 outbox，并一起提交；达到本段累计上限时记录 paused/pause_epoch，但已接受请求保持原状态。PostgreSQL 行锁和条件更新共同保证这些原子不变量。
 3. 多目标共享 chain 行或等价 CAS，在余额只剩一次时最多一个新自动接受成功。预算不足的尚未接受候选持久 paused_budget，保存原因；不创建 queued request，不占 FIFO，不向 SDK 发新启动命令。
 4. queued/running 请求已经消费其名额，预算耗尽只影响新接受，不取消、暂停或 Stop 已接受请求。失败/取消/完成不退还已经发生的自动接受；Owner 查看也不触发自动撤销。
 5. 同一请求的 outbox 重发、内部模型/工具重试、SDK resume、重连或接管不新增 reservation；新的自动 Retry request 沿原 chain 另预留一次，同一 Retry 操作重发只一次。真实人工 Retry/Ask 请求附 human authorization 并遵守 FIFO，不重置链、不自动加额。source=retry 或 manual 标签本身均不是免预算证据。
@@ -309,7 +312,7 @@ Twinteams.approval_contexts(tenant, approval_id text PK, chat_id, twin_id, owner
 
 现有运行状态 running/completed/stopped/failed 保持兼容。recovery_pending、awaiting_reconciliation 等可先用新增恢复控制投影表达，不能直接往旧 Run status 填新值而不评估消费者。事件采用版本化解码/upcaster；未知版本停止恢复并报警，不能跳过。迁移前保留原记录，重建投影可重复、可比较摘要/hash；不能声称已通过兼容测试。
 
-生产 PostgreSQL 的灾备建议：WAL/PITR、对象存储版本与校验、密钥可恢复、归档清单一致性、定期恢复演练；实际 RPO/RTO 未定。SQLite 本地备份需按其存储方式设计，不假称具备相同的集群恢复保证。单次数据库提交的持久性受部署同步复制和磁盘策略影响，不能把应用日志设计等同于零数据损失 SLA。
+生产 PostgreSQL 的灾备建议：WAL/PITR、对象存储版本与校验、密钥可恢复、归档清单一致性、定期恢复演练；实际 RPO/RTO 未定。本地也使用 PostgreSQL 的备份和恢复工具。单次数据库提交的持久性受部署同步复制和磁盘策略影响，不能把应用日志设计等同于零数据损失 SLA。
 
 ## 14. 授权摘要、精确覆盖与上下文溯源
 
@@ -434,7 +437,7 @@ Activity 可增加可重建的 run_origins 投影(tenant,session_id,run_id PK, o
 
 持久化粒度已确认，不再列为待定：语义执行事实和每次操作的完整 output 持久保存，逐 token 展示数据可以丢失。Twin 互答、needs_response 可产生空最终目标、全链默认 6 次预算及 Continue 同样已确认，具体字段/双后端事务待落地，不再属于待定安全策略。后续需决定：
 
-1. 已确认 SQLite 本地/PostgreSQL 生产后的双后端类型、迁移与并发适配；生产同库跨 schema 和对象存储方案；业务调用 SDK 的事务/投递接口。
+1. 已确认 PostgreSQL 的类型、迁移与并发控制；生产同库跨 schema 和对象存储方案；业务调用 SDK 的事务/投递接口。
 2. presence/查看定义、10 秒起点、网络延迟规则；LLM 低置信度/路由失败反馈与 @Twins 解析。
 3. 退出与重入、历史权限变更、共享文件旧版本策略。
 4. 子任务/审批回调结果参与业务主回复队列的规则；SDK 中 Stop 对后台任务的影响。
@@ -446,7 +449,7 @@ Activity 可增加可重建的 run_origins 投影(tenant,session_id,run_id PK, o
 ### 依据
 
 - 产品：product-requirements.md、interaction-rules.md、design-review-2026-10-17.md（含最新三图反馈与“用户关注时掌握回复主动权”原则）。
-- 最新确认：Sentinel_fca0adb1ac888191835278e37f931b47、Sentinel_5297a0cb1f3c8191b3e0795320e73836（主动 Twin 消息、来源 Owner 触发语义、needs_response、全链默认 6 次自动接受上限及 Continue）；Sentinel_163f756d0bc0819183270b91e8d32935（token 可丢弃、完整 output 恢复）；Sentinel_8bdb5bcb16c08191869a24887683f37b（项目职责）；Sentinel_668b128c9bd481918ea969b8c14f4763（SQLite 本地、PostgreSQL 生产）。
+- 最新确认：Sentinel_fca0adb1ac888191835278e37f931b47、Sentinel_5297a0cb1f3c8191b3e0795320e73836（主动 Twin 消息、来源 Owner 触发语义、needs_response、全链默认 6 次自动接受上限及 Continue）；Sentinel_163f756d0bc0819183270b91e8d32935（token 可丢弃、完整 output 恢复）；Sentinel_8bdb5bcb16c08191869a24887683f37b（项目职责）；Sentinel_668b128c9bd481918ea969b8c14f4763（存储决定已由 2026-10-18 PostgreSQL 统一方案更新）。
 - SDK：src/agent_runtime/storage/sql/001_sessions.sql、002_checkpoints.sql、003_session_identity.sql：七张表、text ID、checkpoint 位置与归属字段。
 - SDK：src/agent_runtime/storage/postgres.py:57–68：append 事务与序号 CAS。
 - SDK：src/agent_runtime/sessions/base.py:707–720：live 的 token/progress 非持久边界。

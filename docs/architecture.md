@@ -1,0 +1,37 @@
+# Current architecture — 2026-10-18
+
+## Processes and state
+
+Run API replicas separately from one active `python -m app.worker` execution service. Single-active scheduling is a deployment convention, not another Redis or PostgreSQL lock. API startup validates provisioned schemas and never starts Agents, recovery, or a scheduler. The worker owns model execution, routing admission, notification delivery and centralized compensation.
+
+PostgreSQL owns business facts, accepted commands, semantic journals, run projections, permissions and execution leases. `tt_reply_requests`/`tt_dispatch_outbox` record business acceptance and its SDK handoff; an acknowledgment means **business_persisted**, not execution or completion. Worker delivery calls SDK idempotent acceptance using the same request ID. A crash between the two ORM transactions in the same PG database is recovered by repeating that handoff. `ReplyLane` supplies FIFO identity/mapping; it does not claim an executor. Only SDK session lease/fence grants execution, including child sessions. The shared ExecutionHost batches lease renewal and control checks. Root admission is 8 tasks globally, 2 per owner, routing 2, and child execution has a separate bounded pool of 8 with 32 children per parent run and one child level.
+
+Redis stores presence TTLs and carries disposable Pub/Sub hints. It has no task state machine, command authority, execution locks or token history. PG changes and their change-outbox row commit together. Post-commit notification is a fast path; the relay retries unpublished rows in batches of 100. A published row means delivery was attempted, never that browsers received it. Duplicate or lost hints are allowed.
+
+## Scheduling and recovery
+
+Normal work hints include a chat/session scope. Only that scope's indexed candidates, approvals, pending child results, FIFO heads and deadlines are read. Output/activity-only changes do not trigger a global task sweep. Worker status and already-relayed notifications do not feed back into task scheduling. Earliest known due times arm an in-memory timer. Owner admission is applied before candidate limits so one owner's old queues cannot hide another owner's work.
+
+Every 60 seconds one worker compensates with bounded index reads, including SDK expired/unowned command candidates and accepted child-result notifications. It does not scan all lanes, sessions, event histories or spawn a recovery worker in an API process. Candidate cursors bound recovery/notification pages. Unknown tool outcomes remain paused for explicit reconciliation. SDK child terminal commit also accepts the parent notification atomically; product acceptance precedes SDK notification acknowledgment. Normal session hints read notifications for that parent session; global pending notification reads occur only during centralized compensation.
+
+## Browser transport and permissions
+
+`/api/ws` protocol version 1 carries send/reply/stop/presence commands and opaque scope invalidations. Commands include a stable `command_id`; retries reuse that ID. `ack.accepted=business_persisted` is returned after business transaction commit. Presence uses `presence_renewed` because a TTL-only renewal is intentionally ephemeral. The browser retains pending commands across reconnects and resends their original IDs.
+
+Chat-change broadcasts contain only `{v:1,type:"changed",chat_id,revision}` for authorized subscriptions. No model text, request IDs, private-input metadata or tool output is broadcast. User-visible content is fetched through HTTP with current membership, history-floor and provenance checks. There is no permission cache authorizing sensitive streamed content. JWT/cookie expiry closes sockets; consequential commands authenticate independently. Origin is checked, queues are bounded to 64 frames and deployment WebSocket limits are 64 KiB. Slow consumers reconnect and reload. Owner-targeted `personal_changed` hints contain a section name, not content. New memberships emit `section:"chats"` after commit; clients reload canonical bootstrap on that hint and on connection/reconnection, then subscribe using a stable sorted chat-ID set.
+
+The client subscribes before its synchronization reload. It keeps no token replay cursor. Each API process centrally compares the unique active scopes' revisions every 60 seconds to compensate for lost changes, then rechecks each changed subscription's authority. Authentication expiration uses a local deadline rather than per-token/per-pong database queries. A transport hint is never proof of permission.
+
+HTTP chat snapshots contain the latest 100 messages by default (maximum page size 200), `revision`, `has_more`, and `before_seq`. This is **bounded-window refresh on change**, not a durable incremental event API. Earlier history uses keyset pages. Loaded pages are reauthorized and replaced on change so withdrawals and changed grants do not survive as stale merged content; scroll position is anchored. Unread counts preserve exact product semantics: direct messages use indexed aggregates; dependent messages require authorization-metadata checks without reading historical bodies. This count still has a cost proportional to unread dependent metadata.
+
+Activity lists read `tt_activity_runs` with keyset pagination; details read a bounded run/sequence page from the SDK journal. Parent/child identity and summary/status are projected on writes. Older Activity is imported only by explicit `app.init_db --backfill-activity`, using indexed business/run projections rather than replaying journals at API startup.
+
+## Presence and I/O
+
+Redis TTL renewal does not write PostgreSQL. Focus transitions and actual read receipts persist the evidence that suppresses automatic candidates. Automatic decisions save their observed presence evidence. Redis failure produces unknown presence and pauses automatic replies rather than interpreting an outage as an offline user. Presence is never action authorization.
+
+Synchronous SQLAlchemy transactions execute as whole jobs in an eight-thread database pool with at most 64 admitted jobs per process. Runtime/network awaits stay on the event loop; no transaction is held over an await. PostgreSQL row/unique constraints replace the old process-wide RLock. Workspace files and private runtime memory still require persistent shared storage before deploying workers on different machines.
+
+## Provision and launch
+
+`python -m app.init_db` is an explicit repeatable upgrade. It applies additive business changes and SDK packaged migrations through `upgrade_schema`; normal API/worker startup checks structure only. `--backfill-activity` is an explicit optional historical projection import. Both roles require database URLs and `TWINTEAMS_REDIS_URL`. Only the worker needs model credentials. See the README for local commands and `checks/local_stack.py` for managed local process logs/PIDs.

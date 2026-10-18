@@ -10,7 +10,6 @@ import asyncio
 import json
 import logging
 import os
-import socket
 import stat
 import sys
 import tempfile
@@ -24,8 +23,6 @@ TEMP = tempfile.TemporaryDirectory(prefix="twinteams-provider-config-check-")
 ROOT = Path(TEMP.name)
 (ROOT / "data").mkdir()
 for name, value in {
-    "DATABASE_URL": "sqlite:///" + str(ROOT / "product.sqlite3"),
-    "AGENT_DB_URL": "sqlite:///" + str(ROOT / "runtime.sqlite3"),
     "TWINTEAMS_WORKSPACE_ROOT": str(ROOT / "workspace"),
     "TWINTEAMS_ENV": "local",
     "TWINTEAMS_DEVELOPMENT_MODE": "true",
@@ -35,6 +32,9 @@ for name, value in {
 }.items():
     os.environ[name] = value
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from postgres import TestDatabase
+DATABASE = TestDatabase().configure()
 
 import httpx
 from fastapi import FastAPI
@@ -75,8 +75,8 @@ logging.getLogger().addHandler(logs)
 logging.getLogger().setLevel(logging.DEBUG)
 
 
-def refuse_network(*args, **kwargs):
-    raise AssertionError("These checks forbid all actual network connections")
+async def refuse_network(*args, **kwargs):
+    raise AssertionError("Provider HTTP traffic must use the controlled test transport")
 
 
 def response_body(**overrides):
@@ -198,10 +198,10 @@ async def check_client_defaults():
 
 def main():
     asyncio.run(check_client_defaults())
-    with patch.object(socket.socket, "connect", refuse_network), client:
+    with patch.object(httpx.AsyncHTTPTransport, "handle_async_request", refuse_network), client:
         for path in ("/api/local-provider-config", "/api/local-provider-config/verify", "/api/local-provider-config/save-page", "/api/local-provider-config/save"):
             result = verify() if path.endswith("verify") else client.post(path, json={"api_key": FAKE_KEY, "confirm_local_save": True}, headers=GUARDS) if path.endswith("/save") else client.get(path)
-            assert result.status_code == 401
+            assert result.status_code == 401, (result.status_code, result.json())
             safe(result)
         login("DEV-BBB")
         assert client.get("/api/local-provider-config").status_code == 403

@@ -1,5 +1,8 @@
 # Twinteams Heartbeat 调研 v1
 
+> Historical audit/design evidence, retained with its original date. Current accepted execution, notification and transport behavior is in [architecture.md](architecture.md). Earlier recommendations are not an implementation contract.
+
+
 日期：2026-10-17。状态：调研与待确认建议，未实施、未运行测试，也未修改现有产品规则或数据库设计。
 
 适用背景：React + FastAPI / Python 3.13；现有 Agent Runtime、DatabaseSession 与 PostgreSQL。本文引用公开的一手资料；“来源事实”不等于 Twinteams 已实现能力。“建议”均待确认。

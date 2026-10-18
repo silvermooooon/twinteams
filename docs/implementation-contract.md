@@ -1,12 +1,14 @@
-# Implementation coordination contract — 2026-10-17
+# Implementation coordination contract — updated 2026-10-18
+
+Current execution/transport behavior is specified in [architecture.md](architecture.md). Historical coordination ownership below does not introduce additional process roles.
 
 Implemented integration contract. For verified behavior and remaining release gates, see `implementation-acceptance.md`.
 
 ## Boundaries
 - SDK owns DatabaseSession, runtime journal and execution/recovery mechanisms; product owns identity/chat/membership/history/message/trigger/FIFO/UI projections.
-- SQLite local default. DATABASE_URL switches to PostgreSQL. Python 3.13 only.
-- Development identity is explicitly labeled local. POST /auth/login accepts DEV-AAA, DEV-BBB or DEV-CCC only in explicitly opted-in local SQLite development (off by default) and sets an opaque expiring HttpOnly/SameSite cookie. X-Owner-Id is rejected. Production verifies JWT subject/tenant/issuer/audience/expiration and a provisioned owner, otherwise fails closed.
-- Token deltas are ephemeral SSE. Browser reconnect reloads canonical state. Completed semantic outputs are durable in SDK, product messages reference them. No token tables.
+- PostgreSQL is required in all environments. DATABASE_URL is explicit. Python 3.13 only.
+- Development identity is explicitly labeled local. POST /auth/login accepts DEV-AAA, DEV-BBB or DEV-CCC only in explicitly opted-in local PostgreSQL development (off by default) and sets an opaque expiring HttpOnly/SameSite cookie. X-Owner-Id is rejected. Production verifies JWT subject/tenant/issuer/audience/expiration and a provisioned owner, otherwise fails closed.
+- WebSocket sends commands and opaque changed revisions only. HTTP reads content with authoritative permissions. Reconnect subscribes before refreshing bounded history windows. Semantic outputs remain durable SDK facts; no token tables.
 - Twin-origin messages retain their actor identity and use the source owner for recipient eligibility. A model-backed `needs_response` decision gates automatic group replies, including pair groups and explicit mentions. Private direct-owner inputs retain their direct reply path. Automatic acceptances share one durable causal-chain allowance (default six); retries, recovery, child results and proactive tool sends preserve lineage. Explicit human continuation adds a recorded allowance without cancelling already accepted work.
 
 ## HTTP
@@ -38,7 +40,9 @@ Prefix /api. JSON uses snake_case. All errors `{detail:string}`. Reads enforce o
 - POST /chats/{id}/tracking/{id}/updates {body,source_message_ids?:string[]} -> Tracking
 - POST /reminders {title,detail?,due_at?:string,chat_id?:string} -> Reminder
 - PATCH /reminders/{id} {done:boolean} -> Reminder
-- GET /events?chat_id={id} -> SSE events `{type:'changed'|'token'|'status'|'operation_started'|'output_committed',chat_id,request_id?,text?}`. Changes reload canonical chat; deltas never replay.
+- WS /ws: version-1 subscribe/unsubscribe/command/pong frames; changed notifications contain chat_id and revision only. Commands send/reply/stop return business_persisted ACK after transaction commit; presence TTL ACK means presence_renewed. The former GET /events SSE endpoint is removed.
+- GET /chats/{id}?limit=100&before_seq={seq}: bounded history window; has_more/before_seq pagination.
+- GET /chats/{id}/activity?limit=50&before={cursor}: {items,has_more,next_cursor}; details accept limit/after_seq and return has_more/next_seq.
 
 ## Shapes
 Actor {id,kind:'human'|'twin',owner_id?:string,name,initials,color}
@@ -54,11 +58,53 @@ ActivityEvent {id,seq,type,time,label,input?:string,output?:string,status?:strin
 WorkspaceEntry {id,name,kind:'file'|'folder',path,size?:number,children?:WorkspaceEntry[]}
 AutomaticConversation {id,causal_chain_id,status:'paused',reason:'budget_exhausted'|'repeated_content',spent,allowance,remaining,paused_pending_count,continuation_allowance,can_continue,source_owner_id}
 
+Own-Twin private output does not automatically set a visible reply quote from `source_message_id`; group output retains that default. Explicit human/`reply_for_me` quotes and `send_chat_message.reply_to_message_id` remain available. Private child continuations inherit only an explicitly selected parent quote. Source IDs, provenance, request identity and causal chain remain intact independently of quote presentation; no historical rows or Soul are rewritten.
+
+2026-10-19 verification: independent `tests/test_private_reply_quote_acceptance.py` passes all four real-PG/offline-SDK cases, including unchanged group/explicit-tool quotes and source-withdrawal authorization. Together with child continuation, followup and recovery checks, 27 targeted cases pass. Idle API/Worker reload required no DDL, seed, frontend build or production message. Local/public health and unchanged `index-CAvXonGn.js` pass; actual Worker remains on `gpt-6-luna` and proxy 7894.
+
 ## Proactive tools and credential configuration
 
-`list_authorized_chats` returns only existing authorized metadata: private owner context may discover the owner's chats, while group context discovers its current chat only. `send_chat_message {chat_id,body,source_message_ids}` checks the persisted originating request, complete context provenance and every destination audience member. Discovery is not permission to share private context. A stable SDK operation ID makes replay idempotent. Tool sends cannot create a human manual authorization or reset the causal chain. Final normal replies enter recipient routing only at successful run completion; intermediate semantic outputs remain recoverable but do not trigger other Twins.
+`list_authorized_chats` returns all current owner-member chat metadata and identifies `owner_private_chat_id` / `is_owner_private`, from both group and private tasks. A Twin may directly report progress or request a decision in its owner's private chat. Discovery does not grant another owner's private data or bypass membership/history limits. `send_chat_message {chat_id,body,source_message_ids,reply_to_message_id?,wait_for_reply?:false}` validates the durable originating request and the owner's source/destination access. A newly composed cross-chat message is the owner's outward statement: recipients receive its prepared body without access to the originating transcript. Internal request/manifest/operation references retain audit provenance. Same-chat model output still respects its authorized audience. Stable SDK operation IDs make replay idempotent and preserve the causal chain. Never include unrelated private details in a new outward message.
+
+| Capability | Installed platform tools | Boundary |
+| --- | --- | --- |
+| Discover people/chats | `list_people`, `list_authorized_chats`, `get_chat` | Owner memberships; bounded metadata/status, no hidden request input/configuration. |
+| Read conversations | `history` with optional `chat_id` | Current membership and history floor; defaults to origin. |
+| Send and manage chats | `send_chat_message`, `create_chat`, `rename_chat`, `add_chat_members` | Owner-member destinations; direct-chat reuse; groups of 3+ owners can rename; explicit member history policy. |
+| Message reactions | `set_message_reaction` | Desired state on an authorized message, attributed to the Twin Actor; does not route a response. See [message-reactions.md](message-reactions.md). |
+| Tracking | `list_tracking`, `get_tracking`, `create_tracking`, `update_tracking`, `delete_tracking`, `add_tracking_update`, optional `chat_id` | Source and audience checks remain; no silent revival of deleted topics. |
+| Summary | `save_summary` | Origin only; no target-chat selector. |
+| Reminders | `list_reminders`, `create_reminder`, `update_reminder` | Owner's in-app reminders; no external notification promise. |
+| Workspace | `list_workspace`, `read_workspace_file` | Authorized metadata/pagination and UTF-8 text ≤64 KiB; no upload, shell or execution grant. |
+| Twin/request status | `get_twin_status`, `get_reply_request`, `cancel_reply_request`, `retry_reply_request` | Sanitized status only; retry uses the controlling task's causal chain, without automatic allowance. Exact owner approval may authorize one allowance consumed atomically by that retry. |
+| Approval | `create_approval`, `get_approval`, `execute_approved_action` | Exact typed platform-write action; owner-only decision; original execution permissions and chain. |
+| Personal configuration/security | Human profile, Soul, Skills, Memory, credentials and reset forms | No platform tool for personal configuration, secret values, approval decisions, extra allowance, reset or tenant administration. Existing private execution/Memory tools keep their own separate gates. |
+
+Approval JSON may include the safe frozen `{tool,arguments}` action for its approver, excluding SDK internal references and secret tools. The existing card's View details exposes that exact tool and arguments as escaped React text/JSON, alongside target and impact; old cards without an action remain usable. `frontend/checks/approval-details-ui.cjs` verifies all 13 action variants, legacy cards, approver filtering, escaped markup, English desktop and Chinese 390px layout without submitting any decision. Exact owner approval may authorize a single retry of an existing legitimately frozen private task with the private execution impact made explicit, but never installs private tools in the group. `owner_ids` is capped at 100 and `source_message_ids` at 500 in platform declarations.
+
+Approval action variants include `set_message_reaction`, `send_chat_message`, `create_chat`, `rename_chat`, `add_chat_members`, `create_reminder`, `update_reminder`, `create_tracking`, `update_tracking`, `delete_tracking`, `add_tracking_update`, `save_summary`, `cancel_reply_request` and `retry_reply_request`. Their arguments reuse the installed typed tool declarations. Approval cards may appear in the owner's private inbox for a group task; decision continuation stays in the originating group with frozen execution configuration, never gaining private shell/credential/Memory permissions. A pending card does not block later replies.
+
+On a genuinely resumable SDK run, platform declarations are re-injected from that run's frozen tool records using only currently known platform executors. Each invocation still performs current service authorization. A saved unknown tool name cannot install an executor. Completed session history alone does not freeze a new run's declarations. New platform declarations use version `twin-teams-platform-v2`; a resumed declaration retains its saved version. Execution/subagent assembly is unchanged.
+
+New chat membership emits an owner-targeted `personal_changed` notification with `section:'chats'` after commit. Reusing an existing direct chat does not emit a new-membership hint. The client reloads canonical bootstrap on that hint and once on connection/reconnection, preserving a still-authorized current selection, draft, detail and focus. Subscriptions compare sorted chat-ID sets, so list reordering does not reconnect. `frontend/checks/chat-discovery-ui.cjs` passes private/group scenarios for new-chat discovery, missed-hint reconnect recovery and unchanged-set reordering with fully synthetic HTTP/WS. Typecheck and production build pass; the final approval-detail build is `index-s3FTSbjB.js` / `index-BMWbdcWb.css`.
+
+Only an explicit `wait_for_reply:true` from the owner's private Twin to an existing authorized group creates a fixed thirty-minute followup in the send transaction. A direct reply to that message or the deadline commits one terminal outcome and one `followup_result` on the original private FIFO, or a durable budget-paused delivery that the existing owner Continue API can resume. Normal model replies qualify only at completed final output; intermediate narration does not close a followup. Human messages and committed send-tool replies qualify immediately. Consumed direct replies do not also route the same owner into a group response. The existing six-reply allowance covers followup delivery on the original chain, without resetting at timeout; exhausted chains pause before invoking a model router. Waiting uses existing deadline/change hints and bounded due recovery, with no resident model/subagent. A completed empty followup final remains silent. See `twin-followups.md` for late-reply and permission-revocation behavior.
 
 The separate local credential routes use sanitized fixed-code responses rather than the ordinary `{detail}` errors. See `local-provider-configuration.md`: only the local AAA administrator can validate a personally submitted key against the fixed official endpoint, with explicit optional local saving. Neither validation nor saving enables Runtime generation.
 
 ## Module boundaries
 Backend product worker owns app/db.py, app/models.py, app/service.py, app/api.py, app/config.py, pyproject/lock and app/main.py composition. Expose `service` object from app.service with database operations and `bind_runtime(runtime)` for run scheduling/activity; coordinate exact callbacks with Astra lead. Runtime bridge is app/runtime_bridge.py owned by Astra lead. Frontend worker owns entire frontend. Runtime SDK worker owns sibling agent-runtime.
+
+## Soul and Git Memory
+
+Owner-only `/me/twin/soul` GET/PUT/DELETE edits canonical workspace SOUL.md using hash `expected_version` (null if deleted). The Twin may edit that same file through authorized private workspace tools; new requests freeze its current contents. Memory tools address the separate Memory store. Owner-only `/me/twin/memory/entry` PUT/DELETE uses Git SHA `expected_version` and returns 409 with `current` on conflict. Real configuration audit events supply source references. Incremental `memory_dream` requests use existing private FIFO/deadlines, independent SDK sessions, confirmed publication cursors and no conversation output. The platform prompt hook starts empty and has no user-facing API. See `twin-git-memory.md` for migration, cancellation and uncertain-publication behavior.
+
+## Human conversation titles
+
+`kind=private` remains the owner's conversation with their own Twin and displays that Twin's configured name. A `kind=group` conversation with exactly two current owners displays the other owner's human Actor name to each viewer; its stored historical title is ignored and it cannot be renamed. Chat JSON includes `can_rename`, true only for group chats with at least three current owners. Bootstrap, chat detail, summary, Agent context and authorized-chat metadata use the same viewer-aware title rule.
+
+`PATCH /chats/{chat_id} {title}` allows a current member to rename a group of at least three owners. The title is trimmed and must contain 1–256 characters (400 on invalid content, 409 for a private/two-owner chat, 403 for a nonmember). It returns the viewer's complete Chat JSON and uses the existing revision/change notification mechanism. Creating a two-owner conversation ignores a submitted title. Adding a third owner initializes a group title from all current human names; later additions preserve an existing group name. Local seed creation retains its defaults but never rewrites an existing pair/group title. No schema migration is needed; API and Worker service code both require reload to use the new display rule.
+
+`POST /chats` with exactly one distinct other owner is a bidirectional get-or-create. A nullable unique `direct_pair_key` hashes the sorted two-owner IDs. Opposite/concurrent API calls return the same complete viewer Chat. Existing membership history policy/floor/version, settings, title and history are never reset by a reused POST; submitted title/history policy apply only when the pair is first created. The existing Chat mutation transaction rechecks current membership after a uniqueness conflict. Adding a third owner clears the key in that transaction, so a later direct chat starts a new pair rather than returning the upgraded group.
+
+Deploy the pair-key migration before starting the new API/worker: `python -m app.migrate_direct_chats` performs only this schema/backfill, without seeding, memory work or model calls. `app.init_db` also invokes it for normal provisioning. The reference `direct-chat-schema.sql` only shows DDL; ADD COLUMN alone is insufficient because existing unique pairs must be backfilled. Ambiguous duplicate pairs cause an explicit migration failure. The generic migration never picks a canonical duplicate, deletes a conversation, merges history or alters user grants. Any individually approved empty duplicate cleanup must be separately revalidated in a maintenance transaction before backfill. There is no alias registry, new pair lock, or deterministic chat-ID reservation.

@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from agent_runtime.storage.coordination import ExecutionLeaseError
+from checks.postgres import TestDatabase
 from app import service as module
 from app.models import Approval, Message, Reminder, ReplyLane, ReplyRequest, RoutingDecision
 from app.runtime_bridge import RuntimeBridge, RuntimeBusy
@@ -21,16 +22,20 @@ def key():
 
 @pytest.fixture
 def product(tmp_path, monkeypatch):
-    url = "sqlite:///" + str(tmp_path / "product.db")
-    engine = create_engine(url, connect_args={"check_same_thread": False})
+    database = TestDatabase()
+    url = database.url
+    engine = create_engine(url.replace("postgresql://", "postgresql+psycopg://"))
     monkeypatch.setattr(module, "engine", engine)
     monkeypatch.setattr(module, "SessionLocal", sessionmaker(engine, expire_on_commit=False))
     monkeypatch.setattr(module, "settings", replace(module.settings, database_url=url))
-    monkeypatch.setenv("AGENT_DB_URL", "sqlite:///" + str(tmp_path / "runtime.db"))
+    monkeypatch.setenv("AGENT_DB_URL", url)
     service = module.ProductService()
     service.initialize()
+    # These tests explicitly model a healthy presence store with offline owners.
+    service._presence_cache = {owner: {"expires_at": 0, "focused_chats": []} for owner in ("owner-alex", "owner-maya", "owner-jordan")}
     yield service
     engine.dispose()
+    database.close()
 
 
 async def bridge_for(service):
@@ -49,8 +54,13 @@ def test_lost_worker_cannot_fail_active_request(product):
             runtime.execute = AsyncMock(side_effect=ExecutionLeaseError("new holder"))
             await product.execute_request(request["id"])
             with product.transaction() as db:
-                assert db.get(ReplyRequest, request["id"]).status == "running"
-                assert db.get(ReplyLane, ("private-alex", request["target_twin_id"])).active_request_id == request["id"]
+                # Platform queue inspection no longer claims execution. A lost SDK
+                # lease must preserve the original accepted input for its holder.
+                saved = db.get(ReplyRequest, request["id"])
+                assert saved.status == "queued"
+                assert saved.error is None
+                assert db.get(ReplyLane, ("private-alex", request["target_twin_id"])).active_request_id is None
+                assert request["id"] in product.claim_dispatches()
         finally:
             await runtime.close()
     asyncio.run(run())
@@ -182,3 +192,57 @@ def test_approval_survives_decision_projection_gap_and_executes_once(product):
         finally:
             await runtime.close()
     asyncio.run(run())
+
+
+def test_owner_admission_precedes_global_candidate_limit(product):
+    """A busy owner's old queue cannot hide a later owner's ready FIFO head."""
+    from app.models import Actor, Chat, Membership
+    with product.transaction() as db:
+        for index in range(105):
+            chat = Chat(id=f"fair-{index}", kind="group", title="Fairness fixture")
+            db.add(chat)
+            db.flush()
+            db.add(Membership(chat_id=chat.id, owner_id="owner-alex"))
+            product.accept_request(db, chat, "twin-alex", "owner-alex", "manual", key(), input_body="Explicit test")
+        other = product.accept_request(db, db.get(Chat, "private-maya"), "twin-maya", "owner-maya", "manual", key(), input_body="Later other owner")
+        other_id = other.id
+    ready = product.claim_dispatches()
+    assert other_id in ready
+    with product.transaction() as db:
+        owners = [db.get(Actor, db.get(ReplyRequest, request_id).target_twin_id).owner_id for request_id in ready]
+    assert owners.count("owner-alex") == 2
+    assert owners.count("owner-maya") == 1
+
+
+def test_unread_count_remains_exact_beyond_history_window(product):
+    from app.models import Chat
+    with product.transaction() as db:
+        chat = db.get(Chat, "group-alex-maya")
+        for index in range(130):
+            product.append_message(db, chat, author_id="owner-maya", kind="human", body=f"Unread {index}")
+    detail = product.chat_detail("owner-alex", "group-alex-maya", limit=100)
+    assert len(detail["messages"]) == 100
+    assert detail["has_more"] is True
+    assert detail["chat"]["unread_count"] == 130
+    earlier = product.chat_detail("owner-alex", "group-alex-maya", before_seq=detail["before_seq"])
+    assert len(earlier["messages"]) == 30
+    assert earlier["has_more"] is False
+
+
+def test_acknowledged_historical_stops_do_not_hide_new_stop(product):
+    from app.models import Chat, DispatchCommand
+    with product.transaction() as db:
+        chat = db.get(Chat, "private-alex")
+        for _ in range(105):
+            request = product.accept_request(db, chat, "twin-alex", "owner-alex", "manual", key(), input_body="Past stop")
+            request.status, request.cancel_requested = "cancelled", True
+            command = db.get(DispatchCommand, request.id)
+            command.kind, command.state = "cancel", "stop_signalled"
+        current = product.accept_request(db, chat, "twin-alex", "owner-alex", "manual", key(), input_body="Current request")
+        request_id = current.id
+    product.bind_runtime_run(request_id, "current-stop-session", "current-stop-run")
+    product._cancel_intent("owner-alex", request_id)
+    assert [row["id"] for row in product.pending_stops()] == [request_id]
+    product.acknowledge_stop(request_id)
+    assert product.pending_stops() == []
+    assert product.get_request(request_id)["cancel_requested"] is True

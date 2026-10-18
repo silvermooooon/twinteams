@@ -2,8 +2,8 @@
 from datetime import datetime
 from typing import Annotated, Literal
 import jwt
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Request, Response
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Request, Response, WebSocket
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
 from .config import settings
 from .service import service
@@ -44,16 +44,27 @@ class CreateChat(Input):
     history_policy: Literal["all", "fixed_7d", "no_prior"] = "all"
 
 
+class ChatTitleInput(Input):
+    title: str
+
+
 class AddMembers(Input):
     owner_ids: list[str] = Field(min_length=1, max_length=100)
     history_policy: Literal["all", "fixed_7d", "no_prior"]
 
 
 class SendMessage(Input):
-    body: str = Field(min_length=1, max_length=30000)
+    body: str = Field(default="", max_length=30000)
     client_request_key: str = Field(min_length=1, max_length=160)
     reply_to_message_id: str | None = None
     reply_for_me: bool = False
+    attachment_ids: list[Annotated[str, Field(min_length=1, max_length=80)]] = Field(default_factory=list, max_length=4)
+
+
+class MessageReactionInput(Input):
+    emoji: str = Field(min_length=1, max_length=32)
+    active: bool = Field(strict=True)
+    client_request_key: str = Field(min_length=1, max_length=160)
 
 
 class RequestReply(Input):
@@ -176,9 +187,26 @@ def create_chat(data: CreateChat, owner: OwnerIdentity):
     return service.create_chat(owner, **data.model_dump())
 
 
+@router.patch("/chats/{chat_id}")
+def rename_chat(chat_id: str, data: ChatTitleInput, owner: OwnerIdentity):
+    return service.rename_chat(owner, chat_id, data.title)
+
+
+@router.put("/chats/{chat_id}/messages/{message_id}/reactions")
+def set_message_reaction(chat_id: str, message_id: str, data: MessageReactionInput, owner: OwnerIdentity):
+    return service.set_message_reaction(owner, chat_id, message_id, data.emoji, data.active, data.client_request_key)
+
+
 @router.get("/chats/{chat_id}")
-def chat_detail(chat_id: str, owner: OwnerIdentity):
-    return service.chat_detail(owner, chat_id)
+def chat_detail(chat_id: str, owner: OwnerIdentity, limit: int = Query(100, ge=1, le=200), before_seq: int | None = Query(None, ge=1)):
+    return service.chat_detail(owner, chat_id, limit, before_seq)
+
+
+@router.get("/chats/{chat_id}/summary")
+def chat_summary(chat_id: str, owner: OwnerIdentity):
+    with service.transaction() as db:
+        chat, member = service.membership(db, owner, chat_id)
+        return service.chat_json(db, chat, member)
 
 
 @router.post("/chats/{chat_id}/members")
@@ -188,9 +216,7 @@ def add_members(chat_id: str, data: AddMembers, owner: OwnerIdentity):
 
 @router.post("/chats/{chat_id}/messages")
 def send_message(chat_id: str, data: SendMessage, owner: OwnerIdentity):
-    if not data.body.strip():
-        raise HTTPException(400, "Message cannot be blank")
-    return service.send_message(owner, chat_id, data.body, data.client_request_key, data.reply_to_message_id, data.reply_for_me)
+    return service.send_message(owner, chat_id, data.body, data.client_request_key, data.reply_to_message_id, data.reply_for_me, data.attachment_ids)
 
 
 @router.post("/chats/{chat_id}/reply-requests")
@@ -214,8 +240,8 @@ def continue_automatic_conversation(chat_id: str, chain_id: str, data: ContinueA
 
 
 @router.post("/presence")
-def presence(data: PresenceInput, owner: OwnerIdentity):
-    return service.presence(owner, **data.model_dump())
+async def presence(data: PresenceInput, owner: OwnerIdentity):
+    return await service.update_presence(owner, **data.model_dump())
 
 
 @router.post("/chats/{chat_id}/read")
@@ -242,13 +268,22 @@ def patch_settings(data: OwnerSettingsInput, owner: OwnerIdentity):
 
 
 @router.get("/chats/{chat_id}/activity")
-async def activity(chat_id: str, owner: OwnerIdentity):
-    return await service.activity(owner, chat_id)
+def activity(chat_id: str, owner: OwnerIdentity, limit: int = Query(50, ge=1, le=200), before: str | None = None):
+    import json
+    try:
+        cursor = json.loads(before) if before else None
+        if cursor is not None:
+            if not isinstance(cursor, list) or len(cursor) != 3 or not all(isinstance(item, str) for item in cursor):
+                raise ValueError("Invalid cursor")
+            cursor[0] = datetime.fromisoformat(cursor[0])
+    except (ValueError, TypeError):
+        raise HTTPException(422, "Activity cursor must contain timestamp, session_id and run_id") from None
+    return service.activity_page(owner, chat_id, limit, cursor)
 
 
 @router.get("/chats/{chat_id}/activity/{session_id}/{run_id}")
-async def activity_detail(chat_id: str, session_id: str, run_id: str, owner: OwnerIdentity):
-    return await service.activity(owner, chat_id, session_id, run_id)
+async def activity_detail(chat_id: str, session_id: str, run_id: str, owner: OwnerIdentity, limit: int = Query(100, ge=1, le=200), after_seq: int = Query(-1, ge=-1)):
+    return await service.activity(owner, chat_id, session_id, run_id, limit, after_seq)
 
 
 @router.post("/approvals/{approval_id}/decision")
@@ -261,6 +296,23 @@ def workspace(chat_id: str, owner: OwnerIdentity):
     return service.workspace(owner, chat_id)
 
 
+@router.post("/chats/{chat_id}/attachments")
+async def upload_attachment(chat_id: str, request: Request, owner: OwnerIdentity, name: str = Query(min_length=1, max_length=200)):
+    from .attachments import MAX_ATTACHMENT_BYTES
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > MAX_ATTACHMENT_BYTES:
+            raise HTTPException(413, "Attachments are limited to 20 MiB")
+    return await service.db_call("upload_attachment", owner, chat_id, name, bytes(data), request.headers.get("content-type", "application/octet-stream"))
+
+
+@router.get("/chats/{chat_id}/attachments/{attachment_id}")
+def download_attachment(chat_id: str, attachment_id: str, owner: OwnerIdentity):
+    path, info = service.attachment_file(owner, chat_id, attachment_id)
+    return FileResponse(path, filename=info["name"], media_type=info["mime_type"], content_disposition_type="inline" if info["kind"] == "image" else "attachment", headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store", "Content-Security-Policy": "default-src 'none'; sandbox"})
+
+
 @router.post("/chats/{chat_id}/workspace/files")
 async def upload_workspace(chat_id: str, request: Request, owner: OwnerIdentity, name: str = Query(min_length=1, max_length=200)):
     data = bytearray()
@@ -268,7 +320,7 @@ async def upload_workspace(chat_id: str, request: Request, owner: OwnerIdentity,
         data.extend(chunk)
         if len(data) > 20 * 1024 * 1024:
             raise HTTPException(413, "Workspace files are limited to 20 MiB")
-    return service.upload_workspace_file(owner, chat_id, name, bytes(data))
+    return await service.db_call("upload_workspace_file", owner, chat_id, name, bytes(data))
 
 
 @router.get("/chats/{chat_id}/workspace/files/{node_id}")
@@ -322,8 +374,7 @@ def update_reminder(reminder_id: str, data: ReminderPatch, owner: OwnerIdentity)
     return service.update_reminder(owner, reminder_id, data.done)
 
 
-@router.get("/events")
-async def events(owner: OwnerIdentity, chat_id: str, tt_dev_session: Annotated[str | None, Cookie()] = None):
-    # Authenticate and authorize before streaming response headers are committed.
-    service.chat_detail(owner, chat_id)
-    return StreamingResponse(service.events(owner, chat_id, tt_dev_session), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+@router.websocket("/ws")
+async def websocket(socket: WebSocket):
+    from .websocket import websocket_endpoint
+    await websocket_endpoint(socket)

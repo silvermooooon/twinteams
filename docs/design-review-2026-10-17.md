@@ -1,5 +1,8 @@
 # Twinteams 完整设计评审稿
 
+> Historical audit/design evidence, retained with its original date. Current accepted execution, notification and transport behavior is in [architecture.md](architecture.md). Earlier recommendations are not an implementation contract.
+
+
 2026-10-17 · 当前产品与交互设计 · 含最新确认的界面图示
 
 本稿集中呈现已经确认的设计，并将尚待细化的交互、Agent Runtime 集成差距与数据库工作单列。产品规则已确认不代表相关功能已经实现。
@@ -16,13 +19,7 @@
 
 Twinteams 的核心是：每个人都有一个独立身份的数字分身 Twins。真人优先表达；在约定条件下，Twins 代为回应、处理任务，并通过授权机制限制有副作用的行动。
 
-- Twinteams 负责身份/成员、聊天消息与已读、目标路由与触发规则、业务 FIFO、取消/停止入口、审批 UI/产品权限、Tracking、工作空间、Activity 展示和 SDK 来源映射。
-- Agent Runtime 是运行层 SDK，负责 Session/Run/Event、Agent loop、模型/工具调用、subagent 通信、运行持久化、checkpoint、执行恢复、执行并发控制及记忆基础设施。运行层能力在 SDK 内复用和增强，Twinteams 不重建运行时。
-- 职责最新确认（Sentinel_8bdb5bcb16c08191869a24887683f37b）：业务 FIFO 决定请求交给 SDK 的顺序；实际启动/停止/续跑和单 Session 执行互斥归 SDK。产品决定取消/审批权限及展示，SDK 负责授权动作检查与执行安全。能力缺口作为 SDK 集成依赖，不列成产品自建表或声称已经实现。
-- 前端使用 React；后端限定 Python 3.13，API 使用 FastAPI。
-- 产品界面全部使用英文，并预留多语言支持；本评审文档使用中文。
-- 最新实现方向（Sentinel_668b128c9bd481918ea969b8c14f4763）：进入实现阶段，本地开发使用 SQLite，生产部署使用 PostgreSQL；本文的新功能不能因此视为已经完成。数据库最终字段、迁移和 SDK 适配仍需在实现中核对。
-- 快速开发阶段不主动编写单元测试、回归测试或完整测试流程；按要求直接运行并处理运行错误。
+- 存储更新（2026-10-18）：本地开发与部署统一使用 PostgreSQL。业务数据、权限和 FIFO 由 Twinteams 管理；执行日志、恢复、checkpoint 和租约由 Agent Runtime 管理。该选择不改变已确认的交互、来源权限、完整结果保存与项目职责。
 
 ## 2. Teams 风格与整体布局
 
@@ -374,7 +371,7 @@ Chat 是产品聊天容器。Agent 的执行会话需要关联到对应聊天与
 - UI 与个人设置：每聊天模式开关、提示词覆盖、侧栏状态；在线/查看状态与通知记录。
 - 工作空间：个人或群归属、目录/文件关联及访问权限。
 
-运行层数据与 Agent 生命周期由 Runtime 管理；Twinteams 保存上层业务关系并通过 SDK 使用运行能力。数据库选型已确认本地 SQLite、生产 PostgreSQL；业务 schema、约束、索引、事务与迁移兼容方案需继续落定，不能把 SQLite 开发模式当成跨 pod 执行能力的替代品。
+存储更新（2026-10-18）：本地开发与部署统一使用 PostgreSQL。业务数据、权限和 FIFO 由 Twinteams 管理；执行日志、恢复、checkpoint 和租约由 Agent Runtime 管理。该选择不改变已确认的交互、来源权限、完整结果保存与项目职责。
 
 ## 15. 尚待细化与明确后置的内容
 

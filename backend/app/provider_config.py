@@ -31,7 +31,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 
 from .api import OwnerIdentity
-from .config import ROOT, settings
+from .config import ROOT, settings, local_database
 
 MODEL = "gpt-6-luna"
 PROVIDER_URL = "https://api.openai.com/v1/responses"
@@ -106,14 +106,14 @@ def _result(status, code, message, *, validated=False, saved=False):
 
 
 def _local_available():
-    # A separately configured PostgreSQL runtime must not inherit this local UI.
+    # A remote Runtime database must not inherit this local-only UI.
     runtime_database = os.getenv("AGENT_DB_URL", settings.database_url)
     return (
         os.getenv("TWINTEAMS_LOCAL_PROVIDER_CONFIG", "").strip().lower() == "true"
         and settings.local_identity_enabled
         and settings.tenant_id != "acceptance-fixture"
         and os.getenv("AGENT_API", "") != "twinteams-browser-acceptance-offline"
-        and urlsplit(runtime_database).scheme in {"sqlite", "sqlite+pysqlite"}
+        and local_database(runtime_database)
     )
 
 
@@ -124,7 +124,7 @@ def _header_values(request, name):
 def _request_guard(request):
     if not _local_available():
         return _result(
-            403, "local_only", "Provider validation is disabled outside local SQLite development."
+            403, "local_only", "Provider validation is disabled outside local development."
         )
     if not request.client:
         return _result(403, "local_only", "Provider validation requires a loopback connection.")

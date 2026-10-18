@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Actor, ApiClient } from './api/client';
 import { BrandMark, FixtureBanner, Icon } from './ui';
 import { t } from './i18n';
+import './TeamsOverlays.css';
 export type AuthSession = { owner: Actor; current_owner_id: string; development_mode: boolean };
 export function LoginScreen({ api, developmentMode, configLoading, configError, onLogin, onReload, acceptanceFixture }: { api: ApiClient; developmentMode: boolean; configLoading: boolean; configError: string; acceptanceFixture: boolean; onLogin: (session: AuthSession) => void; onReload: () => void }) {
   const [username, setUsername] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');

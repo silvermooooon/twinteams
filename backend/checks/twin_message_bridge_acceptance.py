@@ -1,6 +1,6 @@
 """Focused offline checks for Twin chat tools and response-aware routing.
 
-Uses only a temporary SDK SQLite journal, an in-memory product stub, and an
+Uses only a temporary SDK PostgreSQL journal, an in-memory product stub, and an
 explicitly registered deterministic test adapter. No app database, server,
 browser, credential files, or external provider is used.
 Run: .venv/bin/python checks/twin_message_bridge_acceptance.py
@@ -10,14 +10,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from pathlib import Path
 import sys
 import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 
 TEMP = tempfile.TemporaryDirectory(prefix="twin-message-bridge-")
 for name, value in {
-    "AGENT_DB_URL": "sqlite:///" + str(Path(TEMP.name) / "runtime.sqlite3"),
     "AGENT_PROVIDER": "openai",
     "AGENT_MODEL": "twin-message-bridge-offline",
     "AGENT_API": "twin-message-bridge-offline",
@@ -32,8 +31,15 @@ for name, value in {
     os.environ[name] = value
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from postgres import TestDatabase
+
+DATABASE = TestDatabase().configure()
+
 from agent_runtime import AbortSignal, AssistantMessageEventStream, assistant_message
+
+from app import credentials, personal
 from app.runtime_bridge import ModelNotConfigured, RuntimeBridge, final_text_record, text_content
+from app.twin_execution import private_execution_allowed
 
 CALLS = []
 
@@ -79,6 +85,29 @@ async def offline(model, context, options):
 
 
 class ProductStub:
+    async def db_call(self, name, *args, **kwargs):
+        # Explicit in-memory test adapter for production transaction boundary.
+        # Keep the real assembly path while isolating all business-store calls:
+        # these group requests have no private execution, Skills or credentials.
+        # Never invoke a production callable against the application's database.
+        if name is private_execution_allowed:
+            assert args[0] is self and args[2] in self.requests
+            value = False
+        elif name is personal.get_execution_config:
+            assert args[0] in self.requests
+            value = {"version": 1, "skills": [], "credentials": [], "execution_enabled": False}
+        elif name is credentials.continuation_origin:
+            assert args[0] is self and args[2] in self.requests
+            value = None
+        elif callable(name):
+            raise AssertionError(f"Unexpected product callable in isolated check: {name.__name__}")
+        else:
+            value = getattr(self, name)(*args, **kwargs)
+        return await value if hasattr(value, "__await__") else value
+
+    def record_activity(self, *args, **kwargs):
+        pass
+
     def __init__(self):
         self.requests = {}
         self.tool_calls = []
@@ -155,7 +184,8 @@ async def main():
             assert sent_context[key] == expected, (key, sent_context)
         system = runtime._system(context("request"))
         assert '"author_owner_id": "owner-b"' in system
-        assert "never move private owner information into a group" in system.casefold()
+        assert "internal audit references" in system
+        assert "neither share the private transcript" in system
         print("PASS proactive tool schema, stable SDK operation identity, causal origin and source-owner prompt")
 
         async def route(mode):

@@ -1,4 +1,4 @@
-"""Bounded product regressions, isolated SQLite, no network/model/provider calls.
+"""Bounded product regressions, isolated PostgreSQL, no network/model/provider calls.
 
 Run from backend: uv run --python 3.13 python checks/product_acceptance.py
 This script creates only its own temporary database. It does not reset local data.
@@ -17,11 +17,13 @@ import time
 from uuid import uuid4
 
 TEMP = tempfile.TemporaryDirectory(prefix="twinteams-product-acceptance-")
-os.environ["DATABASE_URL"] = "sqlite:///" + str(Path(TEMP.name) / "product.db")
 os.environ["TWINTEAMS_WORKSPACE_ROOT"] = str(Path(TEMP.name) / "workspace")
 os.environ["TWINTEAMS_ENV"] = "local"
 os.environ["TWINTEAMS_DEVELOPMENT_MODE"] = "true"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from postgres import TestDatabase
+DATABASE = TestDatabase().configure()
 
 from fastapi import HTTPException
 from sqlalchemy import event, select
@@ -58,11 +60,11 @@ async def main():
     assert identity_guard() == "False"
     assert identity_guard(TWINTEAMS_ENV="production", TWINTEAMS_DEVELOPMENT_MODE="true") == "False"
     assert identity_guard(TWINTEAMS_ENV="local", TWINTEAMS_DEVELOPMENT_MODE="true", DATABASE_URL="postgresql://example.invalid/product") == "False"
-    assert identity_guard(TWINTEAMS_ENV="local", TWINTEAMS_DEVELOPMENT_MODE="true", DATABASE_URL="sqlite:///local.db") == "True"
+    assert identity_guard(TWINTEAMS_ENV="local", TWINTEAMS_DEVELOPMENT_MODE="true", DATABASE_URL="postgresql://localhost/test") == "True"
     for overrides in ({"TWINTEAMS_ENV": "production"}, {"DATABASE_URL": "postgresql://example.invalid/product"}, {"AGENT_DB_URL": "postgresql://example.invalid/runtime"}):
         result = subprocess.run([sys.executable, "run_local.py"], cwd=backend, env=guard_environment(**overrides), capture_output=True, text=True, timeout=5)
         assert result.returncode == 2, result.stderr
-    print("PASS secure defaults and explicit local/SQLite development guards")
+    print("PASS secure defaults and explicit local/PostgreSQL development guards")
     s = ProductService()
     s.initialize()
     # Real cookie-session business primitives, with explicit local identities.
@@ -207,14 +209,17 @@ async def main():
     await entered.wait()
     a.finish_request(private1, "completed")
     assert private2 in a.claim_dispatches()
+    # Canonical executor start projects running; inspection never claims.
+    a.bind_runtime_run(private2, "fixture-second-session", "fixture-second-run")
     release.set()
     await task
     with a.transaction() as db:
         assert db.get(ReplyRequest, private1).status == "completed"
         assert db.get(ReplyRequest, private2).status == "running"
-        assert db.get(ReplyLane, ("private-maya", "twin-maya")).active_request_id == private2
+        assert db.get(ReplyLane, ("private-maya", "twin-maya")).active_request_id is None
+        assert db.get(ReplyLane, ("private-maya", "twin-maya")).session_id == "fixture-second-session"
     print("PASS delayed RuntimeBusy cannot overwrite newer terminal/lane state")
-    # SQLite's BEGIN IMMEDIATE serializes publish against Stop across independent
+    # PostgreSQL row locks serialize publish against Stop across independent
     # service instances. A projection committed before Stop is withdrawn; a late
     # projection after confirmed Stop is rejected, with semantic audit retained.
     publisher, stopper = ProductService(), ProductService()
@@ -229,7 +234,7 @@ async def main():
     loaded, proceed, stop_started, stop_finished = (threading.Event() for _ in range(4))
     errors = []
     def barrier(conn, cursor, statement, parameters, context, executemany):
-        if threading.current_thread().name == "projection-fixture" and "FROM tt_chats" in statement:
+        if threading.current_thread().name == "projection-fixture" and "FROM tt_reply_requests" in statement and "FOR UPDATE" in statement:
             loaded.set()
             if not proceed.wait(5):
                 raise AssertionError("Projection fixture barrier timed out")
@@ -242,11 +247,14 @@ async def main():
         try:
             stop_started.set()
             asyncio.run(stopper.cancel_request("owner-jordan", stop_request))
+            assert stopper.get_request(stop_request)["cancel_requested"]
+            # Execution-service terminal acknowledgment follows durable stop intent.
+            stopper.finish_request(stop_request, "cancelled")
         except BaseException as exc:
             errors.append(exc)
         finally:
             stop_finished.set()
-    event.listen(engine, "before_cursor_execute", barrier)
+    event.listen(engine, "after_cursor_execute", barrier)
     producer = threading.Thread(target=publish_fixture, name="projection-fixture")
     consumer = threading.Thread(target=stop_fixture, name="stop-fixture")
     try:
@@ -255,14 +263,14 @@ async def main():
         consumer.start()
         assert stop_started.wait(5)
         time.sleep(0.05)
-        assert not stop_finished.is_set(), "Stop bypassed the outstanding SQLite transaction"
+        assert not stop_finished.is_set(), "Stop bypassed the outstanding transaction"
         proceed.set()
         producer.join(5)
         consumer.join(5)
         assert not producer.is_alive() and not consumer.is_alive() and not errors, errors
     finally:
         proceed.set()
-        event.remove(engine, "before_cursor_execute", barrier)
+        event.remove(engine, "after_cursor_execute", barrier)
     assert stopper.get_request(stop_request)["status"] == "cancelled"
     assert publisher.publish_runtime_output(stop_request, "LATE OUTPUT MUST NOT PUBLISH", "fixture-session", "fixture-run", "late-output") is None
     assert not any(message.get("request_id") == stop_request for message in stopper.chat_detail("owner-jordan", "private-jordan")["messages"])

@@ -1,4 +1,4 @@
-"""Focused causal-conversation checks, isolated SQLite, no server/provider calls.
+"""Focused causal-conversation checks, isolated PostgreSQL, no server/provider calls.
 Run from backend: .venv/bin/python checks/twin_conversation_acceptance.py
 """
 from __future__ import annotations
@@ -6,27 +6,40 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 import os
-import re
-import sqlite3
 from pathlib import Path
 import sys
 import tempfile
 from uuid import uuid4
 
 TEMP = tempfile.TemporaryDirectory(prefix="twinteams-conversation-check-")
-os.environ["DATABASE_URL"] = "sqlite:///" + str(Path(TEMP.name) / "check.db")
 os.environ["TWINTEAMS_WORKSPACE_ROOT"] = str(Path(TEMP.name) / "workspace")
 os.environ["TWINTEAMS_ENV"] = "local"
 os.environ["TWINTEAMS_DEVELOPMENT_MODE"] = "true"
 os.environ["TWINTEAMS_AUTOMATIC_REPLY_ALLOWANCE"] = "6"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from postgres import TestDatabase
+DATABASE = TestDatabase().configure()
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from app.db import engine
 from app.models import (Actor, AllowanceGrant, AutomaticReservation, CausalChain,
-                        Chat, Message, PendingChildResult, Presence, Receipt, ReplyRequest,
+                        Message, PendingChildResult, Presence, Receipt, ReplyRequest,
                         RoutingDecision, TriggerCandidate, now)
-from app.service import ProductService
+from app.service import ProductService as RealProductService
+
+
+class ProductService(RealProductService):
+    def __init__(self):
+        super().__init__()
+        # Healthy presence fixture, offline until an explicit focus transition.
+        self._presence_cache = {owner: {"expires_at": 0, "focused_chats": []} for owner in ("owner-alex", "owner-maya", "owner-jordan")}
+
+    def presence_state(self, db, owner_id, chat_id):
+        # This pure business fixture supplies TTL observations from its explicit
+        # lease rows. Real Redis transport/unknown behavior is independently tested.
+        leases = list(db.scalars(select(Presence).where(Presence.owner_id == owner_id, Presence.expires_at > now())))
+        return bool(leases), any(lease.visible and lease.focused_chat_id == chat_id for lease in leases)
 
 
 def key():
@@ -112,6 +125,7 @@ async def main():
     assert chain_state(s, chain_id) == (6, 6)
     assert current["id"] in s.claim_dispatches()
     owner = "owner-alex" if current["target_twin_id"] == "twin-alex" else "owner-maya"
+    s.bind_runtime_run(current["id"], f"s:{pair}:{current['target_twin_id']}", current["id"])
     s.presence(owner, "accepted-view", pair, True)
     assert s.get_request(current["id"])["status"] == "running"
     final_id = output(s, current, "Full final response 6")
@@ -137,9 +151,9 @@ async def main():
     assert not requests_for(s, cap_send["message_id"]) and chain_state(s, chain_id) == (6, 6)
     print("PASS child payload retained before SDK ack/recovery; accepted-run proactive send shares the exhausted chain")
 
-    # Budget-paused triggers are still unaccepted. Viewing an offscreen source,
-    # reading it, or answering manually must permanently suppress that trigger,
-    # without touching accepted work or the retained child-completion payload.
+    # Exhausted work pauses before paying for routing. Attention facts collected
+    # while routing is paused must still suppress its eventual candidates after
+    # Continue, without changing accepted work or retained child results.
     attention_sources = []
     accepted_attention = []
     for mode in ("view", "read", "reply"):
@@ -154,12 +168,15 @@ async def main():
         await s.route_pending()
         with s.transaction() as db:
             candidate = db.scalar(select(TriggerCandidate).where(TriggerCandidate.message_id == source_id, TriggerCandidate.target_twin_id == "twin-maya"))
-            assert candidate.state == "paused" and candidate.evidence["pause_reason"] == "budget_exhausted"
+            assert candidate is None
+            decision = db.scalar(select(RoutingDecision).where(RoutingDecision.message_id == source_id))
+            assert decision.status == "paused" and decision.reason == "budget_exhausted"
         accepted_request = s.manual_request("owner-alex", attention_chat, source_id, "twin-alex", key())
         expected_status = "queued"
         if mode == "view":
             assert accepted_request["id"] in s.claim_dispatches()
             expected_status = "running"
+            s.bind_runtime_run(accepted_request["id"], f"s:{attention_chat}:{accepted_request['target_twin_id']}", accepted_request["id"])
             s.presence("owner-maya", "paused-offscreen", attention_chat, True)
             s.presence("owner-maya", "paused-offscreen", None, False)
             with s.transaction() as db:
@@ -170,7 +187,7 @@ async def main():
             s.send_message("owner-maya", attention_chat, "I handled this myself", key())
         with s.transaction() as db:
             candidate = db.scalar(select(TriggerCandidate).where(TriggerCandidate.message_id == source_id, TriggerCandidate.target_twin_id == "twin-maya"))
-            assert candidate.state == "suppressed" and candidate.accepted_request_id is None
+            assert candidate is None
             assert db.get(PendingChildResult, child["id"]).state == "paused"
         assert s.get_request(accepted_request["id"])["status"] == expected_status
         attention_sources.append(source_id)
@@ -196,7 +213,11 @@ async def main():
         assert pending.state == "accepted"
         child_request = s.request_payload(db.get(ReplyRequest, pending.accepted_request_id))
         assert child_request["source"] == "subagent_result" and child_request["causal_chain_id"] == chain_id
+    await s.route_pending()
     for source_id in attention_sources:
+        with s.transaction() as db:
+            candidate = db.scalar(select(TriggerCandidate).where(TriggerCandidate.message_id == source_id, TriggerCandidate.target_twin_id == "twin-maya"))
+            assert candidate.state == "suppressed" and candidate.accepted_request_id is None
         assert not [request for request in requests_for(s, source_id) if request["target_twin_id"] == "twin-maya"]
     for request_id, expected_status in accepted_attention:
         assert s.get_request(request_id)["status"] == expected_status
@@ -243,7 +264,14 @@ async def main():
     context = s.get_runtime_context(private["id"])
     chats = await s.runtime_tool("list_authorized_chats", {}, context)
     assert target in {chat["id"] for chat in chats["chats"]} and "private-maya" not in {chat["id"] for chat in chats["chats"]}
-    await expect_async_http(403, lambda: s.runtime_tool("send_chat_message", {"chat_id": target, "body": "private source", "source_message_ids": []}, {**context, "operation_id": key()}))
+    disclosed = await s.runtime_tool("send_chat_message", {"chat_id": target, "body": "A greeting on behalf of Alex", "source_message_ids": []}, {**context, "operation_id": key()})
+    assert disclosed["sent"] and disclosed["causal_chain_id"] == private["causal_chain_id"]
+    destination = s.chat_detail("owner-maya", target)
+    assert any(message["id"] == disclosed["message_id"] for message in destination["messages"])
+    assert "Private context" not in str(destination)
+    with s.transaction() as db:
+        disclosed_message = db.get(Message, disclosed["message_id"])
+        assert disclosed_message.source_message_ids == [] and disclosed_message.source_provenance == []
     own = await s.runtime_tool("send_chat_message", {"chat_id": "private-alex", "body": "Authorized private update", "source_message_ids": []}, {**context, "operation_id": key()})
     assert own["author_id"] == "twin-alex"
     # Stop removes incomplete main projections, preserving committed tool effects.
@@ -257,7 +285,7 @@ async def main():
         assert db.get(Message, projection).state == "withdrawn"
         assert db.get(Message, same_chat["message_id"]).state == db.get(Message, cross_chat["message_id"]).state == "published"
     await expect_async_http(403, lambda: s.runtime_tool("send_chat_message", {"chat_id": origin, "body": "Must not send after stop", "source_message_ids": []}, {**stop_context, "operation_id": key()}))
-    print("PASS private metadata discovery, private isolation, same-chat sends and Stop preserves committed tool messages")
+    print("PASS private metadata discovery, owner-voice cross-chat send without private history, same-chat sends and Stop preserves committed tool messages")
 
     race_chat = s.create_chat("owner-alex", ["owner-maya", "owner-jordan"], "Atomic cap")["id"]
     root = s.send_message("owner-alex", race_chat, "Race root", key())["message"]
@@ -319,12 +347,11 @@ async def main():
         assert candidate.state == "suppressed" and candidate.evidence["suppression"] == "not_a_routed_recipient"
     print("PASS legacy unaccepted triggers require needs_response AND the newly approved recipient set")
 
-    # Simulate a real v1 schema without the newly added columns/tables. This
-    # rebuild is test-only in TEMP; the application's migration remains additive.
+    # Remove newly introduced fields in this disposable schema to exercise the
+    # additive PostgreSQL upgrade without touching the application schema.
     preserved_id = old_message["id"]
-    engine.dispose()
-    with sqlite3.connect(Path(TEMP.name) / "check.db") as db:
-        db.execute("PRAGMA foreign_keys=OFF")
+    from sqlalchemy import text
+    with engine.begin() as db:
         additions = {
             "tt_messages": {"causal_chain_id"},
             "tt_reply_requests": {"causal_chain_id", "automatic_reservation_id", "source_owner_id"},
@@ -332,19 +359,10 @@ async def main():
             "tt_routing_decisions": {"needs_response", "reason"},
         }
         for table, removed in additions.items():
-            ddl = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()[0]
-            pattern = re.compile(r"\b(" + "|".join(removed) + r")\b")
-            lines = [line for line in ddl.splitlines() if not pattern.search(line)]
-            rebuilt = "\n".join(lines).replace("CREATE TABLE " + table, "CREATE TABLE " + table + "_legacy", 1)
-            rebuilt = re.sub(r",\s*\)$", "\n)", rebuilt)
-            db.execute(rebuilt)
-            columns = [row[1] for row in db.execute("PRAGMA table_info(" + table + ")") if row[1] not in removed]
-            names = ",".join(columns)
-            db.execute(f"INSERT INTO {table}_legacy ({names}) SELECT {names} FROM {table}")
-            db.execute("DROP TABLE " + table)
-            db.execute(f"ALTER TABLE {table}_legacy RENAME TO {table}")
-        for table in ["tt_pending_child_results", "tt_automatic_allowance_grants", "tt_automatic_reservations", "tt_causal_chains"]:
-            db.execute("DROP TABLE " + table)
+            for column in removed:
+                db.execute(text(f"ALTER TABLE {table} DROP COLUMN {column} CASCADE"))
+        for table in ("tt_pending_child_results", "tt_automatic_allowance_grants", "tt_automatic_reservations", "tt_causal_chains"):
+            db.execute(text(f"DROP TABLE {table} CASCADE"))
     upgraded = ProductService(); upgraded.initialize()
     with upgraded.transaction() as db:
         assert db.get(Message, preserved_id).body == "Legacy pending question"
@@ -352,7 +370,7 @@ async def main():
     assert recovered_request["causal_chain_id"] and recovered_request["automatic_reservation_id"]
     assert upgraded.get_request(legacy["id"])["causal_chain_id"] == recovered_request["causal_chain_id"]
     print("PASS actual old-column schema upgrades additively, preserves old content and recovers one durable lineage")
-    print("Twin conversation acceptance: focused SQLite checks passed; PostgreSQL not executed; no provider was called.")
+    print("Twin conversation acceptance: focused PostgreSQL checks passed; real database checks passed; no provider was called.")
 
 
 if __name__ == "__main__":

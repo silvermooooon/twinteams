@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { requestKey } from './api/client';
 import type { Actor, ApiClient, AutomaticConversation } from './api/client';
 import { t } from './i18n';
+import './TeamsOverlays.css';
 import { Icon } from './ui';
 
 // A lost response must not turn a retry, navigation, or reload into a second grant.
@@ -41,8 +42,8 @@ export function AutomaticConversations({ api, chatId, conversations = [], actors
     } finally {
       inFlight.current.delete(scope);
       setPending(previous => ({ ...previous }));
-      // REST, including the normal poll, decides when the paused banner changes.
-      try { await onChange(); } catch { /* The canonical poll can recover a failed refresh. */ }
+      // Authorized HTTP state decides when the paused banner changes.
+      try { await onChange(); } catch { /* Reconnect synchronization can recover a failed refresh. */ }
     }
   }
 

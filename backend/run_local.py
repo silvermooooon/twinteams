@@ -3,11 +3,11 @@
 Run: uv run --python 3.13 python run_local.py --port 8000
 Production deployments must use their verified-identity app entrypoint instead.
 """
+
 from __future__ import annotations
 
 import argparse
 import os
-from urllib.parse import urlsplit
 
 
 def main() -> None:
@@ -19,16 +19,20 @@ def main() -> None:
     inherited = os.getenv("TWINTEAMS_ENV", "local").strip().lower()
     if inherited != "local":
         parser.error("The local development entrypoint refuses an inherited non-local environment")
-    for variable in ("DATABASE_URL", "AGENT_DB_URL"):
-        value = os.getenv(variable)
-        if value and urlsplit(value.strip()).scheme not in {"sqlite", "sqlite+pysqlite"}:
-            parser.error(f"The local development entrypoint requires SQLite for {variable}")
-    # Set explicit opt-in before importing uvicorn or any application module.
+    if not os.getenv("DATABASE_URL"):
+        parser.error("DATABASE_URL is required")
     os.environ["TWINTEAMS_ENV"] = "local"
     os.environ["TWINTEAMS_DEVELOPMENT_MODE"] = "true"
     os.environ["TWINTEAMS_LOCAL_PROVIDER_CONFIG"] = "true"
+    from app.config import local_database
+
+    for variable in ("DATABASE_URL", "AGENT_DB_URL"):
+        value = os.getenv(variable)
+        if value and not local_database(value):
+            parser.error(f"The local entrypoint requires local PostgreSQL for {variable}")
     import uvicorn
-    uvicorn.run("app.main:app", host="127.0.0.1", port=args.port, timeout_graceful_shutdown=3)
+
+    uvicorn.run("app.main:app", host="127.0.0.1", port=args.port, timeout_graceful_shutdown=3, ws_max_size=65536, ws_max_queue=64)
 
 
 if __name__ == "__main__":

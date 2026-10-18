@@ -17,9 +17,9 @@ Manual proactive-tool check in Team workspace, Reply for me off:
     with an authorized source ID. Its final acknowledgement needs no response.
 
 All model responses are deterministic and labelled. Product service, HTTP/auth,
-SQLite journal, SDK execution/tools, FIFO, child delivery and approvals are real.
-No third-party model or effect adapter is used. Data persists only below
-backend/data/acceptance-fixture; this script never resets or opens the normal DB.
+PostgreSQL journal, SDK execution/tools, FIFO, child delivery and approvals are real.
+No third-party model or effect adapter is used. Database records use a disposable
+test schema; files use backend/data/acceptance-fixture. Application tables are untouched.
 """
 from __future__ import annotations
 
@@ -36,7 +36,6 @@ import sys
 BACKEND = Path(__file__).resolve().parents[1]
 FIXTURE_ROOT = (BACKEND / "data" / "acceptance-fixture").resolve()
 FIXTURE_ROOT.mkdir(parents=True, exist_ok=True)
-DATABASE = FIXTURE_ROOT / "fixture.sqlite3"
 API = "twinteams-browser-acceptance-offline"
 LABEL = "Acceptance test instance · Simulated model responses for testing only."
 DIALOGUE_STEP = re.compile(r"^Acceptance fixture simulated dialogue \[([A-Za-z0-9_-]+)\]: step (\d+)\.", re.IGNORECASE)
@@ -45,8 +44,6 @@ DIALOGUE_STEP = re.compile(r"^Acceptance fixture simulated dialogue \[([A-Za-z0-
 # No configurable database path is accepted here: an accidental shell variable
 # must never make this fixture touch the live/local-development instance.
 for name, value in {
-    "DATABASE_URL": "sqlite:///" + str(DATABASE),
-    "AGENT_DB_URL": "sqlite:///" + str(DATABASE),
     "TWINTEAMS_ENV": "local",
     "TWINTEAMS_DEVELOPMENT_MODE": "true",
     "TWINTEAMS_TENANT_ID": "acceptance-fixture",
@@ -64,6 +61,9 @@ for name, value in {
 }.items():
     os.environ[name] = value
 sys.path.insert(0, str(BACKEND))
+
+from postgres import TestDatabase
+DATABASE = TestDatabase().configure()
 
 from agent_runtime import AssistantMessageEventStream, OperationAborted, assistant_message
 from fastapi import Request

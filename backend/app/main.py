@@ -10,6 +10,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from .api import router
 from .provider_config import router as provider_config_router
+from .personal_api import router as personal_router
+from .credential_api import router as credential_router
 from .config import settings
 from .service import service
 
@@ -19,31 +21,33 @@ if sys.version_info[:2] != (3, 13):
 
 @asynccontextmanager
 async def lifespan(app):
-    service.initialize()
-    runtime = None
+    # API never starts recovery, a scheduler, or an Agent executor.
+    await service.db_call("check_initialized")
+    from .runtime_bridge import RuntimeBridge
+    from .websocket import hub
+    runtime = RuntimeBridge(service)
     try:
-        from .runtime_bridge import RuntimeBridge
-        runtime = RuntimeBridge(service)
         try:
             await runtime.start()
         except Exception as exc:
             runtime.startup_error = str(exc)
-            logging.getLogger(__name__).exception("Runtime initialization failed; model requests will fail clearly")
+            logging.getLogger(__name__).exception("Runtime read store unavailable")
         service.bind_runtime(runtime)
-        if not runtime.startup_error:
-            await runtime.recover_background()
-        await service.start()
+        await service.start(worker=False)
+        await hub.start()
         yield
     finally:
+        await hub.close()
         await service.close()
-        if runtime:
-            await runtime.close()
+        await runtime.close()
 
 
 app = FastAPI(title="Twinteams API", version="0.2.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_credentials=False, allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization", "X-Owner-Id"])
+app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_credentials=False, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization", "X-Owner-Id"])
 app.include_router(router)
 app.include_router(provider_config_router)
+app.include_router(personal_router)
+app.include_router(credential_router)
 
 
 @app.exception_handler(RequestValidationError)

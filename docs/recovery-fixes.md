@@ -1,7 +1,7 @@
 # Recovery fixes and repository consolidation
 
 Twinteams uses the original `silvermooooon/agent-runtime` as an editable sibling
-checkout. The useful durable execution, SQLite and child-agent work from the
+checkout. The useful durable execution and child-agent work from the
 separate snapshot is incorporated there. Agent loop/session state stays canonical
 in SDK records; product tables own presentation, business scheduling and access.
 
@@ -19,9 +19,11 @@ in SDK records; product tables own presentation, business scheduling and access.
    The product reconciles a durable decision into one new FIFO continuation. The
    original reply can finish while consent is pending. `execute_approved_action`
    checks the current audience/source access and original request cancellation,
-   then executes the frozen action with a stable product-operation ID. The only
-   installed action is `create_reminder`; pending/rejected approval cannot execute,
-   conflicting decisions fail, and repeated execution returns one reminder.
+   then executes the frozen action with a stable product-operation ID. Installed
+   actions now include the typed platform-write whitelist in
+   [implementation-contract.md](implementation-contract.md); pending/rejected
+   approval cannot execute, conflicting decisions fail, and repeated execution
+   returns the same operation result.
 5. Deleted Tracking topics stay deleted when old sources are reused, even with a
    changed title. Following a tombstone, automatic creation must cite explicit new
    messages; restoring the old topic uses the explicit user create action. This is
@@ -32,7 +34,7 @@ in SDK records; product tables own presentation, business scheduling and access.
 
 ## Verification
 
-`backend/tests/test_recovery.py` uses isolated temporary SQLite databases and an
+`backend/tests/test_recovery.py` uses isolated temporary PostgreSQL schemas and an
 offline model adapter. It checks stale ownership, crash-gap output replay,
 concurrent routing retries, slow-router isolation, Tracking tombstones, and the
 approval decision/projection crash gap plus one-effect replay. No mock is used by
@@ -41,7 +43,7 @@ bridge checks additionally exercise FIFO, cancellation, child results, source
 visibility and automatic-reply budgets. SDK tests and frontend typecheck/build
 cover their respective packages.
 
-The local instance uses Python 3.13, SQLite and an explicitly configured GPT-6 Luna
+The local instance uses Python 3.13, PostgreSQL and an explicitly configured GPT-6 Luna
 provider. PostgreSQL multi-worker behavior and external email/payment effects are
 not certified by these local tests. No external effect adapter is installed.
 Production continues to require verified identity, explicit schema provisioning,
@@ -58,8 +60,4 @@ failed with an empty exception message, whose exact cause was not recorded; an
 explicit UI Retry succeeded. SDK empty provider errors now retain their exception
 class instead of incorrectly displaying “Operation aborted”.
 
-Verification: 297 SDK tests (21 skipped for unavailable PostgreSQL/S3 test
-conditions in the app environment), SDK Ruff checks, 8 backend tests, all five
-bounded acceptance scripts, frontend typecheck and production build. The skipped
-cases and offline adapters do not constitute a live PostgreSQL or production
-deployment test.
+Current PostgreSQL verification is recorded in [postgresql.md](postgresql.md).

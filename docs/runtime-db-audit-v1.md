@@ -1,5 +1,8 @@
 # agent-runtime database and recovery audit v1
 
+> Historical audit/design evidence, retained with its original date. Current accepted execution, notification and transport behavior is in [architecture.md](architecture.md). Earlier recommendations are not an implementation contract.
+
+
 Date: 2026-10-17. Inspected checkout: `/workspace/shared/agent-runtime`, commit `1873697c8c599bb1f7c4889f120b627babc0aea5`.
 
 This is a read-only source audit and design input. No runtime code, migrations, tests, or deployed database were changed or run. References below are relative to the inspected checkout. “Existing” describes source code, not a verified production deployment; “Proposed” is work needed for Twinteams.

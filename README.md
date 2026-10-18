@@ -1,198 +1,133 @@
 # Twinteams
 
-A working React + TypeScript / FastAPI application built around the existing
-Agent Runtime SDK. Python **3.13.x** is required. Local development uses SQLite;
-PostgreSQL is the deployment backend. The application is not deployed remotely.
+React/TypeScript + FastAPI application using the original
+[Agent Runtime](https://github.com/silvermooooon/agent-runtime) SDK.
+Python **3.13.x** and PostgreSQL are required for local development and deployment.
+Business tables (`tt_*`) and canonical Runtime tables (`agent_*`) share one database.
+Redis is required for notification hints and presence TTLs. API and execution run in separate processes.
+The current architecture is documented in [architecture.md](docs/architecture.md).
 
 ## Run locally
 
-Keep the two sibling directories together: `twinteams/` and `agent-runtime/`.
-The SDK is the original [silvermooooon/agent-runtime](https://github.com/silvermooooon/agent-runtime)
-repository. `backend/pyproject.toml` installs it as an editable sibling dependency;
-there is no vendored or separate Twinteams Runtime copy.
+Keep `twinteams/` and `agent-runtime/` as sibling checkouts. The backend installs
+Agent Runtime as an editable dependency from `../../agent-runtime`.
 
 ```sh
 cd twinteams/backend
 uv sync --python 3.13
+cp .env.example .env
+# Fill DATABASE_URL, AGENT_DB_URL and TWINTEAMS_REDIS_URL in the private .env file.
+uv run --env-file .env python -m app.init_db
 cd ../frontend
 npm ci
+npm run typecheck
 npm run build
 cd ../backend
-uv run --python 3.13 python run_local.py --port 8000
+# Terminal 1: API only; no model credential is required.
+uv run --env-file .env python run_local.py --port 8000
+# Terminal 2: one active execution service, with explicitly supplied model credentials.
+uv run --env-file ../../agent-runtime/.env --env-file .env python -m app.worker
 ```
 
-Open http://127.0.0.1:8000. FastAPI serves the built frontend and the `/api`
-endpoints from the same origin. If that port is occupied, choose another free
-loopback port; the frontend requires no URL change. Development frontend work
-can instead use Vite, whose `/api` proxy defaults to backend port 8000.
+`app.init_db` explicitly creates or upgrades the business schema and the SDK's
+packaged migrations (001–005). It is safe to repeat; ordinary API and worker
+startup only validates schema. To import existing Activity projections once,
+run `python -m app.init_db --backfill-activity`. No startup replays session logs.
 
-`npm run build` runs Vite only. It does not silently run typecheck or tests.
+The configured local instance connects to `127.0.0.1:5432/appdb`. Credentials are
+stored only in ignored, private environment files. Both components use PostgreSQL;
+there is no embedded database or backend fallback. Existing API credentials may
+be loaded explicitly from the sibling Runtime environment file as shown above.
+The application never searches for arbitrary environment files.
 
-### Development login
+Open http://127.0.0.1:8000. The server serves the built frontend and `/api` on the
+same origin. Development usernames `DEV-AAA`, `DEV-BBB`, `DEV-CCC` open separate
+people/Twin identities. This launcher enables local development explicitly, binds
+loopback, and requires a local PostgreSQL address. Normal startup defaults to
+verified-identity mode. Production does not enable DEV login.
 
-The login usernames `DEV-AAA`, `DEV-BBB`, and `DEV-CCC` open the corresponding
-AAA, BBB and CCC accounts. These are explicitly local test accounts, each with
-its own human identity, paired Twin, private chat, and shared group memberships.
-Login uses an opaque, expiring HttpOnly/SameSite cookie. There is no password and
-this development instance must remain on loopback. Owner-ID request headers are
-not authentication and are rejected.
+Use `AGENT_PROVIDER=openai`, `AGENT_API=openai-responses`,
+`AGENT_MODEL=gpt-6-luna` and server-side `OPENAI_API_KEY` for real generation.
+Subagents inherit that model unless explicitly configured. No credential is
+committed or returned through the configuration API. Missing model credentials
+produce a clear failure; the app never substitutes a test response.
 
-The explicit `run_local.py` entrypoint opts into `TWINTEAMS_ENV=local` and
-`TWINTEAMS_DEVELOPMENT_MODE=true`, binds loopback only, and refuses non-SQLite
-database settings or a non-local environment. Standard `app.main:app` startup
-leaves development login disabled by default. DEV login additionally requires
-a SQLite database; setting a production environment or PostgreSQL cannot enable it. Existing
-business data and SDK journal records survive restart.
+## Storage and recovery
 
-### Local key validation and optional saving
+One dedicated database belongs to one `TWINTEAMS_TENANT_ID`. The product checks
+that database identity on startup. Product tables own identities, memberships,
+chat messages, source grants, FIFO requests, routing, Tracking and reminders.
+The SDK owns its journal, runs, usage/audit, checkpoints, commands and leases.
+No second Runtime event log is maintained by the product.
 
-For a separate **save-only** page, keep the normal local application running,
-sign in as `DEV-AAA` at `http://127.0.0.1:8010`, and launch
-`.venv/bin/python run_credentials.py --port 8012` from `backend`. Open
-`http://127.0.0.1:8012/api/local-provider-config/save-page`. Personally enter the
-key and confirm the displayed storage path and replacement scope. This writes
-one `OPENAI_API_KEY` assignment to a private, ignored
-`backend/data/provider-secrets/openai.env` file. It makes no API call and does not
-alter global shell variables, running processes, model configuration or queues.
-Only an explicitly requested later process should load the file. The same page
-provides a separate **Verify using saved key** button with an explicit small-charge
-warning. Only the user's click makes one fixed GPT-6 Luna request; it sends no
-application content, makes no automatic retry, and never enables Runtime generation.
+Complete model outputs are committed before projection into chat. Reconnection
+loads committed outputs. WebSocket broadcasts contain only scope revisions;
+content is loaded through authorized HTTP. The former SSE/token transport and
+three-second full-chat polling have been removed. Reconciliation deduplicates
+by SDK event ID. SDK lease loss keeps the logical request recoverable. Slow model
+routing is scheduled separately from ready replies. Approval decisions are durable
+SDK facts, then enter the product FIFO as a continuation. Exact installed platform actions
+are frozen and replay-safe; approval does not install extra execution capabilities.
+No email/payment adapters are installed.
 
-The normal app also has **OpenAI configuration** in its account menu
-(`#/provider-config`) for an optional billed, fixed minimal GPT-6 Luna validation.
-Validation and saving never enable chat generation or run pending requests.
-See [the local credential flow](docs/local-provider-configuration.md).
+Workspace files and private memory remain separate persistent file components.
+A fresh database starts with local demonstration identities and empty conversation
+state. PostgreSQL data survives application restart.
 
-### Connect a real model
+## Verification
 
-No model credential is included. Without one, chat and the other business
-features work, and a requested Twin reply becomes **Failed** with a clear
-configuration error. The application never substitutes a fake response.
-
-Set the provider configuration on the server using environment variables or a
-secret manager. `backend/.env.example` documents the supported names. Do not put
-API keys in a chat message, screenshots, source code or committed files.
-
-For OpenAI Responses, configure `AGENT_PROVIDER=openai`, `AGENT_MODEL=gpt-6-luna`, and `OPENAI_API_KEY`. `OPENAI_BASE_URL` is optional. For
-Anthropic, use `AGENT_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`. Restart the
-server after changing configuration. Credentials are re-injected into the SDK;
-they are not serialized into journal options or returned by `/api/config`.
-
-If using a private `.env` file, load it in the process environment before launch;
-the application does not search for or silently load arbitrary `.env` files.
+Set `TWINTEAMS_TEST_DB_URL` (or `DATABASE_URL`) to an accessible PostgreSQL URL:
 
 ```sh
-set -a
-. ./.env
-set +a
-uv run --python 3.13 python run_local.py --port 8000
+uv run --env-file .env python -m pytest tests -q
+uv run --env-file .env python checks/product_acceptance.py
+uv run --env-file .env python checks/runtime_acceptance.py
+uv run --env-file .env python checks/provider_config_acceptance.py
+uv run --env-file .env python checks/twin_message_bridge_acceptance.py
+uv run --env-file .env python checks/twin_conversation_acceptance.py
+uv run --env-file .env python checks/distributed_acceptance.py
 ```
 
-## Implemented application paths
+Tests create uniquely named temporary schemas, apply canonical SDK DDL, and drop
+only those schemas on exit. They do not clear application tables. Model adapters
+are explicit test implementations. The separately launched
+`checks/acceptance_fixture.py --port 8011` uses the same schema isolation and labels
+its simulated responses; it is never an application fallback.
 
-- Per-owner login, unique human/Twin pair, private chat and paired group members
-- People-only search, group creation and member admission with all/fixed-7-day/no-prior history
-- Persisted messages, original reply quotes, human-only read receipts and multi-device presence
-- Per-chat/per-Twin FIFO, deduplicated manual/automatic triggers, 10-second eligibility,
-  owner Stop, role-scoped queued cancellation, and Retry
-- Proactive Twin chat tools with source-owner attribution, model-backed
-  needs_response routing, durable shared automatic-reply allowances (default six),
-  repetition holds and explicitly authorized continuation
-- Reply-for-me mode with frozen global/chat prompt, a separate raw input, and a
-  Twin-authored lavender/mint hard-diagonal bubble
-- Per-approver approval tabs and details, durable exact-action consent and FIFO
-  continuations; pending approvals do not hold the reply lane
-- Private/group Tracking, sourced update chains, deletion tombstones and provenance checks
-- Source-checked summaries with contiguous remaining history and scoped history tools
-- In-app reminders, per-chat sidebar preferences, shared/private workspace files,
-  safe text preview and download
-- Private-chat-only Activity from canonical SDK runs/events, with child runs and safe outputs
-- Ephemeral live token delivery; reconnect reads complete committed outputs
-- SDK-backed durable inputs, same-run recovery, execution leases/fencing, child
-  completion notifications, and idempotent product FIFO handoff
+See [database operation](docs/postgresql.md) and
+[recovery boundaries](docs/recovery-fixes.md).
 
-See [implementation and acceptance status](docs/implementation-acceptance.md)
-for the requirement-by-requirement evidence and remaining verification boundaries.
+## Deployment
 
-## PostgreSQL and production identity
-
-Use a dedicated database per `TWINTEAMS_TENANT_ID`. The database records its
-identity and rejects a mismatched tenant configuration. This first implementation
-is a **single-tenant database** architecture, not row-level multi-tenant hosting.
-Business tables use the `tt_` prefix. Runtime tables remain SDK-owned `agent_*`
-tables; no second Run/Event journal is maintained.
-
-Before deployment, configure:
-
-- `TWINTEAMS_ENV=production`, `TWINTEAMS_DEVELOPMENT_MODE=false`
-- `DATABASE_URL=postgresql://...` through a server-side secret store
-- `TWINTEAMS_TENANT_ID`
-- JWT verification key, issuer, audience and algorithm; tokens require `sub`, `exp`,
-  `iat`, `iss`, `aud` and matching `tenant_id`
-- Persistent, access-controlled workspace storage; `AGENT_MEMORY_DIR` must point
-  to appropriate persistent storage if private SDK memory is enabled
-- The real model provider credentials
-
-Fresh schema provisioning is explicit:
+Set `TWINTEAMS_ENV=production`, `TWINTEAMS_DEVELOPMENT_MODE=false`, database URLs,
+tenant identity and server-side model credentials. Configure verified JWT key,
+issuer, audience and algorithm; tokens must contain `sub`, `exp`, `iat`, `iss`,
+`aud`, `tenant_id`, and the subject must be provisioned:
 
 ```sh
-uv run --python 3.13 python -m app.init_db
-uv run --python 3.13 python -m app.provision_owner --subject 'verified-subject' --name 'Person Name'
+uv run --env-file .env python -m app.provision_owner --subject 'verified-subject' --name 'Person Name'
+uv run --env-file .env uvicorn app.main:app --host 127.0.0.1 --port 8000 --ws-max-size 65536 --ws-max-queue 64
+uv run --env-file .env python -m app.worker
 ```
 
-Do not use fresh-install commands as migrations for an existing production
-installation. Existing SDK PostgreSQL deployments through migration 003 apply the
-SDK's additive coordination migration 004 explicitly. See
-`../agent-runtime/docs/durable-execution.md`. Early local SDK SQLite v1 files have
-an explicit non-destructive `SQLiteStore.migrate_schema()` upgrade; stop writers
-and back up first. The existing development database was upgraded without reset.
+One active worker is a deployment convention; only SDK session leases grant execution.
+Additional API replicas subscribe to PG-backed state through Redis hints.
 
-Launch the production entrypoint only after setting the production environment and provisioning the database: `uv run --python 3.13 uvicorn app.main:app --host 127.0.0.1 --port 8000 --timeout-graceful-shutdown 10`. Put it behind your configured deployment ingress.
+A real OIDC browser login, backups/restore drills, shared persistent workspace
+storage, deployment ingress and multi-worker failover acceptance remain deployment
+responsibilities. PostgreSQL integration tests do not certify those operations.
+The local provider configuration/save page remains an explicit local-only feature;
+see [its documentation](docs/local-provider-configuration.md).
 
-Production requests fail closed without verified JWT configuration and a
-provisioned owner. The included browser login is a development flow; wiring a
-real OIDC login/token acquisition UI is a deployment integration still required.
-
-PostgreSQL SQL/driver compatibility has been implemented and reviewed, but no
-PostgreSQL instance was available for an actual integration run. SQLite checks
-are not evidence that production PostgreSQL, multi-pod deployment, backup/PITR,
-or external-effect exactly-once behavior have passed acceptance.
-
-## Focused verification
-
-The user authorized bounded checks for behavior not directly clickable in the UI.
-These checks use isolated temporary SQLite databases and an explicitly test-only,
-deterministic adapter. They make no paid/provider calls and are not used by the app.
+For the tested local two-API/single-worker stack, use the managed launcher from `backend/`:
 
 ```sh
-cd backend
-.venv/bin/python -m pytest tests -q
-.venv/bin/python checks/product_acceptance.py
-.venv/bin/python checks/runtime_acceptance.py
-.venv/bin/python checks/provider_config_acceptance.py
-.venv/bin/python checks/twin_message_bridge_acceptance.py
-.venv/bin/python checks/twin_conversation_acceptance.py
-cd ../../agent-runtime
-PYTHONPATH=src ../twinteams/backend/.venv/bin/python tests/test_durable_sqlite.py -v
+.venv/bin/python checks/local_stack.py migrate
+.venv/bin/python checks/local_stack.py start
+.venv/bin/python checks/local_stack.py status
+.venv/bin/python checks/local_stack.py restart-worker
+.venv/bin/python checks/local_stack.py stop
 ```
 
-SDK unit tests/lint, backend regression tests and frontend typecheck/build have
-been run for the consolidation. See [the recovery fixes](docs/recovery-fixes.md)
-for current coverage and boundaries. Historical browser acceptance and
-its limitations are recorded separately. Live-model acceptance requires real
-provider configuration; external sending/payment tools are not installed or
-silently simulated by approvals.
-
-### Explicit browser acceptance fixture
-
-For UI acceptance without provider calls, run `.venv/bin/python checks/acceptance_fixture.py --port 8011` from `backend`, then open http://localhost:8011. This is a separately launched, permanently labeled test instance with its own DB/files. It never changes the normal app into a mock. Type `plain`, `slow`, `delegate` or `approve` to exercise actual product/SDK flows with deterministic test output.
-
-For the approved dialogue controls, sign in as AAA, open **Team workspace**, keep
-Reply for me off and BBB/CCC offline or outside that chat, then send `dialogue`.
-The fixture routes numbered responses between BBB and CCC while AAA observes;
-the shared limit pauses further acceptance after six. The explicit Continue
-button authorizes the displayed additional allowance without resetting lineage.
-Send `proactive` in that chat to exercise the actual same-chat messaging tool;
-its test acknowledgment requires no automatic reply. These commands are fixture
-scenarios, not model-quality evidence or a fallback in the normal application.
+It records only its own PIDs/logs and loads the explicitly configured private
+credential sources. This local deployment convention is not full high availability.
