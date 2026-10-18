@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>AI-Native Loop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #f5f2ec;
+        --bg-soft: #ede8de;
+        --ink: #1d2422;
+        --muted: #5d6862;
+        --faint: #8b958e;
+        --line: rgba(29, 36, 34, 0.16);
+        --line-soft: rgba(29, 36, 34, 0.08);
+        --human: #a5762f;
+        --human-soft: #c49a58;
+        --twin: #0d8a80;
+        --twin-bright: #12a594;
+        --btn-ink: #f5f2ec;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b0e11;
+          --bg-soft: #12161a;
+          --ink: #edf1ee;
+          --muted: #9aa7a0;
+          --faint: #6d7a73;
+          --line: rgba(237, 241, 238, 0.16);
+          --line-soft: rgba(237, 241, 238, 0.07);
+          --human: #d9b380;
+          --human-soft: #b8935a;
+          --twin: #35c4b5;
+          --twin-bright: #5fd8c9;
+          --btn-ink: #0b0e11;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: "Sora", system-ui, sans-serif;
+        background: var(--bg);
+        background-image: radial-gradient(circle, var(--line-soft) 1px, transparent 1.2px);
+        background-size: 26px 26px;
+        color: var(--ink);
+        display: flex;
+        flex-direction: column;
+        min-height: 100dvh;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+      /* ---------- top bar ---------- */
+      header.top {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 16px; padding: 18px 28px 6px;
+        max-width: 1340px; width: 100%; margin: 0 auto;
+      }
+      nav.crumbs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .crumb {
+        font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: 0.14em;
+        text-transform: uppercase; color: var(--muted);
+        background: none; border: 1px solid transparent; border-radius: 999px;
+        padding: 6px 10px; cursor: pointer; transition: color .2s, border-color .2s;
+      }
+      .crumb:hover { color: var(--ink); }
+      .crumb.current { color: var(--ink); border-color: var(--line); cursor: default; }
+      .crumb-sep { color: var(--faint); font-size: 11px; }
+      .top-right { display: flex; align-items: center; gap: 18px; }
+      .depth { display: flex; align-items: center; gap: 7px; }
+      .depth i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); transition: background .3s; display: block; }
+      .depth i.on { background: var(--ink); }
+      .depth span { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .12em; color: var(--faint); margin-right: 2px; }
+      .reset-btn {
+        display: inline-flex; align-items: center; gap: 7px;
+        font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em;
+        color: var(--muted); background: none; border: 1px solid var(--line);
+        border-radius: 999px; padding: 7px 13px; cursor: pointer; transition: color .2s, border-color .2s;
+      }
+      .reset-btn:hover { color: var(--ink); border-color: var(--ink); }
+      .reset-btn svg { width: 12px; height: 12px; }
+
+      /* ---------- layout ---------- */
+      main {
+        flex: 1; width: 100%; max-width: 1340px; margin: 0 auto;
+        display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+        align-items: center; gap: 12px 44px; padding: 8px 28px 26px;
+      }
+      .stage-wrap { position: relative; }
+      svg#stage { width: 100%; height: auto; display: block; max-height: 76dvh; margin: 0 auto; }
+      .stage-hint {
+        text-align: center; margin: 2px 0 0;
+        font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em;
+        color: var(--faint); text-transform: uppercase;
+      }
+
+      /* ---------- panel ---------- */
+      .panel { display: flex; flex-direction: column; gap: 26px; padding-right: 8px; }
+      .swap { transition: opacity .18s ease, transform .18s ease; }
+      .swap.out { opacity: 0; transform: translateY(8px); }
+      .kicker {
+        font-family: "IBM Plex Mono", monospace; font-size: 11.5px; letter-spacing: .22em;
+        text-transform: uppercase; color: var(--twin); margin: 0 0 14px; font-weight: 500;
+      }
+      h1 {
+        font-size: clamp(30px, 3.6vw, 46px); line-height: 1.08; font-weight: 700;
+        letter-spacing: -0.015em; margin: 0 0 18px;
+      }
+      .copy { font-size: 16.5px; line-height: 1.68; color: var(--muted); margin: 0; max-width: 34em; }
+      .copy strong { color: var(--ink); font-weight: 600; }
+      .extra { margin-top: 24px; }
+
+      .phases { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+      .phases .ph {
+        font-family: "IBM Plex Mono", monospace; font-size: 11.5px; letter-spacing: .08em;
+        border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; color: var(--ink);
+      }
+      .phases .arr { color: var(--faint); font-size: 12px; }
+      .note {
+        border-top: 1px solid var(--line-soft); padding-top: 16px;
+        font-size: 14.5px; line-height: 1.65; color: var(--muted); margin: 0; max-width: 32em;
+      }
+      .note strong { color: var(--ink); font-weight: 600; }
+
+      /* autonomy block */
+      .auto-label {
+        font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .2em;
+        color: var(--faint); margin: 0 0 12px; text-transform: uppercase;
+      }
+      .seg-ctrl {
+        display: flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; max-width: 430px;
+      }
+      .seg-ctrl button {
+        flex: 1; appearance: none; border: 0; background: transparent; color: var(--muted);
+        font-family: "Sora", sans-serif; font-size: 13.5px; font-weight: 600;
+        padding: 12px 6px; cursor: pointer; transition: background .25s, color .25s;
+      }
+      .seg-ctrl button + button { border-left: 1px solid var(--line); }
+      .seg-ctrl button:hover { color: var(--ink); }
+      .seg-ctrl button.active { background: var(--ink); color: var(--btn-ink); }
+      .stage-cap { font-size: 14.5px; line-height: 1.65; color: var(--muted); margin: 16px 0 0; max-width: 32em; min-height: 3.2em; }
+      .stage-cap strong { color: var(--ink); font-weight: 600; }
+      .share { margin-top: 18px; max-width: 430px; display: flex; flex-direction: column; gap: 10px; }
+      .share-row { display: grid; grid-template-columns: 118px 1fr 40px; align-items: center; gap: 12px; }
+      .share-row span { font-size: 12.5px; color: var(--muted); }
+      .share-row b { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 500; text-align: right; }
+      .bar { height: 8px; border-radius: 99px; background: var(--line-soft); overflow: hidden; }
+      .bar i { display: block; height: 100%; border-radius: 99px; transition: width .9s cubic-bezier(.22,1,.36,1); }
+      .bar.human i { background: var(--human-soft); }
+      .bar.twin i { background: var(--twin-bright); }
+      .share-note { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .08em; color: var(--faint); margin: 4px 0 0; }
+
+      .controls { display: flex; align-items: center; gap: 18px; border-top: 1px solid var(--line-soft); padding-top: 20px; }
+      .btn {
+        display: inline-flex; align-items: center; gap: 8px;
+        font-family: "Sora", sans-serif; font-size: 13.5px; font-weight: 600;
+        border-radius: 999px; padding: 11px 20px; cursor: pointer;
+        border: 1px solid var(--line); background: transparent; color: var(--ink);
+        transition: border-color .2s, background .2s, opacity .2s;
+      }
+      .btn:hover { border-color: var(--ink); }
+      .btn:disabled { opacity: .35; cursor: default; }
+      .btn:disabled:hover { border-color: var(--line); }
+      .btn svg { width: 14px; height: 14px; }
+      .keys-hint { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .06em; color: var(--faint); line-height: 1.7; }
+
+      footer.foot {
+        max-width: 1340px; width: 100%; margin: 0 auto; padding: 0 28px 18px;
+        display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+        font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .1em; color: var(--faint);
+        text-transform: uppercase;
+      }
+
+      /* ---------- SVG ---------- */
+      svg text { user-select: none; }
+      .seg { fill: none; pointer-events: none; transition: filter .25s ease; }
+      .seg-hit { cursor: pointer; outline: none; }
+      .seg-group:hover .seg, .seg-group:focus-within .seg { filter: brightness(1.13) saturate(1.08); }
+      .seg-label { pointer-events: none; }
+      .layer { transition: opacity .5s ease, transform .5s cubic-bezier(.22,1,.36,1); transform-box: fill-box; transform-origin: center; }
+      .layer.hidden { opacity: 0; pointer-events: none; }
+      .twin-part { transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); transform-box: fill-box; transform-origin: center; }
+      #twinTask { transition: opacity .25s ease; }
+
+      @media (max-width: 900px) {
+        main { grid-template-columns: 1fr; gap: 4px; padding-top: 0; align-items: start; }
+        svg#stage { max-height: 52dvh; }
+        .panel { padding-right: 0; gap: 20px; }
+        h1 { font-size: clamp(26px, 7vw, 34px); }
+        .copy { font-size: 15.5px; }
+        header.top { padding: 14px 18px 4px; }
+        main, footer.foot { padding-left: 18px; padding-right: 18px; }
+        .keys-hint { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .layer, .swap, .bar i { transition-duration: .01s; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <nav class="crumbs" id="crumbs" aria-label="Presentation path"></nav>
+      <div class="top-right">
+        <div class="depth" aria-hidden="true"><span>DEPTH</span><i id="d0" class="on"></i><i id="d1"></i><i id="d2"></i></div>
+        <button class="reset-btn" id="resetBtn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.3"/><path d="M3 4v5h5"/></svg>
+          RESET
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <div class="stage-wrap">
+        <svg id="stage" viewBox="0 0 640 640" role="group" aria-label="Interactive loop diagram">
+          <g class="layer" id="layerCompany"></g>
+          <g class="layer hidden" id="layerDept"></g>
+          <g class="layer hidden" id="layerTwin"></g>
+          <g id="layerMorph"></g>
+        </svg>
+        <p class="stage-hint" id="stageHint"></p>
+      </div>
+
+      <aside class="panel">
+        <div class="swap" id="swap">
+          <p class="kicker" id="kicker"></p>
+          <h1 id="headline"></h1>
+          <p class="copy" id="copy"></p>
+          <div class="extra" id="extra"></div>
+        </div>
+        <div class="controls">
+          <button class="btn" id="backBtn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
+            Back
+          </button>
+          <p class="keys-hint">→ go deeper&nbsp;&nbsp;·&nbsp;&nbsp;← go back&nbsp;&nbsp;·&nbsp;&nbsp;R reset</p>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="foot">
+      <span>AI-Native — the loop company</span>
+      <span>Demand in · value out · the loop turns again</span>
+    </footer>
+
+    <script>
+      "use strict";
+      var SVGNS = "http://www.w3.org/2000/svg";
+      var CX = 320, CY = 320, R = 204, SW = 54, GAP = 3; /* degrees of gap on each side of a segment */
+
+      var DEPTS = [
+        { key: "product",    name: "Product",    color: "#E9A13B", sub: "finds the demand",
+          role: "Product Manager",
+          stages: ["Discover", "Define", "Validate", "Launch"],
+          copy: "Inside Product, the loop turns from a signal in the market to a launched bet — and what the launch teaches becomes the next round of discovery.",
+          note: "Every department has the same shape: <strong>work goes in, learning comes out, and the loop turns again.</strong>" },
+        { key: "engineering", name: "Engineering", color: "#2FB3A3", sub: "builds the product",
+          role: "Engineer",
+          stages: ["Develop", "Test", "Accept", "Deploy"],
+          copy: "Inside Engineering, work cycles through build, test, acceptance and release. Each deployment feeds back into the next round of development.",
+          note: "The loop is only as fast as the people on it. <strong>This is where the real speed is won or lost</strong> — so this is where we look closer." },
+        { key: "sales",      name: "Sales",      color: "#E4654F", sub: "wins the customer",
+          role: "Account Executive",
+          stages: ["Prospect", "Qualify", "Propose", "Close"],
+          copy: "Inside Sales, the loop runs from first contact to a signed customer — and every closed deal, won or lost, sharpens the next approach.",
+          note: "Every department has the same shape: <strong>work goes in, learning comes out, and the loop turns again.</strong>" },
+        { key: "operations", name: "Operations", color: "#7FB069", sub: "keeps it running",
+          role: "Operations Lead",
+          stages: ["Plan", "Execute", "Monitor", "Improve"],
+          copy: "Inside Operations, the loop keeps the delivered value alive: plan, run, watch, improve — a cycle that never actually stops.",
+          note: "Every department has the same shape: <strong>work goes in, learning comes out, and the loop turns again.</strong>" }
+      ];
+
+      var AUTONOMY = [
+        { name: "Assist", pctH: 90, pctT: 10,
+          cap: "<strong>The human does the work; the agent executes on instruction.</strong> Every task starts with the employee, and every result comes back for review. The human is inside every single loop.",
+          linkTop: "DELEGATES TASKS", linkBottom: "REVIEWS EVERY RESULT",
+          humanNote: "Does the work", twinIdle: ["Awaiting instructions…", "Executing: pull the data", "Executing: draft the email", "Done — ready for review"] },
+        { name: "Delegate", pctH: 55, pctT: 45,
+          cap: "<strong>The agent drafts, prepares and executes whole tasks.</strong> The employee reviews and corrects — and every correction is taught back, becoming skills, preferences and memory.",
+          linkTop: "TEACHES · DELEGATES", linkBottom: "REVIEWS & CORRECTS",
+          humanNote: "Reviews & teaches", twinIdle: ["Drafting the report…", "Preparing release notes…", "Summarizing the standup…", "Done — ready for review"] },
+        { name: "Autonomous", pctH: 20, pctT: 80,
+          cap: "<strong>Routine tasks now loop entirely inside the agent</strong> — no human involved, start to finish. The employee steps out of the loop and into the work only humans can do: judgment, craft, relationships.",
+          linkTop: "THE LOOP CLOSES ITSELF", linkBottom: "HUMAN STEPS OUT",
+          humanNote: "Judgment & craft", twinIdle: ["Drafting the weekly report", "Triaging support tickets", "Summarizing meeting notes", "Checking data, filling gaps", "Preparing the status update"] }
+      ];
+
+      var S = { view: "company", dept: null, stage: null, autonomy: 0, busy: false, suggested: true };
+      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      function el(tag, attrs, parent) {
+        var n = document.createElementNS(SVGNS, tag);
+        for (var k in attrs) n.setAttribute(k, attrs[k]);
+        if (parent) parent.appendChild(n);
+        return n;
+      }
+      function txt(parent, x, y, str, attrs) {
+        var t = el("text", attrs || {}, parent);
+        t.setAttribute("x", x); t.setAttribute("y", y);
+        t.textContent = str;
+        return t;
+      }
+      /* angle: degrees, 0 = top, clockwise */
+      function polar(cx, cy, r, deg) {
+        var rad = deg * Math.PI / 180;
+        return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)];
+      }
+      function arcPath(cx, cy, r, a0, a1) {
+        var p0 = polar(cx, cy, r, a0), p1 = polar(cx, cy, r, a1);
+        var large = (a1 - a0) > 180 ? 1 : 0;
+        return "M " + p0[0].toFixed(2) + " " + p0[1].toFixed(2) +
+               " A " + r + " " + r + " 0 " + large + " 1 " + p1[0].toFixed(2) + " " + p1[1].toFixed(2);
+      }
+      function mix(hex, target, f) {
+        function h(c) { return parseInt(c, 16); }
+        var r = h(hex.slice(1, 3)), g = h(hex.slice(3, 5)), b = h(hex.slice(5, 7));
+        var tr = h(target.slice(1, 3)), tg = h(target.slice(3, 5)), tb = h(target.slice(5, 7));
+        function m(a, b2) { return Math.round(a + (b2 - a) * f).toString(16).padStart(2, "0"); }
+        return "#" + m(r, tr) + m(g, tg) + m(b, tb);
+      }
+      function shade(base, i) { /* 4 shades of a department colour */
+        var targets = ["#FFFFFF", "#FFFFFF", "#000000", "#000000"];
+        var fs = [0.34, 0.12, 0.10, 0.26];
+        return mix(base, targets[i], fs[i]);
+      }
+      function easeInOut(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+      function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+      function tween(dur, fn, done) {
+        if (reduced) dur = 60;
+        var t0 = performance.now();
+        (function frame(now) {
+          var t = Math.min(1, (now - t0) / dur);
+          fn(t);
+          if (t < 1) requestAnimationFrame(frame); else if (done) done();
+        })(t0);
+      }
+
+      var layerCompany = document.getElementById("layerCompany");
+      var layerDept = document.getElementById("layerDept");
+      var layerTwin = document.getElementById("layerTwin");
+      var layerMorph = document.getElementById("layerMorph");
+      var flowDots = []; /* ambient travelling dots on ring views */
+
+      function addFlowDot(layer, r) {
+        var d = el("circle", { r: 5, fill: "var(--ink)", opacity: 0.55 }, layer);
+        flowDots.push({ node: d, r: r, angle: Math.random() * 360 });
+        return d;
+      }
+
+      function buildRing(layer, items, centerTop, centerLines, onPick, suggestedIdx) {
+        layer.innerHTML = "";
+        flowDots = flowDots.filter(function (d) { return d.node.parentNode !== layer; });
+        el("circle", { cx: CX, cy: CY, r: R - SW / 2 - 16, fill: "none", stroke: "var(--line-soft)", "stroke-width": 1.5 }, layer);
+        el("circle", { cx: CX, cy: CY, r: R + SW / 2 + 14, fill: "none", stroke: "var(--line-soft)", "stroke-width": 1.5 }, layer);
+        var cg = el("g", {}, layer);
+        txt(cg, CX, CY - 30, centerTop, { "text-anchor": "middle", "class": "mono", "font-size": 11, "letter-spacing": "0.28em", fill: "var(--faint)" });
+        centerLines.forEach(function (line, i) {
+          txt(cg, CX, CY + 4 + i * 27, line, { "text-anchor": "middle", "font-size": 21, "font-weight": 600, fill: "var(--ink)" });
+        });
+        items.forEach(function (item, i) {
+          var a0 = i * 90 + GAP, a1 = (i + 1) * 90 - GAP;
+          var grp = el("g", { "class": "seg-group" }, layer);
+          /* the button is an invisible pie slice covering the whole sector,
+             so the segment's full area — arc and inner sector — is clickable */
+          var w0 = polar(CX, CY, R + SW / 2, i * 90), w1 = polar(CX, CY, R + SW / 2, (i + 1) * 90);
+          var hit = el("path", {
+            d: "M " + CX + " " + CY + " L " + w0[0].toFixed(1) + " " + w0[1].toFixed(1) +
+                 " A " + (R + SW / 2) + " " + (R + SW / 2) + " 0 0 1 " + w1[0].toFixed(1) + " " + w1[1].toFixed(1) + " Z",
+            fill: "#000", "fill-opacity": 0, stroke: "none",
+            "class": "seg-hit", tabindex: 0, role: "button", "aria-label": item.name
+          }, grp);
+          var p = el("path", {
+            d: arcPath(CX, CY, R, a0, a1), stroke: item.color, "stroke-width": SW,
+            "class": "seg", "aria-hidden": "true"
+          }, grp);
+          p._a0 = a0; p._a1 = a1; p._item = item;
+          hit.addEventListener("click", function () { onPick(item, p); });
+          hit.addEventListener("keydown", function (ev) {
+            if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onPick(item, p); }
+          });
+          var mid = i * 90 + 45;
+          var lp = polar(CX, CY, R + 60, mid);
+          var lg = el("g", { "class": "seg-label" }, layer);
+          txt(lg, lp[0], lp[1] - 2, item.name, { "text-anchor": "middle", "font-size": 16.5, "font-weight": 600, fill: "var(--ink)" });
+          txt(lg, lp[0], lp[1] + 17, item.sub, { "text-anchor": "middle", "class": "mono", "font-size": 10, "letter-spacing": "0.06em", fill: "var(--muted)" });
+          /* direction chevron in the gap that follows this segment */
+          var cp = polar(CX, CY, R, (i + 1) * 90);
+          var ch = el("path", { d: "M -6 -8 L 3 0 L -6 8", fill: "none", stroke: "var(--muted)", "stroke-width": 2.2, "stroke-linecap": "round", "stroke-linejoin": "round", opacity: 0.75 }, layer);
+          ch.setAttribute("transform", "translate(" + cp[0] + " " + cp[1] + ") rotate(" + ((i + 1) * 90) + ")");
+        });
+        addFlowDot(layer, R);
+        addFlowDot(layer, R);
+        return layer;
+      }
+
+      function renderCompany() {
+        buildRing(layerCompany,
+          DEPTS.map(function (d) { return { key: d.key, name: d.name, sub: d.sub, color: d.color, dept: d }; }),
+          "THE COMPANY",
+          ["One company,", "one closed loop"],
+          function (item, pathEl) { drillToDept(item.dept, pathEl); },
+          S.suggested ? 1 : -1);
+      }
+
+      function renderDept(dept) {
+        var items = dept.stages.map(function (s, i) {
+          return { key: s, name: s, sub: "step 0" + (i + 1), color: shade(dept.color, i), stage: s };
+        });
+        buildRing(layerDept, items, dept.name.toUpperCase() + " · ITS OWN LOOP",
+          ["Every department", "runs a loop of its own"],
+          function (item) { drillToTwin(item.stage); },
+          S.suggested && dept.key === "engineering" ? 0 : -1);
+        /* draw-in: sweep each segment in with dash animation */
+        if (!reduced) {
+          var paths = layerDept.querySelectorAll(".seg");
+          paths.forEach(function (p, i) {
+            var len = (82 * Math.PI / 180) * R;
+            p.style.strokeDasharray = len;
+            p.style.strokeDashoffset = len;
+            p.style.transition = "none";
+            setTimeout(function () {
+              p.style.transition = "stroke-dashoffset .55s cubic-bezier(.22,1,.36,1)";
+              p.style.strokeDashoffset = "0";
+              setTimeout(function () { p.style.strokeDasharray = "none"; p.style.transition = ""; }, 650);
+            }, 60 + i * 95);
+          });
+        }
+      }
+
+      /* ---------------- twin view ---------------- */
+      var HX = 168, TX = 472, TY = 312, TR = 116;
+      var twinRefs = {};
+
+      function personIcon(g, cx, cy, color) {
+        el("circle", { cx: cx, cy: cy - 22, r: 17, fill: "none", stroke: color, "stroke-width": 4.5 }, g);
+        var sh = el("path", { d: "M " + (cx - 30) + " " + (cy + 34) + " A 32 32 0 0 1 " + (cx + 30) + " " + (cy + 34), fill: "none", stroke: color, "stroke-width": 4.5, "stroke-linecap": "round" }, g);
+        return sh;
+      }
+      function sparkIcon(g, cx, cy, color) {
+        var s = 21;
+        var pts = [];
+        for (var i = 0; i < 8; i++) {
+          var ang = i * Math.PI / 4, rr = i % 2 === 0 ? s : s * 0.34;
+          pts.push((cx + rr * Math.sin(ang)).toFixed(1) + "," + (cy - rr * Math.cos(ang)).toFixed(1));
+        }
+        el("polygon", { points: pts.join(" "), fill: color }, g);
+      }
+
+      function renderTwin() {
+        layerTwin.innerHTML = "";
+        twinRefs = {};
+        var ink = "var(--ink)";
+
+        /* connector */
+        el("line", { x1: HX + TR + 6, y1: TY, x2: TX - TR - 6, y2: TY, stroke: "var(--line)", "stroke-width": 1.5, "stroke-dasharray": "3 6" }, layerTwin);
+        twinRefs.linkTop = txt(layerTwin, CX, TY - 34, "", { "text-anchor": "middle", "class": "mono", "font-size": 10, "letter-spacing": "0.14em", fill: "var(--muted)", "paint-order": "stroke", stroke: "var(--bg)", "stroke-width": 8, "stroke-linejoin": "round" });
+        twinRefs.linkBottom = txt(layerTwin, CX, TY + 48, "", { "text-anchor": "middle", "class": "mono", "font-size": 10, "letter-spacing": "0.14em", fill: "var(--faint)", "paint-order": "stroke", stroke: "var(--bg)", "stroke-width": 8, "stroke-linejoin": "round" });
+        twinRefs.dots = el("g", {}, layerTwin);
+
+        /* human */
+        var hg = el("g", { "class": "twin-part" }, layerTwin);
+        twinRefs.humanRing = el("circle", { cx: HX, cy: TY, r: TR, fill: "none", stroke: "var(--human)", "stroke-width": 15 }, hg);
+        el("circle", { cx: HX, cy: TY, r: TR - 20, fill: "none", stroke: "var(--line-soft)", "stroke-width": 1.5 }, hg);
+        personIcon(hg, HX, TY - 8, "var(--human)");
+        txt(hg, HX, TY + 62, "in the loop", { "text-anchor": "middle", "class": "mono", "font-size": 10.5, "letter-spacing": "0.1em", fill: "var(--muted)" });
+        txt(hg, HX, TY + TR + 40, "THE EMPLOYEE", { "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: ink });
+        twinRefs.humanNote = txt(hg, HX, TY + TR + 62, "", { "text-anchor": "middle", "class": "mono", "font-size": 10.5, "letter-spacing": "0.08em", fill: "var(--muted)" });
+        twinRefs.humanG = hg;
+
+        /* twin */
+        var tg = el("g", { "class": "twin-part" }, layerTwin);
+        el("circle", { cx: TX, cy: TY, r: TR, fill: "none", stroke: "var(--twin)", "stroke-width": 15, opacity: 0.16 }, tg);
+        var arcs = el("g", {}, tg);
+        var arcNames = ["LEARN", "SKILLS", "MEMORY", "PREFS"];
+        for (var i = 0; i < 4; i++) {
+          el("path", { d: arcPath(TX, TY, TR, i * 90 + 7, (i + 1) * 90 - 7), fill: "none", stroke: "var(--twin)", "stroke-width": 15, "stroke-linecap": "round" }, arcs);
+          var mp = polar(TX, TY, TR + 30, i * 90 + 45);
+          txt(tg, mp[0], mp[1] + 4, arcNames[i], { "text-anchor": "middle", "class": "mono", "font-size": 10, "letter-spacing": "0.14em", fill: "var(--muted)" });
+        }
+        twinRefs.spin = el("circle", { cx: TX, cy: TY, r: TR - 20, fill: "none", stroke: "var(--twin-bright)", "stroke-width": 2, "stroke-dasharray": "2 10", opacity: 0.65 }, tg);
+        twinRefs.spinDot = el("circle", { r: 5, fill: "var(--twin-bright)" }, tg);
+        sparkIcon(tg, TX, TY - 26, "var(--twin-bright)");
+        twinRefs.task = txt(tg, TX, TY + 26, "", { "text-anchor": "middle", "font-size": 12.5, "font-weight": 500, fill: ink, id: "twinTask" });
+        txt(tg, TX, TY + 52, "PERSONAL AGENT", { "text-anchor": "middle", "class": "mono", "font-size": 9.5, "letter-spacing": "0.2em", fill: "var(--faint)" });
+        txt(tg, TX, TY + TR + 40, "THE DIGITAL TWIN", { "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: ink });
+        twinRefs.twinNote = txt(tg, TX, TY + TR + 62, "learns · remembers · improves", { "text-anchor": "middle", "class": "mono", "font-size": 10.5, "letter-spacing": "0.08em", fill: "var(--muted)" });
+        twinRefs.twinG = tg;
+        twinRefs.arcs = arcs;
+        /* connector labels & travelling dots paint above both circles */
+        layerTwin.appendChild(twinRefs.linkTop);
+        layerTwin.appendChild(twinRefs.linkBottom);
+        layerTwin.appendChild(twinRefs.dots);
+      }
+
+      /* ---------------- panel ---------------- */
+      var swapEl = document.getElementById("swap");
+      var kickerEl = document.getElementById("kicker");
+      var headlineEl = document.getElementById("headline");
+      var copyEl = document.getElementById("copy");
+      var extraEl = document.getElementById("extra");
+      var hintEl = document.getElementById("stageHint");
+      var backBtn = document.getElementById("backBtn");
+
+      function setPanel(kicker, headline, copyHTML, extraHTML, hint) {
+        function apply() {
+          kickerEl.textContent = kicker;
+          headlineEl.textContent = headline;
+          copyEl.innerHTML = copyHTML;
+          extraEl.innerHTML = extraHTML;
+          hintEl.textContent = hint;
+          swapEl.classList.remove("out");
+          if (S.view === "twin") wireAutonomy();
+          syncChrome();
+        }
+        if (reduced) { apply(); return; }
+        swapEl.classList.add("out");
+        setTimeout(apply, 190);
+      }
+
+      function phasesHTML() {
+        return '<div class="phases">' +
+          ["Demand", "Initiation", "Execution", "Delivery"].map(function (p, i, a) {
+            return '<span class="ph">' + p + "</span>" + (i < a.length - 1 ? '<span class="arr">→</span>' : "");
+          }).join("") + "</div>";
+      }
+      function autonomyHTML() {
+        return '<p class="auto-label">How the work shifts over time</p>' +
+          '<div class="seg-ctrl" role="group" aria-label="Agent autonomy stage">' +
+          AUTONOMY.map(function (a, i) { return '<button type="button" data-a="' + i + '"' + (i === S.autonomy ? ' class="active"' : "") + ">" + (i + 1) + " · " + a.name + "</button>"; }).join("") +
+          "</div>" +
+          '<p class="stage-cap" id="stageCap"></p>' +
+          '<div class="share">' +
+          '<div class="share-row"><span>The employee</span><div class="bar human"><i id="barHuman"></i></div><b id="pctHuman"></b></div>' +
+          '<div class="share-row"><span>The digital twin</span><div class="bar twin"><i id="barTwin"></i></div><b id="pctTwin"></b></div>' +
+          "</div>" +
+          '<p class="share-note">SHARE OF ROUTINE, REPEATABLE WORK</p>';
+      }
+      function wireAutonomy() {
+        var btns = extraEl.querySelectorAll(".seg-ctrl button");
+        btns.forEach(function (b) {
+          b.addEventListener("click", function () { setAutonomy(parseInt(b.getAttribute("data-a"), 10)); });
+        });
+        applyAutonomy(false);
+      }
+      function applyAutonomy(animate) {
+        var a = AUTONOMY[S.autonomy];
+        var cap = document.getElementById("stageCap");
+        if (cap) cap.innerHTML = a.cap;
+        var bh = document.getElementById("barHuman"), bt = document.getElementById("barTwin");
+        if (bh) { bh.style.width = a.pctH + "%"; document.getElementById("pctHuman").textContent = a.pctH + "%"; }
+        if (bt) { bt.style.width = a.pctT + "%"; document.getElementById("pctTwin").textContent = a.pctT + "%"; }
+        extraEl.querySelectorAll(".seg-ctrl button").forEach(function (b, i) {
+          b.classList.toggle("active", i === S.autonomy);
+        });
+        if (twinRefs.linkTop) {
+          twinRefs.linkTop.textContent = a.linkTop;
+          twinRefs.linkBottom.textContent = a.linkBottom;
+          twinRefs.humanNote.textContent = (S.dept ? S.dept.role + " · " : "") + a.humanNote;
+          twinRefs.humanRing.style.transition = "opacity .8s ease";
+          twinRefs.humanRing.style.opacity = S.autonomy === 2 ? 0.45 : 1;
+          taskIdx = 0; cycleTask();
+        }
+      }
+      function setAutonomy(i) {
+        if (i < 0 || i > 2 || i === S.autonomy) { applyAutonomy(false); return; }
+        S.autonomy = i;
+        applyAutonomy(true);
+      }
+
+      /* twin centre task cycler */
+      var taskIdx = 0, taskTimer = null;
+      function cycleTask() {
+        if (!twinRefs.task) return;
+        var list = AUTONOMY[S.autonomy].twinIdle;
+        var t = twinRefs.task;
+        t.style.opacity = 0;
+        setTimeout(function () {
+          if (!twinRefs.task) return;
+          t.textContent = list[taskIdx % list.length];
+          t.style.opacity = 1;
+          taskIdx++;
+        }, reduced ? 10 : 260);
+      }
+
+      /* ---------------- chrome (crumbs / depth / back) ---------------- */
+      var crumbsEl = document.getElementById("crumbs");
+      function syncChrome() {
+        var items = [{ label: "The Company", view: "company" }];
+        if (S.dept) items.push({ label: S.dept.name, view: "dept" });
+        if (S.view === "twin") items.push({ label: "Employee + Twin", view: "twin" });
+        crumbsEl.innerHTML = "";
+        items.forEach(function (it, i) {
+          if (i > 0) {
+            var sep = document.createElement("span");
+            sep.className = "crumb-sep"; sep.textContent = "/";
+            crumbsEl.appendChild(sep);
+          }
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "crumb" + (i === items.length - 1 ? " current" : "");
+          b.textContent = it.label;
+          (function (view) {
+            b.addEventListener("click", function () {
+              if (view === "company" && S.view !== "company") goCompany();
+              if (view === "dept" && S.view === "twin") goDept();
+            });
+          })(it.view);
+          crumbsEl.appendChild(b);
+        });
+        var depth = S.view === "company" ? 0 : S.view === "dept" ? 1 : 2;
+        for (var d = 0; d < 3; d++) document.getElementById("d" + d).classList.toggle("on", d <= depth);
+        backBtn.disabled = S.view === "company";
+      }
+
+      /* ---------------- navigation ---------------- */
+      function showLayer(which) {
+        layerCompany.classList.toggle("hidden", which !== "company");
+        layerDept.classList.toggle("hidden", which !== "dept");
+        layerTwin.classList.toggle("hidden", which !== "twin");
+      }
+      function drillToDept(dept, pathEl) {
+        if (S.busy || S.view !== "company") return;
+        S.busy = true; S.suggested = false;
+        S.dept = dept; S.view = "dept";
+        renderDept(dept);
+        /* morph: the clicked arc grows into the full ring */
+        var a0 = pathEl._a0, a1 = pathEl._a1;
+        var morph = el("path", { fill: "none", stroke: dept.color, "stroke-width": SW }, layerMorph);
+        layerCompany.style.opacity = 0;
+        var span0 = a1 - a0, span1 = 354;
+        tween(760, function (t) {
+          var e = easeInOut(t);
+          var end = a0 + span0 + (span1 - span0) * e;
+          morph.setAttribute("d", arcPath(CX, CY, R, a0, end));
+          morph.setAttribute("opacity", String(1 - Math.max(0, e - 0.75) * 4));
+        }, function () {
+          layerMorph.innerHTML = "";
+          layerCompany.style.opacity = "";
+          showLayer("dept");
+          S.busy = false;
+        });
+        setPanel("INSIDE " + dept.name.toUpperCase(), "Every department runs its own loop.",
+          dept.copy, '<p class="note">' + dept.note + "</p>",
+          "Click a stage of the " + dept.name + " loop");
+      }
+      function drillToTwin(stage) {
+        if (S.busy || S.view !== "dept") return;
+        S.busy = true; S.suggested = false;
+        S.stage = stage; S.view = "twin"; S.autonomy = 0;
+        renderTwin();
+        showLayer("twin");
+        /* the two circles separate out of the ring */
+        var hg = twinRefs.humanG, tg = twinRefs.twinG;
+        if (!reduced) {
+          hg.style.transform = "translateX(105px) scale(0.72)"; hg.style.opacity = 0;
+          tg.style.transform = "translateX(-105px) scale(0.72)"; tg.style.opacity = 0;
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              hg.style.transform = "translateX(0) scale(1)"; hg.style.opacity = 1;
+              tg.style.transform = "translateX(0) scale(1)"; tg.style.opacity = 1;
+            });
+          });
+        }
+        setTimeout(function () { S.busy = false; }, reduced ? 60 : 720);
+        taskIdx = 0; cycleTask();
+        setPanel("THE AI-NATIVE MOVE · " + S.dept.name.toUpperCase() + " / " + stage.toUpperCase(),
+          "Give every person a digital twin.",
+          "We pair each employee with a <strong>personal agent</strong> — a digital twin. The employee teaches it their <strong>skills and preferences</strong>; in every conversation it keeps learning and summarizing, building <strong>memory and capability</strong> that compound over time.",
+          autonomyHTML(),
+          "Move through the three stages of autonomy");
+      }
+      function goDept() {
+        if (S.busy || !S.dept) return;
+        S.view = "dept"; S.stage = null;
+        showLayer("dept");
+        setPanel("INSIDE " + S.dept.name.toUpperCase(), "Every department runs its own loop.",
+          S.dept.copy, '<p class="note">' + S.dept.note + "</p>",
+          "Click a stage of the " + S.dept.name + " loop");
+      }
+      function goCompany() {
+        if (S.busy) return;
+        S.view = "company"; S.dept = null; S.stage = null;
+        renderCompany();
+        showLayer("company");
+        setPanel("THE BIG PICTURE", "One company. One loop.",
+          "A company runs as a single closed loop: <strong>a demand comes in, a project is initiated, the work is driven forward, and value is delivered</strong> — which creates the next demand. Each arc of the ring is a department, carrying the loop forward.",
+          phasesHTML(),
+          "Click a department to look inside its loop");
+      }
+
+      backBtn.addEventListener("click", function () {
+        if (S.view === "twin") goDept();
+        else if (S.view === "dept") goCompany();
+      });
+      document.getElementById("resetBtn").addEventListener("click", function () {
+        S.autonomy = 0; S.suggested = true; goCompany();
+      });
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key === "ArrowRight") {
+          if (S.view === "company") {
+            var eng = DEPTS[1];
+            var p = layerCompany.querySelectorAll(".seg")[1];
+            if (p) drillToDept(eng, p);
+          } else if (S.view === "dept") {
+            drillToTwin(S.dept.stages[0]);
+          } else if (S.view === "twin") {
+            setAutonomy(Math.min(2, S.autonomy + 1));
+          }
+        } else if (ev.key === "ArrowLeft") {
+          if (S.view === "twin" && S.autonomy > 0) setAutonomy(S.autonomy - 1);
+          else if (S.view === "twin") goDept();
+          else if (S.view === "dept") goCompany();
+        } else if (ev.key === "r" || ev.key === "R") {
+          S.autonomy = 0; S.suggested = true; goCompany();
+        }
+      });
+
+      /* ---------------- ambient motion ---------------- */
+      var delegates = [], lastSpawn = 0, spinAngle = 0;
+      function ambient(now) {
+        requestAnimationFrame(ambient);
+        if (reduced) return;
+        var i, pos;
+        if (S.view === "company" || S.view === "dept") {
+          for (i = 0; i < flowDots.length; i++) {
+            var d = flowDots[i];
+            if (!d.node.parentNode) continue;
+            d.angle = (d.angle + 0.14 + i * 0.05) % 360;
+            pos = polar(CX, CY, d.r, d.angle);
+            d.node.setAttribute("cx", pos[0]); d.node.setAttribute("cy", pos[1]);
+          }
+        }
+        if (S.view === "twin" && twinRefs.spin) {
+          spinAngle = (spinAngle + 0.25 + S.autonomy * 0.35) % 360;
+          twinRefs.spin.setAttribute("transform", "rotate(" + spinAngle + " " + TX + " " + TY + ")");
+          twinRefs.arcs.setAttribute("transform", "rotate(" + (spinAngle * 0.12) + " " + TX + " " + TY + ")");
+          var sp = polar(TX, TY, TR - 20, spinAngle * (1.4 + S.autonomy * 0.5));
+          twinRefs.spinDot.setAttribute("cx", sp[0]); twinRefs.spinDot.setAttribute("cy", sp[1]);
+          /* delegation dots between the two circles */
+          var interval = [1500, 950, 2400][S.autonomy];
+          if (now - lastSpawn > interval && delegates.length < 5) {
+            lastSpawn = now;
+            var c = el("circle", { r: 4.5, fill: "var(--twin-bright)" }, twinRefs.dots);
+            delegates.push({ node: c, p: 0, back: S.autonomy === 0 ? Math.random() < 0.65 : Math.random() < 0.3, turned: false });
+          }
+          for (i = delegates.length - 1; i >= 0; i--) {
+            var dg = delegates[i];
+            dg.p += 0.006 + S.autonomy * 0.002;
+            var x;
+            if (!dg.back || dg.turned) x = HX + TR + 8 + (TX - TR - 8 - (HX + TR + 8)) * Math.min(1, dg.p);
+            else x = TX - TR - 8 - (TX - TR - 8 - (HX + TR + 8)) * Math.min(1, dg.p);
+            if (dg.p >= 1) {
+              if (dg.back && !dg.turned) { dg.turned = true; dg.p = 0; }
+              else { dg.node.remove(); delegates.splice(i, 1); continue; }
+            }
+            dg.node.setAttribute("cx", x); dg.node.setAttribute("cy", TY);
+          }
+        }
+      }
+
+      /* task text rotation for the twin */
+      setInterval(function () { if (S.view === "twin") cycleTask(); }, 2800);
+
+      /* ---------------- init ---------------- */
+      renderCompany();
+      showLayer("company");
+      setPanel("THE BIG PICTURE", "One company. One loop.",
+        "A company runs as a single closed loop: <strong>a demand comes in, a project is initiated, the work is driven forward, and value is delivered</strong> — which creates the next demand. Each arc of the ring is a department, carrying the loop forward.",
+        phasesHTML(),
+        "Click a department to look inside its loop");
+      syncChrome();
+      requestAnimationFrame(ambient);
+    </script>
+  </body>
+</html>
