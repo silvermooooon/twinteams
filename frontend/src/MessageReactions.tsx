@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { requestKey } from './api/client';
 import type { Message } from './api/client';
 import { Icon, IconButton, Modal } from './ui';
-import { t, i18n } from './i18n';
+import { t } from './i18n';
 import './MessageReactions.css';
 
 type EmojiVariant = { emoji: string; image: string; animated?: string; duration_ms?: number };
@@ -77,7 +77,7 @@ function EmojiPicker({ anchor, preferences, onPreferences, onSelect, onClose }: 
       {!!error && <p role="alert">{error}</p>}
       {!entries.length && !error && <p className="muted">{t('common.loading')}</p>}
       {!!entries.length && !filtered.length && <p className="muted">{t('reactions.noResults')}</p>}
-      <div className="reaction-emoji-grid">{filtered.slice(0, visible).map(entry => { const variant = toned(entry, activePreferences.tone); const name = i18n.locale.startsWith('zh') ? entry.zh : entry.name; return <button type="button" key={entry.emoji} className="emoji-option" title={name} aria-label={`${name} ${variant.emoji}`} onClick={() => select(entry)}><EmojiImage emoji={variant.emoji} entries={entries} /></button>; })}</div>
+      <div className="reaction-emoji-grid">{filtered.slice(0, visible).map(entry => { const variant = toned(entry, activePreferences.tone); const name = entry.name; return <button type="button" key={entry.emoji} className="emoji-option" title={name} aria-label={`${name} ${variant.emoji}`} onClick={() => select(entry)}><EmojiImage emoji={variant.emoji} entries={entries} /></button>; })}</div>
     </div>
     <div className="reaction-categories" role="tablist" aria-label={t('reactions.categories')}>{categories.map(([id, label, emoji]) => <button type="button" role="tab" key={id} aria-selected={category === id && !query} title={t(`reactions.category.${label}` as Parameters<typeof t>[0])} aria-label={t(`reactions.category.${label}` as Parameters<typeof t>[0])} onClick={() => { setCategory(id); setQuery(''); }}><EmojiImage emoji={emoji} entries={entries} /></button>)}</div>
   </>;

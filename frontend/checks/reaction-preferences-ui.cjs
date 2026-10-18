@@ -65,14 +65,14 @@ async function desktop() {
 async function mobile() {
   const { context, page, row, errors } = await setup(390, 'zh-CN');
   const bar = row.locator('.reaction-actions'); const bounds = await bar.boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390);
-  await row.getByRole('button', { name: '更多回应', exact: true }).tap();
-  const picker = page.locator('.reaction-picker'); await picker.getByLabel('搜索表情符号', { exact: true }).fill('红心');
+  await row.getByRole('button', { name: 'More reactions', exact: true }).tap();
+  const picker = page.locator('.reaction-picker'); await picker.getByLabel('Search emoji', { exact: true }).fill('红心');
   await picker.locator('.emoji-option').first().waitFor(); const popupBounds = await picker.boundingBox(); assert.ok(popupBounds.x >= 0 && popupBounds.x + popupBounds.width <= 390);
   await picker.locator('.emoji-option').first().tap(); await picker.waitFor({ state: 'hidden' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.equal(await row.locator('.reaction-chip img').evaluate(el => el.currentSrc.includes('/animated-')), false, 'reduced motion uses static source');
   await page.screenshot({ path: '/tmp/twinteams-reactions-mobile.png', fullPage: true });
-  assert.deepEqual(errors, []); await context.close(); console.log('PASS 390px Chinese touch toolbar/picker, static reduced-motion reaction and no overflow');
+  assert.deepEqual(errors, []); await context.close(); console.log('PASS 390px English touch toolbar/picker with a legacy locale preference, static reduced-motion reaction and no overflow');
 }
 async function run() { browser = await chromium.launch({ headless: true, channel: 'chrome' }); await desktop(); await mobile(); await browser.close(); }
 run().catch(async error => { console.error(error); await browser?.close(); process.exitCode = 1; });

@@ -1,4 +1,4 @@
-/** English is the source locale. User content and API errors are never translated as UI copy. */
+/** English product copy. User-authored content is displayed as supplied. */
 import { twinEn } from './twin';
 export const en = {
   "reactions.moreTypes": "{count} more reaction types",

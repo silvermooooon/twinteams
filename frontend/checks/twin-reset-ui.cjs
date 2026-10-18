@@ -84,7 +84,7 @@ async function run() {
   await page.screenshot({ path: '/tmp/twinteams-reset-desktop.png', fullPage: true }); await page.keyboard.press('Escape');
   const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
   const mobile = await mobileContext.newPage(); await fixture(mobile, 'zh-CN'); await mobile.goto(base + '/#/my-twin/profile');
-  await mobile.getByRole('button', { name: '重置', exact: true }).click(); await mobile.getByRole('button', { name: '确认重置', exact: true }).waitFor();
+  await mobile.getByRole('button', { name: 'Reset', exact: true }).click(); await mobile.getByRole('button', { name: 'Confirm reset', exact: true }).waitFor();
   const box = await mobile.getByRole('dialog').boundingBox(); assert.ok(box.x >= 0 && box.x + box.width <= 390);
   await mobile.screenshot({ path: '/tmp/twinteams-reset-mobile.png', fullPage: true }); await mobile.keyboard.press('Escape');
   const recoveryContext = await browser.newContext(); const recoveryPage = await recoveryContext.newPage(); const recovery = await fixture(recoveryPage); recovery.pendingReset();
@@ -93,6 +93,6 @@ async function run() {
   const recoveredCall = recovery.calls.find(row => row.path === '/api/me/twin/reset' && row.method === 'POST');
   assert.deepEqual(JSON.parse(recoveredCall.body), { idempotency_key: 'pending-original-key', expected_generation: 0 });
   assert.deepEqual(errors, []); await browser.close();
-  console.log('PASS Reset confirmation/cancel/busy/same-key retry, canonical private+Memory invalidation, Soul/group preservation, late Memory response discard, manual Dream queue, bilingual mobile; synthetic only.');
+  console.log('PASS Reset confirmation/cancel/busy/same-key retry, canonical private+Memory invalidation, Soul/group preservation, late Memory response discard, manual Dream queue, English mobile with a legacy locale preference; synthetic only.');
 }
 run().catch(async error => { console.error(error); if (page) { console.error((await page.locator('body').innerText()).slice(0, 3500)); await page.screenshot({ path: '/tmp/twinteams-reset-error.png' }).catch(() => {}); } await browser?.close(); process.exitCode = 1; });

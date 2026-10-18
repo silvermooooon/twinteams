@@ -1,34 +1,17 @@
 import { en } from './en';
-import { zh } from './zh';
 
 export type TranslationKey = keyof typeof en;
-export type TranslationResource = Partial<Record<TranslationKey, string>>;
 type Values = Record<string, string | number>;
-const resources: Record<string, TranslationResource> = { en, zh, 'zh-CN': zh };
-export const DEFAULT_LOCALE = 'zh-CN';
+export const DEFAULT_LOCALE = 'en';
 
-/** Locale is chosen at startup. Unknown languages and missing keys fall back to English. */
-export function createI18n(requestedLocale: string = DEFAULT_LOCALE) {
-  let locale = DEFAULT_LOCALE;
-  try { locale = Intl.getCanonicalLocales(requestedLocale)[0] || DEFAULT_LOCALE; } catch { /* Invalid locale: use English. */ }
-  const language = locale.split('-')[0];
-  const resource = resources[locale] ?? resources[language];
-  if (!resource) locale = 'en';
-  const dictionary = resource ?? en;
-  const t = (key: TranslationKey, values: Values = {}): string =>
-    (dictionary[key] ?? en[key]).replace(/\{(\w+)\}/g, (placeholder, name: string) =>
-      values[name] === undefined ? placeholder : String(values[name]));
-  const formatDate = (date: Date, options: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }) =>
-    new Intl.DateTimeFormat(locale, options).format(date);
-  const formatTime = (date: Date) => formatDate(date, { hour: 'numeric', minute: '2-digit' });
-  const formatRelativeDay = (offset: number) => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(offset, 'day');
-  const pluralCategory = (count: number) => new Intl.PluralRules(locale).select(count);
-  return { locale, t, formatDate, formatTime, formatRelativeDay, pluralCategory };
-}
-
-// A future saved language preference can be supplied here before rendering the app.
-let startupLocale = DEFAULT_LOCALE;
-try { startupLocale = localStorage.getItem('twinteams.locale') || DEFAULT_LOCALE; } catch { /* Storage may be disabled by the browser. */ }
-export const i18n = createI18n(startupLocale);
-document.documentElement.lang = i18n.locale;
-export const { t, formatDate, formatTime, formatRelativeDay, pluralCategory } = i18n;
+// Product copy and date/time formatting are always English, including for browsers
+// that retain the obsolete twinteams.locale preference from an earlier release.
+export const i18n = { locale: DEFAULT_LOCALE } as const;
+export const t = (key: TranslationKey, values: Values = {}): string =>
+  en[key].replace(/\{(\w+)\}/g, (placeholder, name: string) =>
+    values[name] === undefined ? placeholder : String(values[name]));
+export const formatDate = (date: Date, options: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }) =>
+  new Intl.DateTimeFormat(DEFAULT_LOCALE, options).format(date);
+export const formatTime = (date: Date) => formatDate(date, { hour: 'numeric', minute: '2-digit' });
+export const formatRelativeDay = (offset: number) =>
+  new Intl.RelativeTimeFormat(DEFAULT_LOCALE, { numeric: 'auto' }).format(offset, 'day');

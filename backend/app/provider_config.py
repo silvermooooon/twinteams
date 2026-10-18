@@ -415,24 +415,24 @@ async def save_page(owner: OwnerIdentity):
     path = escape(str(SECRET_PATH))
     saved, storage_available = _saved_status()
     page = """<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>保存 OpenAI API key</title><style nonce="__NONCE__">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Save OpenAI API key</title><style nonce="__NONCE__">
 body{font:16px/1.6 system-ui,sans-serif;background:#f4f5f7;color:#20212a;margin:0;padding:40px 20px}main{max-width:660px;margin:auto;background:white;border:1px solid #dddfe7;border-radius:18px;padding:28px}h1{font-size:26px;margin:0 0 12px}p{margin:12px 0}code{overflow-wrap:anywhere;font-size:14px}label{display:block;margin:20px 0 8px}input[type=password]{box-sizing:border-box;width:100%;padding:13px;font:inherit;border:1px solid #979ca8;border-radius:8px}button{font:inherit;border:0;border-radius:8px;background:#4859c8;color:white;padding:12px 18px;margin-top:20px;cursor:pointer}button:disabled{opacity:.5;cursor:default}.notice{background:#f1f3fc;padding:14px;border-radius:9px}.confirm{display:flex;gap:10px;align-items:flex-start}.confirm input{margin-top:7px}#result{min-height:26px;white-space:pre-line}.muted{color:#5e6370;font-size:14px}a{color:#3448ad}
-</style></head><body><main><h1>保存 OpenAI API key</h1>
-<p>这是单独的本机保存页面。请亲自在下方输入现有的 key，不要发到聊天中。</p>
-<div class="notice"><strong>下方保存操作只保存，不验证，也不调用 OpenAI。</strong><p>将 OPENAI_API_KEY 保存到此服务器的私有环境变量文件：</p><code>__PATH__</code>
-<p>这是未加密的本地明文文件，目录权限 0700，文件权限 0600。保存会替换此路径已有的文件；旧 key 不会被读取或显示。</p>
-<p>不会更改全局 shell 环境或当前运行进程。之后仅在你明确要求的流程中加载使用，不会自动启用模型、重放请求或发送聊天内容。</p></div>
+</style></head><body><main><h1>Save OpenAI API key</h1>
+<p>This separate local page saves your key. Enter your existing key below yourself. Do not send it in chat.</p>
+<div class="notice"><strong>Saving below only stores the key. It does not validate it or call OpenAI.</strong><p>Save OPENAI_API_KEY to this server’s private environment file:</p><code>__PATH__</code>
+<p>This unencrypted local file uses directory permissions 0700 and file permissions 0600. Saving replaces the existing file at this path. The old key is never read or shown.</p>
+<p>The global shell environment and running process stay unchanged. The key is loaded only for a workflow you explicitly request later. Saving does not automatically enable a model, replay requests or send chat content.</p></div>
 <form id="save-form" autocomplete="off"><label for="api-key">OpenAI API key</label>
 <input id="api-key" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required aria-describedby="privacy">
-<p id="privacy" class="muted">提交或离开页面时清空输入。不会写入浏览器存储、应用消息或日志，也不会返回 key 的任何部分。</p>
-<label class="confirm"><input id="confirm-save" type="checkbox"><span>我确认按上述路径和明文权限保存 OPENAI_API_KEY，替换该路径的已有文件；仅供之后我明确要求的流程使用。</span></label>
-<button id="save-button" type="submit" disabled>保存到本机环境变量文件</button></form>
-<section aria-labelledby="verify-title"><h2 id="verify-title">验证已保存的 Key</h2>
-<p>点击下方按钮即确认一次会产生少量 OpenAI API 费用的验证。仅发送固定提示词「Reply with OK.」，使用 GPT-6 Luna，store: false，最多 32 个输出 token。不会发送任何应用聊天、历史、记忆或工作区内容。</p>
-<p>服务器仅在你点击后读取已保存的私有文件。不会显示 key、再次保存、启用模型或重放积压任务。不会自动重试；超时或断线仍可能产生费用。当前网络连接可能失败。</p>
-<button id="verify-saved-button" type="button" disabled>使用已保存 Key 验证 GPT-6 Luna（会产生少量 API 费用）</button></section>
-<p id="result" role="status" aria-live="polite"></p><p class="muted">仅限本机 AAA 管理员。<a href="http://127.0.0.1:8010/">返回正常应用 / 重新登录 DEV-AAA</a></p></main>
+<p id="privacy" class="muted">The field is cleared when you submit or leave. The key is never written to browser storage, app messages or logs, and no part of it is returned.</p>
+<label class="confirm"><input id="confirm-save" type="checkbox"><span>I confirm saving OPENAI_API_KEY at the path and with the plain-text permissions above, replacing the existing file, for use only in a workflow I explicitly request later.</span></label>
+<button id="save-button" type="submit" disabled>Save to local environment file</button></form>
+<section aria-labelledby="verify-title"><h2 id="verify-title">Validate saved key</h2>
+<p>Clicking below authorizes one small billed OpenAI API validation call. It sends only the fixed prompt “Reply with OK.” using GPT-6 Luna, store: false, and at most 32 output tokens. No app chats, history, memory or workspace content are sent.</p>
+<p>The server reads the saved private file only after you click. It does not show the key, save it again, enable a model or replay pending tasks. There are no automatic retries; a timeout or lost connection may still incur a charge. The current network connection may fail.</p>
+<button id="verify-saved-button" type="button" disabled>Validate GPT-6 Luna with saved key · small billed API call</button></section>
+<p id="result" role="status" aria-live="polite"></p><p class="muted">Local AAA administrator only. <a href="http://127.0.0.1:8010/">Return to the app / sign in again as DEV-AAA</a></p></main>
 <script nonce="__NONCE__">
 'use strict';
 const form=document.getElementById('save-form'), field=document.getElementById('api-key'), confirm=document.getElementById('confirm-save'), button=document.getElementById('save-button'), result=document.getElementById('result');
@@ -444,29 +444,29 @@ update();
 window.addEventListener('pagehide',()=>{field.value='';if(controller)controller.abort();});
 form.addEventListener('submit',async event=>{
  event.preventDefault();if(busy||!confirm.checked||!field.value.length)return;
- busy=true;let key=field.value,body='';field.value='';result.textContent='正在保存…';update();controller=new AbortController();
+ busy=true;let key=field.value,body='';field.value='';result.textContent='Saving…';update();controller=new AbortController();
  try{
   body=JSON.stringify({api_key:key,confirm_local_save:true});key='';
   const pending=fetch('/api/local-provider-config/save',{method:'POST',credentials:'include',cache:'no-store',headers:{'Content-Type':'application/json','X-Twinteams-Config':'1'},body,signal:controller.signal});body='';
   const response=await pending,data=await response.json();
-  if(response.ok&&data&&data.saved===true&&data.enabled===false&&data.error_code===null){result.textContent='已保存 OPENAI_API_KEY 到上述本机私有环境变量文件。未调用 OpenAI，未启用模型。';confirm.checked=false;safeSaved=true;}
-  else if(data&&data.error_code==='invalid_key')result.textContent='Key 格式不符。只接受官方 sk- 格式的字母、数字、连字符和下划线，不接受空格、换行或其他字符。输入已清空。';
-  else if(data&&data.error_code==='authentication_required')result.textContent='登录已过期。请在正常应用登录 DEV-AAA，再回到此页面。输入已清空。';
-  else if(data&&data.error_code==='storage_unavailable')result.textContent='无法确认保存。本机私有文件位置不可用或保存未完成。输入已清空。';
-  else result.textContent='无法确认保存。请确认使用本机 AAA 管理员和此页面。输入已清空。';
- }catch{result.textContent='连接中断，无法确认是否已保存。输入已清空。不要在聊天中发送 key。';}
+  if(response.ok&&data&&data.saved===true&&data.enabled===false&&data.error_code===null){result.textContent='OPENAI_API_KEY saved to the private local environment file above. No OpenAI call was made and no model was enabled.';confirm.checked=false;safeSaved=true;}
+  else if(data&&data.error_code==='invalid_key')result.textContent='Invalid key format. Use the official sk- format with letters, numbers, hyphens and underscores. Spaces, line breaks and other characters are not accepted. The field was cleared.';
+  else if(data&&data.error_code==='authentication_required')result.textContent='Your session expired. Sign in as DEV-AAA in the app, then return here. The field was cleared.';
+  else if(data&&data.error_code==='storage_unavailable')result.textContent='Saving could not be confirmed. The private local file location is unavailable or saving did not complete. The field was cleared.';
+  else result.textContent='Saving could not be confirmed. Use this page as the local AAA administrator. The field was cleared.';
+ }catch{result.textContent='The connection was lost before saving could be confirmed. The field was cleared. Do not send the key in chat.';}
  finally{key='';body='';field.value='';busy=false;controller=null;update();}
 });
 verifyButton.addEventListener('click',async()=>{
  if(busy||!safeSaved)return;
- busy=true;field.value='';confirm.checked=false;update();controller=new AbortController();result.textContent='正在使用已保存的 Key 验证 GPT-6 Luna… 请勿重复提交。';
+ busy=true;field.value='';confirm.checked=false;update();controller=new AbortController();result.textContent='Validating GPT-6 Luna with the saved key… Please do not submit again.';
  try{
   const response=await fetch('/api/local-provider-config/verify-saved',{method:'POST',credentials:'include',cache:'no-store',headers:{'Content-Type':'application/json','X-Twinteams-Config':'1'},body:JSON.stringify({confirm_billed_call:true}),signal:controller.signal}),data=await response.json();
-  const messages={provider_timeout:'验证超时，结果未确认。仍可能产生费用；未自动重试。',provider_connection_failed:'服务器连接 OpenAI 失败，验证结果未确认。仍可能产生费用；未自动重试。',provider_authentication_failed:'OpenAI 未接受已保存的 Key 或其权限。',model_unavailable:'此 OpenAI 项目无法使用 GPT-6 Luna。',provider_limit:'OpenAI 返回额度或速率限制。请先检查项目，再决定是否重试。',provider_rejected:'OpenAI 拒绝了固定验证请求。',provider_invalid_response:'OpenAI 未返回完整有效的 GPT-6 Luna 响应。',provider_unavailable:'OpenAI 暂时无法完成验证。',provider_redirect_refused:'官方服务返回了意外重定向，已拒绝跟随。',authentication_required:'登录已过期。请在正常应用登录 DEV-AAA，再回到此页面。',storage_unavailable:'已保存的私有文件不存在、不安全或格式无效。未调用 OpenAI。',validation_in_progress:'已有验证正在进行。请等待，不要重复提交。',validation_rate_limited:'近期已尝试验证。请等待并检查 OpenAI 账户后再明确重试。'};
-  if(response.ok&&data&&data.validated===true&&data.enabled===false&&data.error_code===null)result.textContent='GPT-6 Luna 验证成功。未启用模型，未发送应用聊天，未重放任务。';
-  else result.textContent=messages[data&&data.error_code]||'无法确认验证结果。未自动重试，未启用模型。';
+  const messages={provider_timeout:'Validation timed out before confirmation. A charge may still have occurred; no automatic retry was made.',provider_connection_failed:'The server could not connect to OpenAI. Validation is unconfirmed. A charge may still have occurred; no automatic retry was made.',provider_authentication_failed:'OpenAI did not accept the saved key or its permissions.',model_unavailable:'GPT-6 Luna is unavailable for this OpenAI project.',provider_limit:'OpenAI returned a quota or rate limit. Check the project before choosing to retry.',provider_rejected:'OpenAI rejected the fixed validation request.',provider_invalid_response:'OpenAI did not return a complete, valid GPT-6 Luna response.',provider_unavailable:'OpenAI is temporarily unable to complete validation.',provider_redirect_refused:'The official service returned an unexpected redirect, which was not followed.',authentication_required:'Your session expired. Sign in as DEV-AAA in the app, then return here.',storage_unavailable:'The saved private file is missing, unsafe or invalid. No OpenAI call was made.',validation_in_progress:'Validation is already running. Wait before submitting again.',validation_rate_limited:'Validation was attempted recently. Wait and check your OpenAI account before explicitly retrying.'};
+  if(response.ok&&data&&data.validated===true&&data.enabled===false&&data.error_code===null)result.textContent='GPT-6 Luna validation succeeded. No model was enabled, no app chats were sent and no tasks were replayed.';
+  else result.textContent=messages[data&&data.error_code]||'Validation could not be confirmed. No automatic retry was made and no model was enabled.';
   if(data&&data.error_code==='storage_unavailable')safeSaved=false;
- }catch{result.textContent='浏览器与本机服务的连接中断，验证结果未确认。仍可能产生费用；未自动重试。';}
+ }catch{result.textContent='The browser lost its connection to the local service before validation could be confirmed. A charge may still have occurred; no automatic retry was made.';}
  finally{field.value='';busy=false;controller=null;update();}
 });
 </script></body></html>"""

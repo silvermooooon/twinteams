@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AbortSignal, AssistantMessageEventStream, assistant_message
+from agent_runtime.storage.coordination import CommandConflictError
 
 from app.runtime_bridge import RuntimeBridge, final_text_record, projectable_model_records
 
@@ -81,9 +82,9 @@ def test_proactive_send_schema_preserves_followup_and_reply_reference():
     assert product.tool_calls[0][2]["causal_chain_id"] == "chain"
     assert product.tool_calls[0][2]["operation_id"] == "operation:send"
     system = runtime._system(context)
-    assert "can compose a new message to an existing group" in system
-    assert "neither share the private transcript" in system
-    assert "courtesy acknowledgements" in system
+    assert "existing authorized chat" in tool.description
+    assert "audience restrictions" in system
+    assert "courtesy replies" in system
 
 
 @pytest.mark.parametrize("final_body,failed", [("", False), ("Useful completed result.", False), ("", True)])
@@ -147,6 +148,66 @@ def test_followup_actual_sdk_does_not_publish_intermediate_text(monkeypatch, fin
             assert len(calls) == call_count
             await runtime._project_outputs(request_id, runtime.tenant_id, result["session_id"], result["run_id"])
             assert list(product.outputs.values()) == ([final_body] if final_body else [])
+        finally:
+            await runtime.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("source", ["subagent_result", "followup_result"])
+def test_preaccepted_legacy_continuation_preserves_input_and_replays_once(monkeypatch, source):
+    from app import twin_execution
+    from app.twin_prompts import request_prompt
+
+    async def assemble(service, session, context):
+        return [], context, None
+
+    async def no_history(self, context):
+        return ""
+
+    async def no_children(self, agent, context):
+        return None
+
+    monkeypatch.setattr(twin_execution, "assemble", assemble)
+    monkeypatch.setattr(RuntimeBridge, "_credential_continuation_history", no_history)
+    monkeypatch.setattr(RuntimeBridge, "_attach_subagents", no_children)
+
+    async def run():
+        product = ProductStub()
+        runtime = RuntimeBridge(product)
+        inputs = []
+
+        def offline(model, context, options):
+            inputs.extend(message for message in context.messages if message["role"] == "user")
+            stream = AssistantMessageEventStream()
+            stream.push({"type": "done", "message": assistant_message(model,
+                content=[{"type": "text", "text": "Verified completed result."}], stopReason="stop")})
+            return stream
+
+        runtime.models.register_api("offline-regression", offline)
+        await runtime.start()
+        request_id, chat_id = uuid4().hex, uuid4().hex
+        request = {"id": request_id, "chat_id": chat_id, "target_twin_id": "twin-a",
+                   "requester_id": "owner-a", "source": source, "input_body": "Actual result"}
+        product.requests[request_id] = request
+        context = {"owner_id": "owner-a", "chat": {"id": chat_id, "kind": "private"}}
+        session_id = runtime.session_id(chat_id, "twin-a")
+        old_message = {"role": "user", "content": [{"type": "text", "text": "Old deployed wrapper: Actual result"}],
+                       "timestamp": 0, "queueId": request_id}
+        try:
+            assert request_prompt(request, context) != old_message["content"][0]["text"]
+            command = await runtime.store.accept_command(runtime.tenant_id, session_id,
+                command_id=request_id, kind="prompt", payload={"message": old_message}, user_id="owner-a")
+            result = await runtime.execute(request, context)
+            assert result["body"] == "Verified completed result."
+            assert inputs == [old_message]
+            assert (await runtime.store.get_command(runtime.tenant_id, request_id))["payload"] == command["payload"]
+            assert await runtime.execute(request, context) == result
+            assert inputs == [old_message]
+            assert list(product.outputs.values()) == ["Verified completed result."]
+            with pytest.raises(CommandConflictError, match="user does not own"):
+                await runtime.execute(request, {**context, "owner_id": "owner-other"})
+            assert inputs == [old_message]
         finally:
             await runtime.close()
 

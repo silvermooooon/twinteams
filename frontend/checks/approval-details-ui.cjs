@@ -20,7 +20,7 @@ async function scenario(locale, width) {
   assert.equal(await page.getByText('OTHER OWNER MUST NOT RENDER', { exact: true }).count(), 0);
   for (let index = 0; index < tools.length; index++) {
     await drawer.getByRole('tab').nth(index).click();
-    await drawer.getByRole('button', { name: locale === 'en' ? 'View details' : '查看详情', exact: true }).click();
+    await drawer.getByRole('button', { name: 'View details', exact: true }).click();
     assert.equal(await drawer.locator('code').innerText(), tools[index]);
     assert.deepEqual(JSON.parse(await drawer.locator('.approval-arguments').innerText()), approvals[index].action.arguments);
     assert.equal(await drawer.locator('.approval-arguments img').count(), 0, 'arguments render as escaped React text');
@@ -28,7 +28,7 @@ async function scenario(locale, width) {
     const bounds = await drawer.locator('.approval-arguments').boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width);
   }
   await drawer.getByRole('tab').nth(13).click();
-  await drawer.getByRole('button', { name: locale === 'en' ? 'View details' : '查看详情', exact: true }).click();
+  await drawer.getByRole('button', { name: 'View details', exact: true }).click();
   assert.equal(await drawer.locator('h3').innerText(), 'Legacy approval'); assert.equal(await drawer.locator('.approval-arguments').count(), 0);
   assert.equal(mock.calls.filter(call => call.path.includes('/decision')).length, 0);
   assert.deepEqual(errors, []); await context.close();

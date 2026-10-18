@@ -144,15 +144,15 @@ async function run() {
   assert.equal(await page.getByRole('tab', { name: 'Profile', exact: true }).getAttribute('aria-selected'), 'true');
   await page.screenshot({ path: '/tmp/twinteams-my-twin-desktop.png', fullPage: true });
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' }); const mobilePage = await mobile.newPage(); await fixture(mobilePage, 'zh-CN');
-  await mobilePage.goto(`${base}/#/my-twin/profile`); await mobilePage.getByLabel('Twin 名称', { exact: true }).waitFor();
+  await mobilePage.goto(`${base}/#/my-twin/profile`); await mobilePage.getByLabel('Twin name', { exact: true }).waitFor();
   assert.equal(await mobilePage.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-  await mobilePage.getByRole('button', { name: '选择头像', exact: true }).click();
-  assert.equal(await mobilePage.getByRole('dialog').getByRole('button', { name: /^默认头像/ }).count(), 6);
+  await mobilePage.getByRole('button', { name: 'Choose avatar', exact: true }).click();
+  assert.equal(await mobilePage.getByRole('dialog').getByRole('button', { name: /^Default avatar/ }).count(), 6);
   const modalBounds = await mobilePage.getByRole('dialog').boundingBox(); assert.ok(modalBounds.x >= 0 && modalBounds.x + modalBounds.width <= 390);
   await mobilePage.screenshot({ path: '/tmp/twinteams-my-twin-mobile.png', fullPage: true });
   assert.deepEqual(errors, []);
   await browser.close();
-  console.log('PASS: offline profile/avatar presets/crop/upload/remove/size limit, actor notification, runtime, Skills local search/toggle/details, memory search/references, credential request/create/delete/value clearing, English/Chinese, keyboard and mobile layout.');
+  console.log('PASS: offline profile/avatar presets/crop/upload/remove/size limit, actor notification, runtime, Skills local search/toggle/details, memory search/references, credential request/create/delete/value clearing, English with legacy locale preferences, keyboard and mobile layout.');
 }
 module.exports = { fixture };
 if (require.main === module) run().catch(async error => { console.error(error); if (activePage) { console.error((await activePage.locator('body').innerText()).slice(0, 2000)); await activePage.screenshot({ path: '/tmp/twinteams-my-twin-error.png' }).catch(() => {}); } await activeBrowser?.close(); process.exitCode = 1; });

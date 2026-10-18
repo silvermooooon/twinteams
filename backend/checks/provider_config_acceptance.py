@@ -401,7 +401,8 @@ def main():
             assert client.get("/api/local-provider-config").status_code == 200
             page = client.get("/api/local-provider-config/save-page")
             assert page.status_code == 200 and "Reply with OK." in page.text
-            assert "会产生少量 API 费用" in page.text and "不会发送任何应用聊天" in page.text
+            assert "small billed API call" in page.text and "No app chats, history, memory or workspace content are sent." in page.text
+            assert '<html lang="en">' in page.text and "Save OpenAI API key" in page.text
         for raw in (b'{"confirm_billed_call":true,"confirm_billed_call":true}', b"x" * 4097, b"\xff"):
             response = client.post("/api/local-provider-config/verify-saved", content=raw,
                                    headers={**GUARDS, "Content-Type": "application/json"})

@@ -82,11 +82,11 @@ async function run() {
 
   const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
   const mobile = await mobileContext.newPage(); await fixture(mobile, 'zh-CN');
-  await mobile.goto(`${base}/#/my-twin/memory`); await mobile.getByRole('button', { name: '新增记忆', exact: true }).click();
-  await mobile.getByLabel('记忆名称', { exact: true }).fill('notes/mobile'); await mobile.getByLabel('记忆内容', { exact: true }).fill('移动端草稿');
+  await mobile.goto(`${base}/#/my-twin/memory`); await mobile.getByRole('button', { name: 'Add memory', exact: true }).click();
+  await mobile.getByLabel('Memory key', { exact: true }).fill('notes/mobile'); await mobile.getByLabel('Memory content', { exact: true }).fill('移动端草稿');
   const box = await mobile.getByRole('dialog').boundingBox(); assert.ok(box.x >= 0 && box.x + box.width <= 390);
   await mobile.screenshot({ path: '/tmp/twinteams-soul-memory-mobile.png', fullPage: true });
   assert.deepEqual(errors, []); await browser.close();
-  console.log('PASS Soul create/clear, draft retention across tabs/notifications, explicit conflict merge, Git Memory create/edit/delete including MEMORY and delete conflicts, Dream read-only status, bilingual mobile layout; no real data/model used.');
+  console.log('PASS Soul create/clear, draft retention across tabs/notifications, explicit conflict merge, Git Memory create/edit/delete including MEMORY and delete conflicts, Dream read-only status, English mobile layout with a legacy locale preference; no real data/model used.');
 }
 run().catch(async error => { console.error(error); if (page) { console.error((await page.locator('body').innerText()).slice(0, 3000)); await page.screenshot({ path: '/tmp/twinteams-soul-memory-error.png' }).catch(() => {}); } await browser?.close(); process.exitCode = 1; });
