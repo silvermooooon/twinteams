@@ -230,6 +230,7 @@ async def offline_adapter(model, context, options):
                                       "description": "Test-only scoped consent record for this chat. No email, purchase, payment or external action will run.",
                                       "target": "Acceptance fixture in-app example only",
                                       "impact": "Creates only an isolated approval record. Approval does not trigger an external effect.",
+                                      "action": {"tool": "create_reminder", "arguments": {"title": "Approved fixture reminder"}},
                                   }}], tool=True)
         return _final(model, _text("Acceptance fixture: a scoped approval is waiting in Approvals. Choose Approve or Reject; no external action is installed."))
     return _final(model, _text("Acceptance fixture response: " + (prompt.strip() or "plain test response")))

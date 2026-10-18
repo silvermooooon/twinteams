@@ -7,6 +7,9 @@ PostgreSQL is the deployment backend. The application is not deployed remotely.
 ## Run locally
 
 Keep the two sibling directories together: `twinteams/` and `agent-runtime/`.
+The SDK is the original [silvermooooon/agent-runtime](https://github.com/silvermooooon/agent-runtime)
+repository. `backend/pyproject.toml` installs it as an editable sibling dependency;
+there is no vendored or separate Twinteams Runtime copy.
 
 ```sh
 cd twinteams/backend
@@ -71,8 +74,7 @@ Set the provider configuration on the server using environment variables or a
 secret manager. `backend/.env.example` documents the supported names. Do not put
 API keys in a chat message, screenshots, source code or committed files.
 
-For OpenAI Responses, configure `AGENT_PROVIDER=openai`, `AGENT_MODEL` to an
-available model ID, and `OPENAI_API_KEY`. `OPENAI_BASE_URL` is optional. For
+For OpenAI Responses, configure `AGENT_PROVIDER=openai`, `AGENT_MODEL=gpt-6-luna`, and `OPENAI_API_KEY`. `OPENAI_BASE_URL` is optional. For
 Anthropic, use `AGENT_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`. Restart the
 server after changing configuration. Credentials are re-injected into the SDK;
 they are not serialized into journal options or returned by `/api/config`.
@@ -99,7 +101,8 @@ uv run --python 3.13 python run_local.py --port 8000
   repetition holds and explicitly authorized continuation
 - Reply-for-me mode with frozen global/chat prompt, a separate raw input, and a
   Twin-authored lavender/mint hard-diagonal bubble
-- Per-approver approval tabs and details; pending approvals do not hold the reply lane
+- Per-approver approval tabs and details, durable exact-action consent and FIFO
+  continuations; pending approvals do not hold the reply lane
 - Private/group Tracking, sourced update chains, deletion tombstones and provenance checks
 - Source-checked summaries with contiguous remaining history and scoped history tools
 - In-app reminders, per-chat sidebar preferences, shared/private workspace files,
@@ -164,6 +167,7 @@ deterministic adapter. They make no paid/provider calls and are not used by the 
 
 ```sh
 cd backend
+.venv/bin/python -m pytest tests -q
 .venv/bin/python checks/product_acceptance.py
 .venv/bin/python checks/runtime_acceptance.py
 .venv/bin/python checks/provider_config_acceptance.py
@@ -173,7 +177,9 @@ cd ../../agent-runtime
 PYTHONPATH=src ../twinteams/backend/.venv/bin/python tests/test_durable_sqlite.py -v
 ```
 
-No broad regression, lint or typecheck suite was run. Browser/HTTP acceptance and
+SDK unit tests/lint, backend regression tests and frontend typecheck/build have
+been run for the consolidation. See [the recovery fixes](docs/recovery-fixes.md)
+for current coverage and boundaries. Historical browser acceptance and
 its limitations are recorded separately. Live-model acceptance requires real
 provider configuration; external sending/payment tools are not installed or
 silently simulated by approvals.

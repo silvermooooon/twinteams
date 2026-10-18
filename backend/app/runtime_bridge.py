@@ -19,6 +19,7 @@ from uuid import NAMESPACE_URL, uuid5
 from agent_runtime import Agent, AgentTool, AgentToolResult, Models, RuntimeConfig
 from agent_runtime.sessions import DatabaseSession, ToolRecoveryRequired
 from agent_runtime.storage import DatabaseConfig
+from agent_runtime.storage.coordination import ExecutionLeaseError
 
 
 class ModelNotConfigured(RuntimeError):
@@ -232,6 +233,8 @@ class RuntimeBridge:
             "actions are not installed. When an action needs owner consent, create an approval, explain "
             "what is awaiting approval, and finish the current response; never wait in a loop. "
             "A pending approval must not block later replies. Approval is specific to that request. "
+            "The only installed approval action is create_reminder. After approval, use "
+            "execute_approved_action with the approval ID; report success only after the tool succeeds. "
             "You may create/update chat Tracking when the user has a concrete ongoing goal; do not "
             "recreate deleted topics from old sources. Retrieve details when a Tracking title is relevant. "
             "All source message IDs must be from this authorized context. Do not expose hidden reasoning. "
@@ -266,7 +269,12 @@ class RuntimeBridge:
             ("add_tracking_update", "Append a sourced update to a topic's chronological chain.",
              {"id": text, "body": text, "source_message_ids": ids}, ["id", "body", "source_message_ids"]),
             ("create_approval", "Ask this Twin's owner to approve one concrete future action. Does not perform that action or grant broad permission.",
-             {"title": text, "description": text, "target": text, "impact": text}, ["title", "description", "target", "impact"]),
+             {"title": text, "description": text, "target": text, "impact": text,
+              "action": {"type": "object", "properties": {"tool": {"const": "create_reminder"},
+                  "arguments": {"type": "object", "properties": {"title": text, "detail": text, "due_at": text}, "required": ["title"], "additionalProperties": False}},
+                  "required": ["tool", "arguments"], "additionalProperties": False}},
+             ["title", "description", "target", "impact", "action"]),
+            ("execute_approved_action", "Execute the exact approved action. Pending or rejected approval cannot execute. Repeated calls return the same operation result.", {"id": text}, ["id"]),
             ("get_approval", "Read one approval belonging to this owner/chat. Approved requests never imply an external action was performed.",
              {"id": text}, ["id"]),
             ("save_summary", "Save a faithful summary of authorized messages, citing every source ID covered. Summary must not replace original history.",
@@ -352,6 +360,8 @@ class RuntimeBridge:
             if not session.resumable:
                 agent.state.messages = [{"role": "system", "content": system, "timestamp": 0}]
             self.active[request_id] = agent
+            if session.resumable:
+                await self._project_outputs(request_id, tenant_id, session_id, session.snapshot["run_id"])
             last_seq = session.revision - 1
 
             async def observe(event, signal):
@@ -412,6 +422,7 @@ class RuntimeBridge:
             if not run_id:
                 raise RuntimeError("The SDK command has no durable run identity.")
             records = await self._run_records(tenant_id, session_id, run_id)
+            await self._project_outputs(request_id, tenant_id, session_id, run_id, records)
             final = final_text_record(records)
             if status in ("failed", "stopped", "cancelled") or snapshot.get("status") in ("failed", "stopped"):
                 if snapshot.get("status") != "waiting_recovery":
@@ -424,10 +435,24 @@ class RuntimeBridge:
                     "body": text_content(final["data"].get("message")) if final else "",
                     "event_id": final["id"] if final else None,
                     "event_seq": final["seq"] if final else None}
+        except ExecutionLeaseError as exc:
+            raise RuntimeBusy("Execution ownership changed; reconcile the original command") from exc
         finally:
             self.active.pop(request_id, None)
             self.executors.pop(request_id, None)
             self.cancelled.discard(request_id)
+
+    async def _project_outputs(self, request_id, tenant_id, session_id, run_id, records=None):
+        """Rebuild missing product messages from committed semantic facts, idempotently."""
+        if records is None:
+            records = await self._run_records(tenant_id, session_id, run_id)
+        for record in records:
+            if record["type"] == "model_completed":
+                body = text_content(record["data"].get("message"))
+                if body:
+                    await maybe(self.service.publish_runtime_output(
+                        request_id, body, session_id, run_id, record["id"], record["seq"]
+                    ))
 
     async def _background_context(self, parent_session_id, parent_run_id):
         context = await maybe(self.service.get_background_context(parent_session_id, parent_run_id))
@@ -579,6 +604,8 @@ class RuntimeBridge:
             result = vars(result)
         snapshot = result.get("snapshot") or {}
         run_id = result.get("run_id") or snapshot.get("run_id")
+        if result.get("status") in {"busy", "accepted", "queued"}:
+            raise RuntimeBusy("Another worker is processing this routing decision")
         if result.get("status") != "completed" or not run_id:
             raise RuntimeError("Target selection did not complete successfully.")
         records = await self._run_records(self.tenant_id, session_id, run_id)
@@ -734,6 +761,31 @@ class RuntimeBridge:
         return safe_value(event)
 
     async def decide_approval(self, approval, decision):
-        # Only the product's scoped approval decision changes here. No external effect
-        # adapter is installed, and a decision must never be reported as action completion.
-        return None
+        from agent_runtime.execution import DurableApprovals
+        from agent_runtime.storage.coordination import CommandConflictError
+        from fastapi import HTTPException
+        await self.ensure_approval(approval)
+        try:
+            return await DurableApprovals(self.store).decide(self.tenant_id, approval["id"],
+                actor_id=approval["approver_id"], decision=decision)
+        except CommandConflictError as exc:
+            raise HTTPException(409, "Approval already has a different decision") from exc
+
+    async def ensure_approval(self, approval):
+        from agent_runtime.execution import DurableApprovals
+        from fastapi import HTTPException
+        if self.store is None:
+            raise HTTPException(503, "Runtime storage is unavailable")
+        reference = approval["sdk_reference"]
+        if not reference.get("action"):
+            raise HTTPException(409, "This legacy approval has no executable action; submit a new request")
+        return await DurableApprovals(self.store).request(self.tenant_id, reference["session_id"],
+            approval_id=approval["id"], user_id=approval["approver_id"], run_id=reference["run_id"],
+            action=reference["action"], context={"chat_id": approval["chat_id"], "request_id": reference["request_id"]})
+
+    async def authorize_approval(self, approval, operation_id):
+        from agent_runtime.execution import DurableApprovals
+        await self.ensure_approval(approval)
+        return await DurableApprovals(self.store).authorize(self.tenant_id, approval["id"],
+            user_id=approval["approver_id"], action=approval["sdk_reference"]["action"],
+            operation_id=operation_id)

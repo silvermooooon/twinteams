@@ -63,6 +63,8 @@ class ProductService:
         self.subscribers: dict[str, set[asyncio.Queue]] = {}
         self.tasks: dict[str, asyncio.Task] = {}
         self.scheduler_task = None
+        self.routing_task = None
+        self.routing_jobs = {}
         self.stopping = False
         self.loop = None
 
@@ -100,6 +102,8 @@ class ProductService:
             with engine.begin() as connection:
                 if "source_message_ids" not in approval_columns:
                     connection.execute(text("ALTER TABLE tt_approval_projections ADD COLUMN source_message_ids JSON NOT NULL DEFAULT '[]'"))
+                if "continuation_request_id" not in approval_columns:
+                    connection.execute(text("ALTER TABLE tt_approval_projections ADD COLUMN continuation_request_id VARCHAR(80) REFERENCES tt_reply_requests(id)"))
                 if "shared_with_chat" not in workspace_columns:
                     connection.execute(text("ALTER TABLE tt_workspace_nodes ADD COLUMN shared_with_chat BOOLEAN NOT NULL DEFAULT TRUE"))
                 if "created_at" not in workspace_columns:
@@ -803,10 +807,10 @@ class ProductService:
             elif state == "waiting" and (not online or aware(candidate.due_at) <= now()):
                 self.accept_request(db, chat, twin.id, source_owner, "auto", f"auto:{message.id}:{twin.id}", source_message_id=message.id, causal_chain_id=chain.id)
 
-    async def route_pending(self):
+    async def route_pending(self, decision_ids=None):
         with self.transaction() as db:
             rows = list(db.scalars(select(RoutingDecision).where(RoutingDecision.status == "pending")))
-            ids = [r.id for r in rows]
+            ids = [r.id for r in rows if decision_ids is None or r.id in decision_ids]
         for decision_id in ids:
             with self.transaction() as db:
                 decision = db.get(RoutingDecision, decision_id)
@@ -836,6 +840,10 @@ class ProductService:
                 needs_response = routed["needs_response"]
                 reason = str(routed.get("reason", ""))[:2000]
             except Exception as exc:
+                from .runtime_bridge import RuntimeBusy
+                from agent_runtime.storage.coordination import ExecutionLeaseError
+                if isinstance(exc, (RuntimeBusy, ExecutionLeaseError)):
+                    continue  # Keep pending: another holder owns the canonical result.
                 inferred, needs_response, reason, error = [], False, None, str(exc)
             with self.transaction() as db:
                 decision = db.get(RoutingDecision, decision_id)
@@ -1125,11 +1133,6 @@ class ProductService:
             prior = db.scalar(select(Message).where(Message.sdk_output_key == output_key))
             if prior and not is_reply_for_me:
                 return prior.id
-            if not is_reply_for_me:
-                # Callback and final-return projections may name the same body.
-                same = db.scalar(select(Message).where(Message.request_id == request.id, Message.chat_id == request.chat_id, Message.body == body, Message.state == "published", ~Message.sdk_output_key.like("tool:%")).limit(1))
-                if same:
-                    return same.id
             manifests = list(db.scalars(select(ContextManifest).where(ContextManifest.request_id == request.id)))
             source_ids = list({s["id"] for manifest in manifests for s in manifest.sources if s.get("kind") == "message"}) if manifests else ([request.source_message_id] if request.source_message_id else [])
             provenance = self.manifest_provenance(db, request.id)
@@ -1253,7 +1256,9 @@ class ProductService:
             # Shutdown leaves durable running intent intact for SDK reconciliation on restart.
             raise
         except Exception as exc:
-            if exc.__class__.__name__ == "RuntimeBusy":
+            from .runtime_bridge import RuntimeBusy
+            from agent_runtime.storage.coordination import ExecutionLeaseError
+            if isinstance(exc, (RuntimeBusy, ExecutionLeaseError)):
                 # A live SDK lease is not a failed/finished business request. Preserve
                 # the exact active lane, including concurrent stop/completion changes.
                 await asyncio.sleep(1)
@@ -1275,9 +1280,10 @@ class ProductService:
     async def scheduler(self):
         while not self.stopping:
             try:
-                await self.route_pending()
                 self.process_candidates()
                 self.process_pending_child_results()
+                if self.runtime and getattr(self.runtime, "store", None):
+                    await self.reconcile_approvals()
                 for request_id in self.claim_dispatches():
                     if request_id not in self.tasks:
                         self.tasks[request_id] = asyncio.create_task(self.execute_request(request_id))
@@ -1288,18 +1294,43 @@ class ProductService:
                 logging.getLogger(__name__).exception("Product scheduler failed: %s", exc)
             await asyncio.sleep(0.4)
 
+    async def route_scheduler(self):
+        while not self.stopping:
+            try:
+                for key, task in list(self.routing_jobs.items()):
+                    if task.done():
+                        self.routing_jobs.pop(key)
+                        if not task.cancelled() and (error := task.exception()):
+                            import logging
+                            logging.getLogger(__name__).error("Routing task failed: %s", error)
+                with self.transaction() as db:
+                    ids = list(db.scalars(select(RoutingDecision.id).where(RoutingDecision.status == "pending").order_by(RoutingDecision.created_at)))
+                for decision_id in ids:
+                    if len(self.routing_jobs) >= 4:
+                        break
+                    if decision_id not in self.routing_jobs:
+                        self.routing_jobs[decision_id] = asyncio.create_task(self.route_pending({decision_id}))
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception("Routing reconciliation failed")
+            await asyncio.sleep(0.4)
+
     async def start(self):
         self.loop = asyncio.get_running_loop()
         self.stopping = False
         self.scheduler_task = asyncio.create_task(self.scheduler())
+        self.routing_task = asyncio.create_task(self.route_scheduler())
 
     async def close(self):
         self.stopping = True
-        tasks = [t for t in [self.scheduler_task, *self.tasks.values()] if t]
+        tasks = [t for t in [self.scheduler_task, self.routing_task, *self.routing_jobs.values(), *self.tasks.values()] if t]
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         self.tasks.clear()
+        self.routing_jobs.clear()
 
     def publish_event(self, chat_id, event):
         payload = {**event, "chat_id": chat_id}
@@ -1557,10 +1588,13 @@ class ProductService:
             if not title or len(title) > 256 or len(description) > 30000:
                 fail(400, "Tracking title or description is invalid")
             subject = re.sub(r"\W+", " ", title.casefold()).strip()
-            tombstones = list(db.scalars(select(TrackingTopic).where(TrackingTopic.chat_id == chat.id, TrackingTopic.subject_key == subject, TrackingTopic.deleted_at.is_not(None))))
+            tombstones = list(db.scalars(select(TrackingTopic).where(TrackingTopic.chat_id == chat.id, TrackingTopic.deleted_at.is_not(None))))
+            if tombstones and context.get("context_manifest_id") and not messages:
+                fail(400, "Automatic Tracking requires explicit source messages")
             for tombstone in tombstones:
-                new_evidence = any(m.kind == "human" and m.seq > (tombstone.source_cutoff_seq or 0) and subject in re.sub(r"\W+", " ", m.body.casefold()).strip() for m in messages)
-                if not context.get("explicit_reintroduction") and not new_evidence:
+                uses_deleted_sources = any(m.seq <= (tombstone.source_cutoff_seq or 0) for m in messages)
+                uses_deleted_topic = any(s.get("kind") == "tracking" and s.get("id") == tombstone.id for s in context.get("inherited_provenance", []))
+                if not context.get("explicit_reintroduction") and (tombstone.subject_key == subject or uses_deleted_sources or uses_deleted_topic):
                     fail(409, "This Tracking topic was deleted. Old sources cannot recreate it; a new explicit owner request is required")
             current = db.scalar(select(TrackingTopic).where(TrackingTopic.chat_id == chat.id, TrackingTopic.subject_key == subject, TrackingTopic.deleted_at.is_(None)))
             if current:
@@ -1618,9 +1652,18 @@ class ProductService:
             db.flush()
             return {"id": summary.id, "coverage_end_seq": end, "source_message_ids": ids}
         if name == "create_approval":
+            action = args.get("action")
+            if not isinstance(action, dict) or action.get("tool") != "create_reminder" or set(action) != {"tool", "arguments"}:
+                fail(400, "Only the installed create_reminder action can currently request approval")
+            arguments = action.get("arguments")
+            if not isinstance(arguments, dict) or not arguments.get("title") or set(arguments) - {"title", "detail", "due_at"}:
+                fail(400, "Approval requires exact reminder arguments")
+            if not context.get("runtime_session_id") or not context.get("runtime_run_id") or not context.get("request_id"):
+                fail(400, "Approval requires a durable originating run")
             manifest = db.get(ContextManifest, context.get("context_manifest_id")) if context.get("context_manifest_id") else None
             sources = [s["id"] for s in manifest.sources if s.get("kind") == "message"] if manifest else []
-            approval = Approval(id=uid(), chat_id=chat.id, source_provenance=context.get("inherited_provenance", []), source_message_ids=sources, approver_id=owner_id, title=str(args["title"])[:256], description=str(args["description"]), target=str(args["target"]), impact=str(args["impact"]), sdk_reference=args.get("sdk_reference", {}))
+            reference = {"session_id": context["runtime_session_id"], "run_id": context["runtime_run_id"], "request_id": context["request_id"], "action": action}
+            approval = Approval(id=uid(), chat_id=chat.id, source_provenance=context.get("inherited_provenance", []), source_message_ids=sources, approver_id=owner_id, title=str(args["title"])[:256], description=str(args["description"]), target=str(args["target"]), impact=str(args["impact"]), sdk_reference=reference)
             db.add(approval)
             db.flush()
             return self.approval_json(approval)
@@ -1631,7 +1674,7 @@ class ProductService:
             return self.approval_json(approval)
         if name == "create_reminder":
             requester = context.get("request_requester_id", owner_id)
-            if requester != owner_id:
+            if requester != owner_id and not context.get("approved_approval_id"):
                 fail(403, "Another participant cannot create personal reminders for this Twin's owner")
             due = args.get("due_at")
             if isinstance(due, str):
@@ -1775,6 +1818,13 @@ class ProductService:
                 "author_owner_id": twin.owner_id}
 
     async def runtime_tool(self, name, args, context):
+        if name == "execute_approved_action":
+            approval = self.approval_for_execution(context["owner_id"], context["chat"]["id"], args["id"])
+            operation_id = f"approval-effect:{approval['id']}"
+            action = await self.runtime.authorize_approval(approval, operation_id)
+            return await self.runtime_tool(action["tool"], action["arguments"], {
+                **context, "operation_id": operation_id, "approved_approval_id": approval["id"],
+            })
         chat_value = context.get("chat", {})
         chat_id = chat_value.get("id") if isinstance(chat_value, dict) else chat_value
         chat_id = chat_id or context.get("chat_id")
@@ -1814,8 +1864,8 @@ class ProductService:
                 if not self.provenance_allowed(db, member, inherited):
                     fail(409, "Model-input sources are no longer authorized")
                 context = {**context, "inherited_provenance": inherited}
-                if name in {"create_tracking", "add_tracking_update"}:
-                    args = {**args, "source_message_ids": list(dict.fromkeys([*args.get("source_message_ids", []), *[s["id"] for s in inherited if s.get("kind") == "message"]]))}
+                # Citations identify the topic's actual sources. Full model-input
+                # provenance is retained separately and still gates every read.
             result = self._twin_message_tool(db, name, args, context) if name in {"send_chat_message", "list_authorized_chats"} else self._tool_dispatch(db, name, args, context, chat, member)
             manifest_id = context.get("context_manifest_id")
             manifest = db.get(ContextManifest, manifest_id) if manifest_id else None
@@ -1889,16 +1939,69 @@ class ProductService:
             payload = {**self.approval_json(approval), "sdk_reference": approval.sdk_reference}
         if not self.runtime:
             fail(503, "Runtime unavailable; no authorization decision was submitted")
-        await resolve(self.runtime.decide_approval(payload, decision))
+        self.approval_for_execution(owner_id, payload["chat_id"], approval_id)
+        decided = await resolve(self.runtime.decide_approval(payload, decision))
+        self.accept_approval_decision(approval_id, decided)
         with self.transaction() as db:
             approval = db.get(Approval, approval_id)
             self.membership(db, owner_id, approval.chat_id, True)
-            if approval.status not in {"pending", decision}:
-                fail(409, "Approval changed while submitting the decision")
-            approval.status = decision
             result = self.approval_json(approval)
         self.publish_event(approval.chat_id, {"type": "changed"})
         return result
+
+    def approval_for_execution(self, owner_id, chat_id, approval_id):
+        with self.transaction() as db:
+            _, member = self.membership(db, owner_id, chat_id)
+            row = db.get(Approval, approval_id)
+            if not row or row.chat_id != chat_id or row.approver_id != owner_id:
+                fail(404, "Approval not found")
+            if not self.sources_allowed(db, member, row.source_message_ids) or not self.provenance_allowed(db, member, row.source_provenance):
+                fail(409, "Approval sources are no longer authorized")
+            origin = db.get(ReplyRequest, row.sdk_reference.get("request_id"))
+            if not origin or origin.cancel_requested or origin.status == "cancelled":
+                fail(409, "Approval origin was cancelled or is unavailable")
+            return {**self.approval_json(row), "sdk_reference": row.sdk_reference}
+
+    def accept_approval_decision(self, approval_id, decision):
+        """Project the SDK decision and enqueue its continuation in one business commit."""
+        with self.transaction() as db:
+            row = db.get(Approval, approval_id)
+            chat, member = self.membership(db, row.approver_id, row.chat_id, True)
+            db.refresh(row)
+            if row.continuation_request_id:
+                return
+            row.status = decision["status"]
+            origin = db.get(ReplyRequest, row.sdk_reference.get("request_id"))
+            if not origin or origin.cancel_requested or origin.status == "cancelled":
+                return
+            if not self.provenance_allowed(db, member, row.source_provenance):
+                return
+            key = decision["decision_id"]
+            request = self.accept_request(db, chat, origin.target_twin_id, row.approver_id,
+                "approval_result", key, source_message_id=origin.source_message_id,
+                intent_key=key, causal_chain_id=origin.causal_chain_id,
+                input_body=f"Owner decision for approval {row.id}: {row.status}. "
+                "If approved, use execute_approved_action with that ID to perform the frozen action. "
+                "If rejected, do not execute it. Report the actual tool result; consent is not execution.")
+            row.continuation_request_id = request.id
+            db.add(ContextManifest(request_id=request.id, owner_id=row.approver_id,
+                grant_version=member.grant_version, high_water_seq=chat.next_message_seq - 1,
+                sources=row.source_provenance, source_digest=digest(row.source_provenance)))
+        self.publish_event(chat.id, {"type": "changed"})
+
+    async def reconcile_approvals(self):
+        with self.transaction() as db:
+            pending = [{**self.approval_json(row), "sdk_reference": row.sdk_reference}
+                       for row in db.scalars(select(Approval).where(Approval.continuation_request_id.is_(None)))
+                       if row.sdk_reference.get("action")]
+        for row in pending:
+            try:
+                approval = await self.runtime.ensure_approval(row)
+                if approval["status"] != "pending":
+                    self.accept_approval_decision(row["id"], approval)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception("Approval reconciliation failed for %s", row["id"])
 
     def workspace(self, owner_id, chat_id):
         with self.transaction() as db:

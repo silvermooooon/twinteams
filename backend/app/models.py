@@ -293,6 +293,7 @@ class Approval(Base):
     impact: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(16), default="pending")
     sdk_reference: Mapped[dict] = mapped_column(JSON, default=dict)
+    continuation_request_id: Mapped[str | None] = mapped_column(ForeignKey("tt_reply_requests.id"))
     source_message_ids: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
