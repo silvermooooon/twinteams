@@ -1,0 +1,8 @@
+digraph ER {
+graph [rankdir=LR, bgcolor="transparent", pad="0.35", nodesep="0.32", ranksep="1.1", splines=polyline, outputorder=edgesfirst];
+node [shape=plain, fontname="DejaVu Sans"];
+edge [fontname="DejaVu Sans", fontsize=10, color="#7d8a9c", arrowsize=0.65, labeldistance=1.8, labelfloat=false];
+"notification_deliveries" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8" COLOR="#4c65ad" BGCOLOR="#e9efff"><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="11" COLOR="#4c65ad">twinteams</FONT></TD></TR><TR><TD ALIGN="LEFT"><B><FONT POINT-SIZE="14">notification_deliveries</FONT></B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="11" COLOR="#435067">PK tenant_id, notification_id, channel<BR ALIGN="LEFT"/>attempt_no</FONT></TD></TR></TABLE>>, URL="#table-notification_deliveries", tooltip="通知投递尝试"];
+"notifications" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8" COLOR="#9ba6b6" BGCOLOR="#f4f6fa"><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="11" COLOR="#9ba6b6">twinteams · 引用</FONT></TD></TR><TR><TD ALIGN="LEFT"><B><FONT POINT-SIZE="14">notifications</FONT></B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="11" COLOR="#435067">PK tenant_id, id</FONT></TD></TR></TABLE>>, URL="#table-notifications", tooltip="Owner 通知"];
+"notification_deliveries" -> "notifications" [style=dashed, color="#5a71ac", fontcolor="#5a71ac", label="R152", taillabel="0..N", headlabel="1", URL="#rel-R152", tooltip="(tenant_id, notification_id) → notifications(tenant_id, id)"];
+}

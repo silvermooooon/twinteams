@@ -1,0 +1,28 @@
+[project]
+name = "twinteams-backend"
+version = "0.1.0"
+description = "FastAPI foundation for twinteams"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
+  "sqlalchemy>=2.0.36,<3",
+  "psycopg[binary]>=3.2,<4",
+  "PyJWT[crypto]>=2.10,<3",
+  "httpx>=0.28,<1",
+  "agent-runtime[postgres]",
+]
+
+[dependency-groups]
+dev = ["httpx>=0.28,<1", "pytest>=8,<10", "ruff>=0.9,<1"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.uv.sources]
+agent-runtime = { path = "../../agent-runtime", editable = true }

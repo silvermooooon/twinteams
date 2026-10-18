@@ -1,0 +1,52 @@
+# Dependencies and generated outputs
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+coverage/
+.coverage
+htmlcov/
+# Local secrets and settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.DS_Store
+.idea/
+.vscode/
+
+# Local persisted product/runtime state
+backend/data/
+
+# Private tool metadata and generated local state
+.openai/
+.agent-runtime/
+*.log
+logs/
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.db
+*.db-*
+# Environment files and private key formats
+.env*
+*.env
+*.env.*
+!.env.example
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+id_dsa
+# Local artifact delivery bookkeeping
+/design-artifacts/database-library-identity.json
+
+# Credential-page handoff screenshot stays local
+/design-artifacts/acceptance/07-provider-empty-before-handoff.png

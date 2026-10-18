@@ -1,0 +1,23 @@
+{
+  "tables": 56,
+  "fields": 587,
+  "relations": 152,
+  "charted_relations": 152,
+  "charts": 13,
+  "existing": 7,
+  "statuses": {
+    "existing": 7,
+    "extension": 9,
+    "optional": 4,
+    "proposal": 36
+  },
+  "bytes": 607200,
+  "checks": [
+    "tenant-scoped primary/reference keys",
+    "all columns represented",
+    "all known table references charted exactly once",
+    "all internal anchors resolve",
+    "no external assets"
+  ],
+  "output": "/workspace/shared/twinteams/design-artifacts/Twinteams-Database-ER-Fields-v1.html"
+}

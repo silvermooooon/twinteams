@@ -1,0 +1,1410 @@
+[
+  {
+    "name": "actors",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "统一身份",
+    "purpose": "保存真人与 Twin 各自稳定、不可重用的作者身份。",
+    "source": "docs/database-design-v1.md §3 通用约定；§4",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "业务 Actor 标识；显示名变化或停用不改变历史作者标识。",
+        "origin": "source"
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "身份类别：human 或 twin。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "身份建立时间；由服务端提供 UTC 时间，无隐式数据库默认值。",
+        "origin": "source"
+      },
+      {
+        "name": "disabled_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "身份停用时间；启用期间为 NULL。原压缩字典未标 ?，此生命周期可空性为展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "display_name",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "可变的展示名称，不是身份键。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "可变身份投影的乐观并发版本；按第 3 节统一约定补齐，起始值待定。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "CHECK kind IN ('human','twin')。",
+      "停用不删除或重写历史作者；disabled_at 可空是显式修订提案，帐号停用、继承和永久删除规则仍待确认。",
+      "CHECK disabled_at IS NULL OR disabled_at >= created_at（时间一致性提案）。",
+      "CHECK revision >= 0；更新显示名或停用投影需比较并递增 revision，初始版本值尚未指定。",
+      "所有新增字段默认值均未定；uuid、时间和版本由受控创建事务显式提供。"
+    ],
+    "indexes": [],
+    "relations": []
+  },
+  {
+    "name": "owners",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "真人帐号",
+    "purpose": "把认证系统主体映射到真人 Actor。",
+    "source": "docs/database-design-v1.md §3 通用约定；§4",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "真人 Actor 标识；同时作为本表主键和 actors 外键。",
+        "origin": "source"
+      },
+      {
+        "name": "auth_subject",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "认证系统中的稳定主体标识，不存储密码或令牌。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "真人帐号映射的创建时间。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "actor_id"
+    ],
+    "constraints": [
+      "UNIQUE (tenant_id, auth_subject)。",
+      "关联 actors.kind 必须为 human；需要约束触发器或受控写入函数，普通跨表 CHECK 无法表达。",
+      "Owner、唯一 Twin 与首次私人 Chat 应在同一事务创建；删除及帐号继承语义尚未确认。",
+      "若接入多个认证发行者，应先确定 auth_subject 是否已包含发行者命名空间；本稿未新增认证模型。"
+    ],
+    "indexes": [],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "target": "actors",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "1:1",
+        "note": "同租户真人身份；kind=human 由跨表校验保证。"
+      }
+    ]
+  },
+  {
+    "name": "twins",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "Twin 配对",
+    "purpose": "为每个真人 Owner 保存唯一 Twin 身份。",
+    "source": "docs/database-design-v1.md §3 通用约定；§4",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "Twin Actor 标识；同时作为本表主键和 actors 外键。",
+        "origin": "source"
+      },
+      {
+        "name": "owner_actor_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "与该 Twin 一对一配对的真人 Owner。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "配对建立时间。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "actor_id"
+    ],
+    "constraints": [
+      "UNIQUE (tenant_id, owner_actor_id)。",
+      "关联 actors.kind 必须为 twin；需要约束触发器或受控写入函数，不能靠两条独立 INSERT 保证完整配对。",
+      "配对唯一约束仅保证每位 Owner 最多一个 Twin；每位 Owner 必须有 Twin 的完整性在创建事务和跨表校验中保证。"
+    ],
+    "indexes": [],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "target": "actors",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "1:1",
+        "note": "同租户 Twin 身份；kind=twin 另行校验。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "owner_actor_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "1:1",
+        "note": "同租户一对一真人/Twin 配对。"
+      }
+    ]
+  },
+  {
+    "name": "chats",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "聊天会话",
+    "purpose": "保存私人或群聊身份，以及聊天内消息与加入顺序分配器。",
+    "source": "docs/database-design-v1.md §3 通用约定；§4",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "聊天业务标识。",
+        "origin": "source"
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "聊天类别：private 或 group；两位 Owner 的聊天仍为 group。",
+        "origin": "source"
+      },
+      {
+        "name": "private_owner_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "私人聊天所属 Owner；private 必填，group 为 NULL。",
+        "origin": "source"
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "聊天展示标题，不作为标识或唯一键。",
+        "origin": "source"
+      },
+      {
+        "name": "next_message_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "下一条消息序号分配器；必须在 Chat 行锁事务中分配。",
+        "origin": "source"
+      },
+      {
+        "name": "next_membership_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "下一次成员加入序号分配器；在 Chat 行锁事务中分配。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "聊天创建时间。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "可变 Chat 投影的乐观并发版本；依第 3 节展开，起始值待定。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "CHECK kind IN ('private','group')。",
+      "CHECK (kind='private' AND private_owner_id IS NOT NULL) OR (kind='group' AND private_owner_id IS NULL)。",
+      "UNIQUE (tenant_id, private_owner_id) WHERE kind='private'。",
+      "CHECK next_message_seq >= 0 AND next_membership_seq >= 0 AND revision >= 0（数值边界提案）；首个序号及版本初值未指定。",
+      "next_message_seq 与 next_membership_seq 是同聊锁内分配的权威顺序，不能用客户端时间或全局 sequence 替代。",
+      "标题、当前成员显示计数口径均不定义身份或访问权限。"
+    ],
+    "indexes": [],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "private_owner_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:0..1",
+        "note": "仅私人聊天关联所属 Owner；可空关系，群聊不填。"
+      }
+    ]
+  },
+  {
+    "name": "chat_memberships",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "配对成员记录",
+    "purpose": "每次 Owner 与其 Twin 成对加入聊天都建立独立 incarnation。",
+    "source": "docs/database-design-v1.md §3 通用约定；§4",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "一次加入的成员记录标识；退出再加入必须新建。",
+        "origin": "source"
+      },
+      {
+        "name": "chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属聊天。",
+        "origin": "source"
+      },
+      {
+        "name": "owner_actor_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "加入聊天的真人 Owner；其 Twin 由唯一配对关系派生。",
+        "origin": "source"
+      },
+      {
+        "name": "joined_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "服务端记录的加入时间；参与固定历史窗口计算。",
+        "origin": "source"
+      },
+      {
+        "name": "left_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "退出时间；当前成员为 NULL。",
+        "origin": "source"
+      },
+      {
+        "name": "join_message_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "加入事务中固定的消息顺序边界；不是按查询时间滚动计算。",
+        "origin": "source"
+      },
+      {
+        "name": "membership_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "同 Chat 锁内分配的加入顺序。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "成员资格可变投影的乐观并发版本。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "UNIQUE (tenant_id, chat_id, owner_actor_id) WHERE left_at IS NULL。",
+      "UNIQUE (tenant_id, chat_id, membership_seq)（顺序分配唯一性展开提案）。",
+      "CHECK left_at IS NULL OR left_at >= joined_at（时间一致性提案）。",
+      "CHECK join_message_seq >= 0 AND membership_seq >= 0 AND revision >= 0（数值边界提案）。",
+      "一行同时表达 Owner/Twin 成对成员资格，成员视图派生两个 Actor，不分别插入两个可失配成员记录。",
+      "退出重入创建新 id；旧历史授权不能未经判断继承。退出后阅读权尚未定稿；停止新查询及工具操作仅为首版安全提案。",
+      "join_message_seq 的包含/排除语义应与消息分配器统一；最终授权使用已存 lower_seq/upper_seq。"
+    ],
+    "indexes": [
+      "INDEX (tenant_id, chat_id, owner_actor_id) WHERE left_at IS NULL",
+      "INDEX (tenant_id, owner_actor_id, chat_id) WHERE left_at IS NULL"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": ""
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "owner_actor_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": ""
+      }
+    ]
+  },
+  {
+    "name": "history_grants",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "历史阅读授权",
+    "purpose": "为一次成员加入保存不可滚动的消息历史权限边界及版本。",
+    "source": "docs/database-design-v1.md §3 通用约定；§4",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "独立授权版本标识；修改范围新建版本，不覆盖旧版本。",
+        "origin": "source"
+      },
+      {
+        "name": "membership_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "授权所属成员 incarnation。",
+        "origin": "source"
+      },
+      {
+        "name": "policy",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "历史政策：all、fixed_7d 或 no_prior。",
+        "origin": "source"
+      },
+      {
+        "name": "lower_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "最早获准消息序号；加入时计算并永久保存的固定下界。",
+        "origin": "source"
+      },
+      {
+        "name": "upper_seq",
+        "type": "bigint",
+        "nullable": true,
+        "default": "无",
+        "meaning": "可选获准上界；NULL 表示当前版本未设有限上界，仍须检查成员资格。",
+        "origin": "source"
+      },
+      {
+        "name": "effective_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "该授权版本开始生效的时间。",
+        "origin": "source"
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "撤销时间；未撤销为 NULL。",
+        "origin": "source"
+      },
+      {
+        "name": "policy_version",
+        "type": "integer",
+        "nullable": false,
+        "default": "无",
+        "meaning": "授权政策解释版本；原稿未指定具体类型，采用 integer 是展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "撤销状态投影的乐观并发版本；若采取全不可变撤销事件实现则可去掉，属于展开提案。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "CHECK policy IN ('all','fixed_7d','no_prior')。",
+      "CHECK lower_seq >= 0 AND (upper_seq IS NULL OR upper_seq >= lower_seq)（闭区间边界提案；最终包含语义需统一）。",
+      "CHECK revoked_at IS NULL OR revoked_at >= effective_at（时间一致性提案）。",
+      "CHECK policy_version >= 0 AND revision >= 0（版本类型及数值边界提案）。",
+      "all 从聊天首条开始；no_prior 从加入后第一条开始；fixed_7d 在加入事务中按 joined_at 减 7 天计算首个获准已提交消息 seq 并固化。",
+      "授权范围修改不覆盖旧版本；撤销与授权修订需追加持久事件。effective_at 不自动替代版本或明确区间授权判断。",
+      "同一 membership 多授权版本如何替换/合并尚未定稿，本展开不默认叠加所有历史 grant。"
+    ],
+    "indexes": [
+      "INDEX (tenant_id, membership_id, effective_at)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "membership_id"
+        ],
+        "target": "chat_memberships",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": ""
+      }
+    ]
+  },
+  {
+    "name": "messages",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "聊天消息",
+    "purpose": "保存消息身份、聊天内顺序、发布状态与当前正文版本指针。",
+    "source": "docs/database-design-v1.md §3 通用约定；§5",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "稳定消息标识；编辑创建新 revision，不另造消息身份。",
+        "origin": "source"
+      },
+      {
+        "name": "chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "消息所属聊天。",
+        "origin": "source"
+      },
+      {
+        "name": "seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "聊天内提交顺序；与服务端 created_at 在同一 Chat 锁事务内分配。",
+        "origin": "source"
+      },
+      {
+        "name": "author_actor_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "历史作者身份；Reply for me 的作者是 Twin。",
+        "origin": "source"
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "消息类别：human、twin、reply_for_me 或 system。",
+        "origin": "source"
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "消息状态：streaming、published 或 withdrawn。",
+        "origin": "source"
+      },
+      {
+        "name": "reply_to_message_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "被回复消息；必须属于本消息同一 Chat。",
+        "origin": "source"
+      },
+      {
+        "name": "source_request_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "生成本消息的回复请求；真人或其他无请求来源消息可空。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "服务端创建时间；客户端不可伪造该顺序依据。",
+        "origin": "source"
+      },
+      {
+        "name": "published_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "首次发布时间；尚未发布为 NULL，撤回后是否保留由状态迁移保留审计。",
+        "origin": "source"
+      },
+      {
+        "name": "current_revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "当前正文版本号；与 message_revisions 的复合键关联。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "消息元数据/状态投影的乐观并发版本，与正文 current_revision 分工不同；第 3 节展开提案。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "UNIQUE (tenant_id, chat_id, seq)。",
+      "UNIQUE (tenant_id, chat_id, id)，支持同聊天 reply_to 复合外键。",
+      "CHECK kind IN ('human','twin','reply_for_me','system') AND state IN ('streaming','published','withdrawn')。",
+      "CHECK seq >= 0 AND current_revision >= 0 AND revision >= 0（数值边界提案）。",
+      "CHECK state <> 'published' OR published_at IS NOT NULL；CHECK published_at IS NULL OR published_at >= created_at（生命周期提案）。",
+      "reply_to_message_id 与 (tenant_id, chat_id) 一起引用 messages，不允许跨聊天引用；显示时再次校验来源 ACL，越界仅显示不可用占位。",
+      "kind=human 对应真人 Actor，kind=twin/reply_for_me 对应 Twin Actor；system 使用哪种身份尚未定稿，不新增第三种 Actor kind。",
+      "current_revision 必须有对应正文版本；初次 message 与 revision 同事务建立，循环外键可设计为 DEFERRABLE。此完整性机制是展开提案。",
+      "Stop replying 将该请求已输出的所有消息/片段设为 withdrawn 并追加撤回事件；正文保留于受控审计，引用、摘要和 Tracking 派生内容需失效。",
+      "published_at 在 withdrawn 状态下允许 NULL 或既有值，以表达发布前终止或发布后撤回；原稿未规定具体状态迁移细节。"
+    ],
+    "indexes": [
+      "INDEX (tenant_id, chat_id, seq)；可复用同列 UNIQUE 索引"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": ""
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "author_actor_id"
+        ],
+        "target": "actors",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": ""
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id",
+          "reply_to_message_id"
+        ],
+        "target": "messages",
+        "target_columns": [
+          "tenant_id",
+          "chat_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:0..1",
+        "note": "可空；必须引用同租户、同聊天消息。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "source_request_id"
+        ],
+        "target": "reply_requests",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:0..1",
+        "note": "可空；回复请求的业务标识。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "id",
+          "current_revision"
+        ],
+        "target": "message_revisions",
+        "target_columns": [
+          "tenant_id",
+          "message_id",
+          "revision"
+        ],
+        "kind": "proposed",
+        "cardinality": "1:1",
+        "note": "当前正文版本完整性展开提案；循环关系需同事务及可延迟检查。"
+      }
+    ]
+  },
+  {
+    "name": "message_revisions",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "消息正文版本",
+    "purpose": "追加保存正文、原始输入引用和来源证据，历史版本不可覆盖。",
+    "source": "docs/database-design-v1.md §3 通用约定；§5",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "message_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属消息的业务标识。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "该消息的不可变正文版本号；与元数据投影 revision 不同。",
+        "origin": "source"
+      },
+      {
+        "name": "body",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "可内联存储的正文；原稿 body 或 encrypted_blob_ref 为二选一，列级可空是展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "encrypted_blob_ref",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "加密正文对象的受控引用；与 body 二选一的列级模型为展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "raw_owner_input_ref",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "Reply for me 原始输入的受控存储/command 引用；不是独立公开消息。",
+        "origin": "source"
+      },
+      {
+        "name": "owner_actor_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "原始输入所属真人 Owner；无原始 Owner 输入的版本可空。",
+        "origin": "source"
+      },
+      {
+        "name": "source_event_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "可选 Runtime journal 来源事件 ID；仅在 session 范围内唯一。",
+        "origin": "source"
+      },
+      {
+        "name": "source_session_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "来源事件的 Runtime Session；与 source_event_id 成对提供以形成完整事件外键。",
+        "origin": "expanded"
+      },
+      {
+        "name": "content_hash",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "正文内容完整性摘要；原稿要求记录 hash，具体字段名与算法/规范化规则为展开提案。",
+        "origin": "expanded"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "该不可变版本的创建时间。",
+        "origin": "source"
+      },
+      {
+        "name": "reason",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "创建该版本的原因；具体原因取值仍待设计。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "message_id",
+      "revision"
+    ],
+    "constraints": [
+      "正文版本只追加、不覆盖；纠错和编辑创建新 revision。",
+      "CHECK revision >= 0（数值边界提案；起始版本值未指定）。",
+      "CHECK (body IS NOT NULL) <> (encrypted_blob_ref IS NOT NULL)（存储二选一展开提案，并非已批准产品规则；空正文占位方案也需另行确认）。",
+      "CHECK (source_event_id IS NULL) = (source_session_id IS NULL)（完整来源引用展开提案）。",
+      "raw_owner_input_ref 与加工正文属于同一消息、同一 ACL；发布后所有获准读该消息的人都可见两部分。处理中的原输入可先处于 Owner/Runtime 受控域。",
+      "raw_owner_input_ref 非空时 owner_actor_id 必须非空（归属完整性展开提案）；ref 可能是 blob 或 command 引用，未定为单一数据库 FK。",
+      "content_hash 的算法、规范化及所覆盖正文/raw 内容范围尚未定稿；摘要不是防管理员篡改保证。",
+      "对加密 blob 的数据库引用提交前，必须完成受控对象持久保存与 hash 校验；不能提交不存在的正文。"
+    ],
+    "indexes": [],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "message_id"
+        ],
+        "target": "messages",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": ""
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "owner_actor_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:0..1",
+        "note": "可空的原输入归属。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "source_session_id",
+          "source_event_id"
+        ],
+        "target": "agent_session_events",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "event_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:0..1",
+        "note": "RT 原 schema 中已有的 session 范围事件唯一键；不得只以 tenant/event_id 引用。"
+      }
+    ]
+  },
+  {
+    "name": "message_origins",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "消息生成来源",
+    "purpose": "保存消息对应请求、执行尝试、Runtime 运行和代写归属。",
+    "source": "docs/database-design-v1.md §3 通用约定；§5",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "message_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "来源记录所属消息；以每条消息一条来源记录建模是展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "request_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "关联回复请求；无请求生成来源时可空。",
+        "origin": "source"
+      },
+      {
+        "name": "attempt_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "关联业务 reply_attempts，非 Runtime 模型 attempt_id。",
+        "origin": "source"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "可选 Runtime Session 标识，保留 SDK text 类型。",
+        "origin": "source"
+      },
+      {
+        "name": "run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "可选 Runtime Run 标识，必须连同 session_id 引用完整运行键。",
+        "origin": "source"
+      },
+      {
+        "name": "output_key",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "生成输出的稳定幂等键；同一逻辑输出重投不重复发布。",
+        "origin": "source"
+      },
+      {
+        "name": "acting_for_owner_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "Reply for me 中代其发言的真人 Owner；其他来源可空。",
+        "origin": "source"
+      },
+      {
+        "name": "prompt_version",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "冻结的提示词实际版本；原稿未明示类型，采用 text 是展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "prompt_hash",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "实际采用的全局/单聊提示词合成内容摘要；根据第 5 节正文要求展开，具体冻结落点可与 reply_request 关联。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "message_id"
+    ],
+    "constraints": [
+      "PRIMARY KEY (tenant_id, message_id) 是每条消息最多一条 origin 的展开提案，原稿仅明示 output_key 唯一；若允许多来源需调整主键模型。",
+      "UNIQUE (tenant_id, output_key)。",
+      "CHECK run_id IS NULL OR session_id IS NOT NULL（完整 Runtime 键要求）。session 有值但 run 为空允许记录尚未关联 Run 的来源。",
+      "request_id、attempt_id 与 messages.source_request_id 同时存在时应指向同一业务请求；需复合键或受控跨表校验，不能仅靠各自 FK。",
+      "Reply for me 的消息 author 为 Twin，acting_for_owner_id 表达该 Twin 对应 Owner；关联一致性需受控校验。",
+      "实际提示词版本与 hash 随请求冻结；不能在重放时读取当前最新配置。prompt_hash 可空用于没有提示词的来源，适用的生成来源必须填值（展开提案）。",
+      "来源原始输入另有持久 command；此表不复制 Runtime journal 或主运行状态。"
+    ],
+    "indexes": [],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "message_id"
+        ],
+        "target": "messages",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "1:1",
+        "note": ""
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "request_id"
+        ],
+        "target": "reply_requests",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:0..1",
+        "note": "可空请求来源。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "attempt_id"
+        ],
+        "target": "reply_attempts",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:0..1",
+        "note": "可空业务执行尝试；不是模型调用尝试。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:0..1",
+        "note": "可空；RT 保持其原 schema 与 text 标识。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:0..1",
+        "note": "可空；完整三列运行主键，不得省略 session_id。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "acting_for_owner_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:0..1",
+        "note": "可空代写 Owner。"
+      }
+    ]
+  },
+  {
+    "name": "human_read_receipts",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "真人逐消息已读",
+    "purpose": "仅根据真人本人前端的显示或确认信号记录逐消息已读。",
+    "source": "docs/database-design-v1.md §3 通用约定；§5",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "message_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "被真人实际显示或确认的消息。",
+        "origin": "source"
+      },
+      {
+        "name": "owner_actor_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "发生已读行为的真人 Owner；不能由 Twin 处理替代。",
+        "origin": "source"
+      },
+      {
+        "name": "first_seen_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "首个获接受已读证据的时间；具体采用客户端或服务器观测时间仍需定稿。",
+        "origin": "source"
+      },
+      {
+        "name": "last_seen_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "最近一次获接受已读证据的时间；重复报告可更新投影。",
+        "origin": "source"
+      },
+      {
+        "name": "evidence_kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "显示或确认的证据类别；具体枚举与可信度协议未定。",
+        "origin": "source"
+      },
+      {
+        "name": "client_event_key",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "客户端已读上报的幂等键；不是消息序号。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "逐消息回执可变投影的乐观并发版本；依第 3 节展开。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "message_id",
+      "owner_actor_id"
+    ],
+    "constraints": [
+      "Owner 必须来自 owners，确保真人身份；Twin 看过或处理过不生成真人已读。",
+      "CHECK last_seen_at >= first_seen_at AND revision >= 0（时间及版本一致性展开提案）。",
+      "同一 message/owner 主键去重；重复 client_event_key 应幂等。多次新上报如何保存每个事件键尚未展开，单个可变 client_event_key 不足以证明所有历史事件键已消费。",
+      "可增加 UNIQUE (tenant_id, owner_actor_id, client_event_key) 以拒绝当前键跨消息重复（可选展开提案）；完整历史去重可使用独立持久接收记录，不在本表假装已实现。",
+      "不能用 max_seen_seq 推断中间每条消息已读；滚动跳读须保留逐消息证据。",
+      "查看 Chat 与消息已读是不同证据；权限有效性需在接受上报时验证。"
+    ],
+    "indexes": [
+      "INDEX (tenant_id, owner_actor_id, message_id)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "message_id"
+        ],
+        "target": "messages",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": ""
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "owner_actor_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": ""
+      }
+    ]
+  },
+  {
+    "name": "view_events",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "会话查看事件",
+    "purpose": "追加保存打开、聚焦、关闭聊天的查看证据，供触发判断审计。",
+    "source": "docs/database-design-v1.md §3 通用约定；§5",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；由第 3 节统一约定展开，必须显式提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "查看事件业务标识。",
+        "origin": "source"
+      },
+      {
+        "name": "chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "查看事件对应聊天。",
+        "origin": "source"
+      },
+      {
+        "name": "owner_actor_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "上报查看行为的真人 Owner。",
+        "origin": "source"
+      },
+      {
+        "name": "device_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "客户端设备标识；原稿明确使用 text，不假定为业务 uuid。",
+        "origin": "source"
+      },
+      {
+        "name": "view_epoch",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "该设备查看状态的世代/顺序证据；原稿明确为 bigint，优先于通用 epoch 为 int 的简写规则。",
+        "origin": "source"
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "查看事件类别：open、focus 或 close。",
+        "origin": "source"
+      },
+      {
+        "name": "observed_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "客户端/设备观测时间；不能单独决定服务端顺序或改写既有触发决定。",
+        "origin": "source"
+      },
+      {
+        "name": "received_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "服务端接收并记录事件的时间；与持久事务顺序一起使用。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "CHECK kind IN ('open','focus','close')。",
+      "CHECK view_epoch >= 0（数值边界展开提案）。",
+      "事件为只追加证据，不存可变 revision；纠错通过新增事件，客户端时间不直接决定先后。",
+      "不添加 received_at >= observed_at 检查，客户端时钟可偏移；触发竞态按数据库提交线性化顺序处理。",
+      "设备 view_epoch 的作用域、是否每个 kind 递增及重传幂等协议尚未定稿，不擅自声明 (device_id, view_epoch) 唯一。",
+      "这些事件证明打开或聚焦聊天，不等同于每条消息已读，也不替代 TTL presence；只为会影响触发的查看证据提供持久记录。"
+    ],
+    "indexes": [
+      "INDEX (tenant_id, chat_id, owner_actor_id, received_at)（按触发核验访问路径补充的提案）"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": ""
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "owner_actor_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": ""
+      }
+    ]
+  }
+]

@@ -1,0 +1,2587 @@
+[
+  {
+    "name": "context_manifests",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "上下文来源清单",
+    "purpose": "冻结一次模型输入的实际来源、授权版本与构建结果。",
+    "source": "docs/database-design-v1.md §14；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "业务对象不可复用的稳定标识。",
+        "origin": "source"
+      },
+      {
+        "name": "chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "本次上下文所属聊天。",
+        "origin": "source"
+      },
+      {
+        "name": "consumer_twin_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "消费此上下文的 Twin Actor 标识。",
+        "origin": "source"
+      },
+      {
+        "name": "membership_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "来源简写 membership 展开为具体成员加入批次；不是仅按 Owner 身份授权。",
+        "origin": "source"
+      },
+      {
+        "name": "grant_version",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "来源简写 grant_version；冻结构建时授权版本，如何映射到 history_grants.policy_version 需定稿。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()（展开提案）",
+        "meaning": "服务器提交的创建时间，按 UTC 存取。",
+        "origin": "source"
+      },
+      {
+        "name": "sources_digest",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "规范化来源清单摘要；不能代替逐项权限复核。",
+        "origin": "source"
+      },
+      {
+        "name": "policy_version",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "上下文装配与授权策略的版本。",
+        "origin": "source"
+      },
+      {
+        "name": "build_state",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "构建状态；building/ready/stale/failed 为展开候选，集合尚待确认。",
+        "origin": "source"
+      },
+      {
+        "name": "high_water_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "本次输入固定的聊天消息最高序号，见 §14 正文；不表示每个序号都获准读取。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "构建状态投影的 CAS 版本，按全局可变投影约定补充。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "CHECK (grant_version >= 1 AND revision >= 1 AND high_water_seq >= 0)（展开提案）。",
+      "membership_id 必须属于 chat_id，且 consumer_twin_id 对应的 Owner 与该 membership 的 Owner 一致；用受控写入或约束触发器校验。",
+      "sources_digest 与固定来源集合一致；ready 后来源清单只追加新 manifest，不原地替换旧输入；权限变更令旧构建失效。",
+      "grant_version 与 history_grants.policy_version 的版本类型/作用域尚未明确，不建立仅凭相同数字的伪外键。"
+    ],
+    "indexes": [
+      "(tenant_id, chat_id, consumer_twin_id, created_at DESC)",
+      "(tenant_id, membership_id, grant_version)",
+      "(tenant_id, chat_id, high_water_seq)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "consumer_twin_id"
+        ],
+        "target": "twins",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "membership_id"
+        ],
+        "target": "chat_memberships",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "membership_id",
+          "grant_version"
+        ],
+        "target": "history_grants",
+        "target_columns": [
+          "tenant_id",
+          "membership_id",
+          "policy_version"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "授权版本概念关系；目标未声明此复合唯一键，且版本字段口径待定，因此不是物理 FK。"
+      }
+    ]
+  },
+  {
+    "name": "context_sources",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "上下文来源明细",
+    "purpose": "逐项记录清单中真正使用的版本化来源与授权依据。",
+    "source": "docs/database-design-v1.md §14；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "manifest_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属输入来源清单。",
+        "origin": "source"
+      },
+      {
+        "name": "ordinal",
+        "type": "integer",
+        "nullable": false,
+        "default": "无",
+        "meaning": "清单内稳定的来源排列序号。",
+        "origin": "source"
+      },
+      {
+        "name": "source_kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "来源类型；message_revision/file_version/tracking_entry/summary 等仅展开候选。",
+        "origin": "source"
+      },
+      {
+        "name": "source_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "多态来源标识的规范字符串；业务 UUID 字符串化，Runtime 引用仍保留 text，必须由 source_kind 与 resolver 解释。",
+        "origin": "source"
+      },
+      {
+        "name": "source_revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "本次使用的来源版本，禁止查询时悄悄替换为最新版本。",
+        "origin": "source"
+      },
+      {
+        "name": "range_start",
+        "type": "bigint",
+        "nullable": true,
+        "default": "无",
+        "meaning": "来源内选取范围起点；单位随 source_kind 的受控解析规则确定。",
+        "origin": "source"
+      },
+      {
+        "name": "range_end",
+        "type": "bigint",
+        "nullable": true,
+        "default": "无",
+        "meaning": "来源内选取范围终点；与起点共同为空或共同有值。",
+        "origin": "source"
+      },
+      {
+        "name": "content_hash",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "本次实际输入内容的完整性摘要。",
+        "origin": "source"
+      },
+      {
+        "name": "grant_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "来源历史权限 grant；源表是 history_grants 的解释为展开提案，文件 grant 仍须另外核验。",
+        "origin": "source"
+      },
+      {
+        "name": "source_session_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "仅 Runtime 多态来源使用的 Session ID，补足其复合定位上下文。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "manifest_id",
+      "ordinal"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "CHECK (ordinal >= 0 AND source_revision >= 1)（展开提案；序号基准待 DDL 定稿）。",
+      "CHECK ((range_start IS NULL AND range_end IS NULL) OR (range_start IS NOT NULL AND range_end IS NOT NULL AND range_start <= range_end))。",
+      "source_kind/source_id/source_revision 由受控 resolver 校验真实来源与 ACL，不为多态 source_id 声称存在通用物理 FK。",
+      "Runtime 来源需要 session_id 等完整复合定位信息；没有可验证键的来源拒绝进入 ready manifest。",
+      "grant_id 指向历史授权只是首版解释；workspace/file 授权需同步执行，不能仅凭此 grant 获准所有来源。"
+    ],
+    "indexes": [
+      "(tenant_id, source_kind, source_id, source_revision)",
+      "(tenant_id, grant_id)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "manifest_id"
+        ],
+        "target": "context_manifests",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "grant_id"
+        ],
+        "target": "history_grants",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "source_id",
+          "source_revision"
+        ],
+        "target": "message_revisions",
+        "target_columns": [
+          "tenant_id",
+          "message_id",
+          "revision"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "仅 source_kind=message_revision 时，由 resolver 解析 UUID 字符串并核对消息版本与 Chat ACL。 多态列不建立物理 FK。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "source_id",
+          "source_revision"
+        ],
+        "target": "file_versions",
+        "target_columns": [
+          "tenant_id",
+          "id",
+          "version_no"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "仅 source_kind=file_version 时，由 resolver 解析 UUID 字符串并核对显式文件授权与底层来源 ACL。 多态列不建立物理 FK。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "source_id",
+          "source_revision"
+        ],
+        "target": "tracking_entries",
+        "target_columns": [
+          "tenant_id",
+          "id",
+          "revision"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "仅 source_kind=tracking_entry 时按来源版本解析；旧版本须从持久修订事件恢复，不能替换为当前投影。 多态列不建立物理 FK。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "source_id",
+          "source_revision"
+        ],
+        "target": "summaries",
+        "target_columns": [
+          "tenant_id",
+          "id",
+          "version"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "仅 source_kind=summary 时解析摘要版本，递归检查来源有效性及完整授权。 多态列不建立物理 FK。"
+      }
+    ]
+  },
+  {
+    "name": "summaries",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "授权摘要",
+    "purpose": "按真实授权来源集合生成可复用摘要并追踪失效。",
+    "source": "docs/database-design-v1.md §14；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "业务对象不可复用的稳定标识。",
+        "origin": "source"
+      },
+      {
+        "name": "chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "摘要所属聊天。",
+        "origin": "source"
+      },
+      {
+        "name": "visibility_scope_digest",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "授权集合摘要，仅用于候选缓存检索。",
+        "origin": "source"
+      },
+      {
+        "name": "coverage_start_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "覆盖消息范围的最小边界，仅为检索加速，不代表范围无洞。",
+        "origin": "source"
+      },
+      {
+        "name": "coverage_end_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "覆盖消息范围的最大边界；精确覆盖仍由 manifest 决定。",
+        "origin": "source"
+      },
+      {
+        "name": "coverage_manifest_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "精确来源清单；复用时递归检查全部底层来源。",
+        "origin": "source"
+      },
+      {
+        "name": "content_ref",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "受控、可版本化摘要正文存储引用。",
+        "origin": "source"
+      },
+      {
+        "name": "content_hash",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "原文 content_ref/hash 拆出的正文完整性摘要。",
+        "origin": "source"
+      },
+      {
+        "name": "model_attempt_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "生成摘要的 Runtime 模型调用尝试 ID；保持 SDK text 类型。",
+        "origin": "source"
+      },
+      {
+        "name": "version",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "摘要内容格式或生成版本，具体作用域待 DDL 定稿。",
+        "origin": "source"
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "valid/stale/revoked 候选状态，原文为提案。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()（展开提案）",
+        "meaning": "服务器提交的创建时间，按 UTC 存取。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "摘要有效性状态投影的 CAS 版本。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "CHECK (state IN ('valid','stale','revoked'))（源提案状态集合）。",
+      "CHECK (coverage_start_seq >= 0 AND coverage_end_seq >= coverage_start_seq AND version >= 1 AND revision >= 1)（展开提案）。",
+      "coverage_manifest_id 所属 chat_id 必须一致；只按 scope digest 或范围边界命中不能跳过来源 ACL。",
+      "正文/来源修订产生新摘要版本；state 可由依赖失效投影更新。"
+    ],
+    "indexes": [
+      "(tenant_id, chat_id, visibility_scope_digest, coverage_end_seq DESC) WHERE state = 'valid'",
+      "(tenant_id, coverage_manifest_id)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "coverage_manifest_id"
+        ],
+        "target": "context_manifests",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "model_attempt_id"
+        ],
+        "target": "agent_model_usage",
+        "target_columns": [
+          "tenant_id",
+          "attempt_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  },
+  {
+    "name": "summary_segments",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "摘要精确片段",
+    "purpose": "描述非连续覆盖及嵌套摘要依赖，避免用单一区间冒充完整来源。",
+    "source": "docs/database-design-v1.md §14；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "summary_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属摘要。",
+        "origin": "source"
+      },
+      {
+        "name": "ordinal",
+        "type": "integer",
+        "nullable": false,
+        "default": "无",
+        "meaning": "摘要内稳定片段序号。",
+        "origin": "source"
+      },
+      {
+        "name": "source_start",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "原文 source_start/end 拆出的范围起点；首版按同聊消息 seq 解释，仍需 manifest 解析。",
+        "origin": "source"
+      },
+      {
+        "name": "source_end",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "原文 source_start/end 拆出的范围终点；不能据此推断中间全部可见。",
+        "origin": "source"
+      },
+      {
+        "name": "source_revision_digest",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "片段底层来源版本集合摘要。",
+        "origin": "source"
+      },
+      {
+        "name": "included_summary_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "该片段引用的已有摘要；直接原始来源片段为空。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "summary_id",
+      "ordinal"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "CHECK (ordinal >= 0 AND source_start >= 0 AND source_end >= source_start)（展开提案）。",
+      "CHECK (included_summary_id IS NULL OR included_summary_id <> summary_id)；递归依赖不得成环，用受控 resolver/约束触发器校验。",
+      "片段及递归引用必须能展开到 coverage_manifest_id 记录的真实底层来源；范围不是独立授权凭据。",
+      "含摘要的间接来源也必须逐层核验当前权限与有效状态；失效向依赖者传播。"
+    ],
+    "indexes": [
+      "(tenant_id, included_summary_id) WHERE included_summary_id IS NOT NULL"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "summary_id"
+        ],
+        "target": "summaries",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "included_summary_id"
+        ],
+        "target": "summaries",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "summary_id",
+          "source_start",
+          "source_end"
+        ],
+        "target": "messages",
+        "target_columns": [
+          "tenant_id",
+          "chat_id",
+          "seq"
+        ],
+        "kind": "logical",
+        "cardinality": "N:N",
+        "note": "通过所属 summary.chat_id 和 manifest 解析消息范围的逻辑覆盖关系；列数不同且区间可有洞，绝非物理 FK。"
+      }
+    ]
+  },
+  {
+    "name": "tracking_topics",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "Tracking 主题",
+    "purpose": "记录聊天范围内主题的当前版本、状态与删除投影。",
+    "source": "docs/database-design-v1.md §15；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "业务对象不可复用的稳定标识。",
+        "origin": "source"
+      },
+      {
+        "name": "chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "主题唯一所属聊天；私人和群分别绑定自身 Chat。",
+        "origin": "source"
+      },
+      {
+        "name": "created_by_actor",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "创建主题的真人或 Twin Actor。",
+        "origin": "source"
+      },
+      {
+        "name": "current_revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "当前目录内容对应 tracking_topic_revisions.revision。",
+        "origin": "source"
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "active/paused/done 仅首版候选，不是已确认产品状态。",
+        "origin": "source"
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "逻辑删除时间；未删除为空，历史与 tombstone 保留。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "乐观并发版本；更新用 CAS，成功后递增。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()（展开提案）",
+        "meaning": "服务器提交的创建时间，按 UTC 存取。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "CHECK (current_revision >= 1 AND revision >= 1)（展开提案）。",
+      "FK (tenant_id,id,current_revision) → tracking_topic_revisions(tenant_id,topic_id,revision) 建议 DEFERRABLE INITIALLY DEFERRED，支持同事务创建主题与首版。",
+      "UQ (tenant_id, chat_id, id)（展开辅助键，用于删除来源边界的同聊天验证）。",
+      "每次目录变更插入不可变 revision 后 CAS 更新 current_revision；status 候选值需产品确认后再加 CHECK。",
+      "目录标题和描述同样受来源 ACL；不可向未授权客户端先发标题再隐藏。"
+    ],
+    "indexes": [
+      "(tenant_id, chat_id, deleted_at)",
+      "(tenant_id, created_by_actor)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "created_by_actor"
+        ],
+        "target": "actors",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "id",
+          "current_revision"
+        ],
+        "target": "tracking_topic_revisions",
+        "target_columns": [
+          "tenant_id",
+          "topic_id",
+          "revision"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "延迟复合 FK 提案；循环创建需同事务并使用可延迟约束。"
+      }
+    ]
+  },
+  {
+    "name": "tracking_topic_revisions",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "Tracking 目录修订",
+    "purpose": "不可变保存主题标题、简介及其授权来源。",
+    "source": "docs/database-design-v1.md §15；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "topic_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属 Tracking 主题。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "主题目录内容的修订号；只追加，不覆盖旧版本。",
+        "origin": "source"
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "经来源授权约束的标题。",
+        "origin": "source"
+      },
+      {
+        "name": "short_description",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "经来源授权约束的简短说明。",
+        "origin": "source"
+      },
+      {
+        "name": "source_manifest_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "标题和简介实际使用的来源清单。",
+        "origin": "source"
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "创建此版本的 Actor。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()（展开提案）",
+        "meaning": "服务器提交的创建时间，按 UTC 存取。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "topic_id",
+      "revision"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "CHECK (revision >= 1)；同主题版本单调递增并由事务分配。",
+      "不可变修订；标题或简介纠错新增版本。source_manifest_id 的 chat_id 必须与主题一致。"
+    ],
+    "indexes": [
+      "(tenant_id, source_manifest_id)",
+      "(tenant_id, topic_id, created_at DESC)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "topic_id"
+        ],
+        "target": "tracking_topics",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "source_manifest_id"
+        ],
+        "target": "context_manifests",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "created_by"
+        ],
+        "target": "actors",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  },
+  {
+    "name": "tracking_entries",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "Tracking 动态",
+    "purpose": "按主题顺序存储动态正文引用与当前来源版本。",
+    "source": "docs/database-design-v1.md §15；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "业务对象不可复用的稳定标识。",
+        "origin": "source"
+      },
+      {
+        "name": "topic_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "动态所属主题。",
+        "origin": "source"
+      },
+      {
+        "name": "entry_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "主题内稳定序号；事务分配，不单靠时间排序。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "乐观并发版本；更新用 CAS，成功后递增。",
+        "origin": "source"
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "动态类型；note/update/state_change 等仅展开候选。",
+        "origin": "source"
+      },
+      {
+        "name": "body_ref",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "受控动态正文内容引用，禁止直接公开永久访问 URL。",
+        "origin": "source"
+      },
+      {
+        "name": "source_manifest_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "动态正文实际来源清单。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()（展开提案）",
+        "meaning": "服务器提交的创建时间，按 UTC 存取。",
+        "origin": "source"
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "创建动态的 Actor。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "UQ (tenant_id, topic_id, entry_seq)。",
+      "CHECK (entry_seq >= 1 AND revision >= 1)（展开提案）。",
+      "source_manifest_id 必须与主题同 chat；主题/目录可见性与单条动态可见性分别检查。",
+      "本表的 revision 表示当前投影 CAS；动态历史修订与删除必须另存不可变持久事件/版本引用，不能仅 UPDATE 后丢历史；具体事件归属尚待 DDL 定稿。"
+    ],
+    "indexes": [
+      "(tenant_id, topic_id, entry_seq)",
+      "(tenant_id, source_manifest_id)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "topic_id"
+        ],
+        "target": "tracking_topics",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "source_manifest_id"
+        ],
+        "target": "context_manifests",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "created_by"
+        ],
+        "target": "actors",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  },
+  {
+    "name": "tracking_tombstones",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "Tracking 删除保护",
+    "purpose": "保留删除与明确重提证据，阻止旧来源自动复活主题。",
+    "source": "docs/database-design-v1.md §15；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "topic_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "被删除的主题；首版用每主题一个当前删除保护投影。",
+        "origin": "source"
+      },
+      {
+        "name": "deleted_by",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "实施删除的 Actor；重开必须来自 Owner 明确新证据。",
+        "origin": "source"
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "删除事实的服务端提交时间。",
+        "origin": "source"
+      },
+      {
+        "name": "source_cutoff_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "本聊天删除前来源截止消息序号；旧来源不能自动重建同主题。",
+        "origin": "source"
+      },
+      {
+        "name": "dedup_subject_key",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "稳定主题去重线索；不能靠 embedding 相似度保证语义绝不复活。",
+        "origin": "source"
+      },
+      {
+        "name": "reopen_command_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "Owner 明确重提/重开所关联的 Runtime command，尚未重开时为空。",
+        "origin": "source"
+      },
+      {
+        "name": "chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "补充同聊引用与 cutoff 定位所需的 Chat 标识。",
+        "origin": "expanded"
+      },
+      {
+        "name": "deletion_reason",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "原文要求保存删除理由；字段名为展开提案，不凭空填写用户动机。",
+        "origin": "expanded"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "当前删除保护投影的 CAS 版本；多次删除的历史另存不可变事件。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "topic_id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "PK (tenant_id,topic_id) 为展开提案；多轮删除/重开需要持久事件历史，不能覆盖后丢失旧删除事实。",
+      "CHECK (source_cutoff_seq >= 0 AND revision >= 1)（展开提案）。",
+      "FK (tenant_id,chat_id,topic_id) → tracking_topics(tenant_id,chat_id,id)；cutoff 仅解释为此 Chat 的消息顺序。",
+      "reopen_command_id 有值不是自动授权；受控 resolver 必须验证该 command 是 Owner 新的明确重启意图且晚于删除事实。",
+      "dedup_subject_key 仅辅助检索，不设跨主题 UNIQUE；需要 lineage 与同主题标识共同判断。"
+    ],
+    "indexes": [
+      "(tenant_id, chat_id, dedup_subject_key)",
+      "(tenant_id, reopen_command_id) WHERE reopen_command_id IS NOT NULL"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id",
+          "topic_id"
+        ],
+        "target": "tracking_topics",
+        "target_columns": [
+          "tenant_id",
+          "chat_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "deleted_by"
+        ],
+        "target": "actors",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "reopen_command_id"
+        ],
+        "target": "agent_commands",
+        "target_columns": [
+          "tenant_id",
+          "command_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  },
+  {
+    "name": "workspaces",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "聊天工作空间",
+    "purpose": "为每个聊天提供独立的私人或群文件空间。",
+    "source": "docs/database-design-v1.md §16；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "业务对象不可复用的稳定标识。",
+        "origin": "source"
+      },
+      {
+        "name": "chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "空间所属聊天，每个 Chat 对应一个空间。",
+        "origin": "source"
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "private/group，需与所属 Chat.kind 一致。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "空间可变元信息的 CAS 版本，依全局约定补充。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "UQ (tenant_id,chat_id)。",
+      "CHECK (kind IN ('private','group') AND revision >= 1)（展开提案）。",
+      "kind 必须与 Chat.kind 一致，采用受控写入或约束触发器；不因群成员加入自动授予全部历史文件版本访问权。"
+    ],
+    "indexes": [
+      "(tenant_id, chat_id) UNIQUE"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "1:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  },
+  {
+    "name": "workspace_nodes",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "工作空间节点",
+    "purpose": "表达目录树、文件当前版本和逻辑删除状态。",
+    "source": "docs/database-design-v1.md §16；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "业务对象不可复用的稳定标识。",
+        "origin": "source"
+      },
+      {
+        "name": "workspace_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "节点所属工作空间。",
+        "origin": "source"
+      },
+      {
+        "name": "parent_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "父目录节点；根级节点为空。",
+        "origin": "source"
+      },
+      {
+        "name": "name",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "同父目录内节点名；具体大小写与 Unicode 规范待定。",
+        "origin": "source"
+      },
+      {
+        "name": "node_kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "file/directory 为展开候选值。",
+        "origin": "source"
+      },
+      {
+        "name": "current_version_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "文件当前不可变内容版本；目录及未完成上传文件可空。",
+        "origin": "source"
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "逻辑删除时间；有效节点为空。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "乐观并发版本；更新用 CAS，成功后递增。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "UQ (tenant_id,workspace_id,id)（展开辅助键，供同 workspace 父节点 FK 使用）。",
+      "UQ (tenant_id,workspace_id,parent_id,name) WHERE deleted_at IS NULL AND parent_id IS NOT NULL；另建 UQ (tenant_id,workspace_id,name) WHERE deleted_at IS NULL AND parent_id IS NULL，覆盖根目录 NULL 情况。",
+      "FK (tenant_id,workspace_id,parent_id) → workspace_nodes(tenant_id,workspace_id,id)；禁止自指和多层循环，父节点须为同 workspace 有效目录。",
+      "CHECK (node_kind IN ('file','directory') AND revision >= 1)；directory 必须 current_version_id IS NULL（展开提案）。",
+      "FK (tenant_id,id,current_version_id) → file_versions(tenant_id,node_id,id) 建议可延迟，避免指向另一文件的版本。",
+      "name 的空值、斜杠、大小写与 Unicode 规范需由受控服务一致校验；name 不作为稳定身份。"
+    ],
+    "indexes": [
+      "(tenant_id, workspace_id, parent_id) WHERE deleted_at IS NULL",
+      "(tenant_id, current_version_id) WHERE current_version_id IS NOT NULL"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "workspace_id"
+        ],
+        "target": "workspaces",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "workspace_id",
+          "parent_id"
+        ],
+        "target": "workspace_nodes",
+        "target_columns": [
+          "tenant_id",
+          "workspace_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "同工作空间父目录复合 FK；parent_id 可空，仍需额外防环与目录类型校验。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "id",
+          "current_version_id"
+        ],
+        "target": "file_versions",
+        "target_columns": [
+          "tenant_id",
+          "node_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可延迟复合 FK 提案，确保当前版本属于本节点。"
+      }
+    ]
+  },
+  {
+    "name": "file_versions",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "文件不可变版本",
+    "purpose": "保存对象存储内容、完整性和授权来源，文件字节不直接放关系表。",
+    "source": "docs/database-design-v1.md §16；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "业务对象不可复用的稳定标识。",
+        "origin": "source"
+      },
+      {
+        "name": "node_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "版本所属文件节点。",
+        "origin": "source"
+      },
+      {
+        "name": "version_no",
+        "type": "integer",
+        "nullable": false,
+        "default": "无",
+        "meaning": "同节点单调递增版本号。",
+        "origin": "source"
+      },
+      {
+        "name": "blob_ref",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "持久对象存储引用；不是永久公开下载 URL。",
+        "origin": "source"
+      },
+      {
+        "name": "sha256",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "内容 SHA-256 摘要；规范编码为 64 位小写十六进制的选择是展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "size_bytes",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "持久内容字节数。",
+        "origin": "source"
+      },
+      {
+        "name": "mime_type",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "内容媒体类型，服务端验证而非仅信任上传文件名。",
+        "origin": "source"
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "创建版本的 Actor。",
+        "origin": "source"
+      },
+      {
+        "name": "source_manifest_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "派生文件的来源清单；普通独立上传可空，但仍检查文件 grant。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()（展开提案）",
+        "meaning": "服务器提交的创建时间，按 UTC 存取。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "UQ (tenant_id,node_id,version_no)。",
+      "UQ (tenant_id,node_id,id)（展开辅助键，供 current_version_id 的同节点 FK）。",
+      "CHECK (version_no >= 1 AND size_bytes >= 0)；SHA-256 编码格式约束在存储协议定稿后落实。",
+      "node_id 必须指向 file 类型节点；版本内容不可变，替换内容须创建新版本。",
+      "blob 上传成功且摘要核验后才提交可见引用；下载/预览/签名 URL 必须重新核验显式 grant 与来源 ACL。"
+    ],
+    "indexes": [
+      "(tenant_id, node_id, version_no DESC)",
+      "(tenant_id, source_manifest_id) WHERE source_manifest_id IS NOT NULL"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "node_id"
+        ],
+        "target": "workspace_nodes",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "created_by"
+        ],
+        "target": "actors",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "source_manifest_id"
+        ],
+        "target": "context_manifests",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  },
+  {
+    "name": "workspace_grants",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "工作空间授权",
+    "purpose": "显式授予空间或文件节点权限，并保留授权版本和撤销状态。",
+    "source": "docs/database-design-v1.md §16；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "业务对象不可复用的稳定标识。",
+        "origin": "source"
+      },
+      {
+        "name": "workspace_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "原文 workspace_id/node_id 展开；所有授权都明确属于一个空间。",
+        "origin": "source"
+      },
+      {
+        "name": "node_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "节点级授权目标；为空表示空间级授权，这是复合简写的展开选择。",
+        "origin": "source"
+      },
+      {
+        "name": "principal_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "被授权主体；首版解释为 Actor，角色/群组主体需另定映射后才能加入。",
+        "origin": "source"
+      },
+      {
+        "name": "permissions",
+        "type": "text[]",
+        "nullable": false,
+        "default": "无",
+        "meaning": "显式权限代码集合，避免关键授权藏于 JSON；read/write/delete/manage_grants 仅展开候选。",
+        "origin": "source"
+      },
+      {
+        "name": "effective_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "原文 effective/revoked_at 拆出的生效时间。",
+        "origin": "source"
+      },
+      {
+        "name": "revoked_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "原文 effective/revoked_at 拆出的撤销时间；未撤销为空，此可空性为展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "grant_version",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "授权版本；修改权限生成新授权版本，旧授权保留。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "撤销状态的 CAS 投影版本。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "CHECK (grant_version >= 1 AND revision >= 1 AND cardinality(permissions) > 0)（展开提案）；权限值必须在定稿 allowlist 内，禁止未知代码隐式扩大访问。",
+      "CHECK (revoked_at IS NULL OR revoked_at >= effective_at)。",
+      "FK (tenant_id,workspace_id,node_id) → workspace_nodes(tenant_id,workspace_id,id)；node_id 为空时由 workspace_id FK 约束空间。",
+      "空间级 UQ (tenant_id,workspace_id,principal_id,grant_version) WHERE node_id IS NULL；节点级 UQ (tenant_id,workspace_id,node_id,principal_id,grant_version) WHERE node_id IS NOT NULL（版本范围为展开提案）。",
+      "空间继承、历史文件版本范围、重叠 grant 合并和 deny 语义尚待确认；不能用普通群成员资格替代显式文件授权。"
+    ],
+    "indexes": [
+      "(tenant_id, principal_id, workspace_id) WHERE revoked_at IS NULL",
+      "(tenant_id, workspace_id, node_id, effective_at)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "workspace_id"
+        ],
+        "target": "workspaces",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "workspace_id",
+          "node_id"
+        ],
+        "target": "workspace_nodes",
+        "target_columns": [
+          "tenant_id",
+          "workspace_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "principal_id"
+        ],
+        "target": "actors",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "Actor 作为授权主体是展开提案；源文仅写 principal_id，未确定角色/群组主体模型。"
+      }
+    ]
+  },
+  {
+    "name": "owner_settings",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "Owner 全局设置",
+    "purpose": "保存 Reply for me 的全局提示词及版本。",
+    "source": "docs/database-design-v1.md §16；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "owner_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "Owner Actor 标识；每租户每 Owner 一行设置。",
+        "origin": "source"
+      },
+      {
+        "name": "reply_prompt_default",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "Owner 全局 Reply for me 提示词；空字符串与缺省初始化策略需显式决定。",
+        "origin": "source"
+      },
+      {
+        "name": "prompt_version",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "全局提示词内容版本；请求接受时冻结实际版本与摘要。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "全局设置投影的 CAS 版本。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "owner_id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "CHECK (prompt_version >= 1 AND revision >= 1)（展开提案）。",
+      "修改全局提示词不改变任何 Chat 的 reply_for_me_enabled；已接受请求继续使用冻结版本。",
+      "当前设置表不承担完整旧提示词档案；历史正文/摘要须随请求或不可变配置版本持久保存。"
+    ],
+    "indexes": [],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "owner_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "1:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  },
+  {
+    "name": "owner_chat_settings",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "Owner 单聊设置",
+    "purpose": "按 Owner 与 Chat 独立保存模式、覆盖提示词和侧栏偏好。",
+    "source": "docs/database-design-v1.md §16；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "owner_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "设置归属的 Owner Actor 标识。",
+        "origin": "source"
+      },
+      {
+        "name": "chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "设置所针对的聊天。",
+        "origin": "source"
+      },
+      {
+        "name": "reply_for_me_enabled",
+        "type": "boolean",
+        "nullable": false,
+        "default": "无",
+        "meaning": "此 Owner 在此 Chat 的 Reply for me 模式开关；初始值尚未确认，不设隐式默认。",
+        "origin": "source"
+      },
+      {
+        "name": "reply_prompt_override",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "单聊覆盖提示词；NULL 与空字符串必须保持区别。",
+        "origin": "source"
+      },
+      {
+        "name": "override_enabled",
+        "type": "boolean",
+        "nullable": false,
+        "default": "无",
+        "meaning": "是否启用单聊提示词覆盖；不能仅凭正文非空推断。",
+        "origin": "source"
+      },
+      {
+        "name": "last_sidebar_tab",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "上次选中侧栏页签；private 初始 activity，group 初始 workspace；其他页签集合待定。",
+        "origin": "source"
+      },
+      {
+        "name": "sidebar_open",
+        "type": "boolean",
+        "nullable": false,
+        "default": "true（依源文初次展开规则；DDL 表达为提案）",
+        "meaning": "侧栏是否展开；原文明确初次展开。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "乐观并发版本；更新用 CAS，成功后递增。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "owner_id",
+      "chat_id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "CHECK (revision >= 1)；override_enabled = true 时 reply_prompt_override 必须非 NULL，空字符串仍为明确覆盖值（展开提案）。",
+      "group 禁止 last_sidebar_tab = activity；跨表 Chat.kind 校验须用受控写入/约束触发器，不伪装单行 CHECK 能查其他表。",
+      "last_sidebar_tab 无固定 SQL 默认，初始化服务依 Chat.kind 写 private→activity、group→workspace。",
+      "首次创建设置须核验本人身份与合法 Chat 访问权；保留旧设置不等于保留退出后的访问授权。"
+    ],
+    "indexes": [
+      "(tenant_id, chat_id, owner_id)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "owner_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  },
+  {
+    "name": "run_origins",
+    "schema": "twinteams",
+    "status": "optional",
+    "title": "Run 来源投影（可选）",
+    "purpose": "可重建地定位每个 Runtime Run 的聊天来源与父边，服务 Activity 隔离查询。",
+    "source": "docs/database-design-v1.md §17；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "Runtime Session ID，保留 SDK text 标识。",
+        "origin": "source"
+      },
+      {
+        "name": "run_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "该 Session 下的 Runtime Run ID；不能仅按 run_id 查询。",
+        "origin": "source"
+      },
+      {
+        "name": "origin_chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "经验证的原始聊天来源，私人与群不可混入。",
+        "origin": "source"
+      },
+      {
+        "name": "root_request_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "追溯到的业务根 reply_request；无法证明来源的历史 run 不写入正常私聊列表。",
+        "origin": "source"
+      },
+      {
+        "name": "parent_session_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "原文 parent refs 拆出的直接父 Session；根 Run 为空。",
+        "origin": "source"
+      },
+      {
+        "name": "parent_run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "原文 parent refs 拆出的直接父 Run；与父 Session 成对可空。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "可重建来源投影的 CAS 版本。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "session_id",
+      "run_id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "此表为可选、可重建投影，不替代 Runtime.agent_runs 或 agent_run_edges 权威事实。",
+      "CHECK ((parent_session_id IS NULL AND parent_run_id IS NULL) OR (parent_session_id IS NOT NULL AND parent_run_id IS NOT NULL))。",
+      "CHECK (revision >= 1)；非空父键不能与当前 (session_id,run_id) 相同，递归链不得成环。",
+      "origin_chat_id 与 root_request_id、直接父边必须可相互验证；不能以 user_id/root_run_id 猜来源。",
+      "没有可验证来源的旧数据标记来源未知并排除私人 Activity；若要单独保存未知项，需另定 nullable/status 方案，不暗改本表来源必填约束。"
+    ],
+    "indexes": [
+      "(tenant_id, origin_chat_id, session_id, run_id)",
+      "(tenant_id, root_request_id)",
+      "(tenant_id, parent_session_id, parent_run_id) WHERE parent_run_id IS NOT NULL"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "1:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "origin_chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "root_request_id"
+        ],
+        "target": "reply_requests",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "parent_session_id",
+          "parent_run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  },
+  {
+    "name": "presence_leases",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "在线查看租约",
+    "purpose": "短期投影当前设备在线与焦点状态，不能重写已持久接受的触发决定。",
+    "source": "docs/database-design-v1.md §6；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "owner_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "原文 owner 展开为 Owner Actor 标识。",
+        "origin": "source"
+      },
+      {
+        "name": "device_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "原文 device 展开为设备标识；不是可信身份凭据。",
+        "origin": "source"
+      },
+      {
+        "name": "auth_session_ref",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "认证系统会话的非秘密引用；不保存认证 token，认证系统仍为权威。",
+        "origin": "source"
+      },
+      {
+        "name": "last_heartbeat_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "服务器最近接受的设备心跳时间。",
+        "origin": "source"
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租约过期时间；TTL 长度尚未确认，无默认间隔。",
+        "origin": "source"
+      },
+      {
+        "name": "focused_chat_id",
+        "type": "uuid",
+        "nullable": true,
+        "default": "无",
+        "meaning": "设备当前聚焦聊天；未聚焦时为空，此可空性为展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "view_epoch",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "设备查看周期/版本，用于识别过期焦点证据；不是 wall-clock 排序。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "短期投影 CAS 版本，按可变投影统一约定补充。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "owner_id",
+      "device_id",
+      "auth_session_ref"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "PK (tenant_id,owner_id,device_id,auth_session_ref) 为展开提案；避免同设备不同登录会话互相覆盖。",
+      "CHECK (expires_at > last_heartbeat_at AND view_epoch >= 0 AND revision >= 1)（展开提案）。",
+      "TTL、后台标签页、多设备合并、登录即在线尚待确认；不采纳未确认 heartbeat-research 提案。",
+      "缓存丢失或租约过期不能推出正在查看；触发决定必须保存读取到的证据与版本，而非事后查询此投影改写历史。",
+      "本表可用 PostgreSQL 或缓存实现，尚未确定；若不落 PostgreSQL，关系为服务级校验而非真实数据库 FK。"
+    ],
+    "indexes": [
+      "(tenant_id, expires_at)",
+      "(tenant_id, owner_id, expires_at DESC)",
+      "(tenant_id, focused_chat_id, expires_at) WHERE focused_chat_id IS NOT NULL"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "owner_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "若选择 PostgreSQL 保存可加租户复合 FK；缓存实现由受控服务校验。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "focused_chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "若选择 PostgreSQL 保存可加租户复合 FK；并需核验 Owner 的 Chat 访问权。"
+      }
+    ]
+  },
+  {
+    "name": "notifications",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "Owner 通知",
+    "purpose": "独立记录通知的创建、已读与关闭状态，避免与聊天已读或审批结果混淆。",
+    "source": "docs/database-design-v1.md §11；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "业务对象不可复用的稳定标识。",
+        "origin": "source"
+      },
+      {
+        "name": "recipient_owner_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "通知接收 Owner Actor。",
+        "origin": "source"
+      },
+      {
+        "name": "chat_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "通知对应聊天，用于路由与访问校验。",
+        "origin": "source"
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "通知类别；approval 等具体集合尚待确认。",
+        "origin": "source"
+      },
+      {
+        "name": "source_event_key",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "带来源命名空间的稳定业务事件键，用于同接收人去重；不是未带 Session 的 Runtime event FK。",
+        "origin": "source"
+      },
+      {
+        "name": "approval_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "关联 Runtime 审批标识；非审批通知为空。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()（展开提案）",
+        "meaning": "服务器提交的创建时间，按 UTC 存取。",
+        "origin": "source"
+      },
+      {
+        "name": "read_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "用户已读通知的时间；不等于读过聊天消息或批准动作。",
+        "origin": "source"
+      },
+      {
+        "name": "dismissed_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "通知被关闭的时间；不取消或拒绝审批。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "通知已读/关闭投影的 CAS 版本。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "id"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "UQ (tenant_id,recipient_owner_id,source_event_key)。",
+      "CHECK (revision >= 1 AND (read_at IS NULL OR read_at >= created_at) AND (dismissed_at IS NULL OR dismissed_at >= created_at))（展开提案）。",
+      "approval_id 存在时通过 approval_contexts 核验接收 Owner 与 Chat；通知读/关闭均不更改 Runtime 审批状态。",
+      "通知源事件可来自多个域，source_event_key 仅幂等逻辑键，需受控命名与解析，不建立伪多态 FK。"
+    ],
+    "indexes": [
+      "(tenant_id, recipient_owner_id, created_at DESC)",
+      "(tenant_id, recipient_owner_id, chat_id, created_at DESC) WHERE read_at IS NULL AND dismissed_at IS NULL",
+      "(tenant_id, approval_id) WHERE approval_id IS NOT NULL"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "recipient_owner_id"
+        ],
+        "target": "owners",
+        "target_columns": [
+          "tenant_id",
+          "actor_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "chat_id"
+        ],
+        "target": "chats",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "approval_id"
+        ],
+        "target": "approval_contexts",
+        "target_columns": [
+          "tenant_id",
+          "approval_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  },
+  {
+    "name": "notification_deliveries",
+    "schema": "twinteams",
+    "status": "proposal",
+    "title": "通知投递尝试",
+    "purpose": "逐渠道记录可重试的通知投递结果，不代表用户已读或审批已决定。",
+    "source": "docs/database-design-v1.md §11；全局类型与租户约定见 §3。逐列可空性、默认值与辅助约束为第一版展开提案，尚非批准 DDL。",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有主键、外键、唯一约束与查询边界均带此列。",
+        "origin": "source"
+      },
+      {
+        "name": "notification_id",
+        "type": "uuid",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属业务通知。",
+        "origin": "source"
+      },
+      {
+        "name": "channel",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "投递渠道；in_app/push/email 等仅展开候选，不表示已经启用这些渠道。",
+        "origin": "source"
+      },
+      {
+        "name": "attempt_no",
+        "type": "integer",
+        "nullable": false,
+        "default": "无",
+        "meaning": "同通知同渠道的发送尝试序号。",
+        "origin": "source"
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "pending/sending/sent/failed/unknown 等仅展开候选；timeout 不等于未投递。",
+        "origin": "source"
+      },
+      {
+        "name": "provider_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "供应商返回的消息/投递 ID；尚未返回或渠道无需时为空。",
+        "origin": "source"
+      },
+      {
+        "name": "error",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "经脱敏的失败信息；无错误时为空，较源简写的可空性为展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "sent_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "供应商确认发送的时间；未确认时为空，较源简写的可空性为展开提案。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "now()（展开提案）",
+        "meaning": "本次尝试创建时间，补足待发/失败尝试审计。",
+        "origin": "expanded"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "1（展开提案）",
+        "meaning": "单次尝试状态投影 CAS 版本。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "notification_id",
+      "channel",
+      "attempt_no"
+    ],
+    "constraints": [
+      "本表全部逐列类型、可空性、默认值与具体约束为第一版展开提案；origin=source 表示字段概念来自原文，不表示其具体 DDL 已确认。",
+      "PK (tenant_id,notification_id,channel,attempt_no) 为展开提案；重试追加新 attempt_no，不覆写旧失败事实。",
+      "CHECK (attempt_no >= 1 AND revision >= 1)（展开提案）；channel/state 的允许集合需定稿。",
+      "sent 状态要求 sent_at 非空的约束需与供应商确认语义一起定稿；sent 不能代表 delivered/read/approved。",
+      "供应商 ID 的唯一范围可能依 provider/account/channel 而变，当前源文未提供完整命名空间，不添加错误的全租户 UNIQUE。",
+      "通知实际发送仍通过可靠 outbox；本表不是调度租约或恰好一次送达保证。"
+    ],
+    "indexes": [
+      "(tenant_id, notification_id, channel, attempt_no DESC)",
+      "(tenant_id, state, created_at)",
+      "(tenant_id, channel, provider_id) WHERE provider_id IS NOT NULL"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "notification_id"
+        ],
+        "target": "notifications",
+        "target_columns": [
+          "tenant_id",
+          "id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "复合外键为第一版展开提案，包含 tenant_id；迁移前检查旧数据及部署边界。"
+      }
+    ]
+  }
+]

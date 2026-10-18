@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Twinteams 数据库设计 v1 · 评审稿</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <style>
+  :root{--ink:#182335;--muted:#607084;--accent:#6553ba;--line:#e0e5ed;--bg:#f4f6fa}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:var(--bg);font:16px/1.85 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}header{padding:56px 6% 30px;background:#202c46;color:white}header h1{font-size:36px;line-height:1.3;margin:0;letter-spacing:-1px}header .subtitle{color:#d6dcef}#TOC{position:fixed;left:24px;top:24px;width:238px;max-height:calc(100vh - 48px);overflow:auto;background:white;border:1px solid var(--line);border-radius:12px;padding:18px;font-size:12px;line-height:1.55}#TOC ul{padding-left:14px}#TOC>ul{padding-left:0;list-style:none}#TOC li{margin:7px 0}#TOC a{color:#526176;text-decoration:none}body>header,body>main{margin-left:284px}main{max-width:1200px;padding:32px 5% 80px;background:white}h1,h2,h3{line-height:1.4}h1{font-size:30px}h2{font-size:25px;margin-top:64px;padding-top:18px;border-top:2px solid #dcd6f0;color:#403574}h3{font-size:19px;margin-top:30px}p,li{overflow-wrap:anywhere}a{color:var(--accent)}strong{color:#443678}table{border-collapse:collapse;width:100%;font-size:13px;line-height:1.7;margin:22px 0;table-layout:fixed}th,td{padding:13px 12px;border:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}th{background:#edf0f7;text-align:left}tr:nth-child(even) td{background:#fafbfe}pre{background:#edf2f8;border-radius:10px;padding:22px;overflow:auto;font-size:13px;line-height:1.7}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}blockquote{margin:20px 0;padding:10px 22px;border-left:4px solid var(--accent);background:#f5f2fe}footer{margin-top:60px;border-top:1px solid var(--line);padding-top:18px;color:var(--muted);font-size:13px}@media(max-width:1050px){#TOC{position:static;width:auto;max-height:300px;margin:20px}body>header,body>main{margin-left:0}main{padding:22px 6% 60px}header{padding:35px 6%}header h1{font-size:29px}}@media(max-width:650px){body{font-size:15px}h2{font-size:22px}table{font-size:11px}th,td{padding:7px 5px}pre{font-size:11px;padding:12px}}@media print{#TOC{display:none}body>header,body>main{margin-left:0}body,main{background:white}h2{break-before:auto}tr{break-inside:avoid}header{color:#182335;background:white;padding:20px 0}}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Twinteams 数据库设计 v1 · 评审稿</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#twinteams-数据库设计-v1"
+id="toc-twinteams-数据库设计-v1">Twinteams 数据库设计 v1</a>
+<ul>
+<li><a href="#先看结论" id="toc-先看结论">1. 先看结论</a></li>
+<li><a href="#现有事实与边界" id="toc-现有事实与边界">2.
+现有事实与边界</a></li>
+<li><a href="#统一约定与关系图" id="toc-统一约定与关系图">3.
+统一约定与关系图</a></li>
+<li><a href="#身份聊天成员与历史权限" id="toc-身份聊天成员与历史权限">4.
+身份、聊天、成员与历史权限</a></li>
+<li><a href="#消息来源引用与真人已读" id="toc-消息来源引用与真人已读">5.
+消息、来源、引用与真人已读</a></li>
+<li><a href="#登录在线查看短期状态与永久决定分离"
+id="toc-登录在线查看短期状态与永久决定分离">6.
+登录、在线、查看：短期状态与永久决定分离</a></li>
+<li><a href="#目标识别10-秒预触发与接受去重"
+id="toc-目标识别10-秒预触发与接受去重">7. 目标识别、10
+秒预触发与接受去重</a></li>
+<li><a href="#fifo主回复互斥取消与尝试"
+id="toc-fifo主回复互斥取消与尝试">8.
+FIFO、主回复互斥、取消与尝试</a></li>
+<li><a href="#可选精确事件流每个-token-progress-的回放"
+id="toc-可选精确事件流每个-token-progress-的回放">9.
+可选精确事件流：每个 token / progress 的回放</a></li>
+<li><a href="#可靠命令父子通信与-outbox-inbox"
+id="toc-可靠命令父子通信与-outbox-inbox">10. 可靠命令、父子通信与 Outbox
+/ Inbox</a></li>
+<li><a href="#独立审批与通知" id="toc-独立审批与通知">11.
+独立审批与通知</a></li>
+<li><a href="#工具副作用账本与恢复边界"
+id="toc-工具副作用账本与恢复边界">12. 工具副作用账本与恢复边界</a></li>
+<li><a href="#恢复快照版本与分叉" id="toc-恢复快照版本与分叉">13.
+恢复、快照、版本与分叉</a></li>
+<li><a href="#授权摘要精确覆盖与上下文溯源"
+id="toc-授权摘要精确覆盖与上下文溯源">14.
+授权摘要、精确覆盖与上下文溯源</a></li>
+<li><a href="#tracking目录动态删除与来源权限"
+id="toc-tracking目录动态删除与来源权限">15.
+Tracking：目录、动态、删除与来源权限</a></li>
+<li><a href="#workspace个人设置与通知展示"
+id="toc-workspace个人设置与通知展示">16.
+Workspace、个人设置与通知展示</a></li>
+<li><a href="#查询权限与-activity-投影"
+id="toc-查询权限与-activity-投影">17. 查询、权限与 Activity
+投影</a></li>
+<li><a href="#必须成立的不变量与故障推演"
+id="toc-必须成立的不变量与故障推演">18.
+必须成立的不变量与故障推演</a></li>
+<li><a href="#实施拆分与评审决策" id="toc-实施拆分与评审决策">19.
+实施拆分与评审决策</a></li>
+</ul></li>
+</ul>
+</nav><main>
+<h1 id="twinteams-数据库设计-v1">Twinteams 数据库设计 v1</h1>
+<p>评审稿 · 2026-10-17 · 仅设计，未执行迁移、修改应用或运行测试</p>
+<h2 id="先看结论">1. 先看结论</h2>
+<p>建议以 PostgreSQL 为首版主数据库：这是因为 Agent Runtime 已有
+PostgreSQL 存储实现，不是用户已经确认的数据库选型。保留 SDK
+原有七张表、标识类型与事件日志，增强 Runtime 的持久执行能力；Twinteams
+仅拥有身份、聊天、历史权限、消息、回复调度与产品资料等业务数据。</p>
+<p><strong>复用 DatabaseSession，不重做运行日志。</strong> SDK
+已经把模型最终响应、工具开始/原始返回/最终结果、队列安全边界快照、checkpoint
+等语义事实写入 PostgreSQL，并具备历史状态回放、分叉和续跑。第一版需要把
+Twinteams 的请求接受、主回复调度、父子回传和权限关联接到这个基础上。</p>
+<p>“所有 Agent 事件”有两种粒度，需确认：A.
+全部执行事实与安全边界恢复，直接复用既有 journal 并补产品编排；B. 连每个
+token delta/中间 progress 都精确回放，才额外启用第 9 节持久流。B
+会增加写入与存储量，不应在用户口径未确认时当成必选。无论哪种口径，已被业务接受的输入不能只停留在进程内存。</p>
+<p>“任意点恢复”需要拆成三个能力：查看某个已提交事件点的历史状态；恢复未完成运行；从历史状态建立新分支。历史回放不执行工具；续跑需要检查副作用和权限；分叉不意味着撤销已经发生的现实动作。对不支持幂等或查询的外部工具，无法承诺
+exactly-once 或任意回滚。</p>
+<p>本文所有新增表名、字段、状态、索引、事务和部署选择都是设计提案。已确认的产品行为来自需求文档；SDK
+当前事实单独列明。未决行为不会通过数据库默认值悄悄定案。</p>
+<h2 id="现有事实与边界">2. 现有事实与边界</h2>
+<h3 id="databasesession-已有的写入与恢复">2.1 DatabaseSession
+已有的写入与恢复</h3>
+<p>DatabaseSession(Session), durable=True → Session.commit →
+DatabaseSession._persist → PostgresStore.append：写 journal、CAS
+next_seq
+与相关投影同事务，持久写入完成后才更新内存。DatabaseSession.open
+读取日志并 replay；asnapshot_at(event_id) 可重建历史状态；Agent.resume
+延续原 Run 并进入按阶段恢复的循环。模型最终回复在 message_end
+之前持久提交；工具 start、raw return、final result
+分别持久化。sync_queues 会写持久队列快照，缺口仅是 enqueue
+返回到下一个安全边界之间。</p>
+<p>依据：sessions/database.py:8–9,19–24,41–55；sessions/base.py:502–561；storage/postgres.py:57–81；agent_loop.py:350–359,603,627,632；agent.py:250–253,467–470。下文新增机制是围绕既有能力的整合与增强，不替换
+DatabaseSession。</p>
+<h3 id="原样复用的-runtime-表">2.2 原样复用的 Runtime 表</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>现有表</th>
+<th>已有核心字段 / 约束</th>
+<th>继续负责</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>agent_sessions</td>
+<td>PK (tenant_id text, session_id text)；next_seq bigint；metadata
+jsonb；user_id text 可空</td>
+<td>执行会话、事件顺序与归属投影</td>
+</tr>
+<tr class="even">
+<td>agent_session_events</td>
+<td>PK (tenant_id, session_id, seq bigint)；UQ (tenant_id, session_id,
+event_id text)；record json；metadata jsonb；session FK</td>
+<td>可重放 journal，保留原格式</td>
+</tr>
+<tr class="odd">
+<td>agent_session_archives</td>
+<td>PK (tenant_id, session_id, start_seq
+bigint)；end_seq、object_uri、version_id、sha256、format_version</td>
+<td>归档分段与完整性</td>
+</tr>
+<tr class="even">
+<td>agent_runs</td>
+<td>PK (tenant_id, session_id, run_id
+text)；user_id、root_run_id、source、started_at、finished_at、status</td>
+<td>现有运行投影；当前没有 session FK</td>
+</tr>
+<tr class="odd">
+<td>agent_audit_events</td>
+<td>PK (tenant_id, audit_id
+text)；actor_id/type、user_id、session_id、run_id、action/resource/outcome</td>
+<td>安全与操作审计；不能当作完整执行日志</td>
+</tr>
+<tr class="even">
+<td>agent_model_usage</td>
+<td>PK (tenant_id, attempt_id
+text)；session/run/root、provider/model、usage/status</td>
+<td>模型调用尝试及用量</td>
+</tr>
+<tr class="odd">
+<td>agent_session_checkpoints</td>
+<td>PK (tenant_id, session_id, seq)；UQ event_id；session FK</td>
+<td>checkpoint 位置索引；完整状态仍在 journal</td>
+</tr>
+</tbody>
+</table>
+<p>依据：Runtime 的
+src/agent_runtime/storage/sql/001_sessions.sql、002_checkpoints.sql、003_session_identity.sql。现有
+ID 均为 text，不能迁成 uuid 后假装兼容。agent_runs / agent_model_usage /
+agent_audit_events 并没有本文新增模型所需的全部外键。</p>
+<p>现有 PostgreSQL append 可在一个事务内写 journal、CAS 更新
+next_seq，并更新部分运行/用量投影。它不等于已经实现跨业务表事务、主回复租约或工具副作用事务。现有
+audit 表也不是自动记录全部工具与输入的通用日志。</p>
+<h3 id="当前边界与需集成的部分">2.3 当前边界与需集成的部分</h3>
+<ul>
+<li>message_update/token delta、tool_execution_update 走内存
+Session.live，尚未逐条持久化；最终模型文本与工具结果已经持久化。精确中间画面回放属于可选增强。</li>
+<li>enqueue / steer / follow_up
+先改内存；之后循环到安全边界才同步记录，不是“收到即可靠接受”。</li>
+<li>缺少持久输入/父子回传 inbox、outbox、租约
+fencing，以及跨进程恢复调度闭环。</li>
+<li>checkpoint 表只存位置；完整 checkpoint v2 在 compaction journal
+内。不是每个 token 都有独立可执行快照。</li>
+<li>未确认结果且非安全工具恢复会要求
+ToolRecoveryRequired；这应进入人工核对流程，不能一律重试。</li>
+<li>内嵌 run_tool_call 可能使用无 session
+配置，需补齐嵌套工具可观测性；只包裹最外层工具不足以满足全部事件要求。</li>
+<li>子任务 factory 与数据库 session 异步创建需要适配；已有
+spawn/send/wait 原语不表示数据库父子执行链已完整落地。</li>
+</ul>
+<p>依据详见第 19 节；这些是现有实现检查结果，不是已修复说明。</p>
+<h3 id="schema-与所有权">2.4 Schema 与所有权</h3>
+<p>首版建议同一 PostgreSQL 实例、同一数据库，SDK 表保持原
+schema/名称不变（当前脚本未写 schema，取决于部署
+search_path），不移动或复制。新增 Runtime 表与原表同属 SDK 管理的
+schema；业务表放 twinteams schema。文中 RT 表示原有 SDK
+schema，不要求立即迁入名为 runtime 的 schema。</p>
+<ul>
+<li>Runtime：session、journal、run、模型与工具尝试、持久事件流、输入/回传、审批执行状态、操作账本、checkpoint、归档。</li>
+<li>Twinteams：身份配对、成员与历史边界、消息及读回执、触发判断与
+FIFO、Chat→Session 映射、Tracking、摘要授权来源、工作空间和 UI
+设置。</li>
+<li>不新增第二套 runs/events 复制 Runtime
+事实。产品只保存引用及业务投影，投影可以从持久事实重建。</li>
+<li>业务与 Runtime
+跨表原子性需要新增共用事务适配层。若暂时无法共用事务，使用各自事务的
+outbox/inbox 桥接，不宣称跨连接或跨数据库天然原子。</li>
+</ul>
+<h2 id="统一约定与关系图">3. 统一约定与关系图</h2>
+<p>新增业务 ID 建议 uuid；引用 Runtime 的 tenant/session/run/event ID
+保持 text。所有表含 tenant_id text NOT NULL，PK/FK 必须包含
+tenant_id。下文为压缩字典，id 指表自身 uuid
+主键；外键全部含租户维度，timestamptz 用数据库 UTC，顺序用
+bigint，不用时钟单独判定先后。jsonb
+仅用于版本化载荷，不把关键关系、授权或状态藏在 JSON。</p>
+<p>简写字段类型规则：所有 *_at / *_until 为 timestamptz，*_seq /
+revision / fence 为 bigint，*_no / generation / epoch 为
+int，active/enabled 等为
+boolean，hash/digest/status/kind/key/ref/name/title 为 text，正文为 text
+或受控 blob 引用。除标记 ? 或明确可空外均 NOT
+NULL；表中字段为核心逻辑字典，最终 DDL
+仍需逐列列出默认值、约束名称与迁移顺序。业务 owner actor uuid
+通过明确映射/字符串化传给 SDK 的 user_id text，不改变 SDK 类型；不把
+user_id 当 Twin ID。</p>
+<p>状态采用 text + CHECK 与状态迁移校验，避免早期 PostgreSQL enum
+难改；新增状态均是提案。所有可变投影带 revision
+bigint，采用乐观并发。不可变事件只追加，纠错通过新事件。硬删除、保留期和法律删除政策待定；不把“持久”误解为允许无限保留秘密。</p>
+<pre class="text"><code>Owner ──1:1── Twin                     真人与 Twin 各是独立 Actor
+   └──── paired membership ──── Chat (private / group)
+                                  ├─ Messages ── Reply request ── Attempt
+                                  ├─ (Chat,Twin) Session binding ── RT Session
+                                  │                                  ├─ Runs ── parent/child edges
+                                  │                                  └─ Journal + Durable stream
+                                  ├─ History grants ── Sources ── Summary / Tracking
+                                  ├─ Workspace ── File versions
+                                  └─ Per-owner settings / Read receipts
+RT Run ── Commands / Tool operations / Approvals / Outbox / Inbox</code></pre>
+<h2 id="身份聊天成员与历史权限">4. 身份、聊天、成员与历史权限</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>新增业务表</th>
+<th>字段重点</th>
+<th>约束与索引</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>actors</td>
+<td>id、kind
+text(human/twin)、created_at、disabled_at、display_name</td>
+<td>PK tenant/id；身份 ID 不变，显示名可变；禁用不重写历史作者</td>
+</tr>
+<tr class="even">
+<td>owners</td>
+<td>actor_id uuid、auth_subject text、created_at</td>
+<td>PK tenant/actor_id；FK actors；UQ tenant/auth_subject；必须
+kind=human</td>
+</tr>
+<tr class="odd">
+<td>twins</td>
+<td>actor_id uuid、owner_actor_id uuid、created_at</td>
+<td>PK tenant/actor_id；FK actors / owners；UQ
+tenant/owner_actor_id；必须 kind=twin</td>
+</tr>
+<tr class="even">
+<td>chats</td>
+<td>id、kind(private/group)、private_owner_id
+uuid?、title、next_message_seq bigint、next_membership_seq
+bigint、created_at</td>
+<td>private 必有 owner，group 必无；UQ tenant/private_owner_id WHERE
+private；title 不作为标识</td>
+</tr>
+<tr class="odd">
+<td>chat_memberships</td>
+<td>id、chat_id、owner_actor_id、joined_at、left_at?、join_message_seq
+bigint、membership_seq bigint、revision</td>
+<td>每次加入一条记录，UQ tenant/chat/owner WHERE left_at IS NULL；INDEX
+chat/current 与 owner/current</td>
+</tr>
+<tr class="even">
+<td>history_grants</td>
+<td>id、membership_id、policy(all/fixed_7d/no_prior)、lower_seq
+bigint、upper_seq
+bigint?、effective_at、revoked_at?、policy_version</td>
+<td>不覆盖旧版本；INDEX membership/effective_at；授权修订要留事件</td>
+</tr>
+</tbody>
+</table>
+<p>Owner/Twin 配对加入通过一条 membership 表达，成员视图派生两位
+actor，而不是分别插入两条可失配成员记录。事务中创建 owner 与 twin，跨表
+kind/一对一完整性用约束触发器或受控写入函数校验；不能仅靠两条独立
+INSERT。首次创建私人 Chat
+也在同一事务完成。帐号停用、继承与永久删除仍需产品决定，历史身份不重用。</p>
+<p>群聊两位 Owner 就是 group；不增设第三种 direct 类型。扩大群组只是新增
+paired membership。当前成员计数显示真人或所有身份未定，不在 schema
+固化显示口径。</p>
+<p><strong>加入边界必须固定。</strong> 在锁定 Chat
+顺序分配器的事务内记录 join_message_seq：all 从首条开始；no_prior
+从加入后第一条开始；fixed_7d 使用 joined_at−7
+天在本聊天已提交消息中求首个获准 seq，并永久保存 lower_seq。消息服务端
+created_at 与 seq 在同一 Chat
+锁下生成，避免时钟倒退/客户端伪时间改变边界。最终授权检查使用明确 seq
+集合/区间，不能每天滚动计算 seven days。</p>
+<p>历史授权属于 membership incarnation；退出重入不能不经判断沿用旧
+grant。退出后是否保留阅读权、修改历史范围如何影响已有内容是未决项：首版安全提案是失去当前成员资格即停止新查询/工具操作，旧数据保留审计，任何扩大访问需明确授权版本。此项不是已确认产品需求。</p>
+<h2 id="消息来源引用与真人已读">5. 消息、来源、引用与真人已读</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>新增业务表</th>
+<th>字段重点</th>
+<th>约束与索引</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>messages</td>
+<td>id、chat_id、seq
+bigint、author_actor_id、kind(human/twin/reply_for_me/system)、state(streaming/published/withdrawn)、reply_to_message_id?、source_request_id?、created_at、published_at?、current_revision
+bigint</td>
+<td>UQ tenant/chat/seq；UQ tenant/chat/id 支持同聊复合 FK；INDEX
+chat/seq；author FK actors</td>
+</tr>
+<tr class="even">
+<td>message_revisions</td>
+<td>message_id、revision bigint、body text 或
+encrypted_blob_ref、raw_owner_input_ref?、owner_actor_id?、source_event_id
+text?、created_at、reason</td>
+<td>PK tenant/message/revision；不可变；raw 与 processed 是同一消息同一
+ACL；记录内容 hash</td>
+</tr>
+<tr class="odd">
+<td>message_origins</td>
+<td>message_id、request_id?、attempt_id?、session_id text?、run_id
+text?、output_key text、acting_for_owner_id?、prompt_version?</td>
+<td>UQ tenant/output_key；Runtime 引用使用完整 session/run
+键；来源原输入另有持久 command</td>
+</tr>
+<tr class="even">
+<td>human_read_receipts</td>
+<td>message_id、owner_actor_id、first_seen_at、last_seen_at、evidence_kind、client_event_key</td>
+<td>PK tenant/message/owner；仅 human owner；INDEX
+owner/message；重复上报幂等</td>
+</tr>
+<tr class="odd">
+<td>view_events</td>
+<td>id、chat_id、owner_actor_id、device_id text、view_epoch
+bigint、kind(open/focus/close)、observed_at、received_at</td>
+<td>可持久记录影响触发的查看证据；客户端时间不直接决定先后</td>
+</tr>
+</tbody>
+</table>
+<p>Reply for me：先持久保存 Owner 原始输入 command，再生成 Twin
+输出；消息 author 为 Twin，origin 标明 acting_for owner。发布时同一消息
+revision 保存 raw 引用与加工文本，二者共享授权。处理中原输入可以只在
+Owner/Runtime
+的受控待处理域可见；一旦发布，所有获准读该消息的人都可见两部分。不另发一条真人消息。全局/单聊提示词的实际版本与
+hash 随请求冻结，不能重放时偷偷换用新提示词。</p>
+<p>reply_to 必须属于同 Chat。引用展示时再次检查被引用来源
+ACL：读得了新回复不表示读得了旧引用，越界引用仅显示不可用占位，不复制旧文泄漏。生成时的引用片段与来源
+revision 可记入审计，但对用户投影继续受来源权限约束。</p>
+<p>Stop replying 不删日志：将本次请求已经输出的所有 message/output
+segments 标记 withdrawn，追加撤回事件，UI
+隐藏正文；原始内容保留在严格受控审计存储。撤回后引用、摘要、Tracking
+派生投影需失效/重建，防止绕过 UI
+再读到撤回内容。历史审计查看权限与一般聊天阅读分开。</p>
+<p>真人已读必须来自本人前端显示/确认信号，不能由 Twin 处理生成。不能只用
+max_seen_seq 推断中间所有消息读过；滚动跳读会漏看。首版使用逐消息
+receipt；优化可用明确连续可见区间压缩。打开会话可抑制该时刻符合规则的待触发项，和某条消息实际已读是两类证据。</p>
+<h2 id="登录在线查看短期状态与永久决定分离">6.
+登录、在线、查看：短期状态与永久决定分离</h2>
+<p>登录会话以认证系统为权威，不把 Actor 表的布尔位当在线。建议
+presence_leases(tenant, owner, device, auth_session_ref,
+last_heartbeat_at, expires_at, focused_chat_id, view_epoch) 作为 TTL
+投影，可在 PostgreSQL
+或缓存中保存；缓存丢失时不能凭空恢复为“正在查看”。TTL、后台标签页、多设备合并与“登录即在线”的精确定义尚待确认。</p>
+<p>TTL
+投影不需要保存每个无意义心跳，但每次触发判断必须持久保存当时读取到的在线/查看/已读证据、版本与判断时间。所有进入
+Agent 的事件必须入日志；presence
+网络心跳本身不是模型事件。若其改变触发结果，产生持久 decision/view
+事件。恢复时不根据当下 presence 重新改写过去的已接受决定。</p>
+<h2 id="目标识别10-秒预触发与接受去重">7. 目标识别、10
+秒预触发与接受去重</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>新增业务表</th>
+<th>字段重点</th>
+<th>约束与索引</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>routing_decisions</td>
+<td>id、message_id、decision_version、strategy(pair/llm)、model_attempt_id
+text?、context_manifest_id?、inferred_owner_ids
+jsonb、mentioned_owner_ids jsonb、final_owner_ids
+jsonb、status、reason、created_at</td>
+<td>UQ tenant/message/decision_version；候选明细可拆
+routing_targets；目标必须为当前合法成员</td>
+</tr>
+<tr class="even">
+<td>trigger_candidates</td>
+<td>id、message_id、target_twin_id、decision_id、state(waiting/suppressed/accepted/expired/error)、due_at?、observed_presence
+jsonb、read_evidence?、accepted_request_id?、revision</td>
+<td>UQ tenant/message/target_twin/decision_id；INDEX due_at WHERE
+waiting</td>
+</tr>
+<tr class="odd">
+<td>reply_intents</td>
+<td>id、chat_id、source_message_id、target_twin_id、generation
+int、request_id?</td>
+<td>UQ
+tenant/chat/source_message/target_twin/generation；统一自动与手动逻辑去重</td>
+</tr>
+<tr class="even">
+<td>reply_requests</td>
+<td>id、intent_id、chat_id、target_twin_id、requester_actor_id?、source(auto/manual/retry/reply_for_me)、accepted_at、accepted_seq
+bigint、state、client_request_key
+text、retry_of_request_id?、cancelled_by?、revision</td>
+<td>UQ tenant/client_request_key；UQ tenant/intent_id；INDEX
+chat/twin/accepted_seq WHERE queued</td>
+</tr>
+</tbody>
+</table>
+<p>两 Owner 群：目标直接为对方，不调用额外目标识别模型。多人群：单独 LLM
+推断集合与显式 @ 真人取并集去重，保存模型尝试、授权上下文
+manifest、集合与决策版本。LLM 失败/空集合/低置信度/<span
+class="citation" data-cites="Twin/Twin">@Twin/Twin</span>
+间自动回复规则未定；首版安全提案为不自动扩大目标、记录待处理/失败并保留手动入口，不伪装成确认规则。</p>
+<p>每个目标分别判断：离线立即接受；在线未查看建立
+due_at；正在查看抑制。10 秒起点待确认，提案用服务端消息提交时间；LLM
+路由超过窗口时立即依据保存的消息期查看/回复证据和最新状态裁决，不能丢失等待期打开过的事实。Owner
+在等待期间查看/已读/明确回复时，持久标记
+suppressed，离开后不补旧消息。接受后状态机不再订阅 presence
+自动取消。</p>
+<p>定时器 worker 与查看/手动请求事务锁同一个
+candidate/intent，再在事务内复查持久证据。真正的竞态按数据库线性化提交次序定义；客户端早已打开但信号尚未到服务器无法凭数据库保证，需产品接受网络边界并评估短暂容错。</p>
+<p>自动和手动争同一
+intent，仅一个接受请求胜出；失败自动、手动不各排一个。generation=0
+初次，明确 Retry 新增 generation/request，在 lane 内获得新的
+accepted_seq；同一个 Retry 操作重发靠 client_request_key
+去重。用户有意要求同消息再次回答是否可建新 generation 仍待定，不通过随机
+key 绕过去重。</p>
+<h2 id="fifo主回复互斥取消与尝试">8. FIFO、主回复互斥、取消与尝试</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>新增业务 / Runtime 表</th>
+<th>字段重点</th>
+<th>约束与索引</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>twinteams.reply_lanes</td>
+<td>chat_id、twin_id、next_accept_seq bigint、active_request_id?、fence
+bigint、lease_owner text?、lease_until?</td>
+<td>PK tenant/chat/twin；单行锁作为每 lane 顺序与占用源</td>
+</tr>
+<tr class="even">
+<td>twinteams.reply_attempts</td>
+<td>id、request_id、attempt_no int、session_id text、run_id
+text?、state(starting/running/recovering/completed/failed/stopped)、fence
+bigint、started_at、ended_at、error_code?</td>
+<td>UQ tenant/request/attempt_no；每 request 同时最多一个非终态
+attempt；完整 Runtime run FK 按阶段落定</td>
+</tr>
+<tr class="odd">
+<td>twinteams.chat_twin_sessions</td>
+<td>id、chat_id、twin_id、session_id text、epoch int、active
+bool、created_at</td>
+<td>UQ tenant/chat/twin WHERE active；UQ tenant/session_id；FK
+RT.agent_sessions</td>
+</tr>
+<tr class="even">
+<td>RT.agent_session_leases（增强）</td>
+<td>tenant_id、session_id、fence bigint、holder
+text、lease_until、revision</td>
+<td>PK tenant/session；FK 原 session；所有新 append 与操作派发验证
+fence</td>
+</tr>
+</tbody>
+</table>
+<p>业务 request 建议状态
+queued→dispatching→running→completed/failed/stopped；queued→cancelled；运行中
+stopping 为短暂过渡，不是立即释放锁。接受事务锁 lane、分配
+accepted_seq、插 request 与 dispatch outbox，再提交。accepted_at
+是展示时间，accepted_seq 是 FIFO 权威；同 lane 下不使用全局 sequence
+的分配先后冒充提交先后。</p>
+<p>Worker 锁 lane，选最小 accepted_seq，设置 active_request 与递增
+fence、建 attempt，再发持久 Runtime command。不同 lane 并行，同 lane
+无论手动自动同优先级。主 Run 真正结束才清
+active；发“已收到”这句话不释放占用，subagent 继续不必占用主
+lane。子任务回传如何参与主回复调度尚未确认，inbox
+可先持久接收，不暗中设为插队。</p>
+<p>租约过期只允许接管，不证明旧进程停止。新 fence 阻止旧 worker 写
+journal/发布消息/派发工具；不能阻止已发出的远端调用，因此必须结合第 12
+节操作账本。新 worker
+遇到未知副作用先对账，不能直接让下一项产生冲突动作。</p>
+<p>取消权限：请求者可取消本人请求；目标 Twin Owner 可取消发给自己 Twin
+的任何排队请求。自动项原消息发送者可按已确认 UI
+权限取消该消息的对应目标请求，request 需明确保存
+attribution/source_sender，不能 requester=NULL
+导致权限丢失。原消息下按钮仅给有权的发送者；目标 Owner 在自己 composer
+操作。请求者不是原作者时的入口位置仍待定，但后端取消权保留。</p>
+<p>Stop replying 仅目标 Twin Owner；锁 lane/request、追加 stop
+command、升 fence/阻止旧输出发布，标记本次输出 withdrawn。确认原 worker
+已停或被有效隔离后终结 attempt/request，并唤起下一 FIFO
+项；不等子任务全部结束，不声称回滚工具。同一 request 对应一个逻辑主
+Run：下一 FIFO request 必须等待当前主 Run 终结，再启动新的
+prompt；禁止把它用 enqueue/steer/follow_up 塞入正在运行的 Run。恢复
+worker 可以建立新 execution attempt，但使用 resume 保留原
+run_id；不得为同 request 偷建第二个主 Run。用户点击 Retry 则一定是新
+request 排尾，并产生新的 Run。模型内部重试 attempt_id 与用户 Retry
+request_id 不混用。</p>
+<h2 id="可选精确事件流每个-token-progress-的回放">9.
+可选精确事件流：每个 token / progress 的回放</h2>
+<p>以下为“所有事件”包含全部中间展示流时的完整方案，需确认再采用。若仅要求执行事实与安全边界恢复，使用既有
+journal 加产品 outbox，即可跳过此新增 stream 表；stream 字段与下述精确
+delta 保证也不适用。</p>
+<h3 id="不复制-journal-的统一流">9.1 不复制 journal 的统一流</h3>
+<p>新增 RT.agent_stream_events，作为每 Session 的完整可观察事件顺序：PK
+(tenant_id, session_id, stream_seq bigint)；UQ (tenant, session,
+event_id text)。字段包括 run_id text?、kind
+text、occurred_at、recorded_at、journal_seq
+bigint?、payload_ref?、payload_hash、schema_version
+smallint、trace_id、causation_event_id?、command_id?、parent_operation_id?、visibility_class、fence
+bigint。</p>
+<ul>
+<li>已在 journal 的事件：流里保存 journal_seq 引用，不再复制一份权威
+record。journal append 与对应 stream 行同事务提交。</li>
+<li>原先只走 live 的 token delta、tool
+progress、生命周期通知：持久保存原始顺序载荷或加密 blob 引用，然后写
+stream。事件有 stable event_id，重复入库不重复投递；唯一范围始终含
+session，因为 SDK fork 会保留历史 event ID。</li>
+<li>stream_seq 是所有可观察事件的游标；journal seq 仍是原 Runtime
+reducer 的回放序号，两者不可互换。流事件标注是否改变 reducer 状态；token
+delta 是可回放展示数据，不必成为执行 checkpoint。</li>
+<li>session 创建时尚无 run 的事件允许 run_id=NULL；run_started
+后的事件必须挂明确 run，异步结果有 originating run 与 receiving run
+两种关系，不能归错。</li>
+<li>不在数据库默认存明文密钥。凭证用秘密引用；正常工具原始载荷可加密后保存，与面向用户的脱敏投影分离。blob
+先持久上传并校验 hash，数据库提交引用后才可见；孤儿 blob
+可回收，不能先提交不存在的内容。</li>
+</ul>
+<h3 id="提交后再交付">9.2 提交后再交付</h3>
+<p>每次向
+UI/SSE/WebSocket/订阅者交付前，对应事件已持久提交。批量提交允许提高吞吐，但整批提交前不暴露；每个
+delta 保留独立 seq/payload，不能只存最后文本而称 token 历史完整。连接从
+last_stream_seq 续读，重复投递由 cursor/event_id
+消除，检测缺口并补拉。故障时停止接受/展示未提交事件，施加背压，不静默丢
+token/progress。</p>
+<p>保证边界：可保证系统已经持久接受的事件、以及已交付给用户的事件可追溯。上游模型已经生成、但尚未送到本系统或还未提交便宕机的
+token 无法凭本数据库追回；若 provider 无可恢复流，记录
+interrupted/unknown，保留现有前缀，再按恢复策略重新生成，不能声称复原不可见的
+token 或模型隐藏内部推理。设计也不承诺捕获模型未暴露的内部状态。</p>
+<h3 id="全粒度模式的覆盖类别">9.3 全粒度模式的覆盖类别</h3>
+<p>输入接受/修订、run 开始/结束/停止/失败、模型调用请求与尝试/可观察响应
+delta/usage、工具意图/开始/进度/结果、嵌套工具、审批请求/决定/失效、父子任务
+spawn/send/result、队列接受/出队/取消、checkpoint/恢复/分叉、消息发布/撤回、投递确认与人工核对结果。纯业务事件可在业务
+outbox 作为权威事实，Runtime
+流存关联引用；不将业务历史复制成第二个真相。</p>
+<p>原始敏感记录只有受控后端审计角色可解密；Activity 只接收经来源 ACL
+与字段白名单处理的
+projection。错误堆栈、提示词、工具参数也可能有秘密，必须分类。隐藏内部推理不进入公开卡片；提供安全的结构化进度摘要。</p>
+<h2 id="可靠命令父子通信与-outbox-inbox">10. 可靠命令、父子通信与 Outbox
+/ Inbox</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Runtime 增强表</th>
+<th>关键字段与约束</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>agent_commands</td>
+<td>PK tenant/command_id text；session_id、command_seq
+bigint、kind、payload_ref/hash、idempotency_key
+text、accepted_at、state(pending/applied/rejected)、applied_journal_seq?；UQ
+tenant/session/idempotency_key 与 tenant/session/command_seq</td>
+</tr>
+<tr class="even">
+<td>agent_outbox</td>
+<td>PK tenant/outbox_id
+text；event_id、destination、message_key、payload_ref、available_at、attempts、lease/fence、delivered_at?；UQ
+tenant/destination/message_key；待发索引 available_at</td>
+</tr>
+<tr class="odd">
+<td>agent_inbox</td>
+<td>PK
+tenant/receiver_session_id/message_key；sender_session_id?、sender_run_id?、task_id?、payload_ref/hash、received_at、consumed_command_id?、state；接收与唤醒
+command 同事务</td>
+</tr>
+<tr class="even">
+<td>agent_run_edges</td>
+<td>PK
+tenant/child_session_id/child_run_id/edge_kind；parent_session_id、parent_run_id、task_id
+text?、spawn_event_id、origin_context_id；双方引用完整 run 键，允许同
+child session 多 runs</td>
+</tr>
+</tbody>
+</table>
+<p>业务也可有
+twinteams.outbox，采用相同可靠模式但由业务拥有；不同域共享一个物理消息基础设施也可，不需要为了命名再造一套消费协议。产品事务接受
+reply_request 后写 outbox；Runtime inbox/command 幂等接收；确认回传建立
+attempt↔︎run 关联。掉线可重发同键，不能创建新请求。</p>
+<p>command 必须在回应“已接受”前提交。持久 inbox
+由输入处理器写入，journal 仍由 Runtime 单执行协程消费写入；不要让 HTTP
+handler 与执行循环并发调用 Session.commit。Reducer 在 journal 里记录
+command_applied(command_id)，与 applied
+状态原子提交，崩溃后未应用命令可重新消费；已应用命令不再次注入。start/prompt
+命令的新 run ID 必须在持久意图中预分配或与 command 原子关联，避免“run
+已开始但回执丢失”造成第二个 run。这需要 SDK 增强，不是当前 prompt
+已有幂等 API。</p>
+<p>子任务结果先写 child journal + outbox；parent inbox 幂等收取、生成
+wake
+command；通知与执行分离。通信至少一次传输、幂等消费，消费方状态与效果必须在同一个本地事务落定。parent_run_id
+不可用 root_run_id 猜；task_id、child session、run
+三者分别保留。不存在的父引用可在异步映射暂存后补齐，错误链不得进入
+Activity。</p>
+<h2 id="独立审批与通知">11. 独立审批与通知</h2>
+<p>Runtime 增强 agent_approvals：PK tenant/approval_id
+text，requesting_session/run、approver_owner_id text、operation_id
+text、action_digest、scope_digest、requested_at、expires_at?、state(pending/approved/rejected/expired/cancelled)、decision_actor_id、decided_at、revision。approval_events
+记录每次请求/决定/过期；不可变决定用唯一 decision key 和 CAS
+pending→终态，重复点击不重复执行。</p>
+<p>审批绑具体 operation 与规范化参数
+hash。批准后更改金额/目标/数据/动作，原批准不再适用。执行前重新校验批准状态、期限、当前权限和
+digest，并将批准与 operation 派发关联；Approve once
+不等于允许无限工具重试扩大效果。长期授权独立
+grant/version/revocation，管理 UI 后置，默认只读原则不能被手动触发或
+Tracking 入列绕过。</p>
+<p>Twinteams.approval_contexts(tenant, approval_id text PK, chat_id,
+twin_id, owner_id, source_message_id, arrival_seq bigint)
+保存产品路由，审批决定与执行真相仍属 Runtime。待审批 worker 保存
+continuation/command 引用，主回复可以结束释放 lane；审批通过后持久
+callback 入 inbox，不挂着主 Run 锁等待。已经 completed 的主 Run
+不再作为待续跑 continuation。pending action 独立于 Run
+保存；批准后若需要模型继续，创建新的运行并遵守同一 Session/lane 单
+writer 协调，不能在另一主 Run 期间并发写
+Session。回调继续哪种主回复调度需与 Runtime 定稿。</p>
+<p>通知使用 notifications(id, recipient_owner_id, chat_id, kind,
+source_event_key, approval_id?, created_at, read_at?, dismissed_at?)，UQ
+recipient/source_event_key；notification_deliveries(notification_id,
+channel, attempt_no, state, provider_id?, error,
+sent_at)，不把“已通知”和“已批准”混为一谈。单聊审批按 arrival_seq
+查询本人 pending；当前 tab/展开偏好放 UI
+state，新到达不覆盖选择，处理当前后选下一项、清零收起。通知、聊天已读、审批决定三个独立状态。</p>
+<h2 id="工具副作用账本与恢复边界">12. 工具副作用账本与恢复边界</h2>
+<p>新增 RT.agent_tool_operations：PK tenant/operation_id
+text；session_id、run_id、step_id
+text、tool_call_id、parent_operation_id?、command_id、tool_name/version、args_ref/hash、effect_class(read_only/idempotent/reconcilable/non_idempotent)、external_idempotency_key、approval_id?、status(planned/dispatched/succeeded/failed/unknown/reconciled)、provider_operation_id?、raw_result_ref/hash?、final_result_ref/hash?、tool_returned_event_ref?、tool_completed_event_ref?、fence、created_at/updated_at。UQ
+tenant/session/run/step_id/tool_call_id。每次网络尝试记录
+operation_attempts(operation_id, attempt_no, dispatched_at, outcome,
+provider_request_id, result_ref)。</p>
+<p>协议：</p>
+<ol type="1">
+<li>事务内写 tool
+intent、参数摘要、授权依赖、operation_id，提交后才能发外部请求。</li>
+<li>派发前记录 dispatched 与 attempt；把稳定 external_idempotency_key
+传给支持它的 provider。</li>
+<li>外部响应收到后，在本地同事务写 result blob 引用、operation
+终态、journal 结果与后续 outbox。</li>
+<li>崩溃在 1 之前：没有接受效果；在 1
+后未派发：可安全继续；在派发后响应落库前：状态
+unknown，不知道现实是否发生，优先按 provider id/key 查询。</li>
+<li>有幂等键可重试同
+operation，不能换键；只读是否可重试也要考虑时效和额度。不可幂等且不可查询：人工确认真实结果，再记
+reconciled；未确认前不重复副作用。</li>
+</ol>
+<p>现有 tool_started / tool_returned / tool_completed
+已提供工具边界事实；operation
+表是幂等键、授权、外部对账与派发控制的补充索引/控制状态，应由这些
+journal
+事件投影或同事务关联，不能独立记录一份互相冲突的“工具是否成功”。raw_result
+与 final_result 的独立持久边界不可合并；已保存 raw return
+时恢复不能再次执行工具，只重做尚未完成的 after-tool hook，hook
+需纯函数/幂等，或另建受控 operation。</p>
+<p>数据库和第三方 HTTP 无共同事务，必须公开承认第 4 步的窗口。fencing
+防止旧 worker 的本地提交，不保证撤销已送达供应商的请求。也不能把 timeout
+当失败未执行。撤回消息或 Stop replying
+不自动补偿转账/发信等动作。补偿是新的授权操作、有自己的 operation
+与审计。</p>
+<h2 id="恢复快照版本与分叉">13. 恢复、快照、版本与分叉</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>能力</th>
+<th>输入与流程</th>
+<th>不能承诺的事</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>历史状态回放</td>
+<td>指定 session + journal seq，选不晚于边界的 checkpoint，校验
+hash/version，重放到边界；可叠加 stream cursor 展示当时
+token/progress</td>
+<td>不触发工具、不把旧状态覆盖生产，不要求模型逐 token 可继续</td>
+</tr>
+<tr class="even">
+<td>续跑 pending run</td>
+<td>取得新 lease/fence，恢复 journal 状态、命令 inbox、工具账本、审批与
+outbox；对账未知效果后继续原 run/关联 attempt</td>
+<td>不能无条件自动重跑非幂等工具；不能用新权限“恢复”越权上下文</td>
+</tr>
+<tr class="odd">
+<td>从历史分叉</td>
+<td>新 session_id，记录
+source_session、fork_journal_seq、fork_stream_seq、checkpoint
+hash、原因/发起人；建立新映射 epoch 或独立实验分支</td>
+<td>不删除原分支、不回滚已发生效果、不沿用一次性批准</td>
+</tr>
+</tbody>
+</table>
+<p>继续复用 agent_session_checkpoints 位置表与 journal 中的完整
+checkpoint，不再新建第二套同义快照主表。扩展 checkpoint
+envelope：reducer_version、event_schema_versions、last_journal_seq、last_stream_seq、state_hash、source_history_digest、pending_command_refs、tool/approval
+refs、created_at。完整状态必须可重建；引用外部 blob
+也在备份和保留范围内。hash
+用于检测损坏，若需要防管理员篡改，另用签名/外部不可变锚，hash
+本身不是防篡改承诺。</p>
+<p>现有运行状态 running/completed/stopped/failed
+保持兼容。recovery_pending、awaiting_reconciliation
+等可先用新增恢复控制投影表达，不能直接往旧 Run status
+填新值而不评估消费者。事件采用版本化解码/upcaster；未知版本停止恢复并报警，不能跳过。迁移前保留原记录，重建投影可重复、可比较摘要/hash；不能声称已通过兼容测试。</p>
+<p>最小灾备要求：数据库
+WAL/PITR、对象存储版本与校验、密钥可恢复、归档清单一致性、定期恢复演练；实际
+RPO/RTO
+未定。单次数据库提交的持久性受部署同步复制和磁盘策略影响，不能把应用日志设计等同于零数据损失
+SLA。</p>
+<h2 id="授权摘要精确覆盖与上下文溯源">14.
+授权摘要、精确覆盖与上下文溯源</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>新增业务表</th>
+<th>字段重点与约束</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>context_manifests</td>
+<td>id、chat_id、consumer_twin_id、membership/grant_version、created_at、sources_digest、policy_version、build_state；记录每次模型输入实际来源，不只最终
+prompt</td>
+</tr>
+<tr class="even">
+<td>context_sources</td>
+<td>manifest_id、ordinal
+int、source_kind、source_id、source_revision、range_start/end?、content_hash、grant_id；PK
+tenant/manifest/ordinal；多态来源由受控 resolver 校验</td>
+</tr>
+<tr class="odd">
+<td>summaries</td>
+<td>id、chat_id、visibility_scope_digest、coverage_start_seq/end_seq、coverage_manifest_id、content_ref/hash、model_attempt_id、version、state(valid/stale/revoked)、created_at</td>
+</tr>
+<tr class="even">
+<td>summary_segments</td>
+<td>summary_id、ordinal、source_start/end、source_revision_digest、included_summary_id?；PK
+tenant/summary/ordinal；表达非连续来源及递归依赖</td>
+</tr>
+</tbody>
+</table>
+<p>summary 的 begin/end 只是加速查找，<strong>精确来源 manifest
+才是授权与覆盖证据</strong>。摘要复用必须检查实际包含的所有底层消息
+revision/附件/Tracking 来源均在当前读者授权集合内，并且仍有效；权限
+scope digest 相同只可作候选缓存键，不能替代最终权限检查。</p>
+<p>7
+天前产出的累计摘要可能包含几个月前内容，绝不能给新成员再要求模型忽略。对授权一致的有效片段复用，否则从授权原文重建。摘要变体按真实授权集合共享，不按“老成员五个人”标签共享。</p>
+<p>上下文构建固定一个 high_water_seq，选覆盖范围一致的摘要，补全其后至
+high_water
+的所有获准原始消息；有洞则显式补洞。超长时分段摘要或检索，但必须记录缺口/选择策略，不可声称完整却仅取最近几条。Periodic
+周期、token 预算未定。</p>
+<p>编辑/撤回/权限变更使依赖它的摘要、Tracking
+目录/详情及缓存失效；任何旧 cumulative summary 都不能跨越新的
+ACL。正在生成期间权限变更：使用版本校验在输入装配与发布前复核，过期上下文不继续输出敏感内容。私人
+Runtime memory
+默认只在私域使用，群回复不自动注入；需要跨域披露时另设明确来源授权。</p>
+<h2 id="tracking目录动态删除与来源权限">15.
+Tracking：目录、动态、删除与来源权限</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>新增业务表</th>
+<th>字段重点与约束</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>tracking_topics</td>
+<td>id、chat_id、created_by_actor、current_revision、status
+text、deleted_at?、revision、created_at；INDEX chat/deleted_at；状态
+active/paused/done 仅提案</td>
+</tr>
+<tr class="even">
+<td>tracking_topic_revisions</td>
+<td>topic_id、revision、title、short_description、source_manifest_id、created_by、created_at；PK
+tenant/topic/revision；目录内容也有来源 ACL</td>
+</tr>
+<tr class="odd">
+<td>tracking_entries</td>
+<td>id、topic_id、entry_seq
+bigint、revision、kind、body_ref、source_manifest_id、created_at、created_by；UQ
+tenant/topic/entry_seq</td>
+</tr>
+<tr class="even">
+<td>tracking_tombstones</td>
+<td>topic_id、deleted_by、deleted_at、source_cutoff_seq、dedup_subject_key、reopen_command_id?；保留删除理由及明确再提出证据</td>
+</tr>
+</tbody>
+</table>
+<p>私人范围直接绑定私人 Chat，群 Tracking 绑定本群 Chat，不多一套全局
+topic 共享。主题自动入列，无需确认草稿；所有当前群真人/Twin
+可修改删除获准访问的目标，revision CAS
+防止覆盖别人更新。动态修订和删除事件持久，不硬抹历史。</p>
+<p>目录“始终可见”表示始终提供<strong>当前 Twin
+有权看到</strong>的目录。若标题来自不可见旧消息，隐藏该标题或从允许来源生成独立安全视图，不能因为目录短就免检。后续动态可见而旧主题名不可见时使用授权范围内新建的安全标签，或暂不展示整个主题，策略待确认。服务端不得返回越权
+topic 的标题供前端隐藏。</p>
+<p>删除后提取器检查 tombstone 与来源
+cutoff，不允许旧聊天再次建立同目标。去重 subject_key 只能辅助，不能靠
+embedding 相似度保证语义绝不复活；记录来源 lineage、同一主题标识与
+reintroduction command。只有 Owner
+新的明确提及/重启证据才能解除删除保护，不能把定期重跑 extractor
+当作新意图。</p>
+<h2 id="workspace个人设置与通知展示">16.
+Workspace、个人设置与通知展示</h2>
+<p>Workspace 核心建议：workspaces(id, chat_id UQ, kind
+private/group)；workspace_nodes(id, workspace_id, parent_id?, name,
+node_kind, current_version_id?, deleted_at?,
+revision)；file_versions(id, node_id, version_no, blob_ref, sha256,
+size_bytes bigint, mime_type, created_by, source_manifest_id?,
+created_at)；workspace_grants(id, workspace_id/node_id, principal_id,
+permissions, effective/revoked_at, grant_version)。文件版本 UQ
+tenant/node/version；同父目录有效同名唯一；parent 必须同
+workspace，禁止循环。</p>
+<p>每个 Chat
+对应空间；对象存储为文件字节，数据库为不可变版本/授权。当前共享群空间不自动意味着允许新成员读全部旧版本，消息历史策略也不自动决定文件权限。首版安全提案是显式
+workspace/file grant 与来源 ACL
+双重检查，未明确共享的私人文件不带入群。上传、复制、下载、预览与版本 URL
+都在签发前查权限，短期签名链接不作为永久权限。</p>
+<p>owner_settings(tenant, owner_id PK, reply_prompt_default,
+prompt_version)；owner_chat_settings(tenant, owner_id, chat_id PK,
+reply_for_me_enabled bool, reply_prompt_override text?, override_enabled
+bool, last_sidebar_tab, sidebar_open bool, revision)。NULL
+与空提示词通过 override_enabled 区分。private 默认 Activity，group 默认
+Workspace，初次展开；group 不能保存 Activity tab。每 Owner/Chat
+独立模式，改全局提示词不改变开关。</p>
+<p>颜色、斜线硬分界、折叠块默认、头像独立图标是 UI
+表现，不给每个色块加业务表。raw/processed、作者来源及 mode
+设置足够支撑最新图 3；排队/typing 来源是 request/run
+状态，不额外持久一张 UI typing 表。</p>
+<h2 id="查询权限与-activity-投影">17. 查询、权限与 Activity 投影</h2>
+<p>所有查询在身份认证后从 tenant/actor/membership
+推导可读范围，不接受前端传来的 owner_id 直接作为授权。可用 PostgreSQL
+RLS 作为防线，但服务端鉴权、来源 ACL 与对象存储也必须执行；RLS 当前并非
+SDK 已有能力。后台服务跨租户权限需最小化。跨域 FK 可同库校验；先验证 SDK
+旧数据再加 NOT VALID→VALIDATE 约束，不能无视历史孤儿数据。</p>
+<p>常用查询与索引：</p>
+<ul>
+<li>聊天列表：memberships(owner,left_at,chat)→chats；消息使用
+(tenant,chat,seq) keyset，并裁剪 history grant。</li>
+<li>排队：reply_requests(tenant,chat,twin,accepted_seq) WHERE
+state=queued；typing 来源为 lane.active_request 的运行态。成功行从 UI
+活动查询排除，但保留数据库历史；Failed/Retry 单目标保留。</li>
+<li>审批：approval_contexts(tenant,owner,chat,arrival_seq) + Runtime
+pending，不能把别人待审批卡片传给前端。</li>
+<li>Summary：(tenant,chat,scope_digest,coverage_end_seq DESC) WHERE
+valid，再核对所有来源。</li>
+<li>Tracking：(tenant,chat,deleted_at) + 授权目录投影，动态按
+(topic,entry_seq)。</li>
+<li>Activity：从当前私人 chat 的 session binding 和来源 request 找根
+runs，再按 agent_run_edges 取后代；校验 origin_context 指向该私人
+chat。索引 edges(parent session/run)、runs(started_at
+DESC,session,run)、stream(session,run,stream_seq)。同 Twin 的其他群
+session 不入集合。</li>
+</ul>
+<p>Activity 可增加可重建的 run_origins 投影(tenant,session_id,run_id PK,
+origin_chat_id, root_request_id, parent refs)以避免每次递归，但不可凭同
+user_id 全局查询 daily_runs。一个子任务 session 多次 run
+各一张卡，按明确 run
+边关联；没有直接父边的历史数据标记来源未知，不猜进私人列表。</p>
+<p>详情按 stream_seq 读取并补归档；工具 result 引用经鉴权解引用。列表
+summary 是显式完成消息/安全摘要投影，run_completed
+不保证文字总结。默认建议 started_at 倒序并用 run key 稳定分页，具体 UI
+排序键仍待确认；stopped/failed 不能标
+completed。只读历史页面也禁止隐藏推理与秘密透出。</p>
+<h2 id="必须成立的不变量与故障推演">18. 必须成立的不变量与故障推演</h2>
+<ol type="1">
+<li>同租户同 Owner 恰有一 Twin；任意历史作者 ID 不随改名/停用改变。</li>
+<li>每个 active Chat/Twin 只映射一个执行 Session
+epoch，私聊/群聊隔离。</li>
+<li>同 lane 至多一个被授权的主回复 writer；接受顺序按 lane 序号
+FIFO，manual/auto 不插队。</li>
+<li>一个 logical intent 的同 generation 只能接受一次；Retry 是新
+generation 新 FIFO 项。</li>
+<li>presence/已读变化只终止 waiting candidate，不取消已接受
+request。</li>
+<li>执行事实与已接受输入必须持久；若选择全粒度模式，每个对外可见 delta
+也需先提交。副作用派发前有持久 operation intent；unknown
+不当作未执行。</li>
+<li>所有消息派生内容、引用、摘要、Tracking 与文件均受来源
+ACL，不能通过投影扩大权限。</li>
+<li>Stop 只撤本次输出，保留审计；没有授权补偿不声称撤销现实副作用。</li>
+<li>审批决定仅作用指定动作摘要，独立等待不持有主回复锁。</li>
+<li>历史回放不产生外部效果，恢复分支不会重用旧一次性批准。</li>
+</ol>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>预期持久状态 / 恢复结果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>自动 timer 与手动按钮同时到达</td>
+<td>锁相同 intent，仅一个 request；另一操作返回已有结果</td>
+</tr>
+<tr class="even">
+<td>第 9 秒打开群后离开</td>
+<td>view/suppressed 已持久；第 11 秒不追补旧消息，新消息独立判断</td>
+</tr>
+<tr class="odd">
+<td>接受后用户打开群</td>
+<td>request 保持 queued/running，只有明确取消/Stop 改变</td>
+</tr>
+<tr class="even">
+<td>三目标中一个失败</td>
+<td>各自 lane/request 隔离；失败目标显示
+Retry，重试排尾，其余不受影响</td>
+</tr>
+<tr class="odd">
+<td>提交 request 后进程崩溃</td>
+<td>outbox 重发；Runtime inbox 幂等；不会丢请求或生成双 run</td>
+</tr>
+<tr class="even">
+<td>token 已展示后服务重启（全粒度模式）</td>
+<td>已提交 stream 按 cursor 补回同事件，客户端幂等；未提交 token
+从未展示</td>
+</tr>
+<tr class="odd">
+<td>工具成功但结果写库前断电</td>
+<td>operation=unknown；查询 provider 或人工核对，不盲重做</td>
+</tr>
+<tr class="even">
+<td>旧 worker 租约过期仍运行</td>
+<td>新 fence 拒绝旧提交与新派发；已发远端效果走对账</td>
+</tr>
+<tr class="odd">
+<td>审批挂起时来新问题</td>
+<td>原主回复可结束；下一请求执行；审批独立，后续回调入 inbox</td>
+</tr>
+<tr class="even">
+<td>Stop 时刚收到输出/工具结果</td>
+<td>同 fence
+与事务检查决定发布；停止后旧输出不发布，结果仍记审计，对外效果不假称回滚</td>
+</tr>
+<tr class="odd">
+<td>新成员只看固定 7 天</td>
+<td>lower_seq 不随日期变；拒用含更旧来源的 cumulative summary</td>
+</tr>
+<tr class="even">
+<td>删除 Tracking 后重建索引</td>
+<td>tombstone+lineage 阻止旧主题复活；新明确 Owner 指令可重新开启</td>
+</tr>
+<tr class="odd">
+<td>归档或快照缺块/版本不兼容</td>
+<td>校验失败停止恢复并报警，不能略过后声称完整恢复</td>
+</tr>
+</tbody>
+</table>
+<h2 id="实施拆分与评审决策">19. 实施拆分与评审决策</h2>
+<h3 id="v1-正确性底座不可后置">v1 正确性底座（不可后置）</h3>
+<p>身份/配对成员与历史边界；消息/来源/真人 receipt；触发
+candidate+intent+FIFO；Runtime DatabaseSession 原表与既有 journal/replay
+复用及 session 映射；持久
+command/inbox/outbox；lease/fence；工具操作账本；独立审批；源权限约束的
+Summary/Tracking；Activity
+来源链与安全投影。文件版本可先采用简单存储实现，但权限不能后补。这里包含若干小型关系表，不能为了“少表”把核心可靠性改成内存。</p>
+<h3 id="可以后置的优化">可以后置的优化</h3>
+<p>事件分区、冷存储自动分层、高吞吐批量写、物化 Activity
+feed、摘要细粒度片段缓存、read receipt 区间压缩、RLS
+策略进一步自动化、长期授权管理 UI
+与更多统计。后置不影响语义事实持久化、不丢 accepted command、来源
+ACL、fencing 与未知副作用停机对账。逐 token/progress
+的持久流是需单独确认的精确回放能力；若确认全部中间事件必须保留，则它转为
+v1 必须项，且必须 durable-before-publish，不能作为优化推迟。</p>
+<h3 id="进入-ddl-前需要决定">进入 DDL 前需要决定</h3>
+<ol type="1">
+<li>“所有事件”指语义执行事实，还是也包含每个 token/progress；后者启用第
+9 节全粒度流。</li>
+<li>PostgreSQL 同库跨 schema 与对象存储方案；事务适配责任属于 SDK
+还是共享 adapter。</li>
+<li>presence/查看定义、10 秒起点、网络延迟规则；LLM 路由失败/Twin
+自动互答安全策略。</li>
+<li>退出与重入、历史权限变更、共享文件旧版本策略。</li>
+<li>子任务/审批回调结果参与主回复队列的规则；Stop
+对后台任务的影响。</li>
+<li>原始敏感事件保留期、加密密钥治理、审计读取权限、删除合规，以及
+RPO/RTO。</li>
+<li>Run 展示排序、Tracking 状态集合等产品细节。</li>
+</ol>
+<p>建议下一步先评审职责边界与恢复保证，再将字段落为可审查 DDL 与 SDK
+兼容迁移计划。本文不是可执行
+migration；本轮没有执行任何数据库变更、应用修改或测试。</p>
+<h3 id="依据">依据</h3>
+<ul>
+<li>产品：product-requirements.md、interaction-rules.md、design-review-2026-10-17.md（含最新三图反馈与“用户关注时掌握回复主动权”原则）。</li>
+<li>SDK：src/agent_runtime/storage/sql/001_sessions.sql、002_checkpoints.sql、003_session_identity.sql：七张表、text
+ID、checkpoint 位置与归属字段。</li>
+<li>SDK：src/agent_runtime/storage/postgres.py:57–68：append 事务与序号
+CAS。</li>
+<li>SDK：src/agent_runtime/sessions/base.py:707–720：live 的
+token/progress 非持久边界。</li>
+<li>SDK：src/agent_runtime/agent.py:176–188、428–438、542–543：输入队列与持久同步边界。</li>
+<li>SDK：src/agent_runtime/agent_loop.py:452–484：嵌套工具调用观察缺口。</li>
+<li>Runtime 独立只读审计：runtime-db-audit-v1.md，核对 commit
+1873697c8c599bb1f7c4889f120b627babc0aea5；包含完整原
+DDL、语义日志类型、恢复矩阵与 DatabaseSession
+调用链。现有状态依据本次本地源码快照，不对将来版本作永久断言。</li>
+</ul>
+<footer>数据库设计评审稿 · 2026-10-17 · 基于 SDK commit 1873697c · 未执行迁移或修改应用</footer></main></body>
+</html>

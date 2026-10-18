@@ -1,0 +1,2806 @@
+[
+  {
+    "name": "agent_sessions",
+    "schema": "RT",
+    "status": "existing",
+    "title": "执行会话",
+    "purpose": "既有会话顺序分配及归属投影。",
+    "source": "agent-runtime/src/agent_runtime/storage/sql/001_sessions.sql；agent-runtime/src/agent_runtime/storage/sql/003_session_identity.sql",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户内会话标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "clock_timestamp()",
+        "meaning": "创建时间。",
+        "origin": "existing"
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "clock_timestamp()",
+        "meaning": "最近写入时间。",
+        "origin": "existing"
+      },
+      {
+        "name": "next_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "0",
+        "meaning": "下一条 journal 的序号；通过 CAS 协调提交。",
+        "origin": "existing"
+      },
+      {
+        "name": "metadata",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "'{}'",
+        "meaning": "既有会话元数据。",
+        "origin": "existing"
+      },
+      {
+        "name": "user_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "会话创建或分叉事件投影的归属用户；003 迁移新增，允许为空。",
+        "origin": "existing"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "session_id"
+    ],
+    "constraints": [
+      "PRIMARY KEY (tenant_id, session_id)",
+      "CHECK (next_seq >= 0)",
+      "无 UPDATE 自动更新时间触发器；SQL DEFAULT 只影响插入。"
+    ],
+    "indexes": [
+      "agent_sessions_pkey: UNIQUE BTREE (tenant_id, session_id) [主键自动索引]",
+      "agent_sessions_updated ON agent_sessions (updated_at)",
+      "agent_sessions_user_time ON agent_sessions (tenant_id, user_id, created_at)"
+    ],
+    "relations": []
+  },
+  {
+    "name": "agent_session_events",
+    "schema": "RT",
+    "status": "existing",
+    "title": "会话执行日志",
+    "purpose": "现有可重放 journal；保留 SDK 原始 record 格式。",
+    "source": "agent-runtime/src/agent_runtime/storage/sql/001_sessions.sql",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属会话标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "会话内 journal 序号，非负。",
+        "origin": "existing"
+      },
+      {
+        "name": "event_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "会话内唯一事件标识；分叉可能保留历史事件 ID。",
+        "origin": "existing"
+      },
+      {
+        "name": "record",
+        "type": "json",
+        "nullable": false,
+        "default": "无",
+        "meaning": "SDK 序列化执行事实，实际类型是 json，并非 jsonb。",
+        "origin": "existing"
+      },
+      {
+        "name": "metadata",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "'{}'",
+        "meaning": "日志元数据。",
+        "origin": "existing"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "session_id",
+      "seq"
+    ],
+    "constraints": [
+      "PRIMARY KEY (tenant_id, session_id, seq)",
+      "UNIQUE (tenant_id, session_id, event_id)",
+      "CHECK (seq >= 0)",
+      "FOREIGN KEY (tenant_id, session_id) REFERENCES agent_sessions (tenant_id, session_id)；未指定级联，采用 PostgreSQL 默认 NO ACTION。"
+    ],
+    "indexes": [
+      "agent_session_events_pkey: UNIQUE BTREE (tenant_id, session_id, seq) [主键自动索引]",
+      "UNIQUE BTREE (tenant_id, session_id, event_id) [唯一约束自动索引]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "physical",
+        "cardinality": "N:1",
+        "note": "001 迁移已声明的物理外键。"
+      }
+    ]
+  },
+  {
+    "name": "agent_session_archives",
+    "schema": "RT",
+    "status": "existing",
+    "title": "日志归档分段",
+    "purpose": "归档范围、对象版本与完整性校验。",
+    "source": "agent-runtime/src/agent_runtime/storage/sql/001_sessions.sql",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属会话标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "start_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "归档覆盖起始 journal 序号。",
+        "origin": "existing"
+      },
+      {
+        "name": "end_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "归档覆盖结束 journal 序号。",
+        "origin": "existing"
+      },
+      {
+        "name": "object_uri",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "归档对象地址。",
+        "origin": "existing"
+      },
+      {
+        "name": "version_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "对象存储版本 ID；可空。",
+        "origin": "existing"
+      },
+      {
+        "name": "sha256",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "归档内容 SHA-256。",
+        "origin": "existing"
+      },
+      {
+        "name": "format_version",
+        "type": "smallint",
+        "nullable": false,
+        "default": "1",
+        "meaning": "归档格式版本；现有 CHECK 只接受 1。",
+        "origin": "existing"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "clock_timestamp()",
+        "meaning": "归档登记时间。",
+        "origin": "existing"
+      },
+      {
+        "name": "metadata",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "'{}'",
+        "meaning": "归档元数据。",
+        "origin": "existing"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "session_id",
+      "start_seq"
+    ],
+    "constraints": [
+      "PRIMARY KEY (tenant_id, session_id, start_seq)",
+      "CHECK (start_seq >= 0)",
+      "CHECK (end_seq >= start_seq)",
+      "CHECK (format_version = 1)",
+      "FOREIGN KEY (tenant_id, session_id) REFERENCES agent_sessions (tenant_id, session_id)；未指定级联。",
+      "现有 DDL 未声明归档区间互斥或连续性约束。"
+    ],
+    "indexes": [
+      "agent_session_archives_pkey: UNIQUE BTREE (tenant_id, session_id, start_seq) [主键自动索引]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "physical",
+        "cardinality": "N:1",
+        "note": "001 迁移已有物理外键；区间不直接 FK 到每条 journal。"
+      }
+    ]
+  },
+  {
+    "name": "agent_runs",
+    "schema": "RT",
+    "status": "existing",
+    "title": "运行投影",
+    "purpose": "现有 Run 的启动、结束、来源与状态。",
+    "source": "agent-runtime/src/agent_runtime/storage/sql/001_sessions.sql",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属会话标识；现有 DDL 未加 session 外键。",
+        "origin": "existing"
+      },
+      {
+        "name": "run_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "会话内运行标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "user_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "运行归属用户标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "root_run_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "根运行标识；单独此列不包含根 session，不能当作完整父子键。",
+        "origin": "existing"
+      },
+      {
+        "name": "source",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "运行来源 user/subagent/system。",
+        "origin": "existing"
+      },
+      {
+        "name": "started_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "运行开始时间。",
+        "origin": "existing"
+      },
+      {
+        "name": "finished_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "结束时间；未结束时为空。",
+        "origin": "existing"
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "既有运行状态；SQL 没有状态枚举 CHECK。",
+        "origin": "existing"
+      },
+      {
+        "name": "metadata",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "'{}'",
+        "meaning": "运行元数据。",
+        "origin": "existing"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "session_id",
+      "run_id"
+    ],
+    "constraints": [
+      "PRIMARY KEY (tenant_id, session_id, run_id)",
+      "CHECK (source IN ('user', 'subagent', 'system'))",
+      "当前 SQL 未声明任何外键；status 无 SQL CHECK。",
+      "root_run_id 未附根 session_id，不能推断根运行位于当前 session，也不能替代明确父边。"
+    ],
+    "indexes": [
+      "agent_runs_pkey: UNIQUE BTREE (tenant_id, session_id, run_id) [主键自动索引]",
+      "agent_runs_user_time ON agent_runs (tenant_id, user_id, started_at)",
+      "agent_runs_user_finished ON agent_runs (tenant_id, user_id, finished_at)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "业务语义关联；不是现有物理外键。"
+      }
+    ]
+  },
+  {
+    "name": "agent_audit_events",
+    "schema": "RT",
+    "status": "existing",
+    "title": "安全审计事件",
+    "purpose": "安全与操作审计；不是完整执行日志的替代品。",
+    "source": "agent-runtime/src/agent_runtime/storage/sql/001_sessions.sql",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "audit_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户内审计事件标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "actor_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "执行该动作的主体标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "actor_type",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "主体类型 user/agent/system。",
+        "origin": "existing"
+      },
+      {
+        "name": "user_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "审计关联用户。",
+        "origin": "existing"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "关联会话；可空。",
+        "origin": "existing"
+      },
+      {
+        "name": "run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "关联运行；可空。",
+        "origin": "existing"
+      },
+      {
+        "name": "occurred_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "动作发生时间。",
+        "origin": "existing"
+      },
+      {
+        "name": "action",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "被审计动作。",
+        "origin": "existing"
+      },
+      {
+        "name": "resource_type",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "被操作资源类别。",
+        "origin": "existing"
+      },
+      {
+        "name": "resource_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "被操作资源标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "outcome",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "审计结果。",
+        "origin": "existing"
+      },
+      {
+        "name": "metadata",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "'{}'",
+        "meaning": "审计附加元数据。",
+        "origin": "existing"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "audit_id"
+    ],
+    "constraints": [
+      "PRIMARY KEY (tenant_id, audit_id)",
+      "CHECK (actor_type IN ('user', 'agent', 'system'))",
+      "当前 SQL 未声明任何外键，也未约束 run_id 与 session_id 成对出现。"
+    ],
+    "indexes": [
+      "agent_audit_events_pkey: UNIQUE BTREE (tenant_id, audit_id) [主键自动索引]",
+      "agent_audit_user_time ON agent_audit_events (tenant_id, user_id, occurred_at)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "可选语义关联；现有 DDL 无物理外键。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "仅两项 session/run 均有值时可解析完整运行；现有 DDL 无物理外键。"
+      }
+    ]
+  },
+  {
+    "name": "agent_model_usage",
+    "schema": "RT",
+    "status": "existing",
+    "title": "模型调用用量",
+    "purpose": "现有单次模型尝试、归属与 token 用量。",
+    "source": "agent-runtime/src/agent_runtime/storage/sql/001_sessions.sql",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "attempt_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户内模型调用尝试标识，区别于业务 Retry。",
+        "origin": "existing"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属会话标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "所属运行，可空。",
+        "origin": "existing"
+      },
+      {
+        "name": "root_run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "根运行标识，可空；缺少根 session 时不能构造完整 FK。",
+        "origin": "existing"
+      },
+      {
+        "name": "user_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "用量归属用户。",
+        "origin": "existing"
+      },
+      {
+        "name": "provider",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "模型服务商。",
+        "origin": "existing"
+      },
+      {
+        "name": "model",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "模型名称。",
+        "origin": "existing"
+      },
+      {
+        "name": "purpose",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "调用用途。",
+        "origin": "existing"
+      },
+      {
+        "name": "started_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "调用开始时间。",
+        "origin": "existing"
+      },
+      {
+        "name": "finished_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "调用结束时间，可空。",
+        "origin": "existing"
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "调用状态；现有 DDL 无枚举 CHECK。",
+        "origin": "existing"
+      },
+      {
+        "name": "input_tokens",
+        "type": "bigint",
+        "nullable": true,
+        "default": "无",
+        "meaning": "输入 token 数；未知允许为空。",
+        "origin": "existing"
+      },
+      {
+        "name": "output_tokens",
+        "type": "bigint",
+        "nullable": true,
+        "default": "无",
+        "meaning": "输出 token 数；未知允许为空。",
+        "origin": "existing"
+      },
+      {
+        "name": "cache_read_tokens",
+        "type": "bigint",
+        "nullable": true,
+        "default": "无",
+        "meaning": "缓存读取 token 数；可空。",
+        "origin": "existing"
+      },
+      {
+        "name": "cache_write_tokens",
+        "type": "bigint",
+        "nullable": true,
+        "default": "无",
+        "meaning": "缓存写入 token 数；可空。",
+        "origin": "existing"
+      },
+      {
+        "name": "total_tokens",
+        "type": "bigint",
+        "nullable": true,
+        "default": "无",
+        "meaning": "总 token 数；可空。",
+        "origin": "existing"
+      },
+      {
+        "name": "usage_status",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "用量是否已知 known/unknown。",
+        "origin": "existing"
+      },
+      {
+        "name": "metadata",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "'{}'",
+        "meaning": "模型用量元数据。",
+        "origin": "existing"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "attempt_id"
+    ],
+    "constraints": [
+      "PRIMARY KEY (tenant_id, attempt_id)",
+      "CHECK (usage_status IN ('known', 'unknown'))",
+      "当前 SQL 无任何外键；token 字段没有非负 CHECK，也没有总数等式约束。"
+    ],
+    "indexes": [
+      "agent_model_usage_pkey: UNIQUE BTREE (tenant_id, attempt_id) [主键自动索引]",
+      "agent_usage_user_time ON agent_model_usage (tenant_id, user_id, finished_at)",
+      "agent_usage_root ON agent_model_usage (tenant_id, root_run_id)"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "语义会话关联；不是现有物理外键。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "run_id 有值时解析完整运行；不是现有物理外键。"
+      }
+    ]
+  },
+  {
+    "name": "agent_session_checkpoints",
+    "schema": "RT",
+    "status": "existing",
+    "title": "Checkpoint 位置索引",
+    "purpose": "只索引 checkpoint 位置，完整恢复状态仍在 journal。",
+    "source": "agent-runtime/src/agent_runtime/storage/sql/002_checkpoints.sql",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属会话标识。",
+        "origin": "existing"
+      },
+      {
+        "name": "seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "checkpoint 在 journal 内的位置。",
+        "origin": "existing"
+      },
+      {
+        "name": "event_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "checkpoint 事件标识。",
+        "origin": "existing"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "session_id",
+      "seq"
+    ],
+    "constraints": [
+      "PRIMARY KEY (tenant_id, session_id, seq)",
+      "UNIQUE (tenant_id, session_id, event_id)",
+      "CHECK (seq >= 0)",
+      "FOREIGN KEY (tenant_id, session_id) REFERENCES agent_sessions (tenant_id, session_id)；未指定级联。",
+      "当前 SQL 没有对 agent_session_events 的外键，也没有保存完整状态的列。"
+    ],
+    "indexes": [
+      "agent_session_checkpoints_pkey: UNIQUE BTREE (tenant_id, session_id, seq) [主键自动索引]",
+      "UNIQUE BTREE (tenant_id, session_id, event_id) [唯一约束自动索引]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "physical",
+        "cardinality": "N:1",
+        "note": "002 迁移已声明的物理外键。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "seq"
+        ],
+        "target": "agent_session_events",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "seq"
+        ],
+        "kind": "logical",
+        "cardinality": "1:1",
+        "note": "位置索引的语义对应，实际 DDL 没有 journal 外键；完整 checkpoint 位于记录中。"
+      }
+    ]
+  },
+  {
+    "name": "agent_session_leases",
+    "schema": "RT",
+    "status": "extension",
+    "title": "会话租约与隔离栅栏",
+    "purpose": "防止旧 worker 继续提交 journal 或派发操作。",
+    "source": "docs/database-design-v1.md §8、§3",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有 Runtime 标识均保持 text。",
+        "origin": "source"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "受单 writer 协调的会话。",
+        "origin": "source"
+      },
+      {
+        "name": "fence",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "单调递增的隔离代数；新接管者获得新 fence。",
+        "origin": "source"
+      },
+      {
+        "name": "holder",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "当前或最近租约持有者标识。",
+        "origin": "source"
+      },
+      {
+        "name": "lease_until",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租约到期时间；过期只允许接管，不证明旧进程停止。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租约 CAS 版本，显式初始化与递增。",
+        "origin": "source"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "session_id"
+    ],
+    "constraints": [
+      "设计提案，尚未实施；RT 指 SDK 现有部署 schema，实际名称由 search_path 决定。",
+      "本表逐列 nullable 是设计稿约定及明确标记的展开建议；default=无 表示未规定 SQL DEFAULT，由写入方显式提供，不代表已执行 DDL。",
+      "所有主键、唯一键与跨表关系均包含 tenant_id；同租户不等同于具备内容访问权限。",
+      "提案：CHECK (fence >= 0 AND revision >= 0)。",
+      "所有新 append、消息发布和工具派发必须校验当前 fence；远端已发生效果不因 fence 撤销。"
+    ],
+    "indexes": [
+      "PRIMARY KEY (tenant_id, session_id) [提案]",
+      "INDEX (tenant_id, lease_until) [展开提案：回收过期租约]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "1:1",
+        "note": "一会话至多一条租约；待新增外键。"
+      }
+    ]
+  },
+  {
+    "name": "agent_stream_events",
+    "schema": "RT",
+    "status": "optional",
+    "title": "可选全粒度事件流",
+    "purpose": "可选持久化 token delta、工具 progress 与统一展示游标。",
+    "source": "docs/database-design-v1.md §9、§17",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有 Runtime 标识均保持 text。",
+        "origin": "source"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "流所属会话。",
+        "origin": "source"
+      },
+      {
+        "name": "stream_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "会话内完整可观察流序号；不与 journal seq 混用。",
+        "origin": "source"
+      },
+      {
+        "name": "event_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "会话内稳定事件 ID。",
+        "origin": "source"
+      },
+      {
+        "name": "run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "接收/展示此事件的运行；会话创建尚无 run 时可空。",
+        "origin": "source"
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "可观察事件类型。",
+        "origin": "source"
+      },
+      {
+        "name": "occurred_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "事件发生时间；排序仍以 stream_seq 为准。",
+        "origin": "source"
+      },
+      {
+        "name": "recorded_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "数据库记录时间。",
+        "origin": "source"
+      },
+      {
+        "name": "journal_seq",
+        "type": "bigint",
+        "nullable": true,
+        "default": "无",
+        "meaning": "已有 journal 事实的位置引用；live-only 事件可空。",
+        "origin": "source"
+      },
+      {
+        "name": "payload_ref",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "live-only 原始或加密载荷的持久引用；journal 引用型事件可空。",
+        "origin": "source"
+      },
+      {
+        "name": "payload_hash",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所引用事件记录/载荷的内容校验摘要。",
+        "origin": "source"
+      },
+      {
+        "name": "schema_version",
+        "type": "smallint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "载荷解码版本；未知版本必须停止恢复。",
+        "origin": "source"
+      },
+      {
+        "name": "trace_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "可观察链路追踪标识。",
+        "origin": "source"
+      },
+      {
+        "name": "causation_event_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "本会话内原因事件 ID；没有原因时可空。",
+        "origin": "source"
+      },
+      {
+        "name": "command_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "关联持久命令；可空。",
+        "origin": "source"
+      },
+      {
+        "name": "parent_operation_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "所属工具操作/父操作；可空。",
+        "origin": "source"
+      },
+      {
+        "name": "visibility_class",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "敏感级别或允许投影类别；不代替 ACL。",
+        "origin": "source"
+      },
+      {
+        "name": "fence",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "提交本事件时验证的会话隔离代数。",
+        "origin": "source"
+      },
+      {
+        "name": "affects_reducer",
+        "type": "boolean",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】落实正文“标注是否改变 reducer 状态”；纯展示 delta 通常为 false，必须由事件规范明确。",
+        "origin": "expanded"
+      },
+      {
+        "name": "originating_session_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】异步结果来源会话；无独立来源时可空。",
+        "origin": "expanded"
+      },
+      {
+        "name": "originating_run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】异步结果来源运行；与 originating_session_id 成对保存，以区别接收 run。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "session_id",
+      "stream_seq"
+    ],
+    "constraints": [
+      "设计提案，尚未实施；RT 指 SDK 现有部署 schema，实际名称由 search_path 决定。",
+      "本表逐列 nullable 是设计稿约定及明确标记的展开建议；default=无 表示未规定 SQL DEFAULT，由写入方显式提供，不代表已执行 DDL。",
+      "所有主键、唯一键与跨表关系均包含 tenant_id；同租户不等同于具备内容访问权限。",
+      "可选方案：仅在确认全部 token/progress 精确回放后启用；不能把该能力视为已确认。",
+      "提案：UNIQUE (tenant_id, session_id, event_id)；CHECK (stream_seq >= 0 AND fence >= 0 AND schema_version > 0)。",
+      "提案：journal_seq 与 payload_ref 至少有一项；journal 事实只引用已有记录，不复制第二份权威 record。",
+      "展开提案：originating_session_id 与 originating_run_id 同空或同非空；run_started 后的执行事件须有明确 run_id。",
+      "所有对外发布发生在持久提交后；流引用和 journal 在同一事务写入。",
+      "causation_event_id 默认限本会话；跨会话因果必须显式补齐来源键，不凭裸 ID 推断。"
+    ],
+    "indexes": [
+      "PRIMARY KEY (tenant_id, session_id, stream_seq) [提案]",
+      "UNIQUE (tenant_id, session_id, event_id) [提案]",
+      "INDEX (tenant_id, session_id, run_id, stream_seq) [§17 提案]",
+      "INDEX (tenant_id, session_id, journal_seq) WHERE journal_seq IS NOT NULL [展开提案]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "待新增 session 外键。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选运行引用，保留完整复合键。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "journal_seq"
+        ],
+        "target": "agent_session_events",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "seq"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选 journal 引用；live-only 载荷不必有 journal 行。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "command_id"
+        ],
+        "target": "agent_commands",
+        "target_columns": [
+          "tenant_id",
+          "command_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选命令引用；另校验会话相符。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "parent_operation_id"
+        ],
+        "target": "agent_tool_operations",
+        "target_columns": [
+          "tenant_id",
+          "operation_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选工具操作引用。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "originating_session_id",
+          "originating_run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "补充字段提案；异步来源完整运行键。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "causation_event_id"
+        ],
+        "target": "agent_stream_events",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "event_id"
+        ],
+        "kind": "logical",
+        "cardinality": "N:1",
+        "note": "原因可能尚未汇入流，先标逻辑关联；严格 FK/延迟约束待事件协议确定。"
+      }
+    ]
+  },
+  {
+    "name": "agent_commands",
+    "schema": "RT",
+    "status": "extension",
+    "title": "可靠输入命令",
+    "purpose": "在返回“已接受”前持久化输入，消费与 journal 原子关联。",
+    "source": "docs/database-design-v1.md §10、§3",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有 Runtime 标识均保持 text。",
+        "origin": "source"
+      },
+      {
+        "name": "command_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户内稳定命令 ID。",
+        "origin": "source"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "接收命令的会话。",
+        "origin": "source"
+      },
+      {
+        "name": "command_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "会话内命令顺序。",
+        "origin": "source"
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "start/prompt/stop/steer/follow_up/wake 等版本化命令类别；完整集合待协议定稿。",
+        "origin": "source"
+      },
+      {
+        "name": "payload_ref",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "已持久化命令载荷或加密 blob 引用。",
+        "origin": "source"
+      },
+      {
+        "name": "payload_hash",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "payload_ref 对应内容摘要；压缩 payload_ref/hash 展开。",
+        "origin": "source"
+      },
+      {
+        "name": "idempotency_key",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "会话范围去重键，重发不产生第二条逻辑命令。",
+        "origin": "source"
+      },
+      {
+        "name": "accepted_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "命令接受提交时间。",
+        "origin": "source"
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "pending/applied/rejected。",
+        "origin": "source"
+      },
+      {
+        "name": "applied_journal_seq",
+        "type": "bigint",
+        "nullable": true,
+        "default": "无",
+        "meaning": "command_applied 对应 journal 位置；未应用时为空。",
+        "origin": "source"
+      },
+      {
+        "name": "planned_run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】start/prompt 在接受事务中预分配的运行 ID；此时运行投影可尚未存在，因此不对它建即时 FK。",
+        "origin": "expanded"
+      },
+      {
+        "name": "applied_run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】命令实际关联的已有/已启动运行；与 journal、运行投影同事务落定后填写，保留复合 FK。",
+        "origin": "expanded"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】可变控制记录的乐观并发版本；显式初始化并在 CAS 更新时递增。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "command_id"
+    ],
+    "constraints": [
+      "设计提案，尚未实施；RT 指 SDK 现有部署 schema，实际名称由 search_path 决定。",
+      "本表逐列 nullable 是设计稿约定及明确标记的展开建议；default=无 表示未规定 SQL DEFAULT，由写入方显式提供，不代表已执行 DDL。",
+      "所有主键、唯一键与跨表关系均包含 tenant_id；同租户不等同于具备内容访问权限。",
+      "提案：UNIQUE (tenant_id, session_id, idempotency_key)；UNIQUE (tenant_id, session_id, command_seq)。",
+      "提案：CHECK (state IN ('pending','applied','rejected'))；CHECK (command_seq >= 0 AND revision >= 0)。",
+      "展开提案：state=applied 时必须有 applied_journal_seq；应用结果、command_applied journal 和状态变更同事务。",
+      "展开提案：start/prompt 接受前明确 planned_run_id；应用后 applied_run_id 必须与之相同。非启动命令允许 planned_run_id 为空。",
+      "会话执行循环是 journal 单写入者；HTTP handler 仅写持久输入，不能并发 commit。"
+    ],
+    "indexes": [
+      "PRIMARY KEY (tenant_id, command_id) [提案]",
+      "UNIQUE (tenant_id, session_id, idempotency_key) [提案]",
+      "UNIQUE (tenant_id, session_id, command_seq) [提案]",
+      "INDEX (tenant_id, session_id, command_seq) WHERE state = 'pending' [展开提案]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "完整会话键。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "applied_journal_seq"
+        ],
+        "target": "agent_session_events",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "seq"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "应用后关联 journal 位置；未应用时可空。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "applied_run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "补充字段提案：只关联已落定运行；planned_run_id 不冒充已存在 FK。"
+      }
+    ]
+  },
+  {
+    "name": "agent_outbox",
+    "schema": "RT",
+    "status": "extension",
+    "title": "可靠发件箱",
+    "purpose": "事务记录待投递事实；至少一次传输与稳定去重键。",
+    "source": "docs/database-design-v1.md §10、§3",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有 Runtime 标识均保持 text。",
+        "origin": "source"
+      },
+      {
+        "name": "outbox_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户内发件记录 ID。",
+        "origin": "source"
+      },
+      {
+        "name": "event_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "触发发送的稳定事实/事件 ID；单列缺少 journal 会话命名空间，不自动视为外键。",
+        "origin": "source"
+      },
+      {
+        "name": "destination",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "已明确的目标队列、会话或消费端路由。",
+        "origin": "source"
+      },
+      {
+        "name": "message_key",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "目标范围的传输幂等键。",
+        "origin": "source"
+      },
+      {
+        "name": "payload_ref",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "待发送载荷的持久引用。",
+        "origin": "source"
+      },
+      {
+        "name": "available_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "最早允许派送时间，也支持退避。",
+        "origin": "source"
+      },
+      {
+        "name": "attempts",
+        "type": "integer",
+        "nullable": false,
+        "default": "无",
+        "meaning": "累计派送次数；压缩 attempts 类型展开提案，显式初始化。",
+        "origin": "source"
+      },
+      {
+        "name": "lease_owner",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【NULL 展开提案】尚未认领或已释放时为空；从 lease/fence 展开。",
+        "origin": "source"
+      },
+      {
+        "name": "lease_until",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【NULL 展开提案】与 lease_owner 同空/同非空的派送租约期限。",
+        "origin": "source"
+      },
+      {
+        "name": "fence",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "发件认领隔离代数；压缩 lease/fence 展开。",
+        "origin": "source"
+      },
+      {
+        "name": "delivered_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "接收端确认时间；未确认时为空。",
+        "origin": "source"
+      },
+      {
+        "name": "source_session_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】可选来源会话，补齐 Runtime 来源归属而不把裸 event_id 当 FK。",
+        "origin": "expanded"
+      },
+      {
+        "name": "source_run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】可选来源运行；有值时 source_session_id 必须有值。",
+        "origin": "expanded"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】可变控制记录的乐观并发版本；显式初始化并在 CAS 更新时递增。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "outbox_id"
+    ],
+    "constraints": [
+      "设计提案，尚未实施；RT 指 SDK 现有部署 schema，实际名称由 search_path 决定。",
+      "本表逐列 nullable 是设计稿约定及明确标记的展开建议；default=无 表示未规定 SQL DEFAULT，由写入方显式提供，不代表已执行 DDL。",
+      "所有主键、唯一键与跨表关系均包含 tenant_id；同租户不等同于具备内容访问权限。",
+      "提案：UNIQUE (tenant_id, destination, message_key)。",
+      "展开提案：CHECK (attempts >= 0 AND fence >= 0 AND revision >= 0)；lease_owner 与 lease_until 同空或同非空。",
+      "展开提案：source_run_id 非空要求 source_session_id 非空；event_id 可能是 journal、流或域事件，未定义统一 FK。",
+      "业务状态与 outbox 在同一本地事务提交；接收去重后才确认 delivered_at；timeout 不等于未投递。"
+    ],
+    "indexes": [
+      "PRIMARY KEY (tenant_id, outbox_id) [提案]",
+      "UNIQUE (tenant_id, destination, message_key) [提案]",
+      "INDEX (tenant_id, available_at) WHERE delivered_at IS NULL [提案：待发索引]",
+      "INDEX (tenant_id, lease_until) WHERE delivered_at IS NULL [展开提案：过期认领扫描]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "source_session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "补充字段提案：可选来源会话。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "source_session_id",
+          "source_run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "补充字段提案：完整来源 run 键。"
+      }
+    ]
+  },
+  {
+    "name": "agent_inbox",
+    "schema": "RT",
+    "status": "extension",
+    "title": "可靠收件箱",
+    "purpose": "持久接收父子结果与回调，并幂等生成唤醒命令。",
+    "source": "docs/database-design-v1.md §10、§3",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有 Runtime 标识均保持 text。",
+        "origin": "source"
+      },
+      {
+        "name": "receiver_session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "接收会话，属于主键命名空间。",
+        "origin": "source"
+      },
+      {
+        "name": "message_key",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "接收会话范围去重键。",
+        "origin": "source"
+      },
+      {
+        "name": "sender_session_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "发送来源会话；非会话来源可空。",
+        "origin": "source"
+      },
+      {
+        "name": "sender_run_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "发送来源运行；可空，非空须同时有 sender_session_id。",
+        "origin": "source"
+      },
+      {
+        "name": "task_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "父子任务标识；可空且不与 session/run 混用。",
+        "origin": "source"
+      },
+      {
+        "name": "payload_ref",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "持久消息载荷引用。",
+        "origin": "source"
+      },
+      {
+        "name": "payload_hash",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "载荷校验摘要；payload_ref/hash 展开。",
+        "origin": "source"
+      },
+      {
+        "name": "received_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "成功接收时间。",
+        "origin": "source"
+      },
+      {
+        "name": "consumed_command_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "对应生成/消费的持久唤醒命令；未关联时为空。",
+        "origin": "source"
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "接收消费状态；原文未定状态集合，需与 command 消费协议共同定稿。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】可变控制记录的乐观并发版本；显式初始化并在 CAS 更新时递增。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "receiver_session_id",
+      "message_key"
+    ],
+    "constraints": [
+      "设计提案，尚未实施；RT 指 SDK 现有部署 schema，实际名称由 search_path 决定。",
+      "本表逐列 nullable 是设计稿约定及明确标记的展开建议；default=无 表示未规定 SQL DEFAULT，由写入方显式提供，不代表已执行 DDL。",
+      "所有主键、唯一键与跨表关系均包含 tenant_id；同租户不等同于具备内容访问权限。",
+      "提案：接收行与用于唤醒的 command 同事务提交；重复 message_key 返回既有接受结果。",
+      "展开提案：sender_run_id 非空要求 sender_session_id 非空；关联 command 的 session 必须等于 receiver_session_id。",
+      "state 与 consumed_command_id 的精确阶段定义待协议确认，不在默认值中固化。"
+    ],
+    "indexes": [
+      "PRIMARY KEY (tenant_id, receiver_session_id, message_key) [提案]",
+      "INDEX (tenant_id, receiver_session_id, state, received_at) [展开提案：待消费查询]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "receiver_session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "接收端完整 session 键。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "sender_session_id"
+        ],
+        "target": "agent_sessions",
+        "target_columns": [
+          "tenant_id",
+          "session_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选来源会话。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "sender_session_id",
+          "sender_run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选来源运行完整键。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "consumed_command_id"
+        ],
+        "target": "agent_commands",
+        "target_columns": [
+          "tenant_id",
+          "command_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选命令 FK；需额外确保接收 session 一致。"
+      }
+    ]
+  },
+  {
+    "name": "agent_run_edges",
+    "schema": "RT",
+    "status": "extension",
+    "title": "明确父子运行边",
+    "purpose": "保存父子运行来源，支持 Activity 精确溯源。",
+    "source": "docs/database-design-v1.md §10、§17",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有 Runtime 标识均保持 text。",
+        "origin": "source"
+      },
+      {
+        "name": "child_session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "子运行所在会话。",
+        "origin": "source"
+      },
+      {
+        "name": "child_run_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "子运行标识；同子 session 可有多次 run。",
+        "origin": "source"
+      },
+      {
+        "name": "edge_kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "关系类别；集合待运行/父子协议定稿。",
+        "origin": "source"
+      },
+      {
+        "name": "parent_session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "父运行所在会话。",
+        "origin": "source"
+      },
+      {
+        "name": "parent_run_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "直接父运行标识；不得由 root_run_id 猜测。",
+        "origin": "source"
+      },
+      {
+        "name": "task_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "关联子任务标识，可空。",
+        "origin": "source"
+      },
+      {
+        "name": "spawn_event_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "产生该边的 spawn 事件 ID；需结合父 session 与事件域解析。",
+        "origin": "source"
+      },
+      {
+        "name": "origin_context_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "来源上下文的稳定引用；原文未指定其目标表，不能臆造 UUID 外键。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】关系持久登记时间。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "child_session_id",
+      "child_run_id",
+      "edge_kind"
+    ],
+    "constraints": [
+      "设计提案，尚未实施；RT 指 SDK 现有部署 schema，实际名称由 search_path 决定。",
+      "本表逐列 nullable 是设计稿约定及明确标记的展开建议；default=无 表示未规定 SQL DEFAULT，由写入方显式提供，不代表已执行 DDL。",
+      "所有主键、唯一键与跨表关系均包含 tenant_id；同租户不等同于具备内容访问权限。",
+      "提案：子、父双方均使用 (tenant_id, session_id, run_id) 完整运行键。",
+      "同 child run 同 edge_kind 至多一个直接父边；不同 edge_kind 的含义待协议定稿。",
+      "异步尚不存在的父引用须在正式关系表外暂存/协调，补齐后落边；错误来源链不得进入 Activity。",
+      "展开提案：禁止同一运行自指；祖先环检查由受控写入路径保证。",
+      "origin_context_id 的具体目标和跨域类型映射待定；spawn_event_id 的 journal/stream 归属需协议确认，暂不声明物理事件 FK。"
+    ],
+    "indexes": [
+      "PRIMARY KEY (tenant_id, child_session_id, child_run_id, edge_kind) [提案]",
+      "INDEX (tenant_id, parent_session_id, parent_run_id) [提案：后代查询]",
+      "INDEX (tenant_id, task_id) WHERE task_id IS NOT NULL [展开提案]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "child_session_id",
+          "child_run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "子运行完整复合外键提案。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "parent_session_id",
+          "parent_run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "直接父运行完整复合外键提案；不使用 root_run_id 推断。"
+      }
+    ]
+  },
+  {
+    "name": "agent_approvals",
+    "schema": "RT",
+    "status": "extension",
+    "title": "独立操作审批",
+    "purpose": "审批绑定动作摘要，独立于主 Run 结束状态。",
+    "source": "docs/database-design-v1.md §11、§12",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有 Runtime 标识均保持 text。",
+        "origin": "source"
+      },
+      {
+        "name": "approval_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户内审批标识。",
+        "origin": "source"
+      },
+      {
+        "name": "requesting_session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "请求审批的会话；requesting_session/run 压缩字段展开。",
+        "origin": "source"
+      },
+      {
+        "name": "requesting_run_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "请求审批的运行；不是批准后必须续跑的目标。",
+        "origin": "source"
+      },
+      {
+        "name": "approver_owner_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "指定审批 Owner 的 Runtime 字符串映射标识；不能直接 FK 到 uuid 业务列。",
+        "origin": "source"
+      },
+      {
+        "name": "operation_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "审批绑定的具体工具操作。",
+        "origin": "source"
+      },
+      {
+        "name": "action_digest",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "动作与规范化参数的摘要，批准范围不可静默改变。",
+        "origin": "source"
+      },
+      {
+        "name": "scope_digest",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "目标、数据与权限范围摘要。",
+        "origin": "source"
+      },
+      {
+        "name": "requested_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "请求审批时间。",
+        "origin": "source"
+      },
+      {
+        "name": "expires_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "过期时间；可空。",
+        "origin": "source"
+      },
+      {
+        "name": "state",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "pending/approved/rejected/expired/cancelled。",
+        "origin": "source"
+      },
+      {
+        "name": "decision_actor_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【NULL 展开提案】pending 时尚无决定主体；终态记真人或系统主体。",
+        "origin": "source"
+      },
+      {
+        "name": "decided_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【NULL 展开提案】pending 时为空，终态填写。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "pending→终态 CAS 版本。",
+        "origin": "source"
+      },
+      {
+        "name": "continuation_command_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】独立待处理动作/回调的持久 command 引用；方案尚待 Runtime 定稿，不复用已完成 Run。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "approval_id"
+    ],
+    "constraints": [
+      "设计提案，尚未实施；RT 指 SDK 现有部署 schema，实际名称由 search_path 决定。",
+      "本表逐列 nullable 是设计稿约定及明确标记的展开建议；default=无 表示未规定 SQL DEFAULT，由写入方显式提供，不代表已执行 DDL。",
+      "所有主键、唯一键与跨表关系均包含 tenant_id；同租户不等同于具备内容访问权限。",
+      "提案：CHECK (state IN ('pending','approved','rejected','expired','cancelled'))；CHECK (revision >= 0)。",
+      "NULL 展开提案：pending 无 decided_at/decision_actor_id；终态必须记录决定时间与主体，系统过期可使用系统 actor 标识。",
+      "批准只覆盖 operation_id 与固定 action_digest/scope_digest；执行前复核期限、撤销状态、当前权限与摘要。",
+      "operation 的 approval_id 与本表 operation_id 的双向一致性由受控事务或延迟约束保证，避免循环插入无法落库。",
+      "approver_owner_id 是 text 映射；业务 Owner 关系经明确映射校验，当前未提案直接跨类型 FK。",
+      "待审批不持有主回复 lane；回调续跑方式与队列规则仍未确认。"
+    ],
+    "indexes": [
+      "PRIMARY KEY (tenant_id, approval_id) [提案]",
+      "INDEX (tenant_id, approver_owner_id, requested_at) WHERE state = 'pending' [展开提案]",
+      "INDEX (tenant_id, expires_at) WHERE state = 'pending' AND expires_at IS NOT NULL [展开提案]",
+      "INDEX (tenant_id, operation_id) [展开提案：操作授权查找]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "requesting_session_id",
+          "requesting_run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "请求来源完整 run 键，不代表后续必须恢复该 run。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "operation_id"
+        ],
+        "target": "agent_tool_operations",
+        "target_columns": [
+          "tenant_id",
+          "operation_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "操作可先创建 planned 行，再创建审批并回填引用；双向一致性待约束定稿。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "continuation_command_id"
+        ],
+        "target": "agent_commands",
+        "target_columns": [
+          "tenant_id",
+          "command_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "补充字段提案：独立回调命令；精确调度仍待确认。"
+      }
+    ]
+  },
+  {
+    "name": "approval_events",
+    "schema": "RT",
+    "status": "extension",
+    "title": "审批不可变事件",
+    "purpose": "追加记录请求、决定、过期与取消，重复点击幂等。",
+    "source": "docs/database-design-v1.md §11（表级语义；全部细分字段为展开提案）",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有 Runtime 标识均保持 text。",
+        "origin": "source"
+      },
+      {
+        "name": "approval_event_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】租户内审批事件 ID；原文只命名事件表，逐列结构为展开提案。",
+        "origin": "expanded"
+      },
+      {
+        "name": "approval_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】所属审批。",
+        "origin": "expanded"
+      },
+      {
+        "name": "event_seq",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】同审批内的追加顺序。",
+        "origin": "expanded"
+      },
+      {
+        "name": "kind",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】requested/approved/rejected/expired/cancelled 等事件类型，和状态机共同约束。",
+        "origin": "expanded"
+      },
+      {
+        "name": "decision_key",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】决定幂等键；请求事件尚无决定时可空，决定类事件必须提供。",
+        "origin": "expanded"
+      },
+      {
+        "name": "actor_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】产生此事件的用户或系统主体。",
+        "origin": "expanded"
+      },
+      {
+        "name": "occurred_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】事件发生时间。",
+        "origin": "expanded"
+      },
+      {
+        "name": "from_state",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】迁移前状态；首次请求为空。",
+        "origin": "expanded"
+      },
+      {
+        "name": "to_state",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】迁移后审批状态。",
+        "origin": "expanded"
+      },
+      {
+        "name": "action_digest",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】此次决定绑定的动作摘要副本，用于审计验证。",
+        "origin": "expanded"
+      },
+      {
+        "name": "scope_digest",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】此次决定绑定的权限范围摘要。",
+        "origin": "expanded"
+      },
+      {
+        "name": "reason",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】可选的安全审计说明；不记录秘密或隐藏推理。",
+        "origin": "expanded"
+      },
+      {
+        "name": "metadata",
+        "type": "jsonb",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】版本化审计附加数据；未规定 SQL 默认值。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "approval_event_id"
+    ],
+    "constraints": [
+      "设计提案，尚未实施；RT 指 SDK 现有部署 schema，实际名称由 search_path 决定。",
+      "本表逐列 nullable 是设计稿约定及明确标记的展开建议；default=无 表示未规定 SQL DEFAULT，由写入方显式提供，不代表已执行 DDL。",
+      "所有主键、唯一键与跨表关系均包含 tenant_id；同租户不等同于具备内容访问权限。",
+      "本表逐列命名、主键和索引是压缩设计的补充提案，尚非原文完整 DDL。",
+      "展开提案：UNIQUE (tenant_id, approval_id, event_seq)；UNIQUE (tenant_id, approval_id, decision_key) WHERE decision_key IS NOT NULL。",
+      "展开提案：CHECK (event_seq >= 0)；决定类事件必须有 decision_key，首次请求允许为空。",
+      "只追加，不覆盖历史；事件、approval CAS pending→终态和回调 outbox/inbox 意图同事务落定。",
+      "重复 decision key 返回同一决定；不重复执行外部动作。"
+    ],
+    "indexes": [
+      "PRIMARY KEY (tenant_id, approval_event_id) [展开提案]",
+      "UNIQUE (tenant_id, approval_id, event_seq) [展开提案]",
+      "UNIQUE (tenant_id, approval_id, decision_key) WHERE decision_key IS NOT NULL [展开提案]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "approval_id"
+        ],
+        "target": "agent_approvals",
+        "target_columns": [
+          "tenant_id",
+          "approval_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "审批事件归属外键提案。"
+      }
+    ]
+  },
+  {
+    "name": "agent_tool_operations",
+    "schema": "RT",
+    "status": "extension",
+    "title": "工具副作用操作账本",
+    "purpose": "绑定工具意图、幂等、批准、原始返回与最终完成边界。",
+    "source": "docs/database-design-v1.md §12、§3",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有 Runtime 标识均保持 text。",
+        "origin": "source"
+      },
+      {
+        "name": "operation_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户内稳定逻辑操作标识，网络重试保持不变。",
+        "origin": "source"
+      },
+      {
+        "name": "session_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "操作所属会话。",
+        "origin": "source"
+      },
+      {
+        "name": "run_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "操作所属运行。",
+        "origin": "source"
+      },
+      {
+        "name": "step_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "运行内步骤标识。",
+        "origin": "source"
+      },
+      {
+        "name": "tool_call_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "该步骤内工具调用标识。",
+        "origin": "source"
+      },
+      {
+        "name": "parent_operation_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "嵌套工具调用的父操作；顶层为空。",
+        "origin": "source"
+      },
+      {
+        "name": "command_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "引发本次操作的持久命令。",
+        "origin": "source"
+      },
+      {
+        "name": "tool_name",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "工具名称；tool_name/version 展开。",
+        "origin": "source"
+      },
+      {
+        "name": "tool_version",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "工具协议/实现版本；压缩 version 展开命名提案。",
+        "origin": "source"
+      },
+      {
+        "name": "args_ref",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "受控持久参数引用。",
+        "origin": "source"
+      },
+      {
+        "name": "args_hash",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "规范化参数摘要；args_ref/hash 展开。",
+        "origin": "source"
+      },
+      {
+        "name": "effect_class",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "read_only/idempotent/reconcilable/non_idempotent。",
+        "origin": "source"
+      },
+      {
+        "name": "external_idempotency_key",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "稳定外部幂等键；provider 不支持时不能据此宣称 exactly-once。",
+        "origin": "source"
+      },
+      {
+        "name": "approval_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "该操作适用的审批，可空。",
+        "origin": "source"
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "planned/dispatched/succeeded/failed/unknown/reconciled。",
+        "origin": "source"
+      },
+      {
+        "name": "provider_operation_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "外部供应商操作标识；未知或未派发时为空。",
+        "origin": "source"
+      },
+      {
+        "name": "raw_result_ref",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "工具原始返回引用；与最终 after-tool 结果分开。",
+        "origin": "source"
+      },
+      {
+        "name": "raw_result_hash",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "原始返回内容摘要；raw_result_ref/hash? 展开。",
+        "origin": "source"
+      },
+      {
+        "name": "final_result_ref",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "工具最终结果持久引用；hook 未完成时可空。",
+        "origin": "source"
+      },
+      {
+        "name": "final_result_hash",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "最终结果摘要；final_result_ref/hash? 展开。",
+        "origin": "source"
+      },
+      {
+        "name": "tool_returned_event_ref",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "原始返回对应的 journal event_id；必须结合本行 tenant/session 解析。",
+        "origin": "source"
+      },
+      {
+        "name": "tool_completed_event_ref",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "最终完成对应的 journal event_id；必须结合本行 tenant/session 解析。",
+        "origin": "source"
+      },
+      {
+        "name": "fence",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "当前被允许派发/提交的会话隔离代数。",
+        "origin": "source"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "操作意图持久创建时间。",
+        "origin": "source"
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "操作控制投影更新时间；无隐含自动更新触发器。",
+        "origin": "source"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】可变控制记录的乐观并发版本；显式初始化并在 CAS 更新时递增。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "operation_id"
+    ],
+    "constraints": [
+      "设计提案，尚未实施；RT 指 SDK 现有部署 schema，实际名称由 search_path 决定。",
+      "本表逐列 nullable 是设计稿约定及明确标记的展开建议；default=无 表示未规定 SQL DEFAULT，由写入方显式提供，不代表已执行 DDL。",
+      "所有主键、唯一键与跨表关系均包含 tenant_id；同租户不等同于具备内容访问权限。",
+      "提案：UNIQUE (tenant_id, session_id, run_id, step_id, tool_call_id)。",
+      "提案：CHECK (effect_class IN ('read_only','idempotent','reconcilable','non_idempotent'))；CHECK (status IN ('planned','dispatched','succeeded','failed','unknown','reconciled'))。",
+      "展开提案：raw_result_ref/raw_result_hash 同空或同非空；final_result_ref/final_result_hash 同空或同非空。",
+      "先提交操作意图，再派发网络请求；每次实际网络尝试单独记录 operation_attempts。",
+      "unknown 不能当作 failed/未执行；不能幂等且无法查询的外部效果必须人工核对。",
+      "journal 的 tool_started/tool_returned/tool_completed 是执行事实；本表必须同事务关联或由 journal 投影，不制造相矛盾真相。",
+      "已保存 raw return 后不重复执行工具，只完成安全的 hook；批准变更需新授权，重试不得扩大效果。",
+      "展开提案：command 必须属于同 session；parent_operation_id 不得自指并防止嵌套环；审批双向引用须事务校验。"
+    ],
+    "indexes": [
+      "PRIMARY KEY (tenant_id, operation_id) [提案]",
+      "UNIQUE (tenant_id, session_id, run_id, step_id, tool_call_id) [提案]",
+      "INDEX (tenant_id, session_id, run_id, created_at) [展开提案]",
+      "INDEX (tenant_id, status, updated_at) WHERE status IN ('planned','dispatched','unknown') [展开提案：恢复扫描]",
+      "INDEX (tenant_id, parent_operation_id) WHERE parent_operation_id IS NOT NULL [展开提案]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "target": "agent_runs",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "run_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "工具操作完整运行外键提案。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "parent_operation_id"
+        ],
+        "target": "agent_tool_operations",
+        "target_columns": [
+          "tenant_id",
+          "operation_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选父操作，嵌套观察不可省略。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "command_id"
+        ],
+        "target": "agent_commands",
+        "target_columns": [
+          "tenant_id",
+          "command_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "另校验 command 所属会话一致。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "approval_id"
+        ],
+        "target": "agent_approvals",
+        "target_columns": [
+          "tenant_id",
+          "approval_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选审批；并检查该审批的 operation_id 指向本操作。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "tool_returned_event_ref"
+        ],
+        "target": "agent_session_events",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "event_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选原始返回 journal 事件引用，使用已有唯一复合键。"
+      },
+      {
+        "columns": [
+          "tenant_id",
+          "session_id",
+          "tool_completed_event_ref"
+        ],
+        "target": "agent_session_events",
+        "target_columns": [
+          "tenant_id",
+          "session_id",
+          "event_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "可选最终完成 journal 事件引用，与 raw return 边界独立。"
+      }
+    ]
+  },
+  {
+    "name": "operation_attempts",
+    "schema": "RT",
+    "status": "extension",
+    "title": "工具网络尝试",
+    "purpose": "记录同一逻辑操作的每次网络派发与可知结果。",
+    "source": "docs/database-design-v1.md §12、§3（PK、阶段性 NULL 与补充列为展开提案）",
+    "fields": [
+      {
+        "name": "tenant_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "租户隔离键；所有 Runtime 标识均保持 text。",
+        "origin": "source"
+      },
+      {
+        "name": "operation_id",
+        "type": "text",
+        "nullable": false,
+        "default": "无",
+        "meaning": "所属逻辑工具操作；重试不生成新 operation。",
+        "origin": "source"
+      },
+      {
+        "name": "attempt_no",
+        "type": "integer",
+        "nullable": false,
+        "default": "无",
+        "meaning": "同操作内递增尝试编号；压缩 *_no 类型展开。",
+        "origin": "source"
+      },
+      {
+        "name": "dispatched_at",
+        "type": "timestamptz",
+        "nullable": false,
+        "default": "无",
+        "meaning": "派发记录落库时间，必须先于外部调用。",
+        "origin": "source"
+      },
+      {
+        "name": "outcome",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【NULL 展开提案】派发时尚无结果允许为空；不得把 timeout 解释为外部未执行。",
+        "origin": "source"
+      },
+      {
+        "name": "provider_request_id",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【NULL 展开提案】外部请求标识可尚未取得，或供应商不提供。",
+        "origin": "source"
+      },
+      {
+        "name": "result_ref",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【NULL 展开提案】本次返回载荷引用；未返回/无载荷时可空。",
+        "origin": "source"
+      },
+      {
+        "name": "result_hash",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】本次返回的内容摘要；有 result_ref 时必须有值。",
+        "origin": "expanded"
+      },
+      {
+        "name": "finished_at",
+        "type": "timestamptz",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】本次传输/核对尝试结束时间；未结束时为空。",
+        "origin": "expanded"
+      },
+      {
+        "name": "error_code",
+        "type": "text",
+        "nullable": true,
+        "default": "无",
+        "meaning": "【补充字段提案】传输或供应商错误码；成功/未返回时可空。",
+        "origin": "expanded"
+      },
+      {
+        "name": "fence",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】本次实际派发使用的隔离代数，便于区分旧 worker 的在途请求。",
+        "origin": "expanded"
+      },
+      {
+        "name": "revision",
+        "type": "bigint",
+        "nullable": false,
+        "default": "无",
+        "meaning": "【补充字段提案】可变控制记录的乐观并发版本；显式初始化并在 CAS 更新时递增。",
+        "origin": "expanded"
+      }
+    ],
+    "primary_key": [
+      "tenant_id",
+      "operation_id",
+      "attempt_no"
+    ],
+    "constraints": [
+      "设计提案，尚未实施；RT 指 SDK 现有部署 schema，实际名称由 search_path 决定。",
+      "本表逐列 nullable 是设计稿约定及明确标记的展开建议；default=无 表示未规定 SQL DEFAULT，由写入方显式提供，不代表已执行 DDL。",
+      "所有主键、唯一键与跨表关系均包含 tenant_id；同租户不等同于具备内容访问权限。",
+      "展开提案：PRIMARY KEY (tenant_id, operation_id, attempt_no)；CHECK (attempt_no >= 1 AND fence >= 0 AND revision >= 0)。",
+      "原文未逐列定义 NULL；outcome/provider_request_id/result_ref 在派发阶段允许为空是展开建议，不是已实施约束。",
+      "展开提案：result_ref 与 result_hash 同空或同非空；终结 outcome 的状态集合和 provider 对账协议一并定稿。",
+      "每次派发先记录尝试；未知结果优先按稳定 provider id/key 查询，不更换幂等键制造新效果。",
+      "本表网络尝试不等于用户 Retry，也不等于 agent_model_usage 的模型尝试。"
+    ],
+    "indexes": [
+      "PRIMARY KEY (tenant_id, operation_id, attempt_no) [展开提案]",
+      "INDEX (tenant_id, dispatched_at) WHERE finished_at IS NULL [展开提案：在途核对]"
+    ],
+    "relations": [
+      {
+        "columns": [
+          "tenant_id",
+          "operation_id"
+        ],
+        "target": "agent_tool_operations",
+        "target_columns": [
+          "tenant_id",
+          "operation_id"
+        ],
+        "kind": "proposed",
+        "cardinality": "N:1",
+        "note": "每个 operation 可有多次受控网络尝试。"
+      }
+    ]
+  }
+]
