@@ -40,7 +40,7 @@ def test_prompt_composes_soul_and_server_hook_without_private_memory(monkeypatch
     assert "group conversation" in prompt and "Speak gently." in prompt
     assert "server-only policy" in prompt
     assert "must never appear" not in prompt
-    assert "Workers and groups have no memory tools" in prompt
+    assert "Workers share owner execution resources but have no Memory tools" in prompt
     assert "Pending approvals" in prompt and "wait_for_reply=true" in prompt
 
 

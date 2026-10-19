@@ -22,7 +22,7 @@ The human HTTP form and `set_message_reaction` share the same desired-state oper
 
 To remove that Twin's reaction, call the same tool with `active:false`. A Twin writes as its own Actor and cannot cancel its owner's human reaction. The backend rechecks the durable originating request, current owner membership, message history/provenance and private reset generation on every operation. Cross-chat calls keep source auditing. The stable SDK operation identity supplies replay safety; a retried committed action does not duplicate a reaction. A reaction never sends a new message, routes another Twin response, creates a follow-up or resets the conversation-chain budget. The exact action can be owner-approved through the existing approval mechanism; it does not grant secret, admin or private-execution permissions.
 
-New group runs include 28 platform tools. A genuinely resumable old run retains its frozen original tool names, schema, description and version, bound only to currently known executors. New tools are available in new runs, not silently inserted into an interrupted model request. Completed session history alone is not treated as a resume. See [twin-platform-tools.md](twin-platform-tools.md).
+New authorized group runs also include owner-only credential requests alongside the platform tools. A genuinely resumable old run retains its frozen original tool names, schema, description and version, bound only to currently known executors. New tools are available in new runs, not silently inserted into an interrupted model request. Completed session history alone is not treated as a resume. See [twin-platform-tools.md](twin-platform-tools.md).
 
 ## Schema and deployment order
 

@@ -78,37 +78,44 @@ def request_json(row):
             "created_at": row.created_at.isoformat()}
 
 
-def private_origin(service, db, owner_id, request_id, *, executable=True):
+def runtime_origin(service, db, owner_id, request_id, *, executable=True):
     request = db.get(ReplyRequest, request_id)
     if not request:
         fail(409, "Original request is unavailable")
     service._check_private_request(db, request)
     chat, member = service.membership(db, owner_id, request.chat_id, True)
     target = db.get(Actor, request.target_twin_id)
-    if (chat.kind != "private" or chat.private_owner_id != owner_id
-            or not target or target.owner_id != owner_id or request.requester_id != owner_id):
-        fail(403, "Credentials are available only in your own private Twin conversation")
+    if not target or target.owner_id != owner_id:
+        fail(403, "Execution belongs to the target Twin's owner")
     if executable and (request.cancel_requested or request.status in {"cancelled", "failed"}):
         fail(409, "Original request was cancelled or failed")
     if request.source == "credential_result":
         fulfilled = fulfilled_for_continuation(db, owner_id, request)
         if not fulfilled:
             fail(409, "Credential continuation has no completed owner request")
-        private_origin(service, db, owner_id, fulfilled.origin_request_id, executable=executable)
+        runtime_origin(service, db, owner_id, fulfilled.origin_request_id, executable=executable)
     elif request.source == "subagent_result":
         child = db.scalar(select(PendingChildResult).where(PendingChildResult.accepted_request_id == request.id,
             PendingChildResult.owner_id == owner_id, PendingChildResult.state == "accepted"))
         if not child:
             fail(409, "Worker continuation has no retained owner request")
-        private_origin(service, db, owner_id, child.parent_request_id, executable=executable)
+        runtime_origin(service, db, owner_id, child.parent_request_id, executable=executable)
     elif request.source == "followup_result":
         from .followups import context as followup_context
         from .followups import continuation
         followup_context(service, db, request, owner_id)
         followup = continuation(db, request, owner_id)
-        private_origin(service, db, owner_id, followup.origin_request_id, executable=executable)
+        runtime_origin(service, db, owner_id, followup.origin_request_id, executable=executable)
     return request, chat, member
 
+
+
+def private_origin(service, db, owner_id, request_id, *, executable=True):
+    """Narrow private-task gate retained for existing cross-chat retry contracts."""
+    request, chat, member = runtime_origin(service, db, owner_id, request_id, executable=executable)
+    if chat.kind != "private" or chat.private_owner_id != owner_id or request.requester_id != owner_id:
+        fail(403, "This action requires your own private Twin conversation")
+    return request, chat, member
 
 def fulfilled_for_continuation(db, owner_id, request):
     # Explicit retries have a new ID/generation but retain the canonical intent.
@@ -177,7 +184,7 @@ def create_request(service, args, context):
     operation_id = context["operation_id"]
     fingerprint = hashlib.sha256(json.dumps(args, sort_keys=True).encode()).hexdigest()
     with service.transaction() as db:
-        origin, chat, member = private_origin(service, db, owner_id, request_id)
+        origin, chat, member = runtime_origin(service, db, owner_id, request_id)
         prior = db.get(ProductOperation, operation_id)
         if prior:
             if prior.owner_id != owner_id or prior.name != "request_credential" or prior.arguments_hash != fingerprint:
@@ -211,7 +218,7 @@ def complete(service, owner_id, request_id, *, existing_name=None, name=None, va
             return request_json(row)
         if row.status != "pending":
             fail(409, "Credential request is no longer pending")
-        origin, chat, member = private_origin(service, db, owner_id, row.origin_request_id)
+        origin, chat, member = runtime_origin(service, db, owner_id, row.origin_request_id)
         if not service.provenance_allowed(db, member, row.source_provenance):
             fail(409, "Original context is no longer authorized")
         ref = validate_ref(existing_name or name or row.ref)
@@ -236,11 +243,11 @@ def complete(service, owner_id, request_id, *, existing_name=None, name=None, va
         db.scalar(select(ReplyLane).where(ReplyLane.chat_id == origin.chat_id,
             ReplyLane.twin_id == origin.target_twin_id).with_for_update())
         db.refresh(origin, with_for_update=True)
-        private_origin(service, db, owner_id, origin.id)
+        runtime_origin(service, db, owner_id, origin.id)
         key = f"credential-request:{row.id}:fulfilled"
-        continuation = service.accept_request(db, chat, origin.target_twin_id, owner_id,
+        continuation = service.accept_request(db, chat, origin.target_twin_id, origin.requester_id,
             "credential_result", key, source_message_id=origin.source_message_id,
-            intent_key=key, causal_chain_id=origin.causal_chain_id,
+            intent_key=key, causal_chain_id=origin.causal_chain_id, source_owner_id=origin.source_owner_id,
             input_body=f"The owner completed credential request {row.id}. Credential {row.ref} is now available with environment variables {', '.join(row.keynames)}. "
                        "Continue only the remaining work from the original task and existing history. "
                        "Do not repeat completed shell commands. This supplies credentials; it does not approve any external action.")
@@ -270,11 +277,11 @@ def continuation_origin(service, owner_id, request_id, manifest_id):
         current = db.get(ReplyRequest, request_id)
         if not current or current.source != "credential_result":
             return None
-        private_origin(service, db, owner_id, request_id)
+        runtime_origin(service, db, owner_id, request_id)
         row = fulfilled_for_continuation(db, owner_id, current)
         if not row:
             fail(409, "Credential continuation has no completed owner request")
-        origin, _, member = private_origin(service, db, owner_id, row.origin_request_id)
+        origin, _, member = runtime_origin(service, db, owner_id, row.origin_request_id)
         sources = service.manifest_provenance(db, origin.id)
         if not service.provenance_allowed(db, member, sources):
             fail(409, "Original tool context is no longer authorized")

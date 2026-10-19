@@ -26,15 +26,14 @@ def test_reply_for_me_keeps_embedded_requests_as_writing_content():
     assert request_prompt({"source": "reply_for_me"}, context) == context["raw_owner_input"]
 
 
-def test_protocol_private_guidance_is_conditional_and_group_boundaries_remain():
-    private = runtime_protocol({"chat": {"kind": "private"}})
-    group = runtime_protocol({"chat": {"kind": "group"}})
-    assert "request_credential uses an owner-only form" in private
-    assert "request_credential uses an owner-only form" not in group
-    assert "Groups have no shell, credentials or private Memory, including through delegation" in group
+def test_protocol_uses_owner_resources_and_current_audience_in_groups():
+    group = runtime_protocol({"chat": {"kind": "group"}, "execution_enabled": True})
+    frozen_disabled = runtime_protocol({"chat": {"kind": "group"}, "execution_enabled": False})
+    assert "request_credential uses an owner-only form" in group
+    assert "request_credential uses an owner-only form" not in frozen_disabled
     assert "never clear sources or use another destination to bypass a denied send" in group
-    assert "existing legitimate frozen private task" in group
-    assert "Workers and groups have no memory tools" in group
+    assert "their request is not the owner's consent" in group
+    assert "Workers share owner execution resources but have no Memory tools" in group
 
 
 def test_current_references_keep_only_authorized_visible_message_metadata():

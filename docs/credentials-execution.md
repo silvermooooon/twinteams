@@ -11,11 +11,14 @@ Missing/invalid configuration leaves the rest of the application available and e
 `configured: false` on the credential list. No keys are generated during startup. Back up the
 host key with the encrypted files; losing it makes the files unreadable.
 
-Only the owner's private Twin conversation and its legitimate background workers install local
-execution/credential tools. Groups may load enabled Skills but have no shell, credential or
-private-memory tools. A group worker or approval continuation does not bypass that restriction.
-Private memory writes remain on the owner's main private session; background workers do not
-install memory tools. Storing a value does not authorize a group participant or approve an action.
+All authorized conversations use the target Twin owner's local execution and credential tools,
+including two-owner and larger group chats. When B asks A's Twin to work, workspace, Skills,
+Soul, credential references and main-session read/write Memory belong to A. The model sees
+current audience names/IDs and the original requester, distinguishes B's request from A's
+consent, and asks A before sensitive owner operations when consent has not already been granted.
+Background workers share A's execution configuration but have no Memory tools. Credential forms
+and their completion APIs remain A-only; filling a form supplies bindings without approving an action.
+Private history/provenance and existing per-action followup/retry restrictions still apply.
 
 The first factory invocation after the SDK acquires its execution lease freezes a nonsecret
 `ReplyRequest.execution_config`: the Twin's existing private-chat workspace, enabled Skills
@@ -37,15 +40,15 @@ changed names rejects execution. A call receives only its explicitly requested r
 Each shell has a new environment mapping, and its credentials are not inherited by later calls.
 
 `request_credential` accepts metadata only, inserts a durable pending `CredentialRequest` and
-returns immediately. The Agent must explain that work is waiting and end its response, releasing
-the runtime worker and FIFO lane. Response completion is not task completion while a form is
+returns immediately. The Agent continues independent authorized work, then explains the blocker and ends its response,
+releasing the runtime worker and FIFO lane. Response completion is not task completion while a form is
 pending. The pending card is owner-only. It can be dismissed without performing an action.
 
 Completing a form writes the encrypted credential first. The same PG business transaction then
 marks the request fulfilled and enqueues one `credential_result` request through the existing
-FIFO using a stable request key. Owner administrative writes serialize on the existing Owner
+FIFO using a stable request key. The original requester, source owner, source message and causal chain are retained rather than promoted to the credential-supplying owner. Owner administrative writes serialize on the existing Owner
 row; no new lock service or plaintext queue is used. Repeated completion returns the existing
-continuation without rewriting the value. Owner identity, private origin, original cancellation,
+continuation without rewriting the value. Target-owner identity, authorized origin, original cancellation,
 and current source authorization are checked before admission. Cancellation and admission use
 the existing lane/origin row order. A cancelled request cannot continue.
 
@@ -56,7 +59,11 @@ the matching existing credential. No plaintext value, write receipt or extra sag
 The selected credential must retain the requested reference and exact environment variable names.
 
 The continuation asks for remaining work using existing history. It never resumes the old run
-or programmatically reruns its shell commands. SDK bash retains `replay="never"`; uncertain shell
+or programmatically reruns its shell commands. Exact installed execution actions can use the existing owner approval inbox. Their declared schemas
+are validated server-side, and approval continuations retain the frozen originating configuration.
+Local execution authorization binds one tool operation, owner, target Twin and causal chain;
+no post-approval argument overrides are accepted. Local-capable approval execution and SDK bash
+retain `replay="never"`; uncertain shell
 outcomes still require the existing recovery/reconciliation flow. This does not promise that a
 model can never independently propose a semantically duplicate command.
 

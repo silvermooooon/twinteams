@@ -1585,7 +1585,7 @@ class ProductService:
             source_message = self.visible_message(db, member, request.source_message_id) if request.source_message_id else None
             image_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
             input_images = self.attachment_image_blocks(db, image_ids, member, private_request=request if request.raw_owner_input is not None else None)
-            return {"private_generation": request.private_generation, "followup_result": followup_payload, "input_images": input_images, "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id)}, "messages": self.messages_json(db, [m for m in rows if not applicable or m.seq > applicable["coverage_end_seq"]], member, False), "source_message": self.message_json(db, self.visible_message(db, member, request.source_message_id), member, False) if request.source_message_id else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": request.input_body, "request_id": request.id, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+            return {"private_generation": request.private_generation, "followup_result": followup_payload, "input_images": input_images, "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": self.messages_json(db, [m for m in rows if not applicable or m.seq > applicable["coverage_end_seq"]], member, False), "source_message": self.message_json(db, self.visible_message(db, member, request.source_message_id), member, False) if request.source_message_id else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": request.input_body, "request_id": request.id, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
 
     def bind_runtime_run(self, request_id, session_id, run_id):
         with self.transaction() as db:
@@ -2459,7 +2459,7 @@ class ProductService:
             return {"id": summary.id, "coverage_end_seq": end, "source_message_ids": ids}
         if name == "create_approval":
             from .platform_tools import exact_action
-            action = exact_action(args.get("action"))
+            action = exact_action(args.get("action"), context.get("execution_action_schemas"))
             if action["tool"] == "retry_reply_request":
                 from .platform_tools import request_row
                 retry_target, retry_chat, _ = request_row(self, db, owner_id, action["arguments"]["id"])
@@ -2473,6 +2473,13 @@ class ProductService:
             manifest = db.get(ContextManifest, context.get("context_manifest_id")) if context.get("context_manifest_id") else None
             sources = [s["id"] for s in manifest.sources if s.get("kind") == "message"] if manifest else []
             reference = {"session_id": context["runtime_session_id"], "run_id": context["runtime_run_id"], "request_id": context["request_id"], "action": action}
+            if action["tool"] in context.get("execution_action_schemas", {}):
+                origin = db.get(ReplyRequest, context["request_id"])
+                from .credentials import runtime_origin
+                runtime_origin(self, db, owner_id, origin.id)
+                if not origin.execution_config or origin.execution_config != context.get("execution_config"):
+                    fail(409, "Approval execution configuration is not frozen for this request")
+                reference.update(execution_config_digest=digest(origin.execution_config), target_twin_id=origin.target_twin_id)
             approval = Approval(id=uid(), chat_id=chat.id, source_provenance=context.get("inherited_provenance", []), source_message_ids=sources, approver_id=owner_id, title=str(args["title"])[:256], description=str(args["description"]), target=str(args["target"]), impact=str(args["impact"]), sdk_reference=reference)
             db.add(approval)
             db.flush()
@@ -2829,7 +2836,7 @@ class ProductService:
         await self.db_call("approval_for_execution", owner_id, chat_id, approval_id)
         return await self.db_call("_queue_approval_decision", owner_id, approval_id, decision)
 
-    def approval_for_execution(self, owner_id, chat_id, approval_id):
+    def approval_for_execution(self, owner_id, chat_id, approval_id, execution_context=None):
         with self.transaction() as db:
             _, member = self.membership(db, owner_id, chat_id)
             row = db.get(Approval, approval_id)
@@ -2840,6 +2847,19 @@ class ProductService:
             origin = db.get(ReplyRequest, row.sdk_reference.get("request_id"))
             if not origin or origin.cancel_requested or origin.status == "cancelled":
                 fail(409, "Approval origin was cancelled or is unavailable")
+            if row.sdk_reference.get("execution_config_digest") is not None:
+                from .credentials import runtime_origin
+                runtime_origin(self, db, owner_id, origin.id)
+                if execution_context is not None:
+                    self._authorize_generation(db, execution_context)
+                    self._message_tool_origin(db, execution_context)
+                    current, _, _ = runtime_origin(self, db, owner_id, execution_context.get("request_id"))
+                    frozen_digest = row.sdk_reference["execution_config_digest"]
+                    if (current.causal_chain_id != origin.causal_chain_id
+                            or current.target_twin_id != row.sdk_reference.get("target_twin_id")
+                            or digest(current.execution_config) != frozen_digest
+                            or digest(execution_context.get("execution_config")) != frozen_digest):
+                        fail(403, "Approved execution does not match the original owner configuration")
             return {**self.approval_json(row), "sdk_reference": row.sdk_reference}
 
     def accept_approval_decision(self, approval_id, decision):
@@ -2857,12 +2877,13 @@ class ProductService:
             if not self.provenance_allowed(db, member, row.source_provenance):
                 return
             key = decision["decision_id"]
-            request = self.accept_request(db, chat, origin.target_twin_id, row.approver_id,
+            request = self.accept_request(db, chat, origin.target_twin_id, origin.requester_id,
                 "approval_result", key, source_message_id=origin.source_message_id,
-                intent_key=key, causal_chain_id=origin.causal_chain_id,
+                intent_key=key, causal_chain_id=origin.causal_chain_id, source_owner_id=origin.source_owner_id,
                 input_body=f"Owner decision for approval {row.id}: {row.status}. "
                 "If approved, use execute_approved_action with that ID to perform the frozen action. "
                 "If rejected, do not execute it. Report the actual tool result; consent is not execution.")
+            request.execution_config = origin.execution_config
             row.continuation_request_id = request.id
             db.add(ContextManifest(request_id=request.id, owner_id=row.approver_id,
                 grant_version=member.grant_version, high_water_seq=chat.next_message_seq - 1,

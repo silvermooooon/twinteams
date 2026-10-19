@@ -34,6 +34,7 @@ export const en = {
   "reactions.category.symbols": "Symbols",
   "reactions.category.flags": "Flags",
 
+  'chat.messageTable': 'Message table', 'chat.messageImage': 'Image',
   'chat.sending': 'Sending…', 'chat.sendFailed': 'Failed', 'chat.sendUnconfirmed': 'Not confirmed', 'chat.preparingReply': 'Preparing reply…', 'chat.retrySend': 'Retry send', 'chat.localOriginal': 'Your original input · Only visible to you until your Twin replies', 'chat.persistedHint': 'Saved on the server. This does not mean delivered or read.',
   'chat.rename': 'Rename group', 'chat.groupName': 'Group name',
   ...twinEn,

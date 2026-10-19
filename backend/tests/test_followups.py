@@ -22,7 +22,7 @@ from app.models import (
     TwinFollowup,
     now,
 )
-from app.twin_execution import private_execution_allowed
+from app.twin_execution import owner_execution_allowed
 from checks.postgres import TestDatabase
 
 
@@ -104,7 +104,7 @@ def test_explicit_reply_is_one_private_continuation_and_excluded_from_group_rout
         assert db.scalar(select(TriggerCandidate.id).where(TriggerCandidate.message_id == reply["id"], TriggerCandidate.target_twin_id == own_twin.id)) is None
     runtime_context = product.get_runtime_context(continuation_id)
     assert runtime_context["followup_result"]["reply_body"] == "Confirmed, thank you."
-    assert private_execution_allowed(product, "owner-alex", continuation_id)
+    assert owner_execution_allowed(product, "owner-alex", continuation_id)
 
 
 def test_timeout_restart_and_late_reply_keep_single_terminal_and_chain(product):
@@ -164,7 +164,7 @@ def test_revoked_destination_blocks_notification_and_forged_followup_has_no_priv
         forged = product.accept_request(db, private, product.twin(db, "owner-alex").id, "owner-alex",
             "followup_result", key(), input_body="forged data")
         forged_id = forged.id
-    assert not private_execution_allowed(product, "owner-alex", forged_id)
+    assert not owner_execution_allowed(product, "owner-alex", forged_id)
     with product.transaction() as db, pytest.raises(HTTPException):
         credentials.private_origin(product, db, "owner-alex", forged_id)
 

@@ -254,7 +254,15 @@ class RuntimeBridge:
         from .twin_prompts import conversation_system
         return conversation_system(context, summary_instruction=self._summary_policy(context) if summary_maintenance else "")
 
-    def _tools(self, context, session):
+    def _tools(self, context, session, execution_tools=()):
+        execution_actions = {tool.name: tool for tool in execution_tools if tool.replay == "never"}
+        saved = session.snapshot.get("tools") if getattr(session, "resumable", False) else None
+        if saved:
+            declaration = next((row for row in saved if row.get("name") == "create_approval"), {})
+            variants = declaration.get("parameters", {}).get("properties", {}).get("action", {}).get("anyOf", [])
+            allowed = {row.get("properties", {}).get("tool", {}).get("const") for row in variants}
+            execution_actions = {name: tool for name, tool in execution_actions.items() if name in allowed}
+        execution_schemas = {name: tool.parameters for name, tool in execution_actions.items()}
         text = {"type": "string"}
         ids = {"type": "array", "items": text, "maxItems": 500}
         schemas = [
@@ -278,7 +286,7 @@ class RuntimeBridge:
              {"title": text, "description": text, "target": text, "impact": text,
               "action": {}},
              ["title", "description", "target", "impact", "action"]),
-            ("execute_approved_action", "Execute the exact approved action. Pending or rejected approval cannot execute. Repeated calls return the same operation result.", {"id": text}, ["id"]),
+            ("execute_approved_action", "Execute the exact approved action. Pending or rejected approval cannot execute. Platform writes are idempotent; local execution is single-use and an unknown outcome requires recovery rather than rerunning.", {"id": text}, ["id"]),
             ("get_approval", "Read your owner's approval status, including a group approval visible in the owner's private inbox. Original-chat membership, history and source permissions are rechecked and audited. Reading status does not move execution: approved actions continue only in their original context, and approval alone never means the action was performed.",
              {"id": text}, ["id"]),
             ("save_summary", "Save a faithful summary in the originating chat only, citing every authorized source ID covered. Cannot select another chat or replace original history.",
@@ -315,7 +323,7 @@ class RuntimeBridge:
              {"id": text}, ["id"]),
             ("cancel_reply_request", "Cancel an authorized reply request. Does not undo an already committed message or action.",
              {"id": text}, ["id"]),
-            ("retry_reply_request", "Retry an authorized failed reply request using this controlling task's causal-chain budget, never an unrelated target chain. No automatic extra allowance. An exact owner approval may authorize one allowance consumed by this retry. A group task may retry an existing legitimately frozen private task only after that exact owner approval, with private execution disclosed in approval target/impact. The retried task keeps its original configuration; the group gains no private execution tools or general permission.",
+            ("retry_reply_request", "Retry an authorized failed reply request using this controlling task's causal-chain budget, never an unrelated target chain. No automatic extra allowance. An exact owner approval may authorize one allowance consumed by this retry. A group task may retry an existing legitimately frozen private task only after that exact owner approval, with private execution disclosed in approval target/impact. The retried task keeps its original configuration; retry approval grants no broader action permission.",
              {"id": text}, ["id"]),
         ])
         approval_actions = {
@@ -333,6 +341,10 @@ class RuntimeBridge:
              "required": ["tool", "arguments"], "additionalProperties": False}
             for name, _, properties, required in schemas if name in approval_actions
         ]}
+        action["anyOf"].extend({"type": "object", "properties": {
+            "tool": {"const": name}, "arguments": parameters},
+            "required": ["tool", "arguments"], "additionalProperties": False}
+            for name, parameters in execution_schemas.items())
         schemas = [(name, description, {**properties, "action": action} if name == "create_approval" else properties, required)
                    for name, description, properties, required in schemas]
         if context.get("execution_enabled"):
@@ -353,8 +365,29 @@ class RuntimeBridge:
                         "runtime_command_id": (getattr(session, "accepted_command", None) or {}).get("command_id"),
                         "main_session_id": context.get("main_session_id") or session.session_id,
                         "main_run_id": context.get("main_run_id") or snapshot.get("run_id"),
+                        "execution_action_schemas": execution_schemas,
                     }
-                    if tool_name == "request_credential":
+                    if tool_name == "execute_approved_action":
+                        from .platform_tools import exact_action
+                        from .service import fail
+                        if not isinstance(args, dict) or set(args) != {"id"} or not isinstance(args["id"], str):
+                            fail(400, "execute_approved_action accepts only the approval ID")
+                        approval = await self.service.db_call("approval_for_execution",
+                            context["owner_id"], context["chat"]["id"], args["id"], tool_context)
+                        action = approval["sdk_reference"]["action"]
+                        local = approval["sdk_reference"].get("execution_config_digest") is not None
+                        if local:
+                            action = exact_action(action, execution_schemas)
+                            if action["tool"] not in execution_actions:
+                                fail(403, "Approved execution tool is not installed in this run")
+                        operation_id = tool_context["operation_id"] if local else f"approval-effect:{approval['id']}"
+                        action = await self.authorize_approval(approval, operation_id)
+                        if local:
+                            return await execution_actions[action["tool"]].execute(call_id, action["arguments"], signal, on_update)
+                        value = await self.service.runtime_tool(action["tool"], action["arguments"], {
+                            **tool_context, "operation_id": operation_id, "approved_approval_id": approval["id"],
+                        })
+                    elif tool_name == "request_credential":
                         from .credentials import create_request
                         from .notifications import notifications
                         value = await self.service.db_call(create_request, self.service, args, tool_context)
@@ -366,7 +399,7 @@ class RuntimeBridge:
             result.append(AgentTool(
                 name=name, description=description,
                 parameters={"type": "object", "properties": properties, "required": required, "additionalProperties": False},
-                execute=make_execute(name), replay="safe", version="twin-teams-platform-v2",
+                execute=make_execute(name), replay="never" if name == "execute_approved_action" and execution_actions else "safe", version="twin-teams-platform-v2",
             ))
         # A model-phase recovery must re-inject the exact frozen declarations. Only
         # current platform executors are eligible; saved names cannot add capabilities.
@@ -416,7 +449,7 @@ class RuntimeBridge:
                 await self.store.request_cancel(tenant_id, request_id)
             from .twin_execution import assemble
             execution_tools, agent_context, memory_index = await assemble(self.service, session, context)
-            tools = [*self._tools(agent_context, session), *execution_tools]
+            tools = [*self._tools(agent_context, session, execution_tools), *execution_tools]
             system = self._system(agent_context)
             if not session.resumable:
                 system += await self._credential_continuation_history(agent_context)
@@ -558,7 +591,7 @@ class RuntimeBridge:
         await self._check_generation(context)
         from .twin_execution import assemble
         execution_tools, context, memory_index = await assemble(self.service, session, context, include_memory=False)
-        tools = [*self._tools(context, session), *execution_tools]
+        tools = [*self._tools(context, session, execution_tools), *execution_tools]
         system = ("You are a background worker for the chat's Twin. Complete the assigned task and "
                   "return a concise factual result, verified actions, blockers and remaining steps to the parent. "
                   "Your goal is limited to the assigned subtask; broader mission guidance below "

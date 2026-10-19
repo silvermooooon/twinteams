@@ -39,7 +39,7 @@ from agent_runtime import AbortSignal, AssistantMessageEventStream, assistant_me
 
 from app import credentials, personal
 from app.runtime_bridge import ModelNotConfigured, RuntimeBridge, final_text_record, text_content
-from app.twin_execution import private_execution_allowed
+from app.twin_execution import owner_execution_allowed
 
 CALLS = []
 
@@ -88,9 +88,9 @@ class ProductStub:
     async def db_call(self, name, *args, **kwargs):
         # Explicit in-memory test adapter for production transaction boundary.
         # Keep the real assembly path while isolating all business-store calls:
-        # these group requests have no private execution, Skills or credentials.
+        # these synthetic frozen requests deliberately have execution/Skills disabled.
         # Never invoke a production callable against the application's database.
-        if name is private_execution_allowed:
+        if name is owner_execution_allowed:
             assert args[0] is self and args[2] in self.requests
             value = False
         elif name is personal.get_execution_config:
@@ -184,8 +184,8 @@ async def main():
             assert sent_context[key] == expected, (key, sent_context)
         system = runtime._system(context("request"))
         assert '"author_owner_id": "owner-b"' in system
-        assert "internal audit references" in system
-        assert "neither share the private transcript" in system
+        assert "source audit and audience restrictions" in system
+        assert "never clear sources or use another destination to bypass a denied send" in system
         print("PASS proactive tool schema, stable SDK operation identity, causal origin and source-owner prompt")
 
         async def route(mode):

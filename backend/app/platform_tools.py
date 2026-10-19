@@ -40,11 +40,20 @@ ACTION_FIELDS = {
 }
 
 
-def exact_action(action):
+def exact_action(action, execution_actions=None):
     from .service import fail
-    if not isinstance(action, dict) or set(action) != {"tool", "arguments"} or action.get("tool") not in ACTION_FIELDS:
-        fail(400, "Approval must name an installed platform write action")
+    execution_actions = execution_actions or {}
+    if not isinstance(action, dict) or set(action) != {"tool", "arguments"}:
+        fail(400, "Approval must name an installed action with exact arguments")
     args = action["arguments"]
+    if action.get("tool") in execution_actions:
+        from jsonschema import Draft202012Validator
+        if not Draft202012Validator(execution_actions[action["tool"]]).is_valid(args):
+            fail(400, "Approval arguments do not match the installed execution tool")
+        from copy import deepcopy
+        return {"tool": action["tool"], "arguments": deepcopy(args)}
+    if action.get("tool") not in ACTION_FIELDS:
+        fail(400, "Approval must name an installed action")
     required, optional = ACTION_FIELDS[action["tool"]]
     if not isinstance(args, dict) or not required.issubset(args) or set(args) - required - optional:
         fail(400, "Approval must contain exact platform action arguments")

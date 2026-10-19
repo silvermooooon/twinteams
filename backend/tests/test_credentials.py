@@ -16,7 +16,7 @@ from sqlalchemy.orm import sessionmaker
 from app import credentials
 from app import service as service_module
 from app.models import ReplyRequest
-from app.twin_execution import TwinExecutionBackend, private_execution_allowed
+from app.twin_execution import TwinExecutionBackend, owner_execution_allowed
 from checks.postgres import TestDatabase
 
 
@@ -80,7 +80,7 @@ def test_complete_is_once_and_builds_a_new_request(product):
         assert "not approve" in continuation.input_body
         assert db.scalar(select(func.count()).select_from(ReplyRequest).where(ReplyRequest.source == "credential_result")) == 1
     assert asyncio.run(credentials.owner_store("owner-alex").resolve(row["ref"])) == {"FAKE_ACCESS_TOKEN": "fake-test-one"}
-    assert private_execution_allowed(product, "owner-alex", result["continuation_request_id"])
+    assert owner_execution_allowed(product, "owner-alex", result["continuation_request_id"])
     replayed = credentials.create_request(product,
         {"name": row["ref"], "keynames": ["FAKE_ACCESS_TOKEN"], "description": "offline test", "reason": "continue test"}, context)
     assert replayed == row  # Safe replay preserves its original pending result.
@@ -122,23 +122,29 @@ def test_cancelling_origin_also_cancels_already_queued_continuation(product):
         continuation = db.get(ReplyRequest, completed["continuation_request_id"])
         assert continuation.cancel_requested and continuation.status == "cancelled"
     with pytest.raises(HTTPException):
-        private_execution_allowed(product, "owner-alex", completed["continuation_request_id"])
+        owner_execution_allowed(product, "owner-alex", completed["continuation_request_id"])
 
 
-def test_group_context_cannot_request_or_execute_credentials(product):
-    # Create an ordinary accepted group request; membership does not enable execution.
-    with product.transaction() as db:
-        from app.models import Chat
-        chat = db.get(Chat, "team-workspace")
-        if chat is None:
-            chat = db.scalar(select(Chat).where(Chat.kind == "group"))
-        target = product.twin(db, "owner-alex")
-        request = product.accept_request(db, chat, target.id, "owner-alex", "manual", key())
-        request_id = request.id
-    assert not private_execution_allowed(product, "owner-alex", request_id)
+def test_group_credential_form_belongs_to_target_owner_and_keeps_requester(product):
+    source = product.send_message("owner-maya", "group-alex-maya", "Synthetic request", key())["message"]
+    request = product.manual_request("owner-maya", "group-alex-maya", source["id"], "twin-alex", key())
+    context = product.get_runtime_context(request["id"])
+    assert owner_execution_allowed(product, "owner-alex", request["id"])
+    assert not owner_execution_allowed(product, "owner-maya", request["id"])
+    row = credentials.create_request(product, {"name": "group-test", "keynames": ["TOKEN"]},
+        {**context, "operation_id": key()})
+    assert row["id"] in [r["id"] for r in credentials.list_requests(product, "owner-alex")["requests"]]
+    assert credentials.list_requests(product, "owner-maya")["requests"] == []
     with pytest.raises(HTTPException):
-        credentials.create_request(product, {"name": "group-test", "keynames": ["TOKEN"]},
-            {"owner_id": "owner-alex", "request_id": request_id, "operation_id": key()})
+        credentials.complete(product, "owner-maya", row["id"], values={"TOKEN": "fake-wrong-owner"})
+    result = credentials.complete(product, "owner-alex", row["id"], values={"TOKEN": "fake-group-token"})
+    with product.transaction() as db:
+        continuation = db.get(ReplyRequest, result["continuation_request_id"])
+        assert continuation.chat_id == "group-alex-maya" and continuation.target_twin_id == "twin-alex"
+        assert continuation.requester_id == "owner-maya" and continuation.source_owner_id == "owner-maya"
+        assert continuation.source_message_id == source["id"]
+        assert continuation.execution_config is None  # fresh credential metadata, not action consent
+    assert owner_execution_allowed(product, "owner-alex", result["continuation_request_id"])
 
 
 def test_shell_uses_frozen_metadata_live_values_and_does_not_reuse_environment(product, tmp_path):
@@ -213,7 +219,7 @@ def test_unicode_credential_names_are_metadata(product):
     assert "fake-unicode-test" not in str(result)
 
 
-def test_assembly_freezes_catalog_child_has_no_memory_and_group_only_skills(product, tmp_path, monkeypatch):
+def test_assembly_freezes_catalog_child_has_no_memory_and_group_has_owner_tools(product, tmp_path, monkeypatch):
     from app import personal, twin_execution
     from app.models import Chat
     original_backend = twin_execution.TwinExecutionBackend
@@ -255,10 +261,10 @@ def test_assembly_freezes_catalog_child_has_no_memory_and_group_only_skills(prod
             group_id = group_request.id
         group_context = product.get_runtime_context(group_id)
         group_tools, group_config, _ = await twin_execution.assemble(product, session, group_context)
-        assert not group_config["execution_enabled"]
-        assert {tool.name for tool in group_tools} == {"load_skill", "load_skill_reference"}
+        assert group_config["execution_enabled"]
+        assert {"bash", "memory_write", "load_skill"} <= {tool.name for tool in group_tools}
         from app.runtime_bridge import RuntimeBridge
-        assert "request_credential" not in {tool.name for tool in RuntimeBridge(product)._tools(group_config, session)}
+        assert "request_credential" in {tool.name for tool in RuntimeBridge(product)._tools(group_config, session)}
     asyncio.run(run())
 
 
