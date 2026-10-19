@@ -38,3 +38,6 @@ button{transition:background-color 100ms,border-color 100ms,color 100ms}button:h
 @media(max-width:760px){.draft-attachments{max-height:180px}.draft-attachment{min-width:0;width:100%;max-width:100%}.message-image-button img{max-height:260px}.attachment-drop-overlay strong{font-size:16px}.attachment-drop-overlay span{font-size:12px}.message-attachments{min-width:140px}}
 
 .chat-header-title{display:flex;align-items:center;gap:4px;min-width:0}.chat-header-title h2{min-width:0}.chat-header-title>.icon-button{width:26px;height:26px;flex-shrink:0;color:#616161}
+
+/* Local echoes have no canonical message actions or read receipts. */
+.local-send-status{display:flex;align-items:center;gap:5px;min-height:22px;font-size:11px;line-height:18px;color:#616161;margin-top:4px}.local-send-status .text-button{font-size:11px;padding:0 5px}.local-send.failed .local-send-status{color:#a4262c}.local-input-label{display:block;color:#616161;font-size:11px;line-height:17px;margin-bottom:6px}.local-send.sending .message-bubble{opacity:.85}.local-send .message-content{min-width:0}.local-send .message-text{overflow-wrap:anywhere}

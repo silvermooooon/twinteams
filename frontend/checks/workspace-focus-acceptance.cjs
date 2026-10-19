@@ -37,6 +37,7 @@ async function scenario(kind, nonempty) {
     return route.fallback();
   });
   if(kind==='group') await page.route('**/api/bootstrap',route=>reply(route,{current_owner_id:owner.id,actors:groupMembers,chats:[{id:'private-alex',kind:'private',title:twin.name,member_owner_ids:[owner.id],unread_count:0},chat],reminders:[],model_configured:true,development_mode:true}));
+  await page.route('**/api/auth/login', route => reply(route, { owner, current_owner_id: owner.id, development_mode: true }));
   await page.goto(`${base}/#/chat`);
   if (kind === 'group') await page.locator('.conversation-list').getByText('Shared team',{exact:true}).click();
   await page.locator('.detail-sidebar').waitFor();
@@ -84,7 +85,14 @@ async function scenario(kind, nonempty) {
   const permissionChecks=[];
   for(const status of [401,403,404,409]) {
     failure=status;await hint();assert.equal(await page.locator('.detail-sidebar').count(),0,`${status} must remove old authorized detail`);assert.equal(await page.locator('.composer textarea').count(),0);
-    permissionChecks.push(status);failure=null;await hint();await page.locator('.detail-sidebar').waitFor();
+    permissionChecks.push(status);failure=null;
+    if(status===401){
+      await page.getByPlaceholder('DEV-AAA').fill('DEV-AAA');
+      await page.getByRole('button',{name:'Sign in',exact:true}).click();
+      await page.locator('.composer textarea').waitFor();
+      if(kind==='group')await page.locator('.conversation-list').getByText('Shared team',{exact:true}).click();
+    }else await hint();
+    await page.locator('.detail-sidebar').waitFor();
   }
   assert.deepEqual(errors,[]);
   assert.equal(mock.calls.filter(c=>c.path.endsWith('/messages')).length,0);

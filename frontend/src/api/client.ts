@@ -2,8 +2,8 @@ export type Actor = { id: string; kind: 'human' | 'twin'; owner_id?: string; nam
 export type Chat = { id: string; kind: 'private' | 'group'; title: string; member_owner_ids: string[]; unread_count: number; last_message?: string; can_rename?: boolean };
 export type ChatAttachment = { id: string; name: string; mime_type: string; size: number; kind: 'image' | 'unsupported'; url: string; width?: number | null; height?: number | null };
 export type MessageReaction = { emoji: string; count: number; actors: Pick<Actor, 'id' | 'owner_id' | 'name' | 'kind'>[]; mine: boolean };
-export type Message = { id: string; chat_id: string; seq: number; author_id: string; kind: 'human' | 'twin' | 'reply_for_me' | 'system'; body: string; reactions?: MessageReaction[]; reactions_revision?: number; attachments?: ChatAttachment[]; raw_owner_input?: string; created_at: string; reply_to?: { id: string; author_name: string; body: string; unavailable?: boolean }; read_by: string[]; request_id?: string; state: 'published' | 'withdrawn' };
-export type ReplyRequest = { id: string; chat_id: string; source_message_id: string | null; target_twin_id: string; requester_id: string; source: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'; accepted_at: string; error?: string; can_cancel: boolean; can_retry: boolean; session_id?: string; run_id?: string };
+export type Message = { id: string; chat_id: string; seq: number; author_id: string; kind: 'human' | 'twin' | 'reply_for_me' | 'system'; body: string; reactions?: MessageReaction[]; reactions_revision?: number; attachments?: ChatAttachment[]; raw_owner_input?: string; created_at: string; reply_to?: { id: string; author_name: string; body: string; unavailable?: boolean }; read_by: string[]; request_id?: string; state: 'published' | 'withdrawn'; client_request_key?: string };
+export type ReplyRequest = { id: string; chat_id: string; source_message_id: string | null; target_twin_id: string; requester_id: string; source: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'; accepted_at: string; error?: string; can_cancel: boolean; can_retry: boolean; session_id?: string; run_id?: string; client_request_key?: string };
 export type ChatSettings = { reply_for_me_enabled: boolean; prompt_override: string | null; sidebar_open: boolean; sidebar_tab: 'activity' | 'workspace' | 'tracking' };
 export type Approval = { id: string; chat_id: string; approver_id: string; title: string; description: string; target: string; impact: string; action?: { tool: string; arguments: Record<string, unknown> } | null; status: 'pending' | 'approved' | 'rejected'; created_at: string };
 export type Tracking = { id: string; chat_id: string; title: string; description: string; status: string; created_at: string; updated_at: string; updates?: { id: string; body: string; created_at: string }[] };
@@ -17,6 +17,8 @@ export type AutomaticContinuation = { id: string; causal_chain_id: string; spent
 export type ChatDetail = { revision: number; has_more?: boolean; before_seq?: number | null; chat: Chat; messages: Message[]; requests: ReplyRequest[]; approvals: Approval[]; tracking: Tracking[]; settings: ChatSettings; members: Actor[]; automatic_conversations?: AutomaticConversation[] };
 export type Bootstrap = { current_owner_id: string; actors: Actor[]; chats: Chat[]; reminders: Reminder[]; model_configured: boolean; development_mode: boolean; acceptance_fixture?: boolean };
 export type LiveEvent = { revision?: number; type: 'changed' | 'actor_changed' | 'personal_changed' | 'twin_changed' | 'credential_requests_changed' | 'worker_status' | 'token' | 'status' | 'operation_started' | 'output_committed'; chat_id?: string; actor_id?: string; profile_revision?: number; section?: string; area?: string; request_id?: string; text?: string; event_id?: string; operation_id?: string };
+export type SendResult = { message?: Pick<Message, 'id' | 'chat_id' | 'seq' | 'created_at' | 'state' | 'client_request_key'> | null; request?: Pick<ReplyRequest, 'id' | 'chat_id' | 'status' | 'source' | 'source_message_id' | 'accepted_at' | 'client_request_key'> | null };
+export type SendAcknowledgment = SendResult & { result?: SendResult };
 export type HistoryPolicy = 'all' | 'fixed_7d' | 'no_prior';
 
 export function requestKey() { return crypto.randomUUID(); }
@@ -26,6 +28,14 @@ export class ApiError extends Error {
 export class ApiClient {
   constructor(readonly ownerId: string = '') {}
   private socket: WebSocket | null = null;
+  onUnauthorized?: () => void;
+  onAccessLost?: () => void;
+  cancelCommands(chatId?: string) {
+    for (const [key, entry] of this.pending) {
+      if (chatId !== undefined && (entry.frame as { chat_id?: string }).chat_id !== chatId) continue;
+      clearTimeout(entry.timer); this.pending.delete(key); entry.reject(new DOMException('Send cancelled', 'AbortError'));
+    }
+  }
   private pending = new Map<string, { frame: unknown; resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   command(chatId: string | null, command: string, payload: Record<string, unknown>, commandId: string = requestKey()) {
     return new Promise<unknown>((resolve, reject) => {
@@ -39,6 +49,7 @@ export class ApiClient {
   async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const response = await fetch(`/api${path}`, { ...options, credentials: 'same-origin', headers: { ...this.headers(), ...options.headers } });
     if (!response.ok) {
+      if (response.status === 401) { this.cancelCommands(); this.onUnauthorized?.(); }
       let detail = `${response.status} ${response.statusText}`;
       let payload: unknown = null;
       try { const body = await response.json(); payload = body; detail = typeof body.detail === 'string' ? body.detail : typeof body.detail?.message === 'string' ? body.detail.message : detail; } catch { /* Preserve HTTP error. */ }
@@ -88,11 +99,11 @@ export class ApiClient {
           const pending = this.pending.get(frame.command_id);
           if (pending && (frame.type === 'ack' || frame.type === 'error')) {
             clearTimeout(pending.timer); this.pending.delete(frame.command_id);
-            if (frame.type === 'ack') pending.resolve(frame); else pending.reject(new Error(frame.detail));
+            if (frame.type === 'ack') pending.resolve(frame); else { if (frame.status === 401) { this.cancelCommands(); this.onUnauthorized?.(); } pending.reject(new ApiError(frame.detail, frame.status || 400, frame)); }
           } else if (['changed', 'actor_changed', 'personal_changed', 'twin_changed', 'credential_requests_changed', 'worker_status'].includes(frame.type)) onEvent(frame as LiveEvent);
         } catch { /* A malformed hint cannot replace canonical HTTP state. */ }
       };
-      socket.onclose = () => { signal.removeEventListener('abort', stop); onConnection(false); resolve(); };
+      socket.onclose = event => { if (event.code === 4401) { this.cancelCommands(); this.onUnauthorized?.(); } else if (event.code === 4403) { this.cancelCommands(); this.onAccessLost?.(); } signal.removeEventListener('abort', stop); onConnection(false); resolve(); };
       socket.onerror = () => socket.close();
     });
   }

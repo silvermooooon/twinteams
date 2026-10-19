@@ -131,3 +131,5 @@ For the tested local two-API/single-worker stack, use the managed launcher from 
 
 It records only its own PIDs/logs and loads the explicitly configured private
 credential sources. This local deployment convention is not full high availability.
+
+Chat sends appear immediately as sender-local bubbles. Pending sends are kept only in memory: reloading fetches canonical server state, without a durable offline outbox. A retry keeps the same submission key and payload; “Sent” confirms server persistence, not delivery or reading. Reply for me shows the owner a private “Preparing reply…” placeholder until the generated message is published. Acknowledgments confirm each bubble without awaiting bootstrap; chat refreshes coalesce behind one active read and at most one follow-up, while preserving authorization checks for already loaded history.

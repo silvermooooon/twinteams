@@ -15,6 +15,20 @@ from .service import service
 MAX_FRAME = 65536
 
 
+def send_ack_result(result):
+    """Only sender correlation metadata; never transport message or private input text."""
+    fields = {
+        'message': ('id', 'chat_id', 'seq', 'created_at', 'state', 'client_request_key'),
+        'request': ('id', 'chat_id', 'status', 'source', 'source_message_id',
+                    'accepted_at', 'client_request_key'),
+    }
+    metadata = {}
+    for name, keys in fields.items():
+        row = result.get(name)
+        metadata[name] = {key: row[key] for key in keys if key in row} if row else None
+    return metadata
+
+
 async def authenticate(socket, bearer=None):
     from .api import identity
     authorization = bearer or socket.headers.get('authorization')
@@ -182,7 +196,7 @@ class Client:
                     await authenticate(self.socket)
                 if command == 'send':
                     data = SendMessage.model_validate({**payload, 'client_request_key': command_id})
-                    await service.db_call('send_message', self.owner, chat_id, data.body, command_id, data.reply_to_message_id, data.reply_for_me, data.attachment_ids)
+                    result = await service.db_call('send_message', self.owner, chat_id, data.body, command_id, data.reply_to_message_id, data.reply_for_me, data.attachment_ids)
                 elif command == 'reply':
                     data = RequestReply.model_validate({**payload, 'client_request_key': command_id})
                     await service.db_call('manual_request', self.owner, chat_id, data.message_id, data.target_twin_id, command_id)
@@ -193,7 +207,10 @@ class Client:
                     await service.update_presence(self.owner, **data.model_dump())
                 else:
                     raise ValueError('Unknown command')
-                self.put({'v': 1, 'type': 'ack', 'command_id': command_id, 'accepted': 'presence_renewed' if command == 'presence' else 'business_persisted'})
+                ack = {'v': 1, 'type': 'ack', 'command_id': command_id, 'accepted': 'presence_renewed' if command == 'presence' else 'business_persisted'}
+                if command == 'send':
+                    ack['result'] = send_ack_result(result)
+                self.put(ack)
             except (ValueError, KeyError, ValidationError, HTTPException) as exc:
                 self.put({'v': 1, 'type': 'error', 'command_id': command_id, 'detail': str(getattr(exc, 'detail', exc)), 'status': getattr(exc, 'status_code', 400)})
 

@@ -567,8 +567,14 @@ class ProductService:
 
     def message_json(self, db, msg, member, include_attachments=True):
         result = {k: getattr(msg, k) for k in ("id", "chat_id", "seq", "author_id", "kind", "body", "raw_owner_input", "request_id", "state")}
+        if msg.command_owner_id == member.owner_id and msg.client_request_key:
+            result["client_request_key"] = msg.client_request_key
         if msg.request_id:
             audit_origin = db.get(ReplyRequest, msg.request_id)
+            if (msg.kind == "reply_for_me" and audit_origin
+                    and audit_origin.chat_id == msg.chat_id
+                    and audit_origin.requester_id == member.owner_id):
+                result["client_request_key"] = audit_origin.client_request_key
             if audit_origin and audit_origin.chat_id != msg.chat_id:
                 origin_chat = db.get(Chat, audit_origin.chat_id)
                 if origin_chat:
@@ -593,7 +599,10 @@ class ProductService:
     def request_json(self, db, request, owner_id):
         target = db.get(Actor, request.target_twin_id)
         owns = target is not None and target.owner_id == owner_id
-        return {**{k: getattr(request, k) for k in ("id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "error", "session_id", "run_id", "causal_chain_id", "source_owner_id", "automatic_reservation_id")}, "accepted_at": iso(request.accepted_at), "cancel_requested": request.cancel_requested, "can_cancel": not request.cancel_requested and ( (request.status == "queued" and (owns or request.requester_id == owner_id)) or (request.status == "running" and owns)), "can_retry": request.source != "memory_dream" and request.status == "failed" and (owns or request.requester_id == owner_id)}
+        result = {**{k: getattr(request, k) for k in ("id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "error", "session_id", "run_id", "causal_chain_id", "source_owner_id", "automatic_reservation_id")}, "accepted_at": iso(request.accepted_at), "cancel_requested": request.cancel_requested, "can_cancel": not request.cancel_requested and ( (request.status == "queued" and (owns or request.requester_id == owner_id)) or (request.status == "running" and owns)), "can_retry": request.source != "memory_dream" and request.status == "failed" and (owns or request.requester_id == owner_id)}
+        if request.requester_id == owner_id:
+            result["client_request_key"] = request.client_request_key
+        return result
 
     def chat_title(self, db, chat, viewer_id, owner_ids=None):
         if chat.kind == "private":
