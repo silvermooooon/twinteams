@@ -132,7 +132,7 @@ export function MemoryStatusCard({ status, api, onChange }: { status: MemoryStat
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [result, setResult] = useState('');
   async function runDream() {
     if (busy) return; setBusy(true); setError(''); setResult('');
-    try { const value = await twinApi(api).dream(); setResult(t(value.status === 'nothing_to_process' ? 'twin.dreamNothing' : value.status === 'already_queued' ? 'twin.dreamAlreadyQueued' : 'twin.dreamQueuedNotice')); onChange(); }
+    try { const value = await twinApi(api).dream(); setResult(t(value.status === 'nothing_to_process' ? 'twin.dreamNothing' : value.status === 'already_queued' ? 'twin.dreamAlreadyQueued' : value.status === 'scheduled' ? 'twin.dreamScheduledNotice' : 'twin.dreamQueuedNotice')); onChange(); }
     catch (failure) { setError(failure instanceof ApiError && failure.message === 'Memory publication requires reconciliation' ? t('twin.dreamNeedsReview') : failureText(failure)); onChange(); }
     finally { setBusy(false); }
   }

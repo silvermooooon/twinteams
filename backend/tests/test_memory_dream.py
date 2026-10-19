@@ -37,8 +37,10 @@ def product(monkeypatch, tmp_path):
 
 def accepted(product, source="manual", *, raw="owner fact", generation=0, intent_key=None):
     with product.transaction() as db:
-        row = product.accept_request(db, db.get(Chat, "private-alex"), "twin-alex", "owner-alex",
-            source, uuid4().hex, raw=raw, generation=generation, intent_key=intent_key)
+        chat = db.get(Chat, "private-alex")
+        message = product.append_message(db, chat, author_id="owner-alex", kind="human", body=raw or "Owner fact")
+        row = product.accept_request(db, chat, "twin-alex", "owner-alex",
+            source, uuid4().hex, source_message_id=message.id, generation=generation, intent_key=intent_key)
         return row.id
 
 
@@ -61,7 +63,7 @@ def test_incremental_due_publish_failure_cancel_and_unknown_release_lane(product
     first = completed(product)
     with product.transaction() as db:
         state = db.get(MemoryDreamState, "owner-alex")
-        cursor = state.cursor_seq
+        cursor = state.message_cursor_seq
         assert state.due_at > now() + timedelta(hours=3)
     assert "private-alex" in product.next_deadlines()
     product.process_memory_dreams()
@@ -70,13 +72,13 @@ def test_incremental_due_publish_failure_cancel_and_unknown_release_lane(product
     dream_id = due(product)
     request, context = product.get_request(dream_id), product.get_runtime_context(dream_id)
     assert request["session_id"] == "dream:" + dream_id
-    assert context["messages"] == [] and context["memory_dream"]["experiences"][0]["request_id"] == first
+    assert context["messages"] == [] and context["memory_dream"]["messages"][0]["id"] == product.get_request(first)["source_message_id"]
     product.bind_runtime_run(dream_id, request["session_id"], "real-dream-run")
     product.mark_memory_dream_recovery(dream_id, "unknown publication")
     product.fail_request(dream_id, "unknown publication")
     with product.transaction() as db:
         state = db.get(MemoryDreamState, "owner-alex")
-        assert state.cursor_seq == cursor and state.last_status == "recovery_required" and state.due_at is None
+        assert state.message_cursor_seq == cursor and state.last_status == "recovery_required" and state.due_at is None
         assert db.get(ReplyLane, ("private-alex", "twin-alex")).active_request_id is None
         assert db.get(ReplyRequest, dream_id).status == "failed"
     completed(product)  # New owner work remains admissible; cannot automatically retry unknown publication.
@@ -87,30 +89,24 @@ def test_incremental_due_publish_failure_cancel_and_unknown_release_lane(product
     product.confirm_memory_dream_publication(dream_id, "verified-commit")
     with product.transaction() as db:
         state = db.get(MemoryDreamState, "owner-alex")
-        assert state.cursor_seq == context["memory_dream"]["through_seq"] and state.last_version == "verified-commit"
+        assert state.message_cursor_seq == context["memory_dream"]["through_seq"] and state.last_version == "verified-commit"
     next_id = due(product)
-    assert product.get_runtime_context(next_id)["memory_dream"]["experiences"][0]["request_id"] != first
+    assert product.get_runtime_context(next_id)["memory_dream"]["messages"][0]["id"] != product.get_request(first)["source_message_id"]
     product._cancel_intent("owner-alex", next_id)
     with product.transaction() as db:
         state = db.get(MemoryDreamState, "owner-alex")
         assert state.queued_request_id is None and state.last_status == "cancelled"
 
 
-def test_eligibility_precedes_limit_and_successful_human_retry_is_not_lost(product):
-    first = completed(product)
-    for _ in range(55):
-        initial = accepted(product, "subagent_result")
-        product.fail_request(initial, "fixture")
-        with product.transaction() as db:
-            intent = db.get(ReplyRequest, initial).intent_key
-        completed(product, "retry", generation=1, intent_key=intent)
-    initial = accepted(product)
-    product.fail_request(initial, "fixture")
-    retry = product.retry_request("owner-alex", initial, uuid4().hex)
-    product.complete_request(retry["id"], session_id="human-retry", run_id="human-retry-run")
+def test_private_human_input_and_published_continuation_reports_need_no_completed_run(product):
+    first = accepted(product)
+    with product.transaction() as db:
+        chat = db.get(Chat, "private-alex")
+        report = product.append_message(db, chat, author_id="twin-alex", kind="twin", body="Verified continuation finding")
+        report_id = report.id
     dream_id = due(product)
-    refs = product.get_runtime_context(dream_id)["memory_dream"]["experiences"]
-    assert [ref["request_id"] for ref in refs] == [first, retry["id"]]
+    refs = product.get_runtime_context(dream_id)["memory_dream"]["messages"]
+    assert [ref["id"] for ref in refs] == [product.get_request(first)["source_message_id"], report_id]
 
 
 def test_manual_edit_invalidates_queued_attempt_and_is_next_attempt_evidence(product):
@@ -159,7 +155,7 @@ def test_process_to_real_sdk_git_runtime_publishes_and_advances_only_once(produc
                 await product.execute_request(dream_id)
                 with product.transaction() as db:
                     state = db.get(MemoryDreamState, "owner-alex")
-                    assert state.last_status == "recovery_required" and state.cursor_seq == 0 and state.due_at is None
+                    assert state.last_status == "recovery_required" and state.message_cursor_seq == 0 and state.due_at is None
                     assert db.get(ReplyRequest, dream_id).status == "failed"
                     assert db.get(ReplyLane, ("private-alex", "twin-alex")).active_request_id is None
                 next_request = product.send_message("owner-alex", "private-alex", "Continue normal owner chat", uuid4().hex)["request"]
@@ -175,7 +171,7 @@ def test_process_to_real_sdk_git_runtime_publishes_and_advances_only_once(produc
             assert result["memory_dream"]["published"] and result["body"] == ""
             with product.transaction() as db:
                 state = db.get(MemoryDreamState, "owner-alex")
-                assert state.cursor_seq == result["memory_dream"]["through_seq"]
+                assert state.message_cursor_seq == result["memory_dream"]["through_seq"]
                 assert state.last_status == "published" and state.queued_request_id is None
             assert len(calls) == 2
             product.process_memory_dreams()
@@ -191,7 +187,9 @@ def test_one_owner_manual_edit_limit_does_not_block_another_owner(product):
     with product.transaction() as db:
         for _ in range(101):
             db.add(MemoryEditAudit(owner_id="owner-alex", key=uuid4().hex, action="write", state="published"))
-        row = product.accept_request(db, db.get(Chat, "private-maya"), "twin-maya", "owner-maya",
+        chat = db.get(Chat, "private-maya")
+        product.append_message(db, chat, author_id="owner-maya", kind="human", body="Other owner's experience")
+        row = product.accept_request(db, chat, "twin-maya", "owner-maya",
             "manual", uuid4().hex, raw="Other owner's experience")
         other_id = row.id
     product.complete_request(other_id, session_id="other-source", run_id="other-run")
@@ -212,7 +210,7 @@ def test_manual_dream_now_deduplicates_and_can_use_existing_memory_with_real_aud
     assert queued["status"] == "queued"
     assert asyncio.run(product.request_memory_dream("owner-alex")) == {"status": "already_queued", "request_id": queued["request_id"]}
     payload = product.get_runtime_context(queued["request_id"])["memory_dream"]
-    assert payload["memory_only"] and payload["experiences"] == [] and payload["current_entries_sources"]
+    assert payload["memory_only"] and payload["messages"] == [] and payload["current_entries_sources"]
     source = payload["manual_request"]
     assert product.get_memory_edit_source("owner-alex", **source)["action"] == "dream"
     product.mark_memory_dream_recovery(queued["request_id"], "unknown")
@@ -221,22 +219,22 @@ def test_manual_dream_now_deduplicates_and_can_use_existing_memory_with_real_aud
         asyncio.run(product.request_memory_dream("owner-alex"))
 
 
-def test_manual_memory_dream_does_not_skip_unfinished_human_experience(product):
-    asyncio.run(personal.edit_memory("owner-alex", "MEMORY", content="Existing durable fact", expected_version=None))
+def test_manual_memory_dream_includes_published_input_and_keeps_later_output(product):
     unfinished = accepted(product)
     queued = asyncio.run(product.request_memory_dream("owner-alex"))
     context = product.get_runtime_context(queued["request_id"])["memory_dream"]
+    assert context["messages"][0]["id"] == product.get_request(unfinished)["source_message_id"]
     with product.transaction() as db:
-        assert db.get(MemoryDreamState, "owner-alex").cursor_seq < db.get(ReplyRequest, unfinished).accepted_seq
-    product.complete_request(unfinished, session_id="real-finished-source", run_id="real-finished-run")
+        report = product.append_message(db, db.get(Chat, "private-alex"), author_id="twin-alex", kind="twin", body="Later verified result")
+        report_id = report.id
     product.complete_request(queued["request_id"], session_id="dream:" + queued["request_id"], run_id="published-run",
         memory_dream={"published": True, "version": "verified-commit", "cursor_before": context["cursor_before"], "through_seq": context["through_seq"]})
     next_dream = due(product)
-    assert product.get_runtime_context(next_dream)["memory_dream"]["experiences"][0]["request_id"] == unfinished
+    assert product.get_runtime_context(next_dream)["memory_dream"]["messages"][0]["id"] == report_id
 
 
 def test_manual_dream_includes_new_completed_private_experiences_without_waiting_due(product):
     source = completed(product)
     queued = asyncio.run(product.request_memory_dream("owner-alex"))
     payload = product.get_runtime_context(queued["request_id"])["memory_dream"]
-    assert payload["experiences"][0]["request_id"] == source and not payload["memory_only"]
+    assert payload["messages"][0]["id"] == product.get_request(source)["source_message_id"] and not payload["memory_only"]

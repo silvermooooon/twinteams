@@ -92,7 +92,16 @@ async function run() {
   await recoveryPage.getByText('Private conversation and Memory reset.', { exact: true }).waitFor();
   const recoveredCall = recovery.calls.find(row => row.path === '/api/me/twin/reset' && row.method === 'POST');
   assert.deepEqual(JSON.parse(recoveredCall.body), { idempotency_key: 'pending-original-key', expected_generation: 0 });
+  // Empty bounded pages can schedule a continuation without creating a request yet.
+  const scheduledContext = await browser.newContext(); const scheduledPage = await scheduledContext.newPage(); await fixture(scheduledPage);
+  scheduledPage.on('pageerror', error => errors.push(error.message)); let scheduledCalls = 0;
+  await scheduledPage.route('**/api/me/twin/memory/dream', route => { scheduledCalls++; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ status: 'scheduled', request_id: null }) }); });
+  await scheduledPage.goto(base + '/#/my-twin/memory');
+  await scheduledPage.getByRole('button', { name: 'Dream now', exact: true }).click();
+  await scheduledPage.getByRole('status').filter({ hasText: 'Dream scheduled. More conversation history will be checked.' }).waitFor();
+  assert.equal(await scheduledPage.getByText('No new conversation experiences to process.', { exact: true }).count(), 0);
+  assert.equal(scheduledCalls, 1); await scheduledContext.close();
   assert.deepEqual(errors, []); await browser.close();
-  console.log('PASS Reset confirmation/cancel/busy/same-key retry, canonical private+Memory invalidation, Soul/group preservation, late Memory response discard, manual Dream queue, English mobile with a legacy locale preference; synthetic only.');
+  console.log('PASS Reset confirmation/cancel/busy/same-key retry, canonical private+Memory invalidation, Soul/group preservation, late Memory response discard, manual Dream queue/scheduled continuation notice, English mobile with a legacy locale preference; synthetic only.');
 }
 run().catch(async error => { console.error(error); if (page) { console.error((await page.locator('body').innerText()).slice(0, 3500)); await page.screenshot({ path: '/tmp/twinteams-reset-error.png' }).catch(() => {}); } await browser?.close(); process.exitCode = 1; });

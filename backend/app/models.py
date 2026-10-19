@@ -316,6 +316,7 @@ class MemoryDreamState(Base):
     owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), primary_key=True)
     chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), unique=True)
     cursor_seq: Mapped[int] = mapped_column(Integer, default=0)
+    message_cursor_seq: Mapped[int | None] = mapped_column(Integer)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     queued_request_id: Mapped[str | None] = mapped_column(ForeignKey("tt_reply_requests.id"))
     last_status: Mapped[str] = mapped_column(String(24), default="idle")

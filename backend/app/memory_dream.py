@@ -1,13 +1,22 @@
 """Incremental owner memory maintenance on the existing private FIFO and deadlines."""
 import json
+import os
 from datetime import timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import and_, exists, or_, select
-from sqlalchemy.orm import aliased
+from sqlalchemy import select
 
 from .config import settings
-from .models import Actor, Chat, MemoryDreamState, MemoryEditAudit, Message, ReplyRequest, now
+from .models import (
+    Actor,
+    Chat,
+    ChatAttachment,
+    MemoryDreamState,
+    MemoryEditAudit,
+    Message,
+    ReplyRequest,
+    now,
+)
 
 BATCH_SIZE = 20
 
@@ -29,25 +38,96 @@ def _experience(service, db, request):
     return bool(message and message.kind == "human" and service.message_owner(db, message) == twin.owner_id)
 
 
-def _eligible_requests(service, db, state):
-    root = aliased(ReplyRequest)
-    human = exists(select(Message.id).join(Actor, Actor.id == Message.author_id).where(
-        Message.id == ReplyRequest.source_message_id, Message.kind == "human", Actor.owner_id == state.owner_id))
-    eligible_source = or_(ReplyRequest.source.in_(["private", "reply_for_me", "manual"]),
-        and_(ReplyRequest.source == "retry", exists(select(root.id).where(root.intent_key == ReplyRequest.intent_key,
-            root.generation == 0, root.source.in_(["private", "reply_for_me", "manual"])))))
-    return select(ReplyRequest).where(ReplyRequest.chat_id == state.chat_id,
-        ReplyRequest.target_twin_id == service.twin(db, state.owner_id).id, ReplyRequest.requester_id == state.owner_id,
-        eligible_source, or_(ReplyRequest.raw_owner_input.is_not(None), human),
-        ReplyRequest.private_generation == db.get(Chat, state.chat_id).reset_generation)
+def message_namespace(chat):
+    return f"twin-chat:{chat.id}:generation:{chat.reset_generation}"
 
 
-def _batch(service, db, state):
-    candidates = db.scalars(_eligible_requests(service, db, state).where(
-        ReplyRequest.accepted_seq > state.cursor_seq, ReplyRequest.status == "completed",
-        ReplyRequest.cancel_requested.is_(False), ReplyRequest.session_id.is_not(None),
-        ReplyRequest.run_id.is_not(None)).order_by(ReplyRequest.accepted_seq).limit(BATCH_SIZE))
-    return list(candidates)
+def _message_evidence(service, db, chat, member, message):
+    if (message.chat_id != chat.id or message.state != "published"
+            or message.kind not in {"human", "twin", "reply_for_me"}
+            or not service.visible_message(db, member, message.id, False)):
+        return None
+    origin = db.get(ReplyRequest, message.request_id) if message.request_id else None
+    if message.kind == "reply_for_me" and (not origin or origin.status != "completed"):
+        return None
+    author = db.get(Actor, message.author_id)
+    attachments = [db.get(ChatAttachment, aid) for aid in message.attachment_ids or []]
+    value = {"source": {"session_id": message_namespace(chat), "event_id": message.id},
+        "role": "user" if message.kind == "human" else "assistant",
+        "id": message.id, "seq": message.seq, "kind": message.kind,
+        "author_id": message.author_id, "author_owner_id": author.owner_id if author else None,
+        "author_name": author.name if author else "Unknown", "created_at": message.created_at.isoformat(),
+        "body": message.body, "reply_to_message_id": message.reply_to_message_id,
+        "attachments": [{"id": a.id, "name": a.name, "mime_type": a.mime_type} for a in attachments
+                        if a and (not a.private_owner_input or a.owner_id == member.owner_id)]}
+    if message.raw_owner_input is not None:
+        value["raw_owner_input"] = message.raw_owner_input
+    value["full_content_hash"] = service_hash(value)
+    fields = [field for field in ("body", "raw_owner_input") if value.get(field)]
+    remaining = 90 * 1024
+    for index, field in enumerate(sorted(fields, key=lambda name: len(value[name].encode("utf-8")))):
+        original = value[field]
+        encoded_size = len(json.dumps(original, ensure_ascii=False).encode("utf-8")) - 2
+        allowance = remaining // (len(fields) - index)
+        remaining -= min(encoded_size, allowance)
+        if encoded_size > allowance or len(original) > 48000:
+            # Stay below safe_text's per-string display cap; truncation must be explicit.
+            lower, upper = 0, min(len(original), 48000)
+            while lower < upper:
+                middle = (lower + upper + 1) // 2
+                if len(json.dumps(original[:middle], ensure_ascii=False).encode("utf-8")) - 2 <= allowance:
+                    lower = middle
+                else:
+                    upper = middle - 1
+            value[field] = original[:lower]
+            value.setdefault("truncated_fields", {})[field] = {"original_bytes": len(original.encode("utf-8")),
+                "included_bytes": len(value[field].encode("utf-8"))}
+    return value
+
+
+def _message_batch(service, db, state):
+    """One indexed scan page; never step over an unconsumed mutable/oversized row."""
+    chat, member = service.membership(db, state.owner_id, state.chat_id)
+    cursor = state.message_cursor_seq or 0
+    rows = list(db.scalars(select(Message).where(Message.chat_id == chat.id, Message.seq > cursor)
+        .order_by(Message.seq).limit(100)))
+    batch, through, size = [], cursor, 0
+    for row in rows:
+        origin = db.get(ReplyRequest, row.request_id) if row.kind == "reply_for_me" and row.request_id else None
+        if row.state == "published" and origin and origin.status in {"queued", "running"}:
+            break  # The same published bubble can still change body without changing seq.
+        value = _message_evidence(service, db, chat, member, row)
+        if value is not None:
+            from .prompt_safety import safe_text
+            amount = len(safe_text(value).encode("utf-8"))
+            if batch and (len(batch) >= BATCH_SIZE or size + amount > 96 * 1024):
+                break
+            batch.append((row, value))
+            size += amount
+        through = row.seq
+    return batch, through
+
+
+def message_published(service, db, chat, message):
+    if (chat.kind != "private" or message.state != "published"
+            or message.kind not in {"human", "twin", "reply_for_me"}
+            or not (os.getenv("AGENT_MEMORY_DIR") or settings.local_identity_enabled)):
+        return
+    state = db.get(MemoryDreamState, chat.private_owner_id)
+    if state is None:
+        state = MemoryDreamState(owner_id=chat.private_owner_id, chat_id=chat.id,
+            cursor_seq=0, message_cursor_seq=0, last_status="scheduled",
+            due_at=now() + timedelta(seconds=settings.memory_dream_interval_seconds))
+        db.add(state)
+    elif (not state.queued_request_id and state.last_status != "recovery_required"
+            and state.due_at is None and message.seq > (state.message_cursor_seq or 0)):
+        state.due_at, state.last_status = now() + timedelta(seconds=settings.memory_dream_interval_seconds), "scheduled"
+
+
+def _message_payload(batch, through, state):
+    return {"scope": "private_messages", "owner_id": state.owner_id,
+        "cursor_before": state.message_cursor_seq or 0, "through_seq": through,
+        "messages": [{"id": row.id, "seq": row.seq, "hash": service_hash(value)} for row, value in batch]}
 
 
 def _manual_edits(db, owner_id, since):
@@ -61,19 +141,14 @@ def _manual_edits(db, owner_id, since):
 
 
 def experience_completed(service, db, request):
+    # Completion stabilizes mutable reply-for-me projections. Other private messages
+    # already schedule at publication, including proactive reports without a user turn.
     chat = db.get(Chat, request.chat_id)
-    if chat.kind != "private" or not _experience(service, db, request):
-        return
-    owner_id = db.get(Actor, request.target_twin_id).owner_id
-    state = db.get(MemoryDreamState, owner_id)
-    if state is None:
-        # Activation starts at this newly completed experience, not all prior history.
-        state = MemoryDreamState(owner_id=owner_id, chat_id=chat.id,
-            cursor_seq=request.accepted_seq - 1, last_status="scheduled",
-            due_at=now() + timedelta(seconds=settings.memory_dream_interval_seconds))
-        db.add(state)
-    elif request.accepted_seq > state.cursor_seq and not state.queued_request_id and state.due_at is None:
-        state.due_at, state.last_status = now() + timedelta(seconds=settings.memory_dream_interval_seconds), "scheduled"
+    if chat.kind == "private":
+        message = db.scalar(select(Message).where(Message.chat_id == chat.id, Message.request_id == request.id)
+                            .order_by(Message.seq.desc()).limit(1))
+        if message:
+            message_published(service, db, chat, message)
 
 
 def context(service, db, request):
@@ -84,9 +159,20 @@ def context(service, db, request):
             or not state or state.queued_request_id != request.id):
         raise HTTPException(403, "Memory dream has no matching owner scheduling intent")
     payload = json.loads(request.input_body)
-    if payload["owner_id"] != owner_id or payload["cursor_before"] != state.cursor_seq:
+    message_scope = payload.get("scope") == "private_messages"
+    cursor = (state.message_cursor_seq or 0) if message_scope else state.cursor_seq
+    if payload["owner_id"] != owner_id or payload["cursor_before"] != cursor:
         raise HTTPException(409, "Memory dream cursor changed")
-    for reference in payload["experiences"]:
+    evidence = []
+    if message_scope:
+        for reference in payload["messages"]:
+            message = db.get(Message, reference["id"])
+            value = _message_evidence(service, db, chat, member, message) if message else None
+            if (not value or message.seq != reference["seq"] or service_hash(value) != reference["hash"]
+                    or not cursor < message.seq <= payload["through_seq"]):
+                raise HTTPException(409, "Private message evidence is no longer authorized or changed")
+            evidence.append(value)
+    for reference in payload.get("experiences", []):
         origin = db.get(ReplyRequest, reference["request_id"])
         if (not origin or origin.chat_id != chat.id or origin.status != "completed" or origin.cancel_requested
                 or origin.session_id != reference["session_id"] or origin.run_id != reference["run_id"]
@@ -100,7 +186,8 @@ def context(service, db, request):
     if manual and (not audit or audit.owner_id != owner_id or audit.action != "dream" or audit.state != "published"
             or audit.private_generation != chat.reset_generation or manual.get("session_id") != f"twin-config:{owner_id}"):
         raise HTTPException(409, "Manual memory dream has no matching owner request")
-    times = [db.get(ReplyRequest, reference["request_id"]).accepted_at for reference in payload["experiences"]]
+    times = ([db.get(Message, reference["id"]).created_at for reference in payload["messages"]] if message_scope else
+             [db.get(ReplyRequest, reference["request_id"]).accepted_at for reference in payload["experiences"]])
     if not times and not audit:
         raise HTTPException(409, "Memory dream has no authorized sources")
     since = min(times) if times else audit.created_at
@@ -109,7 +196,8 @@ def context(service, db, request):
     return {"owner_id": owner_id, "tenant_id": settings.tenant_id, "chat": {"id": chat.id, "kind": "private"},
         "chat_id": chat.id, "request_id": request.id, "origin_request_id": request.id,
         "target_twin_id": request.target_twin_id, "requester_id": owner_id,
-        "private_generation": request.private_generation, "memory_dream": payload, "messages": [], "summary": None}
+        "private_generation": request.private_generation, "memory_dream": payload,
+        "memory_dream_evidence": evidence, "messages": [], "summary": None}
 
 
 def process(service, scopes=None):
@@ -132,24 +220,25 @@ def process(service, scopes=None):
             if make_memory_store(SessionInfo("dream-check", settings.tenant_id, owner_id)) is None:
                 state.due_at, state.last_status = None, "disabled"
                 continue
-            batch = _batch(service, db, state)
+            batch, through = _message_batch(service, db, state)
             if not batch:
-                state.due_at, state.last_status = None, "idle"
+                # Skipping only unavailable/non-evidence rows needs no model or Git publication.
+                state.message_cursor_seq = through
+                more = through < chat.next_message_seq - 1
+                state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds) if more else None
+                state.last_status = "scheduled" if more else "idle"
                 continue
             try:
-                edits = _manual_edits(db, owner_id, min(row.accepted_at for row in batch))
+                edits = _manual_edits(db, owner_id, min(row.created_at for row, _ in batch))
             except HTTPException as exc:
                 state.last_status, state.last_error = "failed", str(exc.detail)[:1000]
                 state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds)
                 continue
-            payload = {"owner_id": owner_id, "cursor_before": state.cursor_seq,
-                "through_seq": batch[-1].accepted_seq,
-                "manual_edits": edits,
-                "experiences": [{"request_id": row.id, "session_id": row.session_id, "run_id": row.run_id} for row in batch]}
+            payload = {**_message_payload(batch, through, state), "manual_edits": edits}
             key = "memory-dream:" + service_hash({**payload, "attempt": now().isoformat()})
             request = service.accept_request(db, chat, service.twin(db, owner_id).id, owner_id,
                 "memory_dream", key, intent_key=key, input_body=json.dumps(payload),
-                causal_chain_id=batch[-1].causal_chain_id, source_owner_id=owner_id)
+                causal_chain_id=batch[-1][0].causal_chain_id, source_owner_id=owner_id)
             request.session_id = "dream:" + request.id
             state.queued_request_id, state.due_at, state.last_status = request.id, None, "queued"
 
@@ -165,14 +254,21 @@ def finish(service, db, request, status, result=None, error=None):
         return
     payload = json.loads(request.input_body)
     if status == "completed":
+        message_scope = payload.get("scope") == "private_messages"
+        cursor = (state.message_cursor_seq or 0) if message_scope else state.cursor_seq
         if (not result or result.get("published") is not True or not result.get("version")
-                or result.get("cursor_before") != state.cursor_seq
+                or result.get("cursor_before") != cursor
                 or result.get("through_seq") != payload["through_seq"]):
             raise HTTPException(409, "Memory dream has no confirmed publication")
-        state.cursor_seq, state.last_version = payload["through_seq"], result["version"]
+        if message_scope:
+            state.message_cursor_seq = payload["through_seq"]
+        else:
+            state.cursor_seq = payload["through_seq"]
+        state.last_version = result["version"]
         state.last_success_at, state.last_status, state.last_error = now(), "published", None
         state.queued_request_id = None
-        state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds) if _batch(service, db, state) else None
+        state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds) if (
+            not message_scope or (state.message_cursor_seq or 0) < db.get(Chat, state.chat_id).next_message_seq - 1) else None
     elif state.last_status != "recovery_required":
         state.queued_request_id, state.last_status = None, status
         state.last_error = (error or "Memory dream did not publish")[:1000]
@@ -204,7 +300,6 @@ def confirm(service, request_id, version):
 
 def manual_request(service, owner_id, entries, generation):
     """An explicit owner action; deduplicate against the existing private FIFO intent."""
-    from .models import ReplyLane
     with service.transaction() as db:
         chat = db.scalar(select(Chat).where(Chat.private_owner_id == owner_id).with_for_update())
         if chat.reset_pending or chat.reset_generation != generation:
@@ -215,27 +310,23 @@ def manual_request(service, owner_id, entries, generation):
         if state and state.queued_request_id:
             return {"status": "already_queued", "request_id": state.queued_request_id}
         if state is None:
-            lane = db.get(ReplyLane, (chat.id, service.twin(db, owner_id).id))
             state = MemoryDreamState(owner_id=owner_id, chat_id=chat.id,
-                cursor_seq=lane.next_accept_seq - 1 if lane else 0, last_status="idle")
-            pending = db.scalar(_eligible_requests(service, db, state).where(
-                ReplyRequest.status.in_(["queued", "running"]), ReplyRequest.cancel_requested.is_(False))
-                .order_by(ReplyRequest.accepted_seq).limit(1))
-            if pending:
-                state.cursor_seq = min(state.cursor_seq, pending.accepted_seq - 1)
+                cursor_seq=0, message_cursor_seq=0, last_status="idle")
             db.add(state)
             db.flush()
-        batch = _batch(service, db, state)
+        batch, through = _message_batch(service, db, state)
         if not batch and not entries:
-            return {"status": "nothing_to_process", "request_id": None}
+            state.message_cursor_seq = through
+            more = through < chat.next_message_seq - 1
+            state.due_at = now() if more else None
+            state.last_status = "scheduled" if more else "idle"
+            return {"status": "scheduled" if more else "nothing_to_process", "request_id": None}
         audit = MemoryEditAudit(owner_id=owner_id, private_generation=chat.reset_generation,
             action="dream", key="[dream]", content="Owner requested immediate consolidation of existing Memory and any new authorized experiences.", state="published")
         db.add(audit)
         db.flush()
-        since = min(row.accepted_at for row in batch) if batch else audit.created_at
-        payload = {"owner_id": owner_id, "cursor_before": state.cursor_seq,
-            "through_seq": batch[-1].accepted_seq if batch else state.cursor_seq,
-            "experiences": [{"request_id": row.id, "session_id": row.session_id, "run_id": row.run_id} for row in batch],
+        since = min(row.created_at for row, _ in batch) if batch else audit.created_at
+        payload = {**_message_payload(batch, through, state),
             "memory_only": not bool(batch),
             "manual_request": {"session_id": f"twin-config:{owner_id}", "event_id": audit.id},
             "current_entries_sources": list({(source["session_id"], source["event_id"]): source
@@ -244,7 +335,7 @@ def manual_request(service, owner_id, entries, generation):
         key = "manual-memory-dream:" + audit.id
         request = service.accept_request(db, chat, service.twin(db, owner_id).id, owner_id,
             "memory_dream", key, intent_key=key, input_body=json.dumps(payload), source_owner_id=owner_id,
-            causal_chain_id=batch[-1].causal_chain_id if batch else None)
+            causal_chain_id=batch[-1][0].causal_chain_id if batch else None)
         request.session_id = "dream:" + request.id
         state.queued_request_id, state.due_at, state.last_status = request.id, None, "queued"
         return {"status": "queued", "request_id": request.id}

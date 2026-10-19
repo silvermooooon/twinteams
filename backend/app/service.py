@@ -947,6 +947,8 @@ class ProductService:
         chat.next_message_seq += 1
         db.add(msg)
         db.flush()
+        from .memory_dream import message_published
+        message_published(self, db, chat, msg)
         if consume_followup:
             from .followups import consume_reply
             consume_reply(self, db, msg)

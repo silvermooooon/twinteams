@@ -865,13 +865,16 @@ def test_exact_owner_approval_private_retry_grants_one_atomically_and_respects_r
                         )
                         == 1
                     )
+                with product.transaction() as db:
+                    state = db.get(MemoryDreamState, "owner-alex")
+                    before_dream = (state.message_cursor_seq, state.due_at, state.queued_request_id)
                 product.complete_request(
                     result["id"], session_id="offline-retry-audit", run_id="offline-retry-audit-run"
                 )
                 with product.transaction() as db:
                     state = db.get(MemoryDreamState, "owner-alex")
-                    assert state is None or state.due_at is None, (
-                        "An automatic retry is not a new human Memory experience"
+                    assert (state.message_cursor_seq, state.due_at, state.queued_request_id) == before_dream, (
+                        "Completing a retry without a new published message adds no Dream evidence"
                     )
         finally:
             await runtime.close()

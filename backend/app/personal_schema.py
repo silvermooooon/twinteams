@@ -30,6 +30,8 @@ def upgrade_personal_schema(engine):
         for table, columns in PERSONAL_COLUMNS.items():
             for name, declaration in columns.items():
                 connection.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {declaration}"))
+        from .dream_scope_schema import upgrade
+        upgrade(connection)
         chat_columns = {column["name"] for column in inspect(connection).get_columns("tt_chats")}
         if "kind" in chat_columns:
             connection.execute(text("UPDATE tt_reply_requests r SET private_generation=0 FROM tt_chats c WHERE r.chat_id=c.id AND c.kind='private' AND r.private_generation IS NULL"))

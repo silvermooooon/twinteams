@@ -174,7 +174,8 @@ def memory_status(owner_id):
     with service.transaction() as db:
         row = db.get(MemoryDreamState, owner_id)
         dream = {"status": row.last_status if row else "idle", "due_at": row.due_at.isoformat() if row and row.due_at else None,
-            "cursor_seq": row.cursor_seq if row else 0, "last_version": row.last_version if row else None,
+            "cursor_seq": row.cursor_seq if row else 0,
+            "message_cursor_seq": row.message_cursor_seq if row else None, "last_version": row.last_version if row else None,
             "last_success_at": row.last_success_at.isoformat() if row and row.last_success_at else None,
             "last_error": row.last_error if row else None}
     return {"enabled": enabled, "mode": "git" if enabled else "disabled", "dream": dream}

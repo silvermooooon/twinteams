@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS tt_memory_dream_state (
 	owner_id VARCHAR(80) NOT NULL,
 	chat_id VARCHAR(80) NOT NULL,
 	cursor_seq INTEGER NOT NULL,
+	message_cursor_seq INTEGER,
 	due_at TIMESTAMP WITH TIME ZONE,
 	queued_request_id VARCHAR(80),
 	last_status VARCHAR(24) NOT NULL,

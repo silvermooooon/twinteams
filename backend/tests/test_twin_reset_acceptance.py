@@ -181,11 +181,11 @@ def test_manual_dream_does_not_skip_an_already_queued_human_experience(product):
     product.complete_request(request["id"], session_id="completed-human-session", run_id="completed-human-run")
     with product.transaction() as db:
         state = db.get(MemoryDreamState, "owner-alex")
-        human = db.get(ReplyRequest, request["id"])
-        assert state.cursor_seq < human.accepted_seq
-    from app.memory_dream import _batch
+        assert state.message_cursor_seq == 0
+    from app.memory_dream import _message_batch
     with product.transaction() as db:
-        assert request["id"] in {row.id for row in _batch(product, db, db.get(MemoryDreamState, "owner-alex"))}
+        batch, _ = _message_batch(product, db, db.get(MemoryDreamState, "owner-alex"))
+        assert product.get_request(request["id"])["source_message_id"] in {row.id for row, _ in batch}
 
 
 def test_reset_retires_child_notification_and_queued_child_without_replaying_history(product, monkeypatch):
@@ -290,7 +290,7 @@ def test_manual_memory_only_dream_real_sdk_publishes_with_true_audit_sources(pro
         queued = await product.request_memory_dream("owner-alex")
         assert (await product.request_memory_dream("owner-alex"))["request_id"] == queued["request_id"]
         context = product.get_runtime_context(queued["request_id"])
-        assert context["memory_dream"]["memory_only"] and not context["memory_dream"]["experiences"]
+        assert context["memory_dream"]["memory_only"] and not context["memory_dream"]["messages"]
         manual = context["memory_dream"]["manual_request"]
         assert product.get_memory_edit_source("owner-alex", **manual)["action"] == "dream"
         runtime = RuntimeBridge(product)
