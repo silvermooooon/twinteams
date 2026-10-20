@@ -14,11 +14,12 @@ from test_credentials import product as product  # noqa: PLC0414
 from app import personal
 from app.models import Approval, Message, ReplyRequest
 from app.runtime_bridge import RuntimeBridge
+from checks.legacy_requests import legacy_request
 
 
 def test_group_local_approval_exact_owner_origin_single_use_and_frozen_recovery(product):
     source = product.send_message('owner-maya', 'group-alex-maya', 'Synthetic work', uuid4().hex)['message']
-    request = product.manual_request('owner-maya', 'group-alex-maya', source['id'], 'twin-alex', uuid4().hex)
+    request = legacy_request(product, 'owner-maya', 'group-alex-maya', source['id'], 'twin-alex', uuid4().hex)
     context = product.get_runtime_context(request['id'])
     config = {'version': 1, 'workspace': '/synthetic/owner-alex', 'skills': [],
               'credentials': [], 'execution_enabled': True, 'profile': {'soul': 'Synthetic owner'}}
@@ -80,7 +81,7 @@ def test_group_local_approval_exact_owner_origin_single_use_and_frozen_recovery(
             with pytest.raises(HTTPException):
                 await bad.execute('wrong-config', {'id': approval_id}, AbortSignal(), None)
             other_source = product.send_message('owner-maya', 'group-alex-maya', 'Different synthetic goal', uuid4().hex)['message']
-            other = product.manual_request('owner-maya', 'group-alex-maya', other_source['id'], 'twin-alex', uuid4().hex)
+            other = legacy_request(product, 'owner-maya', 'group-alex-maya', other_source['id'], 'twin-alex', uuid4().hex)
             personal.freeze_execution_config(other['id'], config)
             unrelated = {**product.get_runtime_context(other['id']), 'execution_config': config}
             bad = next(tool for tool in runtime._tools(unrelated, session, [execution]) if tool.name == 'execute_approved_action')

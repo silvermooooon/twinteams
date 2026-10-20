@@ -15,6 +15,7 @@ from app import service as service_module
 from app.main import app
 from app.models import Chat, Membership, Message, now
 from app.runtime_bridge import RuntimeBridge
+from checks.legacy_requests import legacy_request
 
 
 def seed_message(
@@ -28,7 +29,7 @@ def seed_message(
 
 def context_for(product, chat_id="group-team"):
     mid = seed_message(product, chat_id)
-    request = product.manual_request("owner-maya", chat_id, mid, "twin-alex", uuid4().hex)
+    request = legacy_request(product, "owner-maya", chat_id, mid, "twin-alex", uuid4().hex)
     return request, product.get_runtime_context(request["id"]), mid
 
 

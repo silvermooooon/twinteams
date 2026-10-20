@@ -64,10 +64,10 @@ export class ApiClient {
   get<T>(path: string, signal?: AbortSignal) { return this.request<T>(path, { signal }); }
   post<T>(path: string, data: unknown = {}): Promise<T> {
     const payload = data as Record<string, unknown>;
-    const match = path.match(/^\/chats\/([^/]+)\/(messages|reply-requests)$/);
+    const match = path.match(/^\/chats\/([^/]+)\/messages$/);
     const stop = path.match(/^\/reply-requests\/([^/]+)\/cancel$/);
     if (this.socket && (match || stop || path === '/presence')) {
-      const command = match ? match[2] === 'messages' ? 'send' : 'reply' : stop ? 'stop' : 'presence';
+      const command = match ? 'send' : stop ? 'stop' : 'presence';
       const body = stop ? { request_id: stop[1] } : payload;
       return this.command(match?.[1] || null, command, body, typeof payload.client_request_key === 'string' ? payload.client_request_key : requestKey()) as Promise<T>;
     }

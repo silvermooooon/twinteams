@@ -23,6 +23,7 @@ DATABASE = TestDatabase().configure()
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from app.db import engine
+from checks.legacy_requests import legacy_request
 from app.models import (Actor, AllowanceGrant, AutomaticReservation, CausalChain,
                         Message, PendingChildResult, Presence, Receipt, ReplyRequest,
                         RoutingDecision, TriggerCandidate, now)
@@ -151,9 +152,9 @@ async def main():
     assert not requests_for(s, cap_send["message_id"]) and chain_state(s, chain_id) == (6, 6)
     print("PASS child payload retained before SDK ack/recovery; accepted-run proactive send shares the exhausted chain")
 
-    # Exhausted work pauses before paying for routing. Attention facts collected
-    # while routing is paused must still suppress its eventual candidates after
-    # Continue, without changing accepted work or retained child results.
+    # Exhausted work pauses before routing. These reused direct-chat sources all
+    # precede the final human reply; that reply suppresses backfill after Continue,
+    # while earlier view/read events do not cancel already accepted work.
     attention_sources = []
     accepted_attention = []
     for mode in ("view", "read", "reply"):
@@ -221,7 +222,7 @@ async def main():
         assert not [request for request in requests_for(s, source_id) if request["target_twin_id"] == "twin-maya"]
     for request_id, expected_status in accepted_attention:
         assert s.get_request(request_id)["status"] == expected_status
-    print("PASS budget-paused view/leave without receipt, read and owner reply never backfill after Continue; accepted work and child payload survive")
+    print("PASS the later human reply prevents paused-source backfill after Continue; accepted work and child payload survive")
     before = chain_state(s, chain_id)
     s.fail_request(child_request["id"], "Offline retry")
     retry_owner = "owner-alex" if child_request["target_twin_id"] == "twin-alex" else "owner-maya"
@@ -230,7 +231,7 @@ async def main():
     assert s.get_request(retry["id"])["input_body"] == child["body"]
     fresh = s.send_message("owner-alex", pair, "An independent question", key(), reply_to=root["id"])["message"]
     assert fresh["causal_chain_id"] != chain_id
-    manual = s.manual_request("owner-alex", pair, final_id, "twin-maya", key())
+    manual = legacy_request(s, "owner-alex", pair, final_id, "twin-maya", key())
     assert manual["causal_chain_id"] == chain_id and chain_state(s, chain_id) == before
     print("PASS +6 grant CAS/stale-tab rejection/replay, resumed child, reservation-preserving retry and manual reply")
 
@@ -275,7 +276,7 @@ async def main():
     own = await s.runtime_tool("send_chat_message", {"chat_id": "private-alex", "body": "Authorized private update", "source_message_ids": []}, {**context, "operation_id": key()})
     assert own["author_id"] == "twin-alex"
     # Stop removes incomplete main projections, preserving committed tool effects.
-    stop_request = s.manual_request("owner-alex", origin, human["id"], "twin-maya", key())
+    stop_request = legacy_request(s, "owner-alex", origin, human["id"], "twin-maya", key())
     stop_context = s.get_runtime_context(stop_request["id"])
     same_chat = await s.runtime_tool("send_chat_message", {"chat_id": origin, "body": "Committed same-chat update", "source_message_ids": []}, {**stop_context, "operation_id": key()})
     cross_chat = await s.runtime_tool("send_chat_message", {"chat_id": target, "body": "Committed cross-chat update", "source_message_ids": []}, {**stop_context, "operation_id": key()})

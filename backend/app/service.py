@@ -599,7 +599,7 @@ class ProductService:
     def request_json(self, db, request, owner_id):
         target = db.get(Actor, request.target_twin_id)
         owns = target is not None and target.owner_id == owner_id
-        result = {**{k: getattr(request, k) for k in ("id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "error", "session_id", "run_id", "causal_chain_id", "source_owner_id", "automatic_reservation_id")}, "accepted_at": iso(request.accepted_at), "cancel_requested": request.cancel_requested, "can_cancel": not request.cancel_requested and ( (request.status == "queued" and (owns or request.requester_id == owner_id)) or (request.status == "running" and owns)), "can_retry": request.source != "memory_dream" and request.status == "failed" and (owns or request.requester_id == owner_id)}
+        result = {**{k: getattr(request, k) for k in ("id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "error", "session_id", "run_id", "causal_chain_id", "source_owner_id", "automatic_reservation_id")}, "accepted_at": iso(request.accepted_at), "cancel_requested": request.cancel_requested, "can_cancel": not request.cancel_requested and ( (request.status == "queued" and (owns or request.requester_id == owner_id)) or (request.status == "running" and owns)), "can_retry": request.source != "memory_dream" and request.status == "failed" and owns}
         if request.requester_id == owner_id:
             result["client_request_key"] = request.client_request_key
         return result
@@ -925,7 +925,6 @@ class ProductService:
                 for candidate in db.scalars(select(TriggerCandidate).where(TriggerCandidate.causal_chain_id == chain_id, TriggerCandidate.state == "paused")):
                     if candidate.evidence.get("pause_reason") == "budget_exhausted":
                         candidate.state = "waiting"
-                        candidate.due_at = now()
                 for pending in db.scalars(select(PendingChildResult).where(PendingChildResult.causal_chain_id == chain_id, PendingChildResult.state == "paused", PendingChildResult.pause_reason == "budget_exhausted")):
                     pending.state = "pending"
                 for followup in db.scalars(select(TwinFollowup).where(TwinFollowup.causal_chain_id == chain_id,
@@ -1081,6 +1080,9 @@ class ProductService:
     def manual_request(self, owner_id, chat_id, message_id, target_twin_id, key):
         with self.transaction() as db:
             chat, member = self.membership(db, owner_id, chat_id, True)
+            target = db.get(Actor, target_twin_id)
+            if not target or target.kind != "twin" or target.owner_id != owner_id:
+                fail(403, "You can request replies only from your own Twin")
             source = self.visible_message(db, member, message_id)
             if not self.message_has_model_input(db, source):
                 fail(400, "This message has no text or supported image to send to the model")
@@ -1171,8 +1173,6 @@ class ProductService:
                     interval.ended_at = now() + timedelta(seconds=settings.presence_ttl_seconds)
             row.focused_chat_id, row.visible = focused_chat_id, visible
             row.expires_at = now() + timedelta(seconds=settings.presence_ttl_seconds)
-            if visible and focused_chat_id:
-                self.suppress_candidates(db, owner_id, focused_chat_id, "viewed_during_wait")
             live = list(db.scalars(select(Presence).where(Presence.owner_id == owner_id, Presence.expires_at > now())))
             self._presence_cache[owner_id] = {"expires_at": max((aware(item.expires_at).timestamp() for item in live), default=0), "focused_chats": [item.focused_chat_id for item in live if item.visible and item.focused_chat_id]}
         return {"ok": True}
@@ -1184,9 +1184,16 @@ class ProductService:
                 self.visible_message(db, member, message_id)
                 if not db.get(Receipt, (message_id, owner_id)):
                     db.add(Receipt(message_id=message_id, owner_id=owner_id))
-            self.suppress_candidates(db, owner_id, chat_id, "read_during_wait", message_ids)
         self.publish_event(chat_id, {"type": "changed"})
         return {"ok": True}
+
+    def owner_has_replied(self, db, owner_id, chat_id, message):
+        human = select(Message.id).where(Message.chat_id == chat_id,
+            Message.author_id == owner_id, Message.seq > message.seq).exists()
+        composing = select(ReplyRequest.id).where(ReplyRequest.chat_id == chat_id,
+            ReplyRequest.requester_id == owner_id, ReplyRequest.source == "reply_for_me",
+            ReplyRequest.accepted_at > message.created_at).exists()
+        return db.scalar(select(or_(human, composing)))
 
     def create_candidates(self, db, chat, message, owner_ids):
         from .followups import consumed_owners
@@ -1204,9 +1211,8 @@ class ProductService:
                 continue
             online, viewing = self.presence_state(db, target_owner, chat.id)
             seen = db.get(Receipt, (message.id, target_owner)) is not None
-            replied = db.scalar(select(Message.id).where(Message.chat_id == chat.id, Message.author_id == target_owner, Message.seq > message.seq).limit(1)) is not None
-            viewed_in_window = db.scalar(select(ViewInterval.id).where(ViewInterval.owner_id == target_owner, ViewInterval.chat_id == chat.id, ViewInterval.ended_at >= message.created_at, ViewInterval.started_at <= now()).limit(1)) is not None
-            state = "suppressed" if viewing or seen or replied or viewed_in_window else "waiting"
+            replied = self.owner_has_replied(db, target_owner, chat.id, message)
+            state = "suppressed" if replied else "waiting"
             candidate = TriggerCandidate(chat_id=chat.id, message_id=message.id, target_twin_id=twin.id, causal_chain_id=chain.id, state=state, due_at=aware(message.created_at) + timedelta(seconds=settings.response_delay_seconds) if online else now(), evidence={"online": online, "viewing": viewing, "read": seen, "replied": replied, "observed_at": iso(now())})
             db.add(candidate)
             db.flush()
@@ -1347,14 +1353,16 @@ class ProductService:
                         changed.add(chat.id)
                         continue
                 message = db.get(Message, candidate.message_id)
-                online, viewing = self.presence_state(db, target.owner_id, chat.id)
+                online, _ = self.presence_state(db, target.owner_id, chat.id)
                 if online is None:
                     continue
+                deadline = aware(message.created_at) + timedelta(seconds=settings.response_delay_seconds)
+                if online and deadline > now():
+                    candidate.due_at = deadline
+                    continue
                 member = db.scalar(select(Membership).where(Membership.chat_id == chat.id, Membership.owner_id == target.owner_id, Membership.left_at.is_(None)))
-                seen = db.get(Receipt, (message.id, target.owner_id)) is not None
-                replied = db.scalar(select(Message.id).where(Message.chat_id == chat.id, Message.author_id == target.owner_id, Message.seq > message.seq).limit(1))
-                viewed_in_window = db.scalar(select(ViewInterval.id).where(ViewInterval.owner_id == target.owner_id, ViewInterval.chat_id == chat.id, ViewInterval.ended_at >= message.created_at, ViewInterval.started_at <= now()).limit(1)) is not None
-                if viewing or viewed_in_window or seen or replied or not member or not self.visible_message(db, member, message.id, False):
+                replied = self.owner_has_replied(db, target.owner_id, chat.id, message)
+                if replied or not member or not self.visible_message(db, member, message.id, False):
                     candidate.state = "suppressed"
                     candidate.evidence = {**candidate.evidence, "suppression": "eligibility_at_deadline", "observed_at": iso(now())}
                 else:
@@ -1464,8 +1472,8 @@ class ProductService:
         db.scalar(select(ReplyLane).where(ReplyLane.chat_id == old.chat_id, ReplyLane.twin_id == old.target_twin_id).with_for_update())
         db.refresh(old, with_for_update=True)
         target = db.get(Actor, old.target_twin_id)
-        if owner_id not in {old.requester_id, target.owner_id}:
-            fail(403, "Only the requester or target Twin's owner can retry")
+        if (not automatic and owner_id != target.owner_id) or (automatic and owner_id not in {old.requester_id, target.owner_id}):
+            fail(403, "Only the target Twin's owner can manually retry")
         self._check_private_request(db, old)
         if old.source == "memory_dream":
             fail(409, "Memory dreams use fresh scheduled attempts; uncertain publication requires reconciliation")

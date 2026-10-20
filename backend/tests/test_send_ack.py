@@ -12,6 +12,7 @@ from test_memory_dream import product as product  # noqa: PLC0414
 
 from app import api, websocket
 from app.models import Message, ReplyRequest
+from checks.legacy_requests import legacy_request
 
 
 @pytest.fixture
@@ -73,8 +74,8 @@ def test_http_and_get_expose_key_only_to_sender(send_clients):
     other = peer.get('/api/chats/group-alex-maya').json()
     assert next(row for row in own['messages'] if row['id'] == message['id'])['client_request_key'] == key
     assert 'client_request_key' not in next(row for row in other['messages'] if row['id'] == message['id'])
-    # A requester can ask another owner's Twin; the Twin owner must not receive the requester's key.
-    requested = product.manual_request('owner-alex', 'group-alex-maya', message['id'], 'twin-maya', uuid4().hex)
+    # An older accepted cross-owner task still keeps its original requester's key private.
+    requested = legacy_request(product, 'owner-alex', 'group-alex-maya', message['id'], 'twin-maya', uuid4().hex)
     with product.transaction() as db:
         row = db.get(ReplyRequest, requested['id'])
         assert product.request_json(db, row, 'owner-alex')['client_request_key'] == row.client_request_key

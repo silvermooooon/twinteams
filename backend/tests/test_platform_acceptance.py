@@ -21,6 +21,7 @@ from app.models import (
     now,
 )
 from app.runtime_bridge import RuntimeBridge
+from checks.legacy_requests import legacy_request
 
 
 def append(product, chat_id, owner_id, body):
@@ -34,7 +35,7 @@ def origin(product):
     source = append(
         product, "group-alex-maya", "owner-maya", "Please coordinate this task with the owner."
     )
-    request = product.manual_request(
+    request = legacy_request(product,
         "owner-maya", "group-alex-maya", source, "twin-alex", uuid4().hex
     )
     return request, product.get_runtime_context(request["id"])
@@ -351,7 +352,10 @@ def test_automatic_retries_across_old_targets_share_controller_budget(product):
         from sqlalchemy import text
 
         assert db.execute(text("SELECT count(*) FROM agent_model_usage")).scalar() == 0
-    human = product.retry_request("owner-maya", old[-1]["id"], uuid4().hex)
+    with pytest.raises(HTTPException) as denied:
+        product.retry_request("owner-maya", old[-1]["id"], uuid4().hex)
+    assert denied.value.status_code == 403
+    human = product.retry_request("owner-alex", old[-1]["id"], uuid4().hex)
     assert human["causal_chain_id"] == old[-1]["causal_chain_id"]
 
 

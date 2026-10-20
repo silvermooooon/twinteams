@@ -1,4 +1,4 @@
-# Current architecture — 2026-10-18
+# Current architecture — 2026-10-20
 
 ## Processes and state
 
@@ -32,7 +32,7 @@ Activity lists read `tt_activity_runs` with keyset pagination; details read a bo
 
 ## Presence and I/O
 
-Redis TTL renewal does not write PostgreSQL. Focus transitions and actual read receipts persist the evidence that suppresses automatic candidates. Automatic decisions save their observed presence evidence. Redis failure produces unknown presence and pauses automatic replies rather than interpreting an outage as an offline user. Presence is never action authorization.
+Redis TTL renewal does not write PostgreSQL. Focus transitions and read receipts remain presence/read evidence; neither cancels automatic candidates. A known-offline recipient can receive an immediate routed Twin reply; an online recipient gets the original message's ten-second grace period. A subsequent human message or submission to their own Reply for me suppresses unaccepted candidates, including when routing completes later. Continue adds allowance without moving that deadline or reviving handled messages. Existing accepted work is not cancelled by attention changes. Automatic decisions save their observed presence evidence. Redis failure produces unknown presence and pauses automatic replies rather than interpreting an outage as an offline user. Presence is never action authorization.
 
 Synchronous SQLAlchemy transactions execute as whole jobs in an eight-thread database pool with at most 64 admitted jobs per process. Runtime/network awaits stay on the event loop; no transaction is held over an await. PostgreSQL row/unique constraints replace the old process-wide RLock. Workspace files and private runtime memory still require persistent shared storage before deploying workers on different machines.
 

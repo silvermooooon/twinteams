@@ -13,6 +13,7 @@ from test_credentials import product as product  # noqa: PLC0414
 from app import credentials, personal, twin_execution
 from app import service as service_module
 from app.runtime_bridge import RuntimeBridge
+from checks.legacy_requests import legacy_request
 
 
 @pytest.mark.parametrize('chat_id', ['group-alex-maya', 'group-team'])
@@ -45,7 +46,7 @@ def test_other_participant_uses_target_twin_profile_skills_and_sdk_identity(
     source = product.send_message(requester, chat_id, 'Synthetic participant request', uuid4().hex)['message']
     with product.transaction() as db:
         target_twin = product.twin(db, target_owner).id
-    request = product.manual_request(requester, chat_id, source['id'], target_twin, uuid4().hex)
+    request = legacy_request(product, requester, chat_id, source['id'], target_twin, uuid4().hex)
     context = product.get_runtime_context(request['id'])
     assert context['owner_id'] == target_owner and context['requester_id'] == requester
     assert context['source_owner_id'] == requester

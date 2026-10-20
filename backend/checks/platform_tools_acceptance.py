@@ -24,12 +24,13 @@ SEED = """
 import json
 from app.service import service
 from app.models import Chat
+from checks.legacy_requests import legacy_request
 service.initialize(create_schema=True)
 with service.transaction() as db:
     service.append_message(db,db.get(Chat,'private-alex'),author_id='owner-alex',kind='human',body='PRIVATE_REFERENCE_DO_NOT_SHARE_HISTORY')
     msg=service.append_message(db,db.get(Chat,'group-alex-maya'),author_id='owner-maya',kind='human',body='Please coordinate a group task')
     mid=msg.id
-request=service.manual_request('owner-maya','group-alex-maya',mid,'twin-alex','platform-acceptance')
+request=legacy_request(service,'owner-maya','group-alex-maya',mid,'twin-alex','platform-acceptance')
 context=service.get_runtime_context(request['id'])
 context.update(runtime_session_id='isolated-group-session',runtime_run_id='isolated-group-run')
 print(json.dumps({'context':context,'request_id':request['id']}))

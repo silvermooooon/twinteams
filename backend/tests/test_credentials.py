@@ -17,6 +17,7 @@ from app import credentials
 from app import service as service_module
 from app.models import ReplyRequest
 from app.twin_execution import TwinExecutionBackend, owner_execution_allowed
+from checks.legacy_requests import legacy_request
 from checks.postgres import TestDatabase
 
 
@@ -127,7 +128,7 @@ def test_cancelling_origin_also_cancels_already_queued_continuation(product):
 
 def test_group_credential_form_belongs_to_target_owner_and_keeps_requester(product):
     source = product.send_message("owner-maya", "group-alex-maya", "Synthetic request", key())["message"]
-    request = product.manual_request("owner-maya", "group-alex-maya", source["id"], "twin-alex", key())
+    request = legacy_request(product, "owner-maya", "group-alex-maya", source["id"], "twin-alex", key())
     context = product.get_runtime_context(request["id"])
     assert owner_execution_allowed(product, "owner-alex", request["id"])
     assert not owner_execution_allowed(product, "owner-maya", request["id"])

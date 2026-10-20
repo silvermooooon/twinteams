@@ -23,13 +23,14 @@ from app.models import (
     WorkspaceNode,
 )
 from app.notifications import notifications
+from checks.legacy_requests import legacy_request
 
 
 def origin(product, chat_id="group-alex-maya", requester="owner-alex"):
     with product.transaction() as db:
         message = product.append_message(db, db.get(Chat, chat_id), author_id=requester, kind="human", body="Coordinate this task")
         message_id = message.id
-    request = product.manual_request(requester, chat_id, message_id, "twin-alex", uuid4().hex)
+    request = legacy_request(product, requester, chat_id, message_id, "twin-alex", uuid4().hex)
     context = product.get_runtime_context(request["id"])
     return request, {**context, "runtime_session_id": "offline-session", "runtime_run_id": "offline-run"}
 

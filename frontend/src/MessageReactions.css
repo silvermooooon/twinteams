@@ -63,7 +63,6 @@
 .reaction-roster { display: flex; flex-direction: column; gap: 14px; }
 .reaction-people>.fluent-emoji img { width: 36px; height: 36px; }
 
-.reaction-actions>button>span, .reaction-actions>.target-action>button>span { display: none; }
-@media(max-width:600px) { .reaction-actions .reaction-quick-button { width: 28px; } .reaction-actions.message-actions>button, .reaction-actions.message-actions>.target-action>button { min-width: 24px; padding: 4px; } }
+@media(max-width:600px) { .reaction-actions .reaction-quick-button { width: 28px; } .reaction-actions.message-actions>button { min-width: 24px; padding: 4px; } }
 
 @media (hover:none) { .message-row:hover .reaction-actions, .message-row:focus-within .reaction-actions { opacity: 0; pointer-events: none; } .message-row:focus-visible .reaction-actions, .message-row .reaction-actions:focus-within, .message-row.touch-actions .reaction-actions, .message-row .reaction-actions.picker-open { opacity: 1; pointer-events: auto; } }

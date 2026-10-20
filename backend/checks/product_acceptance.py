@@ -28,6 +28,7 @@ DATABASE = TestDatabase().configure()
 from fastapi import HTTPException
 from sqlalchemy import event, select
 from app.db import engine
+from checks.legacy_requests import legacy_request
 from app.models import Membership, Message, ReplyLane, ReplyRequest, TriggerCandidate, now
 from app.service import ProductService
 
@@ -139,7 +140,7 @@ async def main():
     expect_http(400, lambda: s.upload_workspace_file("owner-alex", files, "../escape", b"blocked"))
     print("PASS workspace scope and traversal rejection")
 
-    # Presence suppresses before acceptance; accepted requests survive later views.
+    # Read/focus does not suppress an unanswered online grace window; accepted work survives views.
     presence = s.create_chat("owner-alex", ["owner-maya"], "Presence")["id"]
     class PresenceRoutingFixture:
         configured = True
@@ -158,25 +159,33 @@ async def main():
     s.presence("owner-maya", "device-B", None, False)
     with s.transaction() as db:
         candidate = db.scalar(select(TriggerCandidate).where(TriggerCandidate.message_id == waiting["id"]))
-        assert candidate.state == "suppressed"
-        candidate.due_at = now() - timedelta(seconds=1)
+        assert candidate.state == "waiting"
+        for source_id in (watched["id"], waiting["id"]):
+            db.get(Message, source_id).created_at = now() - timedelta(seconds=11)
+            db.scalar(select(TriggerCandidate).where(TriggerCandidate.message_id == source_id)).due_at = now() - timedelta(seconds=1)
     s.process_candidates()
-    assert not s.chat_detail("owner-alex", presence)["requests"]
-    accepted = s.manual_request("owner-alex", presence, watched["id"], "twin-maya", key())
+    accepted = next(row for row in s.chat_detail("owner-alex", presence)["requests"]
+                    if row["source_message_id"] == watched["id"])
+    assert accepted["source"] == "auto"
     s.presence("owner-maya", "device-B", presence, True)
     assert s.get_request(accepted["id"])["status"] == "queued"
     await s.cancel_request("owner-maya", accepted["id"])
+    # Both unanswered messages now qualify; retire the second test-only delivery
+    # before the unrelated FIFO/admission cases below.
+    for row in s.chat_detail("owner-maya", presence)["requests"]:
+        if row["source_message_id"] == waiting["id"] and row["status"] == "queued":
+            await s.cancel_request("owner-maya", row["id"])
     s.bind_runtime(None)
-    print("PASS durable viewing suppression and accepted-request independence")
+    print("PASS online ten-second replies survive viewing and accepted work stays independent")
 
     # Requester/owner permissions, logical idempotency and same-lane FIFO.
     queue = s.create_chat("owner-alex", ["owner-maya", "owner-jordan"], "FIFO permissions")["id"]
     q1 = s.send_message("owner-alex", queue, "first", key())["message"]
     q2 = s.send_message("owner-alex", queue, "second", key())["message"]
-    r1 = s.manual_request("owner-alex", queue, q1["id"], "twin-maya", key())
-    duplicate = s.manual_request("owner-alex", queue, q1["id"], "twin-maya", key())
+    r1 = legacy_request(s, "owner-alex", queue, q1["id"], "twin-maya", key())
+    duplicate = legacy_request(s, "owner-alex", queue, q1["id"], "twin-maya", key())
     assert duplicate["id"] == r1["id"]
-    r2 = s.manual_request("owner-alex", queue, q2["id"], "twin-maya", key())
+    r2 = legacy_request(s, "owner-alex", queue, q2["id"], "twin-maya", key())
     with s.transaction() as db:
         assert db.get(ReplyRequest, r1["id"]).accepted_seq < db.get(ReplyRequest, r2["id"]).accepted_seq
     try:

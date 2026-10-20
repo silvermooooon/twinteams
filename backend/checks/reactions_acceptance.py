@@ -23,11 +23,12 @@ SEED = """
 import json
 from app.service import service
 from app.models import Chat
+from checks.legacy_requests import legacy_request
 service.initialize(create_schema=True)
 with service.transaction() as db:
     private=service.append_message(db,db.get(Chat,'private-alex'),author_id='owner-alex',kind='human',body='Private reaction target').id
     message=service.append_message(db,db.get(Chat,'group-alex-maya'),author_id='owner-maya',kind='human',body='Reaction target').id
-request=service.manual_request('owner-maya','group-alex-maya',message,'twin-alex','reaction-sdk-task')
+request=legacy_request(service,'owner-maya','group-alex-maya',message,'twin-alex','reaction-sdk-task')
 print(json.dumps({'context':service.get_runtime_context(request['id']),'message':message,'private':private}))
 """
 

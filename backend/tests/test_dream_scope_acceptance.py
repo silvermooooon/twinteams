@@ -11,6 +11,7 @@ from sqlalchemy import select, text
 from test_memory_dream import product as product  # noqa: PLC0414
 
 from app.models import Chat, MemoryDreamState, Message, ReplyRequest, now
+from checks.legacy_requests import legacy_request
 
 
 def append(product, body, *, chat_id="private-alex", author="twin-alex", **values):
@@ -40,7 +41,7 @@ def confirm(product, dream_id, payload):
 
 def test_group_report_without_owner_reply_or_successful_origin_is_dream_evidence(product):
     source = product.send_message("owner-maya", "group-alex-maya", "RAW GROUP MUST STAY OUT", uuid4().hex)["message"]
-    origin = product.manual_request("owner-maya", "group-alex-maya", source["id"], "twin-alex", uuid4().hex)
+    origin = legacy_request(product, "owner-maya", "group-alex-maya", source["id"], "twin-alex", uuid4().hex)
     context = {**product.get_runtime_context(origin["id"]), "operation_id": uuid4().hex}
     report = asyncio.run(product.runtime_tool("send_chat_message", {
         "chat_id": "private-alex", "body": "Delivered private progress from group work.",

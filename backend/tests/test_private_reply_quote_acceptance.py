@@ -11,6 +11,7 @@ from test_memory_dream import product as product  # noqa: PLC0414
 
 from app.models import Chat, ContextManifest, Message, ReplyRequest
 from app.runtime_bridge import RuntimeBridge
+from checks.legacy_requests import legacy_request
 
 
 def accepted(product, kind):
@@ -29,7 +30,7 @@ def accepted(product, kind):
                 kind="human",
                 body="Synthetic original question",
             ).id
-        request = product.manual_request(
+        request = legacy_request(product,
             "owner-maya", chat_id, message_id, "twin-alex", uuid4().hex
         )
     return request, product.get_runtime_context(request["id"]), message_id, chat_id

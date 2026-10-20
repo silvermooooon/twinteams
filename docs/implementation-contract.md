@@ -21,9 +21,9 @@ Prefix /api. JSON uses snake_case. All errors `{detail:string}`. Reads enforce o
 - GET /chats/{id} -> {chat:Chat,messages:Message[],requests:ReplyRequest[],approvals:Approval[],tracking:Tracking[],settings:ChatSettings,members:Actor[],automatic_conversations:AutomaticConversation[]}
 - POST /chats/{id}/automatic-conversations/{chain_id}/continue {client_request_key,additional_replies,expected_allowance} -> {id,causal_chain_id,spent,allowance,remaining,continuation_allowance,grant_id,already_applied}; the explicit count must match the configured increment and the exhausted allowance version must still match. Replayed intent keys return their original grant without charging again; stale independent grants are rejected rather than stacked.
 - POST /chats/{id}/messages {body,client_request_key,reply_to_message_id?:string,reply_for_me?:boolean} -> {message:Message|null,request:ReplyRequest|null}
-- POST /chats/{id}/reply-requests {message_id,target_twin_id,client_request_key} -> ReplyRequest
+- POST /chats/{id}/reply-requests {message_id,target_twin_id,client_request_key} -> ReplyRequest (legacy owner-only compatibility; another owner's Twin returns 403; no chat UI trigger)
 - POST /reply-requests/{id}/cancel -> ReplyRequest (requester or owner; running only owner)
-- POST /reply-requests/{id}/retry {client_request_key} -> ReplyRequest
+- POST /reply-requests/{id}/retry {client_request_key} -> ReplyRequest (target Twin owner only; can_retry is authoritative)
 - POST /presence {device_id,focused_chat_id:string|null,visible:boolean} -> {ok:true}
 - POST /chats/{id}/read {message_ids:string[]} -> {ok:true}
 - PATCH /chats/{id}/settings {reply_for_me_enabled?,prompt_override?,sidebar_open?,sidebar_tab?} -> ChatSettings
@@ -94,6 +94,10 @@ The separate local credential routes use sanitized fixed-code responses rather t
 
 ## Module boundaries
 Backend product worker owns app/db.py, app/models.py, app/service.py, app/api.py, app/config.py, pyproject/lock and app/main.py composition. Expose `service` object from app.service with database operations and `bind_runtime(runtime)` for run scheduling/activity; coordinate exact callbacks with Astra lead. Runtime bridge is app/runtime_bridge.py owned by Astra lead. Frontend worker owns entire frontend. Runtime SDK worker owns sibling agent-runtime.
+
+## Automatic chat reply entry
+
+The composer can submit Reply for me only to the signed-in owner's Twin. Human HTTP/WS manual requests and Retry cannot invoke another owner's Twin. Automatic group replies retain needs_response/recipient routing and the shared six-reply causal budget. A known-offline recipient qualifies immediately after routing; an online recipient qualifies when ten seconds from the source message pass without their human reply or own Reply-for-me submission. Read receipts, opening the chat and leaving it do not cancel that wait. Unknown Redis presence fails closed. Continue grants budget without bypassing the original deadline or the owner-replied check; accepted tasks, approval/credential/worker/followup continuations remain valid. A recipient who goes offline during an existing online grace window is rechecked at the existing deadline, using current TTL observations rather than a new disconnect scheduler.
 
 ## Soul and Git Memory
 
