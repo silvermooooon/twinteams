@@ -54,7 +54,7 @@ class AddMembers(Input):
 
 
 class SendMessage(Input):
-    body: str = Field(default="", max_length=30000)
+    body: str = ""
     client_request_key: str = Field(min_length=1, max_length=160)
     reply_to_message_id: str | None = None
     reply_for_me: bool = False
@@ -292,8 +292,8 @@ async def decide(approval_id: str, data: Decision, owner: OwnerIdentity):
 
 
 @router.get("/chats/{chat_id}/workspace")
-def workspace(chat_id: str, owner: OwnerIdentity):
-    return service.workspace(owner, chat_id)
+def workspace(chat_id: str, owner: OwnerIdentity, path: str = ""):
+    return service.workspace(owner, chat_id, path)
 
 
 @router.post("/chats/{chat_id}/attachments")

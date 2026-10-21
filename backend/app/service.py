@@ -7,7 +7,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 import hashlib
 import inspect
 import json
@@ -159,6 +159,8 @@ class ProductService:
             upgrade_direct_chat_schema(engine)
             from .reaction_schema import upgrade_reaction_schema
             upgrade_reaction_schema(engine)
+            from .attachments import upgrade_attachment_schema
+            upgrade_attachment_schema(engine)
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE tt_chats ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 1"))
                 connection.execute(text("ALTER TABLE tt_change_outbox ADD COLUMN IF NOT EXISTS kind VARCHAR(16) NOT NULL DEFAULT 'changed'"))
@@ -225,6 +227,9 @@ class ProductService:
         from .reaction_schema import check_reaction_schema
         check_reaction_schema(inspector)
         if not inspector.has_table("tt_change_outbox") or not inspector.has_table("tt_chat_attachments") or "revision" not in {col["name"] for col in inspector.get_columns("tt_chats")} or "attachment_ids" not in {col["name"] for col in inspector.get_columns("tt_messages")}:
+            raise RuntimeError("Run python -m app.init_db before starting API or worker")
+        if any(column["name"] == "relative_path" and getattr(column["type"], "length", None) is not None
+               for column in inspector.get_columns("tt_chat_attachments")):
             raise RuntimeError("Run python -m app.init_db before starting API or worker")
         with self.transaction() as db:
             identity = db.get(DatabaseIdentity, 1)
@@ -497,6 +502,12 @@ class ProductService:
                 if not message or message.chat_id != member.chat_id or message.seq < member.lower_seq or message.state != "published" or not self.message_sources_visible(db, member, message, seen, cache):
                     return False
             elif source.get("kind") == "workspace":
+                if str(source.get("id", "")).startswith("path:"):
+                    try:
+                        self._workspace_file_db(db, member.owner_id, member.chat_id, source["id"], allow_directory=True)
+                    except HTTPException:
+                        return False
+                    continue
                 node = db.get(WorkspaceNode, source.get("id"))
                 if not node or node.chat_id != member.chat_id or not self.workspace_node_allowed(db, member, node):
                     return False
@@ -1045,9 +1056,7 @@ class ProductService:
                 return {"message": None, "request": self.request_json(db, pending, owner_id)}
             if any(row.message_id or row.request_id for row in attachments):
                 fail(409, "An attachment is already bound to another message")
-            has_model_input = bool(body.strip() or any(row.kind == "image" for row in attachments))
-            if reply_for_me and not has_model_input:
-                fail(400, "Add text or a supported image, or turn off Reply for me to send these files")
+            has_model_input = bool(body.strip() or attachments)
             if reply_to:
                 self.visible_message(db, member, reply_to)
             self.suppress_candidates(db, owner_id, chat_id, "owner_input")
@@ -1085,7 +1094,7 @@ class ProductService:
                 fail(403, "You can request replies only from your own Twin")
             source = self.visible_message(db, member, message_id)
             if not self.message_has_model_input(db, source):
-                fail(400, "This message has no text or supported image to send to the model")
+                fail(400, "This message has no text or files to send to the model")
             request = self.accept_request(db, chat, target_twin_id, owner_id, "manual", key, source_message_id=message_id)
             result = self.request_json(db, request, owner_id)
         self.publish_event(chat_id, {"type": "changed"})
@@ -1254,9 +1263,9 @@ class ProductService:
             if chain.spent >= chain.allowance:
                 decision.status, decision.reason = "paused", "budget_exhausted"
                 return None
-            context = self.messages_json(db, [m for m in db.scalars(select(Message).where(Message.chat_id == chat.id, Message.seq >= member.lower_seq, Message.seq <= message.seq, Message.state == "published").order_by(Message.seq)) if self.message_sources_visible(db, member, m)], member, False)
+            context = self.messages_json(db, [m for m in db.scalars(select(Message).where(Message.chat_id == chat.id, Message.seq >= member.lower_seq, Message.seq <= message.seq, Message.state == "published").order_by(Message.seq)) if self.message_sources_visible(db, member, m)], member)
             payload = self.message_json(db, message, member, False)
-            payload["input_images"] = self.attachment_image_blocks(db, message.attachment_ids, member)
+            payload["attachments"] = self.attachment_references(db, message.attachment_ids, member)
             mentioned = [a.owner_id for a in db.scalars(select(Actor).where(Actor.kind == "human", Actor.owner_id.in_(owners))) if f"@{a.name}".casefold() in message.body.casefold() or f"@{a.id}" in message.body]
             decision.mentioned_owner_ids = mentioned
         return chat.id, payload, context, owners
@@ -1593,9 +1602,9 @@ class ProductService:
                 from .followups import context as followup_context
                 followup_payload = followup_context(self, db, request, twin.owner_id)
             source_message = self.visible_message(db, member, request.source_message_id) if request.source_message_id else None
-            image_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
-            input_images = self.attachment_image_blocks(db, image_ids, member, private_request=request if request.raw_owner_input is not None else None)
-            return {"private_generation": request.private_generation, "followup_result": followup_payload, "input_images": input_images, "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": self.messages_json(db, [m for m in rows if not applicable or m.seq > applicable["coverage_end_seq"]], member, False), "source_message": self.message_json(db, self.visible_message(db, member, request.source_message_id), member, False) if request.source_message_id else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": request.input_body, "request_id": request.id, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+            file_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
+            files = self.attachment_references(db, file_ids, member, private_request=request if request.raw_owner_input is not None else None)
+            return {"private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": self.messages_json(db, [m for m in rows if not applicable or m.seq > applicable["coverage_end_seq"]], member), "source_message": self.message_json(db, self.visible_message(db, member, request.source_message_id), member) if request.source_message_id else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": request.input_body, "request_id": request.id, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
 
     def bind_runtime_run(self, request_id, session_id, run_id):
         with self.transaction() as db:
@@ -2222,7 +2231,7 @@ class ProductService:
         return aware(node.created_at) >= cutoff
 
     def attachment_json(self, attachment):
-        return {key: getattr(attachment, key) for key in ("id", "name", "mime_type", "size", "kind", "width", "height")} | {"url": f"/api/chats/{attachment.chat_id}/attachments/{attachment.id}"}
+        return {key: getattr(attachment, key) for key in ("id", "name", "mime_type", "size", "kind", "width", "height")} | {"url": f"/api/chats/{attachment.chat_id}/attachments/{attachment.id}", "workspace_path": str(settings.workspace_root / attachment.relative_path)}
 
     def _attachment_path(self, attachment):
         root = settings.workspace_root
@@ -2244,11 +2253,11 @@ class ProductService:
             info = inspect_upload(name, mime_type, data)
             attachment_id = uid()
             root = settings.workspace_root
-            parent = root / chat_id / ".attachments" / attachment_id
+            parent = root / chat_id / "uploads" / attachment_id
             if any(part.is_symlink() for part in [parent, *parent.parents] if part == root or part.is_relative_to(root)) or not parent.resolve().is_relative_to(root.resolve()):
                 fail(403, "Invalid attachment root")
             parent.mkdir(parents=True, exist_ok=False)
-            path = parent / "content"
+            path = parent / name
             try:
                 with path.open("xb") as stream:
                     stream.write(data)
@@ -2289,14 +2298,13 @@ class ProductService:
         return selected
 
     def message_has_model_input(self, db, message):
-        return bool(message.body.strip() or any((row := db.get(ChatAttachment, attachment_id)) and row.kind == "image" and not row.private_owner_input for attachment_id in (message.attachment_ids or [])))
+        return bool(message.body.strip() or any((row := db.get(ChatAttachment, attachment_id)) and not row.private_owner_input for attachment_id in (message.attachment_ids or [])))
 
-    def attachment_image_blocks(self, db, attachment_ids, member, *, private_request=None):
-        import base64
-        blocks = []
+    def attachment_references(self, db, attachment_ids, member, *, private_request=None):
+        references = []
         for attachment_id in attachment_ids or []:
             attachment = db.get(ChatAttachment, attachment_id)
-            if not attachment or attachment.chat_id != member.chat_id or attachment.kind != "image":
+            if not attachment or attachment.chat_id != member.chat_id:
                 continue
             if attachment.private_owner_input:
                 if not private_request or private_request.requester_id != member.owner_id or attachment.owner_id != member.owner_id or attachment_id not in (private_request.input_attachment_ids or []):
@@ -2308,8 +2316,8 @@ class ProductService:
             data = self._attachment_path(attachment).read_bytes()
             if len(data) != attachment.size or hashlib.sha256(data).hexdigest() != attachment.sha256:
                 fail(409, "Immutable attachment content changed; reply withheld")
-            blocks.append({"type": "image", "mimeType": attachment.mime_type, "data": base64.b64encode(data).decode("ascii")})
-        return blocks
+            references.append({key: value for key, value in self.attachment_json(attachment).items() if key != "url"})
+        return references
 
     def upload_workspace_file(self, owner_id, chat_id, filename, data, source_ids=None):
         if not data or len(data) > 20 * 1024 * 1024:
@@ -2321,21 +2329,21 @@ class ProductService:
             self.check_sources(db, member, source_ids or [])
             node_id = uid()
             root = settings.workspace_root / chat_id
-            parent = root / node_id
-            if root.is_symlink() or not root.resolve().is_relative_to(settings.workspace_root):
+            parent = root / "uploads" / node_id
+            if any(part.is_symlink() for part in [parent, *parent.parents] if part.is_relative_to(settings.workspace_root)) or not parent.resolve().is_relative_to(settings.workspace_root):
                 fail(403, "Invalid workspace root")
             parent.mkdir(parents=True, exist_ok=False)
             path = parent / filename
             try:
                 with path.open("xb") as file:
                     file.write(data)
-                db.add(WorkspaceNode(id=node_id, chat_id=chat_id, relative_path=f"{node_id}/{filename}", source_message_ids=source_ids or [], granted_owner_ids=[m.owner_id for m in self.members(db, chat_id)]))
+                db.add(WorkspaceNode(id=node_id, chat_id=chat_id, relative_path=f"uploads/{node_id}/{filename}", source_message_ids=source_ids or [], granted_owner_ids=[m.owner_id for m in self.members(db, chat_id)]))
                 db.flush()
             except Exception:
                 path.unlink(missing_ok=True)
                 parent.rmdir()
                 raise
-            result = {"id": node_id, "name": filename, "kind": "file", "path": f"{node_id}/{filename}", "size": len(data)}
+            result = {"id": node_id, "name": filename, "kind": "file", "path": f"uploads/{node_id}/{filename}", "size": len(data)}
         self.publish_event(chat_id, {"type": "changed"})
         return result
 
@@ -2344,24 +2352,19 @@ class ProductService:
             return self._workspace_file_db(db, owner_id, chat_id, node_id)
 
     def _workspace_file_db(self, db, owner_id, chat_id, node_id, *, allow_directory=False):
+        if node_id.startswith("path:"):
+            import base64
+            try:
+                encoded = node_id[5:]
+                relative = base64.b64decode(encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True).decode("utf-8")
+            except (ValueError, UnicodeError):
+                fail(404, "Workspace file is unavailable")
+            return self._workspace_path_db(db, owner_id, chat_id, relative, allow_directory=allow_directory)
         _, member = self.membership(db, owner_id, chat_id)
         node = db.get(WorkspaceNode, node_id)
         if not node or node.chat_id != chat_id or not self.workspace_node_allowed(db, member, node):
             fail(404, "Workspace file is unavailable")
-        root_path = settings.workspace_root / chat_id
-        if root_path.is_symlink():
-            fail(403, "Workspace symlinks cannot be opened")
-        root = root_path.resolve()
-        relative = Path(node.relative_path)
-        if relative.is_absolute() or ".." in relative.parts:
-            fail(403, "Invalid workspace path")
-        path = root / relative
-        if any(part.is_symlink() for part in [path, *path.parents] if part.is_relative_to(settings.workspace_root)):
-            fail(403, "Workspace symlinks cannot be opened")
-        path = path.resolve()
-        if not path.is_relative_to(root) or not (path.is_file() or allow_directory and path.is_dir()):
-            fail(404, "Workspace file is unavailable")
-        return path
+        return self._workspace_path_db(db, owner_id, chat_id, node.relative_path, allow_directory=allow_directory)
 
     @property
     def database_url(self):
@@ -2390,7 +2393,7 @@ class ProductService:
                 query = query.where(Message.body.ilike(f"%{args['query']}%"))
             limit = max(1, min(int(args.get("limit", 100)), 100))
             rows = [m for m in db.scalars(query.order_by(Message.seq.desc()).limit(limit)) if self.message_sources_visible(db, member, m)]
-            return {"messages": self.messages_json(db, reversed(rows), member, False), "history_lower_seq": member.lower_seq, "next_before_seq": rows[-1].seq if len(rows) == limit else None}
+            return {"messages": self.messages_json(db, reversed(rows), member), "history_lower_seq": member.lower_seq, "next_before_seq": rows[-1].seq if len(rows) == limit else None}
         if name == "list_tracking":
             topics = [self.tracking_json(db, t, member) for t in db.scalars(select(TrackingTopic).where(TrackingTopic.chat_id == chat.id, TrackingTopic.deleted_at.is_(None)).order_by(TrackingTopic.created_at))]
             return {"tracking": [t for t in topics if t]}
@@ -2609,8 +2612,8 @@ class ProductService:
             return {"chats": chats, "owner_private_chat_id": next((row["id"] for row in chats if row["is_owner_private"]), None)}
         body = args.get("body")
         source_ids = args.get("source_message_ids", [])
-        if not isinstance(body, str) or not body.strip() or len(body) > 30000:
-            fail(400, "Twin message body must contain 1 to 30000 characters")
+        if not isinstance(body, str) or not body.strip():
+            fail(400, "Twin message body must contain text")
         if not isinstance(source_ids, list) or len(source_ids) > 500 or not all(isinstance(source_id, str) for source_id in source_ids):
             fail(400, "Twin message source_message_ids must be message IDs")
         target, target_member = self.membership(db, twin.owner_id, args.get("chat_id"), True)
@@ -2918,30 +2921,86 @@ class ProductService:
                 import logging
                 logging.getLogger(__name__).exception("Approval reconciliation failed for %s", row["id"])
 
-    def workspace(self, owner_id, chat_id):
+    def workspace(self, owner_id, chat_id, path=""):
         with self.transaction() as db:
-            return self._workspace_db(db, owner_id, chat_id)
+            return self._workspace_db(db, owner_id, chat_id, path)
 
-    def _workspace_db(self, db, owner_id, chat_id):
+    def _workspace_path_db(self, db, owner_id, chat_id, relative, *, allow_directory=False):
         _, member = self.membership(db, owner_id, chat_id)
         root_path = settings.workspace_root / chat_id
         root = root_path.resolve()
         if not root.is_relative_to(settings.workspace_root) or root_path.is_symlink():
             fail(403, "Invalid workspace root")
+        relative = Path(relative)
+        if relative.is_absolute() or ".." in relative.parts or "\\" in str(relative):
+            fail(403, "Invalid workspace path")
+        path = root / relative
+        if any(part.is_symlink() for part in [path, *path.parents] if part.is_relative_to(root)):
+            fail(403, "Workspace symlinks cannot be opened")
+        if not path.is_file() and not (allow_directory and path.is_dir()):
+            fail(404, "Workspace file is unavailable")
+        if relative.parts and not self._workspace_path_allowed(db, member, path, relative):
+            fail(404, "Workspace file is unavailable")
+        return path
+
+    def _workspace_path_allowed(self, db, member, path, relative, *, nodes=None, attachments=None):
+        nodes = list(db.scalars(select(WorkspaceNode).where(WorkspaceNode.chat_id == member.chat_id))) if nodes is None else nodes
+        attachments = list(db.scalars(select(ChatAttachment).where(ChatAttachment.chat_id == member.chat_id))) if attachments is None else attachments
+        ancestors = [node for node in nodes if relative.is_relative_to(Path(node.relative_path))]
+        if any(not self.workspace_node_allowed(db, member, node) for node in ancestors):
+            return False
+        matched_attachment = False
+        for attachment in attachments:
+            attached_path = Path(attachment.relative_path)
+            if not attached_path.is_relative_to(member.chat_id):
+                continue
+            attached_path = attached_path.relative_to(member.chat_id)
+            if attached_path != relative and not (path.is_dir() and attached_path.is_relative_to(relative)):
+                continue
+            matched_attachment = True
+            if attachment.private_owner_input and attachment.owner_id != member.owner_id:
+                continue
+            if attachment.message_id:
+                if not self.visible_message(db, member, attachment.message_id, False):
+                    continue
+            elif attachment.owner_id != member.owner_id:
+                continue
+            return True
+        if matched_attachment and path.is_file():
+            return False
+        if ancestors:
+            return True
+        known_descendants = [node for node in nodes if Path(node.relative_path).is_relative_to(relative)] if path.is_dir() else []
+        if any(self.workspace_node_allowed(db, member, node) for node in known_descendants):
+            return True
+        if relative.parts[0] in {"uploads", ".attachments"} or any(part.startswith(".") for part in relative.parts):
+            return False
+        created = getattr(path.stat(), "st_birthtime", None)
+        discovered = WorkspaceNode(source_message_ids=[], granted_owner_ids=[], shared_with_chat=True,
+            created_at=datetime.fromtimestamp(created, UTC) if created is not None else None)
+        return self.workspace_node_allowed(db, member, discovered)
+
+    def _workspace_db(self, db, owner_id, chat_id, relative=""):
+        import base64
+        _, member = self.membership(db, owner_id, chat_id)
+        root = settings.workspace_root / chat_id
+        root.mkdir(parents=True, exist_ok=True)
+        parent = self._workspace_path_db(db, owner_id, chat_id, relative, allow_directory=True)
+        if not parent.is_dir():
+            fail(400, "Workspace path must be a directory")
+        nodes = list(db.scalars(select(WorkspaceNode).where(WorkspaceNode.chat_id == chat_id)))
+        attachments = list(db.scalars(select(ChatAttachment).where(ChatAttachment.chat_id == chat_id)))
         entries = []
-        for node in db.scalars(select(WorkspaceNode).where(WorkspaceNode.chat_id == chat_id)):
-            if not self.workspace_node_allowed(db, member, node):
+        for path in sorted(parent.iterdir(), key=lambda item: (not item.is_dir(), item.name.casefold())):
+            local = path.relative_to(root)
+            if path.is_symlink() or not (path.is_file() or path.is_dir()):
                 continue
-            relative = Path(node.relative_path)
-            if relative.is_absolute() or ".." in relative.parts:
+            if not self._workspace_path_allowed(db, member, path, local, nodes=nodes, attachments=attachments):
                 continue
-            path = root / relative
-            if any(part.is_symlink() for part in [path, *path.parents] if part.is_relative_to(root)):
-                continue
-            resolved = path.resolve()
-            if not resolved.is_relative_to(root) or not resolved.exists():
-                continue
-            entries.append({"id": node.id, "name": resolved.name, "kind": "folder" if resolved.is_dir() else "file", "path": node.relative_path, "size": None if resolved.is_dir() else resolved.stat().st_size})
+            node = next((node for node in nodes if Path(node.relative_path) == local), None)
+            identifier = node.id if node else "path:" + base64.urlsafe_b64encode(str(local).encode()).decode().rstrip("=")
+            entries.append({"id": identifier, "name": path.name, "kind": "folder" if path.is_dir() else "file",
+                            "path": str(local), "workspace_path": str(path), "size": None if path.is_dir() else path.stat().st_size})
         return entries
 
     def record_activity(self, chat_id, owner_id, session_id, run_id, values):

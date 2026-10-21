@@ -1,6 +1,6 @@
 export type Actor = { id: string; kind: 'human' | 'twin'; owner_id?: string; name: string; initials: string; color: string; avatar_url?: string | null; avatar_preset?: string | null; profile_revision?: number };
 export type Chat = { id: string; kind: 'private' | 'group'; title: string; member_owner_ids: string[]; unread_count: number; last_message?: string; can_rename?: boolean };
-export type ChatAttachment = { id: string; name: string; mime_type: string; size: number; kind: 'image' | 'unsupported'; url: string; width?: number | null; height?: number | null };
+export type ChatAttachment = { id: string; name: string; mime_type: string; size: number; kind: 'image' | 'file' | 'unsupported'; url: string; workspace_path?: string; width?: number | null; height?: number | null };
 export type MessageReaction = { emoji: string; count: number; actors: Pick<Actor, 'id' | 'owner_id' | 'name' | 'kind'>[]; mine: boolean };
 export type Message = { id: string; chat_id: string; seq: number; author_id: string; kind: 'human' | 'twin' | 'reply_for_me' | 'system'; body: string; reactions?: MessageReaction[]; reactions_revision?: number; attachments?: ChatAttachment[]; raw_owner_input?: string; created_at: string; reply_to?: { id: string; author_name: string; body: string; unavailable?: boolean }; read_by: string[]; request_id?: string; state: 'published' | 'withdrawn'; client_request_key?: string };
 export type ReplyRequest = { id: string; chat_id: string; source_message_id: string | null; target_twin_id: string; requester_id: string; source: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'; accepted_at: string; error?: string; cancel_requested?: boolean; can_cancel: boolean; can_retry: boolean; session_id?: string; run_id?: string; client_request_key?: string };
@@ -69,7 +69,10 @@ export class ApiClient {
     if (this.socket && (match || stop || path === '/presence')) {
       const command = match ? 'send' : stop ? 'stop' : 'presence';
       const body = stop ? { request_id: stop[1] } : payload;
-      return this.command(match?.[1] || null, command, body, typeof payload.client_request_key === 'string' ? payload.client_request_key : requestKey()) as Promise<T>;
+      const key = typeof payload.client_request_key === 'string' ? payload.client_request_key : requestKey();
+      // Long messages use the existing HTTP send without splitting or changing their identity.
+      const frame = { v: 1, type: 'command', command_id: key, chat_id: match?.[1] || null, command, payload: body };
+      if (!match || new TextEncoder().encode(JSON.stringify(frame)).byteLength <= 65536) return this.command(match?.[1] || null, command, body, key) as Promise<T>;
     }
     return this.request<T>(path, { method: 'POST', body: JSON.stringify(data) });
   }

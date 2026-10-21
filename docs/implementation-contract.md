@@ -32,7 +32,7 @@ Prefix /api. JSON uses snake_case. All errors `{detail:string}`. Reads enforce o
 - GET /chats/{id}/activity -> ActivityRun[] (private own chat only)
 - GET /chats/{id}/activity/{session_id}/{run_id} -> {run:ActivityRun,events:ActivityEvent[]}
 - POST /approvals/{id}/decision {decision:'approved'|'rejected'} -> Approval
-- GET /chats/{id}/workspace -> WorkspaceEntry[]
+- GET /chats/{id}/workspace?path=<relative-directory> -> WorkspaceEntry[] (direct children)
 - GET /chats/{id}/tracking/{id} -> Tracking with updates
 - POST /chats/{id}/tracking {title,description,source_message_ids?:string[]} -> Tracking
 - PATCH /chats/{id}/tracking/{id} {title?,description?,status?} -> Tracking
@@ -55,7 +55,7 @@ Tracking {id,chat_id,title,description,status,created_at,updated_at,updates?:{id
 Reminder {id,title,detail,due_at:string|null,done:boolean,chat_id?:string,kind?:string}
 ActivityRun {session_id,run_id,parent_run_id?:string,source,status,started_at,finished_at?:string,title,summary?:string}
 ActivityEvent {id,seq,type,time,label,input?:string,output?:string,status?:string}
-WorkspaceEntry {id,name,kind:'file'|'folder',path,size?:number,children?:WorkspaceEntry[]}
+WorkspaceEntry {id,name,kind:'file'|'folder',path,workspace_path?:string,size?:number,children?:WorkspaceEntry[]}
 AutomaticConversation {id,causal_chain_id,status:'paused',reason:'budget_exhausted'|'repeated_content',spent,allowance,remaining,paused_pending_count,continuation_allowance,can_continue,source_owner_id}
 
 Own-Twin private output does not automatically set a visible reply quote from `source_message_id`; group output retains that default. Explicit human/`reply_for_me` quotes and cross-chat `send_chat_message.reply_to_message_id` remain available. Private child continuations inherit only an explicitly selected parent quote. Source IDs, provenance, request identity and causal chain remain intact independently of quote presentation; no historical rows or Soul are rewritten.
@@ -104,6 +104,14 @@ The composer can submit Reply for me only to the signed-in owner's Twin. Human H
 Owner-only `/me/twin/soul` GET/PUT/DELETE edits canonical workspace SOUL.md using hash `expected_version` (null if deleted). The Twin may edit that same file through authorized owner workspace tools in any conversation; new requests freeze its current contents. Memory tools address the separate Memory store. Owner-only `/me/twin/memory/entry` PUT/DELETE uses Git SHA `expected_version` and returns 409 with `current` on conflict. Real configuration audit events supply source references. Incremental `memory_dream` requests consume visible published owner-private messages, including proactive Twin reports and continuation outputs, through a separate `message_cursor_seq`. Raw groups remain excluded. Existing FIFO/deadlines, independent SDK sessions, source/reset checks, confirmed publication and no conversation output remain; legacy queued intents retain their old request-cursor contract. The server platform prompt supplies a concise task-completion mission and has no user-facing API; reply-for-me remains scoped to writing. See `twin-git-memory.md` for migration, cancellation and uncertain-publication behavior.
 
 The main Twin is the owner's front-facing coordinator: it handles brief communication and simple operations, delegates substantial or growing work through installed background tools, and reviews completion notifications before coordinating remaining work. Its prompt calls for staying available after dispatch and claiming delegation only after a task exists. Worker prompt assembly selects an explicit execution role, independently of summary maintenance: workers complete only the assigned subtask and return verified results to the parent, without inheriting the main coordination or parent reply-for-me writing instructions. Existing worker tool installation, owner permissions, source checks and causal-chain limits are unchanged; these instructions add no scheduler or notification mechanism.
+
+## Uploaded files and the real workspace
+
+Chat attachments accept every file type, with the existing four-file and 20 MiB aggregate limits. Recognized static images retain previews; other formats, including images without a supported preview, use ordinary file cards. New uploads have one physical copy in the current chat's `uploads/<id>/<original-name>`; old paths remain valid. Model input supplies metadata and absolute `workspace_path` references, never automatic image bytes. File-only messages can request a reply. Installed `read` handles text and images on demand; `bash` can process other formats. Existing paged-read and tool-result limits remain.
+
+The private chat directory is the Twin owner's execution cwd. Group runs keep that owner cwd and receive the separate current group's shared workspace path for intended deliverables; browsing a group never lists owners' private directories. Workspace browsing lists actual directory children lazily, so generated files appear without a registration step. Hidden internal directories are omitted. Uploaded files are read-only references by convention; `uploads`/legacy `.attachments` and registered ancestors still enforce their existing attachment/node, source, draft, private-input and history permissions, including direct downloads by path ID. Unregistered group files use creation time for restricted history; where birthtime is unavailable, unknown creation time stays unavailable to history-limited members. Existing OS-level local execution remains trusted, not a new file sandbox.
+
+Message bodies have no application character cap and remain complete in PostgreSQL. Frames exceeding the existing 64 KiB WebSocket command limit use the same HTTP send/key; this does not remove transport, memory or model context limits, nor silently truncate a message. Before deploying, run `python -m app.init_db` to widen attachment `relative_path` to `TEXT`; this repeatable additive upgrade changes no files or stored paths. See `attachment-path-schema.sql` for the reference DDL. Previously accepted SDK commands retain their immutable inputs during recovery.
 
 ## Human conversation titles
 

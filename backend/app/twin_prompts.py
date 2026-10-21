@@ -125,8 +125,8 @@ def request_prompt(request, context):
             "empty assistant response. Do not invent a timeout answer, send courtesy replies or poll.\n"
             + safe_text(notification if notification is not None else (prompt or ""))
         )
-    if not prompt and context.get("input_images"):
-        prompt = "Describe the attached image or images and help with the current request."
+    if not prompt and context.get("input_files"):
+        prompt = "Review the attached files using their authorized paths and help with the current request."
     return prompt or request.get("input_body") or request.get("body") or request.get("prompt") or (
         "Respond to the current request using the authorized conversation context."
     )
@@ -135,7 +135,7 @@ def request_prompt(request, context):
 def conversation_system(context, *, summary_instruction="", worker=False):
     summary = context.get("summary")
     history = [
-        {key: row.get(key) for key in ("id", "seq", "author_id", "author_owner_id", "author_name", "kind", "body", "raw_owner_input", "created_at", "reply_to")
+        {key: row.get(key) for key in ("id", "seq", "author_id", "author_owner_id", "author_name", "kind", "body", "raw_owner_input", "created_at", "reply_to", "attachments")
          if row.get(key) is not None}
         for row in context.get("messages", []) if row.get("state") != "withdrawn"
     ]
@@ -153,6 +153,11 @@ def conversation_system(context, *, summary_instruction="", worker=False):
            "message; return only that message, without a draft preface.\n"
            if not worker and context.get("raw_owner_input") is not None else "")
         + "Current request references: " + safe_text(request_metadata) + "\n"
+        + ("Current chat workspace: " + safe_text(context["workspace_path"]) + ". Your execution cwd remains your owner's workspace. "
+           "Write intended shared deliverables in the current chat workspace; do not expose other owner files. "
+           "Uploads are read-only references. Read file contents only as needed with installed read/bash tools; "
+           "read supports images. Use paged reads for long text.\n" if context.get("workspace_path") else "")
+        + ("Current uploaded file references: " + safe_text(context["input_files"]) + "\n" if context.get("input_files") else "")
         + "Destination audience (current participants): " + safe_text(context.get("chat", {}).get("audience", [])) + "\n"
         + "Authorized summary: " + safe_text(summary or "No summary yet.") + "\n"
         + "Authorized recent messages, with no gap after summary: " + json.dumps(history, ensure_ascii=False) + "\n"

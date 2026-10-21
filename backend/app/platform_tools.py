@@ -10,7 +10,6 @@ from .models import (
     Chat,
     Reminder,
     ReplyRequest,
-    WorkspaceNode,
 )
 
 PLATFORM_TOOLS = {"set_message_reaction", "list_people", "get_chat", "create_chat", "rename_chat", "add_chat_members",
@@ -204,27 +203,11 @@ def dispatch(service, db, name, args, context, chat, member, locked_ids):
         row.done = args["done"]
         return service.reminder_json(row)
     if name == "list_workspace":
-        service.membership(db, owner_id, target_id)
         limit = bounded_limit(args)
-        query = select(WorkspaceNode).where(WorkspaceNode.chat_id == target_id)
+        entries = sorted(service._workspace_db(db, owner_id, target_id, args.get("path", "")), key=lambda entry: entry["id"])
         if args.get("after"):
-            query = query.where(WorkspaceNode.id > args["after"])
-        _, membership = service.membership(db, owner_id, target_id)
-        # Bound rows before touching the filesystem; invisible nodes grant no data.
-        nodes = list(db.scalars(query.order_by(WorkspaceNode.id).limit(limit + 1)))
-        entries = []
-        for node in nodes[:limit]:
-            if not service.workspace_node_allowed(db, membership, node):
-                continue
-            try:
-                path = service._workspace_file_db(db, owner_id, target_id, node.id, allow_directory=True)
-            except Exception as exc:
-                from fastapi import HTTPException
-                if isinstance(exc, HTTPException) and exc.status_code == 404:
-                    continue
-                raise
-            entries.append({"id": node.id, "name": path.name, "kind": "folder" if path.is_dir() else "file", "size": None if path.is_dir() else path.stat().st_size})
-        return {"chat_id": target_id, "entries": entries, "next_cursor": nodes[limit - 1].id if len(nodes) > limit else None}
+            entries = [entry for entry in entries if entry["id"] > args["after"]]
+        return {"chat_id": target_id, "entries": entries[:limit], "next_cursor": entries[limit - 1]["id"] if len(entries) > limit else None}
     if name == "read_workspace_file":
         path = service._workspace_file_db(db, owner_id, target_id, args["id"])
         with path.open("rb") as stream:

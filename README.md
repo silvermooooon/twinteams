@@ -71,6 +71,7 @@ are frozen and replay-safe; approval does not install extra execution capabiliti
 No email/payment adapters are installed.
 
 Workspace files and private memory remain separate persistent file components.
+Chat uploads of every type, including images, live once in the chat workspace and reach the Twin as file-path references; installed `read`/`bash` tools inspect them on demand. The existing four-file/20 MiB limits remain. Workspace browsing lazily lists real files, including Agent outputs; private chats show the owner's execution directory and groups show only their shared chat directory. Message bodies have no business character cap; oversized WebSocket sends use HTTP with the same idempotency key. Transport and model context limits still apply. See [the file contract](docs/implementation-contract.md#uploaded-files-and-the-real-workspace), including the additive attachment-path migration required before rollout.
 A fresh database starts with local demonstration identities and empty conversation
 state. PostgreSQL data survives application restart.
 

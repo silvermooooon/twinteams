@@ -351,7 +351,6 @@ export default function App() {
   }
   function send() {
     if (!canSend || !activeChat) return;
-    if (replyForMe && !draft.trim() && attachmentDrafts.items.length && attachmentDrafts.items.every(item => item.attachment?.kind === 'unsupported')) { setError(t('attachments.replyUnsupportedOnly')); return; }
     const body = draft.trim(); const chatId = selected; const key = requestKey();
     const files = attachmentDrafts.items.map(item => item.attachment!);
     const quoted = replyTo ? { id: replyTo.id, author_name: actors.find(actor => actor.id === replyTo.author_id)?.name || '', body: replyTo.body || replyTo.attachments?.map(item => item.name).join(' · ') || t('attachments.message'), unavailable: replyTo.state !== 'published' } : undefined;

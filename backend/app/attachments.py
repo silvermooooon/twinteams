@@ -1,4 +1,4 @@
-"""Immutable chat uploads. Only verified image bytes may cross the model boundary."""
+"""Upload metadata; file contents are read on demand from the chat workspace."""
 import hashlib
 import warnings
 from io import BytesIO
@@ -6,12 +6,22 @@ from pathlib import Path
 
 from fastapi import HTTPException
 from PIL import Image, UnidentifiedImageError
+from sqlalchemy import Text, inspect, text
 
 MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
 MAX_ATTACHMENTS = 4
 MAX_IMAGE_PIXELS = 25_000_000
 IMAGE_FORMATS = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "GIF": "image/gif"}
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+
+
+def upgrade_attachment_schema(engine):
+    """Widen stored paths without changing names, metadata or existing files."""
+    column = next(column for column in inspect(engine).get_columns("tt_chat_attachments")
+                  if column["name"] == "relative_path")
+    if not isinstance(column["type"], Text):
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE tt_chat_attachments ALTER COLUMN relative_path TYPE TEXT"))
 
 
 def inspect_upload(name: str, declared_type: str, data: bytes) -> dict:
@@ -23,7 +33,7 @@ def inspect_upload(name: str, declared_type: str, data: bytes) -> dict:
     looks_supported = (declared_type in IMAGE_FORMATS.values() or Path(name).suffix.lower() in IMAGE_SUFFIXES
                        or data.startswith((b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a"))
                        or (data[:4] == b"RIFF" and data[8:12] == b"WEBP"))
-    result = {"kind": "unsupported", "mime_type": "application/octet-stream", "size": len(data), "sha256": hashlib.sha256(data).hexdigest(), "width": None, "height": None}
+    result = {"kind": "file", "mime_type": declared_type if len(declared_type) <= 80 and "/" in declared_type else "application/octet-stream", "size": len(data), "sha256": hashlib.sha256(data).hexdigest(), "width": None, "height": None}
     if not looks_supported:
         return result  # Do not parse arbitrary documents, archives, SVG, or their filenames.
     try:
@@ -36,6 +46,7 @@ def inspect_upload(name: str, declared_type: str, data: bytes) -> dict:
                 image.verify()
             with Image.open(BytesIO(data)) as image:
                 image.load()  # Verify the pixel data too; a valid header is insufficient.
-    except (UnidentifiedImageError, OSError, ValueError, SyntaxError, Image.DecompressionBombError, Image.DecompressionBombWarning) as error:
-        raise HTTPException(415, "The attachment is not a valid supported static image") from error
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+        # A preview decoder limitation must not reject an otherwise valid file.
+        result.update(kind="file", mime_type="application/octet-stream", width=None, height=None)
     return result

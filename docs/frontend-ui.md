@@ -2,6 +2,8 @@
 
 > Historical prototype record, superseded by [Teams UI acceptance — 2026-10-18](teams-ui-acceptance-2026-10-18.md). The mock-data/no-transmission/reset-on-refresh statements below describe that early prototype only. The current application persists chats, sends messages through authenticated APIs/WebSocket commands, and supports real HTTP chat attachments and model image input. Use the newer acceptance record for the current UI scope, evidence, and remaining limitations.
 
+Current file handling is specified in the [file/workspace contract](implementation-contract.md#uploaded-files-and-the-real-workspace): all types are uploaded once and supplied to the Twin as paths, with images read by tools only as needed.
+
 Teams-inspired shell with top people-search field, two-item rail (提醒 / 对话),
 conversation sidebar, and chat pane/composer. Default conversation: 我的数字分身.
 

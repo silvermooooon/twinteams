@@ -149,7 +149,7 @@ class ChatAttachment(Base):
     sha256: Mapped[str] = mapped_column(String(64))
     width: Mapped[int | None] = mapped_column(Integer)
     height: Mapped[int | None] = mapped_column(Integer)
-    relative_path: Mapped[str] = mapped_column(String(256))
+    relative_path: Mapped[str] = mapped_column(Text)
     private_owner_input: Mapped[bool] = mapped_column(Boolean, default=False)
     message_id: Mapped[str | None] = mapped_column(ForeignKey("tt_messages.id"), index=True)
     request_id: Mapped[str | None] = mapped_column(ForeignKey("tt_reply_requests.id"))

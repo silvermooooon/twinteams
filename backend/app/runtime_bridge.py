@@ -314,8 +314,8 @@ class RuntimeBridge:
              {"chat_id": text, "include_done": {"type": "boolean", "default": True}, "limit": limit}, []),
             ("update_reminder", "Mark one of your owner's in-app reminders done or reopen it. Does not schedule an external notification.",
              {"id": text, "done": {"type": "boolean"}}, ["id", "done"]),
-            ("list_workspace", "List bounded workspace metadata in an authorized chat; defaults to the originating chat. Use after for the next page. Does not enable shell execution or access another owner's workspace.",
-             {"chat_id": text, "limit": limit, "after": text}, []),
+            ("list_workspace", "List a workspace directory in an authorized chat, including uploaded and generated files. path is relative to that chat's workspace; omit for its root. Use after for the next page. Does not enable shell execution or access another owner's workspace.",
+             {"chat_id": text, "path": text, "limit": limit, "after": text}, []),
             ("read_workspace_file", "Read one authorized workspace text file by entry ID. UTF-8 only, at most 64 KiB; binary or larger files are rejected. Read access never enables shell execution or sharing private contents with another audience.",
              {"chat_id": text, "id": text}, ["id"]),
             ("get_twin_status", "Read your own Twin's bounded identity, private-chat, Worker/runtime, request and Dream status metadata. Never returns secret values, Soul or execution configuration.", {}, []),
@@ -439,7 +439,7 @@ class RuntimeBridge:
         prompt = request_prompt(request, context)
         # The stable command body identifies the accepted request. Fresh context is provided
         # by the factory and frozen by the SDK's model_request boundary on recovery.
-        message = {"role": "user", "content": [{"type": "text", "text": prompt}, *context.get("input_images", [])],
+        message = {"role": "user", "content": [{"type": "text", "text": prompt}],
                    "timestamp": 0, "queueId": request_id}
 
         async def factory(session):
@@ -804,12 +804,16 @@ class RuntimeBridge:
         async def factory(session):
             return Agent(config=self.config, models=self.models, session=session, system_prompt=system)
         executor = DurableExecutor(self.store, factory, host=self.host)
-        image_blocks = message.get("input_images", [])
-        payload = json.dumps({"context": context, "message": {key: value for key, value in message.items() if key != "input_images"}}, ensure_ascii=False, default=str)
-        route_input = {"role": "user", "content": [{"type": "text", "text": payload}, *image_blocks], "timestamp": 0} if image_blocks else payload
+        route_input = json.dumps({"context": context, "message": message}, ensure_ascii=False, default=str)
         source_owner_id = message.get("author_owner_id") or message.get("source_owner_id") or message.get("author_id")
         if not source_owner_id:
             raise RuntimeError("Target selection requires a source owner identity.")
+        accepted = await self.store.get_command(self.tenant_id, message["id"])
+        if accepted:
+            if accepted["session_id"] != session_id or accepted["kind"] != "prompt":
+                raise RuntimeError("Accepted routing command does not match this conversation")
+            # A pre-change accepted routing command keeps its immutable input.
+            route_input = accepted["payload"]["message"]
         result = await executor.execute(self.tenant_id, session_id, user_id=source_owner_id,
                                         command_id=message["id"], message=route_input)
         if not isinstance(result, dict):

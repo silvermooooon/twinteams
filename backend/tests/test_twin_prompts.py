@@ -84,7 +84,7 @@ def test_input_selection_keeps_existing_precedence_and_attachment_fallback():
     assert request_prompt({}, context) == "raw"
     assert request_prompt({}, {"source_message": {"body": "source"}}) == "source"
     assert request_prompt({"source_message_id": "m"}, {"messages": [{"id": "m", "body": "tail"}]}) == "tail"
-    assert "attached image" in request_prompt({}, {"input_images": ["synthetic"]})
+    assert "attached files" in request_prompt({}, {"input_files": [{"workspace_path": "/synthetic/example.png"}]})
     assert request_prompt({"body": "fallback"}, {}) == "fallback"
 
 

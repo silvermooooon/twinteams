@@ -5,7 +5,6 @@ is generated here so the test never depends on a user's file.
 """
 
 import asyncio
-import base64
 import json
 import struct
 import zlib
@@ -129,23 +128,26 @@ def test_http_image_upload_source_acl_and_published_persistence(attachments):
     assert client.get(image["url"]).content == raw
 
 
-def test_bad_image_and_claimed_mime_do_not_create_uploads(attachments):
+def test_preview_unsupported_images_are_accepted_as_files(attachments):
     _, client = attachments
     for data in (b"not an image", png_bytes()[:30]):
         response = upload(client, data=data, name="misleading.png", mime="image/png")
-        assert response.status_code == 415, response.text
+        assert response.status_code == 200, response.text
+        assert response.json()["kind"] == "file"
+        assert client.get(response.json()["url"]).content == data
     assert upload(client, data=b"hello", name="../outside.txt", mime="text/plain").status_code in (400, 422)
 
 
-def test_attachment_limits_and_unsupported_reply_for_me_do_not_schedule(attachments):
+def test_attachment_limits_and_file_only_reply_for_me(attachments):
     product, client = attachments
     too_large = upload(client, data=b"x" * (20 * 1024 * 1024 + 1), name="large.txt", mime="text/plain")
     assert too_large.status_code == 413
     item = upload(client, data=b"unsupported", name="note.txt", mime="text/plain").json()
     before = count(product, ReplyRequest), count(product, Message)
     response = send(client, ids=[item["id"]], reply_for_me=True)
-    assert response.status_code == 400
-    assert (count(product, ReplyRequest), count(product, Message)) == before
+    assert response.status_code == 200
+    assert response.json()["message"] is None
+    assert (count(product, ReplyRequest), count(product, Message)) == (before[0] + 1, before[1])
     assert send(client, ids=[item["id"]] * 5).status_code == 422
     assert send(client).status_code == 400
 
@@ -173,27 +175,22 @@ def test_no_prior_member_cannot_fetch_old_attachment_original(attachments):
 
 
 @pytest.mark.parametrize("group_chat", [False, True])
-def test_unsupported_only_creates_no_reply_or_routing_and_cannot_manual_ask(attachments, group_chat):
+def test_file_only_messages_are_model_input_in_private_and_group_chats(attachments, group_chat):
     product, client = attachments
     chat = product.create_chat("owner-alex", ["owner-maya"], "unsupported only")["id"] if group_chat else "private-alex"
     item = upload(client, chat=chat, data=b"FILE_CONTENT_MUST_NEVER_REACH_MODEL", name="DO_NOT_PROMPT_THIS_FILE.txt", mime="text/plain").json()
-    assert item["kind"] == "unsupported"
+    assert item["kind"] == "file"
     before = count(product, ReplyRequest), count(product, RoutingDecision)
     response = send(client, chat=chat, ids=[item["id"]])
     assert response.status_code == 200, response.text
     result = response.json()
-    assert result["request"] is None
-    assert result["message"]["attachments"][0]["kind"] == "unsupported"
-    assert (count(product, ReplyRequest), count(product, RoutingDecision)) == before
-    twin = next(actor for actor in product.chat_detail("owner-alex", chat)["members"]
-                if actor["kind"] == "twin" and actor.get("owner_id") == "owner-alex")
-    asked = client.post(f"/api/chats/{chat}/reply-requests", json={
-        "message_id": result["message"]["id"], "target_twin_id": twin["id"], "client_request_key": uuid4().hex})
-    assert asked.status_code in (400, 415, 422), asked.text
-    assert (count(product, ReplyRequest), count(product, RoutingDecision)) == before
+    assert (result["request"] is None) == group_chat
+    assert result["message"]["attachments"][0]["kind"] == "file"
+    assert count(product, ReplyRequest) == before[0] + (0 if group_chat else 1)
+    assert count(product, RoutingDecision) == before[1] + (1 if group_chat else 0)
 
 
-def test_text_with_unsupported_file_never_leaks_filename_or_content_to_sdk(attachments):
+def test_text_with_file_supplies_references_without_content_to_sdk(attachments):
     product, client = attachments
     filename = "FILENAME_SENTINEL_DO_NOT_INJECT.txt"
     content = "FILE_SENTINEL_DO_NOT_INJECT_93721"
@@ -204,12 +201,12 @@ def test_text_with_unsupported_file_never_leaks_filename_or_content_to_sdk(attac
     assert len(calls) == 2
     wire = json.dumps(calls)
     assert "Reply only to this visible text." in wire
-    assert filename not in wire and content not in wire
+    assert filename in wire and item["workspace_path"] in wire and content not in wire
     assert '"type": "image"' not in wire
     assert any(message.get("role") == "toolResult" for message in calls[-1])
 
 
-def test_image_only_reaches_actual_sdk_image_content_without_old_images(attachments):
+def test_image_only_initial_sdk_input_is_paths_without_image_bytes(attachments):
     product, client = attachments
     previous = upload(client, data=png_bytes((0, 200, 20)), name="old.png").json()
     send(client, ids=[previous["id"]])
@@ -221,9 +218,8 @@ def test_image_only_reaches_actual_sdk_image_content_without_old_images(attachme
     assert len(calls) == 1
     images = [part for message in calls[0] if isinstance(message.get("content"), list)
               for part in message["content"] if part.get("type") == "image"]
-    assert len(images) == 1
-    assert images[0]["mimeType"] == "image/png"
-    assert base64.b64decode(images[0]["data"]) == raw
+    assert images == []
+    assert current["workspace_path"] in json.dumps(calls)
 
 
 def test_message_idempotency_includes_attachments(attachments):
