@@ -471,6 +471,14 @@ class RuntimeBridge:
             async def observe(event, signal):
                 nonlocal last_seq
                 kind = event.get("type")
+                if kind == "message_update" and event.get("assistantMessageEvent", {}).get("type") in {
+                    "text_delta", "thinking_delta", "toolcall_delta",
+                }:
+                    # These live previews never cross the product boundary.
+                    # Local abort remains immediate; durable guards still run at
+                    # request, tool and committed-output boundaries.
+                    signal.throw_if_aborted()
+                    return
                 await self._check_generation(agent_context)
                 if kind == "agent_start":
                     latest = await self.service.db_call("get_request", request_id)
@@ -480,11 +488,6 @@ class RuntimeBridge:
                     await self.service.db_call("bind_runtime_run", request_id, session_id, session.snapshot["run_id"])
                     await self.service.db_call("record_activity", chat_id, owner_id, session_id, session.snapshot["run_id"], {"title": safe_text(prompt)[:180], "source": "followup_result" if followup else "user", "status": "running", "private_generation": agent_context.get("private_generation") or 0})
                     await self.emit(chat_id, type="changed", request_id=request_id)
-                elif kind == "message_update":
-                    update = event.get("assistantMessageEvent", {})
-                    if update.get("type") == "text_delta" and not followup:
-                        await self.emit(chat_id, type="token", request_id=request_id,
-                                        text=update.get("delta", ""))
                 elif kind == "message_start" and event.get("message", {}).get("role") == "assistant":
                     await self.emit(chat_id, type="operation_started", request_id=request_id,
                                     operation_id=f"{session_id}:{session.snapshot.get('run_id')}:{session.revision}")

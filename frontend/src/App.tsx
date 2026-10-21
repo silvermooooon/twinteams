@@ -183,15 +183,27 @@ export default function App() {
     const generation = resetGenerations.current[key];
     const floor = historyFloor.current[key];
     const anchored = messageArea.current && !scrollBottom.current ? messageArea.current.scrollHeight - messageArea.current.scrollTop : null;
+    let latest: ChatDetail | undefined; let reauthorizingHistory = false;
+    const isCurrent = () => currentApi.current === api && current.current.selected === chatId && current.current.ownerId === api.ownerId && sequence === chatSequence.current && generation === resetGenerations.current[key];
     try {
       const result = await api.get<ChatDetail>(`/chats/${chatId}?limit=100`);
+      if (!isCurrent() || detailCurrent.current?.chat.id === chatId && result.revision < detailCurrent.current.revision) return;
+      latest = result;
       let messages = result.messages;
       let cursor = result.before_seq;
       let hasMore = result.has_more;
+      reauthorizingHistory = floor !== undefined && !!hasMore && !!cursor && cursor > floor;
+      if (reauthorizingHistory) {
+        // Status metadata is already authorized. Do not hold it behind older pages,
+        // or merge new body/history windows without a complete reauthorization.
+        setDetail(previous => previous?.chat.id === chatId ? { ...previous, requests: result.requests, approvals: result.approvals, automatic_conversations: result.automatic_conversations } : previous);
+        setVersion(value => value + 1);
+      }
       // Reauthorize every already loaded page, replacing withdrawn/revoked content.
       // Each request is bounded; no stale earlier-page content is merged from cache.
       while (floor !== undefined && hasMore && cursor && cursor > floor) {
         const page = await api.get<ChatDetail>(`/chats/${chatId}?limit=100&before_seq=${cursor}`);
+        if (!isCurrent()) return;
         messages = [...page.messages, ...messages];
         hasMore = page.has_more;
         if (!page.before_seq || page.before_seq >= cursor) break;
@@ -210,10 +222,19 @@ export default function App() {
         const newer = previous?.chat.id === chatId ? previous.messages.filter(message => (message.reactions_revision || 0) > result.revision) : [];
         return { ...result, messages: messages.map(message => { const reaction = newer.find(item => item.id === message.id); return reaction ? { ...message, reactions: reaction.reactions, reactions_revision: reaction.reactions_revision } : message; }), has_more: hasMore, before_seq: cursor, settings: { ...result.settings, ...pendingSettings.current.get(key) } };
       });
-      setLiveText({}); setVersion(value => value + 1);
+      setLiveText({}); if (!reauthorizingHistory) setVersion(value => value + 1);
       if (anchored !== null) requestAnimationFrame(() => { if (messageArea.current) messageArea.current.scrollTop = messageArea.current.scrollHeight - anchored; });
     } catch (error) {
-      if (currentApi.current === api && sequence === chatSequence.current && current.current.ownerId === api.ownerId && current.current.selected === chatId && error instanceof ApiError && [401, 403, 404, 409].includes(error.status)) { localSends.clear(chatId); setDetail(null); }
+      if (isCurrent()) {
+        if (error instanceof ApiError && [401, 403, 404, 409].includes(error.status)) { localSends.clear(chatId); setDetail(null); }
+        else if (reauthorizingHistory && latest) {
+          // Failed reauthorization cannot leave old cached pages on screen indefinitely.
+          delete historyFloor.current[key];
+          const snapshot = latest;
+          setDetail(previous => previous?.chat.id === chatId && snapshot.revision >= previous.revision ? { ...snapshot, settings: { ...snapshot.settings, ...pendingSettings.current.get(key) } } : previous);
+          localSends.reconcile(snapshot, startedAt);
+        }
+      }
       throw error;
     }
   }, [api, localSends.reconcile, localSends.clear]);
@@ -255,12 +276,16 @@ export default function App() {
   const refreshTwinReset = twinReset.refresh;
   useEffect(() => { if (!ownerId) { localSends.clear(); setBootstrap(null); setDetail(null); setSelected(''); setLiveText({}); setLoading(false); return; } let alive = true; chatLoads.current.clear(); setLoading(true); setDetail(null); setBootstrap(null); setSelected(''); setLiveText({}); setHasConnected(false); readSent.current.clear(); readPending.current.clear(); loadBootstrap().catch(e => { if (alive) onError(e); }).finally(() => { if (alive) setLoading(false); }); return () => { alive = false; }; }, [api]);
   useEffect(() => { if (!selected) return; let alive = true; setChatLoading(true); setReplyTo(null); setTrackingSeed(null); scrollBottom.current = true; setDetail(previous => previous?.chat.id === selected ? previous : null); loadChat(selected).catch(e => { if (alive) onError(e); }).finally(() => { if (alive) setChatLoading(false); }); return () => { alive = false; }; }, [selected, api]);
+  const chatScopeKey = bootstrap?.chats.map(chat => chat.id).sort().join('|') || '';
+  useEffect(() => { api.subscribeChats([selected, ...chatScopeKey.split('|')]); }, [api, selected, chatScopeKey]);
   useEffect(() => {
     if (!ownerId) return;
     const controller = new AbortController(); let retryTimer: ReturnType<typeof setTimeout> | undefined; let reconnectDelay = 700;
     const run = async () => {
       try {
-        await api.events(selected, controller.signal, event => {
+        await api.events('', controller.signal, event => {
+          if (controller.signal.aborted || currentApi.current !== api) return;
+          const selected = current.current.selected;
           if (event.type === 'actor_changed' && event.actor_id) {
             void api.get<Actor>(`/actors/${encodeURIComponent(event.actor_id)}`).then(mergeActor).catch(onError);
             return;
@@ -282,24 +307,24 @@ export default function App() {
             const alreadyLoaded = () => event.revision !== undefined && detailCurrent.current?.chat.id === selected && event.revision <= detailCurrent.current.revision;
             if (alreadyLoaded()) return;
             if (refreshTimer.current) clearTimeout(refreshTimer.current);
-            refreshTimer.current = setTimeout(() => { if (!alreadyLoaded()) void loadChat(selected).catch(onError); }, 80);
+            refreshTimer.current = setTimeout(() => { if (current.current.selected === selected && !alreadyLoaded()) void loadChat(selected).catch(onError); }, 80);
           }
-        }, state => { if (controller.signal.aborted) return; setConnected(state); if (state) { setHasConnected(true); reconnectDelay = 700; setLiveText({}); void loadBootstrap().catch(onError); if (selected) void loadChat(selected).catch(onError); setTwinVersion(value => value + 1); void refreshCredentials(); void refreshTwinReset(); void twinApi(api).profile().then(result => mergeActor(result.actor)).catch(() => {}); } }, bootstrap?.chats.map(chat => chat.id).sort());
+        }, state => { if (controller.signal.aborted || currentApi.current !== api) return; const selected = current.current.selected; setConnected(state); if (state) { setHasConnected(true); reconnectDelay = 700; setLiveText({}); void loadBootstrap().catch(onError); if (selected) void loadChat(selected).catch(onError); setTwinVersion(value => value + 1); void refreshCredentials(); void refreshTwinReset(); void twinApi(api).profile().then(result => mergeActor(result.actor)).catch(() => {}); } });
       } catch { if (!controller.signal.aborted) setConnected(false); }
       if (!controller.signal.aborted) { setLiveText({}); retryTimer = setTimeout(() => { void run(); }, reconnectDelay); reconnectDelay = Math.min(reconnectDelay * 2, 10000); }
     };
     void run();
     return () => { controller.abort(); clearTimeout(retryTimer); if (refreshTimer.current) clearTimeout(refreshTimer.current); setConnected(false); };
-  }, [api, ownerId, selected, bootstrap?.chats.map(chat => chat.id).sort().join('|'), mergeActor, refreshCredentials, refreshTwinReset]);
+  }, [api, ownerId, mergeActor, refreshCredentials, refreshTwinReset]);
   const markVisibleRead = useCallback(() => {
-    if (!focused.current || page !== 'chat' || !activeChat || !messageArea.current) return;
+    if (!focused.current || page !== 'chat' || detailCurrent.current?.chat.id !== selected || !messageArea.current) return;
     const area = messageArea.current.getBoundingClientRect(); const ids: string[] = [];
     messageArea.current.querySelectorAll<HTMLElement>('[data-message-id]').forEach(element => { const id = element.dataset.messageId!; const rect = element.getBoundingClientRect(); const visibleHeight = Math.min(rect.bottom, area.bottom) - Math.max(rect.top, area.top); const key = `${actualOwnerId}:${selected}:${id}`; if (visibleHeight >= Math.min(rect.height * .6, 80) && !readSent.current.has(key) && !readPending.current.has(key)) { ids.push(id); readPending.current.add(key); } });
     if (!ids.length) return;
     const chatId = selected; const reader = actualOwnerId;
     void api.post(`/chats/${chatId}/read`, { message_ids: ids }).then(() => { ids.forEach(id => readSent.current.add(`${reader}:${chatId}:${id}`)); }).catch(() => {}).finally(() => { ids.forEach(id => readPending.current.delete(`${reader}:${chatId}:${id}`)); });
-  }, [api, page, activeChat, selected, actualOwnerId]);
-  useEffect(() => { const timer = setTimeout(() => { if (scrollBottom.current) messageArea.current?.scrollTo({ top: messageArea.current.scrollHeight }); markVisibleRead(); }, 60); return () => clearTimeout(timer); }, [activeChat?.messages.length, localSends.items.length, selected, markVisibleRead]);
+  }, [api, page, selected, actualOwnerId]);
+  useEffect(() => { const timer = setTimeout(() => { if (scrollBottom.current) messageArea.current?.scrollTo({ top: messageArea.current.scrollHeight }); markVisibleRead(); }, 60); return () => clearTimeout(timer); }, [activeChat?.messages, localSends.items.length, selected, markVisibleRead]);
   useEffect(() => {
     if (!ownerId) return; sessionStorage.setItem('twinteams.deviceId', deviceId.current);
     const update = () => { focused.current = document.visibilityState === 'visible' && document.hasFocus(); void api.post('/presence', { device_id: deviceId.current, focused_chat_id: focused.current && page === 'chat' ? selected || null : null, visible: focused.current }).catch(() => {}); if (focused.current) markVisibleRead(); };

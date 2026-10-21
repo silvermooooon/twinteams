@@ -52,3 +52,57 @@ Verified against isolated PostgreSQL schemas after the process/transport changes
 The pure business conversation fixture explicitly supplies TTL observations;
 real Redis/presence failure and cross-process WebSocket behavior belong to the
 independent distributed acceptance, not to the offline business model adapter.
+
+## Performance checks — 2026-10-21
+
+The repeatable checks use synthetic records and intercepted browser APIs. They do
+not send product messages or call a model. Provide a local PostgreSQL test DSN;
+the backend fixtures create and remove separate random schemas:
+
+```sh
+cd backend
+TWINTEAMS_TEST_DB_URL="$LOCAL_TEST_DATABASE_URL" .venv/bin/python -m pytest \
+  tests/test_performance_acceptance.py tests/test_performance_static_acceptance.py -q -s
+```
+
+The query fixture contains 100 messages, including 50 Twin outputs with up to ten
+earlier message references, plus twelve additional rooms. It checks projections,
+quotes, private attachment visibility, source withdrawal and history grants.
+For this fixture, snapshot queries fell from 2,059 to 23 at limit 100; bootstrap
+fell from 1,012 to 82. Runtime context fell from 1,084 to 126 queries with identical
+message projections. These are fixture results: dependent unread checks and full
+runtime history still grow with the history being authorized.
+
+Run the browser check against a compiled preview or the deployed static assets,
+using Node with Playwright and Chrome available. Every API and WebSocket in this
+check is mocked, even when the assets come from the deployed server:
+
+```sh
+TWINTEAMS_UI_URL=http://127.0.0.1:8000 node frontend/checks/performance-acceptance.cjs
+```
+
+It measures initialization, chat switching, typing, running-state visibility,
+hint coalescing and optimistic-send/ACK feedback under 4x CPU throttling and fixed
+synthetic API delays. It also checks browser disconnect/reconnect handling, delayed historical
+reauthorization, authorization failures, reset and owner switching. The default
+JSON report is `/tmp/twinteams-performance-ui-report.json`; override it with
+`TWINTEAMS_PERFORMANCE_UI_REPORT`. Use `TWINTEAMS_PERFORMANCE_BASELINE=1` only to
+collect an older build without enforcing the new performance expectations.
+
+In the before/after fixture, switching changed from two detail requests plus a new
+socket and bootstrap/personal reloads to one detail request using the existing
+socket. Running-state visibility with a 500 ms older-page delay changed from
+871 ms to 317 ms; 34 typed characters changed from 2,433 ms to 1,325 ms. These
+synthetic timings are machine-dependent and do not establish real model latency.
+
+Static checks verify gzip decoding preserves bytes, identity encoding, conditional
+ETag responses, immutable caching for the Vite entry bundles, index revalidation,
+and unchanged API stream/WebSocket behavior. Actual network timing is a separate
+read-only measurement: compare fresh connections with repeated transfers in one
+curl invocation, recording `time_connect`, `time_appconnect`,
+`time_starttransfer`, `time_total`, `num_connects` and `size_download`. The local
+health baseline was about 1 ms, while this machine's public connection had about
+370 ms first-byte latency when reused and roughly 1.5 s with a fresh TLS
+connection. Health and asset timing cannot measure message authorization, model
+thinking or end-to-end answer delivery. Temporary reports and production metadata
+are not repository artifacts.

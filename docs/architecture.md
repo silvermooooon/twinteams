@@ -36,6 +36,10 @@ Redis TTL renewal does not write PostgreSQL. Focus transitions and read receipts
 
 Synchronous SQLAlchemy transactions execute as whole jobs in an eight-thread database pool with at most 64 admitted jobs per process. Runtime/network awaits stay on the event loop; no transaction is held over an await. PostgreSQL row/unique constraints replace the old process-wide RLock. Workspace files and private runtime memory still require persistent shared storage before deploying workers on different machines.
 
+Message-page projection batches receipts, actors, request metadata and attachments. Recursive source checks reuse metadata and decisions only within the current read, with fresh membership/source checks in each new transaction; no cross-request content or authorization cache is introduced. Bootstrap still checks dependent unread history, and runtime context still preserves authorized full history, so their cost can grow with retained history.
+
+Disposable text, thinking and tool-argument stream deltas do not perform product database checks or generate UI content. They still honor the local abort signal. Durable request, tool and output boundaries retain generation/authorization checks; existing stop/reset delivery aborts the SDK independently of token arrival. Running status is published only after the actual SDK run starts.
+
 ## Provision and launch
 
 `python -m app.init_db` is an explicit repeatable upgrade. It applies additive business changes and SDK packaged migrations through `upgrade_schema`; normal API/worker startup checks structure only. `--backfill-activity` is an explicit optional historical projection import. Both roles require database URLs and `TWINTEAMS_REDIS_URL`. Only the worker needs model credentials. See the README for local commands and `checks/local_stack.py` for managed local process logs/PIDs.

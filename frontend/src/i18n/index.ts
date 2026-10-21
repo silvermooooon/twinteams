@@ -10,8 +10,13 @@ export const i18n = { locale: DEFAULT_LOCALE } as const;
 export const t = (key: TranslationKey, values: Values = {}): string =>
   en[key].replace(/\{(\w+)\}/g, (placeholder, name: string) =>
     values[name] === undefined ? placeholder : String(values[name]));
-export const formatDate = (date: Date, options: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }) =>
-  new Intl.DateTimeFormat(DEFAULT_LOCALE, options).format(date);
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+export const formatDate = (date: Date, options: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }) => {
+  const key = JSON.stringify(options);
+  let formatter = dateFormatters.get(key);
+  if (!formatter) { formatter = new Intl.DateTimeFormat(DEFAULT_LOCALE, options); dateFormatters.set(key, formatter); }
+  return formatter.format(date);
+};
 export const formatTime = (date: Date) => formatDate(date, { hour: 'numeric', minute: '2-digit' });
 export const formatRelativeDay = (offset: number) =>
   new Intl.RelativeTimeFormat(DEFAULT_LOCALE, { numeric: 'auto' }).format(offset, 'day');

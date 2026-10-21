@@ -1,18 +1,22 @@
 """Twinteams API composition. Product business state and SDK state stay separate."""
 import logging
+import re
 import sys
-from pathlib import Path
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
+
 from .api import router
-from .provider_config import router as provider_config_router
-from .personal_api import router as personal_router
-from .credential_api import router as credential_router
 from .config import settings
+from .credential_api import router as credential_router
+from .personal_api import router as personal_router
+from .provider_config import router as provider_config_router
 from .service import service
 
 if sys.version_info[:2] != (3, 13):
@@ -68,11 +72,21 @@ def health():
 
 
 # Optional same-origin production bundle. API routes above always win.
+class FrontendAssets(StaticFiles):
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        # This build's Vite entry bundles have exactly eight content-hash characters.
+        # Other assets retain normal conditional-cache behavior.
+        if re.fullmatch(r"index-[A-Za-z0-9_-]{8}\.(?:js|css)", Path(path).name):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
 frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 if frontend_dist.is_dir():
     assets = frontend_dist / "assets"
     if assets.is_dir():
-        app.mount("/assets", StaticFiles(directory=assets), name="frontend-assets")
+        app.mount("/assets", GZipMiddleware(FrontendAssets(directory=assets), minimum_size=1024, compresslevel=6), name="frontend-assets")
 
     @app.get("/{path:path}", include_in_schema=False)
     def frontend(path: str):
@@ -80,5 +94,5 @@ if frontend_dist.is_dir():
             return JSONResponse(status_code=404, content={"detail": "Endpoint not found"})
         file = (frontend_dist / path).resolve()
         if file.is_relative_to(frontend_dist.resolve()) and file.is_file():
-            return FileResponse(file)
-        return FileResponse(frontend_dist / "index.html")
+            return FileResponse(file, headers={"Cache-Control": "no-cache"} if file.name == "index.html" else None)
+        return FileResponse(frontend_dist / "index.html", headers={"Cache-Control": "no-cache"})

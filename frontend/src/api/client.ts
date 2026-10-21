@@ -28,6 +28,15 @@ export class ApiError extends Error {
 export class ApiClient {
   constructor(readonly ownerId: string = '') {}
   private socket: WebSocket | null = null;
+  private chatScopes = new Set<string>();
+  subscribeChats(chatIds: string[]) {
+    const next = new Set([...new Set(chatIds.filter(Boolean))].slice(0, 100));
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      for (const id of this.chatScopes) if (!next.has(id)) this.socket.send(JSON.stringify({ v: 1, type: 'unsubscribe', chat_id: id }));
+      for (const id of next) if (!this.chatScopes.has(id)) this.socket.send(JSON.stringify({ v: 1, type: 'subscribe', chat_id: id }));
+    }
+    this.chatScopes = next;
+  }
   onUnauthorized?: () => void;
   onAccessLost?: () => void;
   cancelCommands(chatId?: string) {
@@ -86,16 +95,19 @@ export class ApiClient {
   async events(chatId: string, signal: AbortSignal, onEvent: (event: LiveEvent) => void, onConnection: (connected: boolean) => void, scopes: string[] = [chatId]) {
     const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/ws`);
     this.socket = socket;
+    if (!this.chatScopes.size) this.subscribeChats([chatId, ...scopes]);
     await new Promise<void>((resolve) => {
       const stop = () => { socket.close(); resolve(); };
       signal.addEventListener('abort', stop, { once: true });
       socket.onopen = () => {
+        if (signal.aborted || this.socket !== socket) { socket.close(); return; }
         // Subscribe before HTTP synchronization. Incoming hints trigger another bounded reload.
-        for (const scope of new Set([chatId, ...scopes].filter(Boolean))) socket.send(JSON.stringify({ v: 1, type: 'subscribe', chat_id: scope }));
+        for (const scope of this.chatScopes) socket.send(JSON.stringify({ v: 1, type: 'subscribe', chat_id: scope }));
         onConnection(true);
         for (const entry of this.pending.values()) socket.send(JSON.stringify(entry.frame));
       };
       socket.onmessage = event => {
+        if (signal.aborted || this.socket !== socket) return;
         try {
           const frame = JSON.parse(event.data);
           if (frame.type === 'ping') { socket.send(JSON.stringify({ v: 1, type: 'pong' })); return; }
