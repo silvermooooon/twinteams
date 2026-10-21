@@ -1,12 +1,15 @@
 # Owner-attributed sends and reply followups
 
 From either a group or its owner's private conversation, a Twin may prepare a new statement
-and send it to an existing chat where that owner is currently a member, including its owner's
+and send it to another existing chat where that owner is currently a member, including its owner's
 private chat for a progress report or decision. Current source and destination access are still
 checked. The published body does not grant recipients access to the originating history; its
 internal request, ContextManifest and ProductOperation retain the audit link. Recipient message
 JSON omits a private originating request reference. Never copy unrelated private details into
 an outward statement. This publication rule does not relax ordinary model-output audience checks.
+The current chat receives normal assistant output; `send_chat_message` rejects that destination
+to avoid a tool send followed by a second ordinary reply. Previously committed operation receipts
+still replay their original result without sending again.
 
 `send_chat_message` accepts `reply_to_message_id` and `wait_for_reply` (default `false`). Only an
 explicit `true` from the owner's private Twin to an existing authorized group creates a followup.

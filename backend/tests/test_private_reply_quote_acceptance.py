@@ -93,34 +93,44 @@ def test_automatic_output_only_suppresses_private_display_quote_and_preserves_au
     )
 
 
-def test_explicit_private_tool_quote_remains_available_and_source_withdrawal_still_gates_output(
+def test_cross_chat_private_tool_quote_remains_available_and_source_withdrawal_still_gates_output(
     product,
 ):
-    request, context, question_id, chat_id = accepted(product, "private")
+    request, context, question_id, chat_id = accepted(product, "group")
+    target_id = "private-alex"
+    with product.transaction() as db:
+        quoted_id = product.append_message(
+            db, db.get(Chat, target_id), author_id="owner-alex", kind="human",
+            body="Synthetic earlier private question",
+        ).id
     result = asyncio.run(
         product.runtime_tool(
             "send_chat_message",
             {
-                "chat_id": chat_id,
+                "chat_id": target_id,
                 "body": "This specific quoted reply is intentional",
                 "source_message_ids": [question_id],
-                "reply_to_message_id": question_id,
+                "reply_to_message_id": quoted_id,
             },
             {**context, "operation_id": "explicit-private-quote"},
         )
     )
     assert result["sent"]
-    assert message_json(product, chat_id, result["message_id"])["reply_to"]["id"] == question_id
-    assert_lineage(product, request, question_id, result["message_id"])
+    assert message_json(product, target_id, result["message_id"])["reply_to"]["id"] == quoted_id
+    with product.transaction() as db:
+        sent = db.get(Message, result["message_id"])
+        assert sent.request_id == request["id"] and sent.causal_chain_id == request["causal_chain_id"]
+        assert sent.source_message_ids == [] and sent.source_provenance == []
     automatic = product.publish_runtime_output(
         request["id"],
-        "Ordinary unquoted response",
+        "Ordinary group response",
         "quote-session",
         "quote-run",
         "ordinary-event",
         2,
     )
-    assert "reply_to" not in message_json(product, chat_id, automatic)
+    assert message_json(product, chat_id, automatic)["reply_to"]["id"] == question_id
+    assert_lineage(product, request, question_id, automatic)
     with product.transaction() as db:
         db.get(Message, question_id).state = "withdrawn"
     with pytest.raises(HTTPException) as error:
@@ -134,9 +144,11 @@ def test_explicit_private_tool_quote_remains_available_and_source_withdrawal_sti
         )
     assert error.value.status_code == 409
     assert all(
-        row["id"] not in {automatic, result["message_id"]}
+        row["id"] != automatic
         for row in product.chat_detail("owner-alex", chat_id)["messages"]
     )
+    assert any(row["id"] == result["message_id"]
+        for row in product.chat_detail("owner-alex", target_id)["messages"])
 
 
 def test_real_sdk_private_answer_is_unquoted_without_losing_request_lineage(product):

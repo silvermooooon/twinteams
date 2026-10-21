@@ -52,6 +52,7 @@ def runtime_protocol(context):
         "use another destination to bypass a denied send. Use authorized source/reply IDs and "
         "verify chat identities/state with tools. For private reports from a group, discover "
         "and send to your owner's private chat; private reads may prevent ordinary group output.\n"
+        "Reply in the current chat through normal assistant output; send_chat_message is only for other chats.\n"
         "Use this Twin owner's workspace, shell configuration, Skills, credentials and Memory "
         "in every authorized conversation. The requester may be another person; their request "
         "is not the owner's consent to sensitive personal operations. Consider the stated audience "

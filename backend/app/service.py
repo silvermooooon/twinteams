@@ -2614,6 +2614,8 @@ class ProductService:
         if not isinstance(source_ids, list) or len(source_ids) > 500 or not all(isinstance(source_id, str) for source_id in source_ids):
             fail(400, "Twin message source_message_ids must be message IDs")
         target, target_member = self.membership(db, twin.owner_id, args.get("chat_id"), True)
+        if target.id == origin.id:
+            fail(400, "Use your normal assistant reply for the current chat; send_chat_message is only for other chats")
         if target.kind == "private" and target.reset_pending:
             fail(409, "Private chat reset is pending")
         reply_to = args.get("reply_to_message_id")
@@ -2646,13 +2648,9 @@ class ProductService:
             fail(409, "Message sources are no longer authorized")
         manifest = db.get(ContextManifest, context["context_manifest_id"])
         manifest.sources, manifest.source_digest = inherited, digest(inherited)
-        if target.id != origin.id:
-            # Prepared owner-attributed text retains its internal audit, but
-            # grants recipients no access to any originating records.
-            provenance, local_source_ids = [], []
-        else:
-            provenance = inherited
-            local_source_ids = list(dict.fromkeys(source["id"] for source in inherited if source.get("kind") == "message"))
+        # Prepared owner-attributed text retains its internal audit, but
+        # grants recipients no access to any originating records.
+        provenance, local_source_ids = [], []
         chain = self.request_chain(db, request)
         content_hash = self.normalized_content_hash(body)
         for previous in db.scalars(select(Message).where(Message.chat_id == target.id, Message.causal_chain_id == chain.id, Message.author_id == twin.id, Message.state == "published")):
