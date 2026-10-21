@@ -348,7 +348,7 @@ class RuntimeBridge:
         schemas = [(name, description, {**properties, "action": action} if name == "create_approval" else properties, required)
                    for name, description, properties, required in schemas]
         if context.get("execution_enabled"):
-            schemas.append(("request_credential", "Ask the owner to supply one credential in the dedicated private form. Returns pending immediately; continue independent authorized work, then explain the blocker and finish without polling. Never receives values or approves an action; never ask for secret values in chat.",
+            schemas.append(("request_credential", "Open an owner-only credential form for required authentication that is missing or unusable; first reuse suitable available references and verify authentication is needed. Returns pending immediately; continue independent authorized work without polling. Submission queues remaining work after the origin settles; credentials grant no action approval. Never ask for secret values in chat.",
                 {"name": text, "description": text, "keynames": {"type": "array", "items": text, "minItems": 1, "maxItems": 32, "uniqueItems": True}, "reason": text},
                 ["name", "description", "keynames", "reason"]))
         result = []

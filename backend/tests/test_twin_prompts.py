@@ -87,16 +87,17 @@ def test_summary_guidance_keeps_exact_prefix_sources_and_raw_tail(monkeypatch):
     assert RuntimeBridge._summary_policy(None, {"messages": []}) == ""
 
 
-def test_tool_guidance_and_recovery_preserve_frozen_declarations():
+@pytest.mark.parametrize("frozen_name", ["create_approval", "request_credential"])
+def test_tool_guidance_and_recovery_preserve_frozen_declarations(frozen_name):
     runtime = RuntimeBridge.__new__(RuntimeBridge)
     tools = runtime._tools({"execution_enabled": True}, SimpleNamespace(snapshot={}, resumable=False))
     by_name = {tool.name: tool for tool in tools}
     assert "independent authorized work" in by_name["request_credential"].description
     assert "one-off answers need no topic" in by_name["create_tracking"].description
     assert "original configuration" in by_name["retry_reply_request"].description
-    frozen = {"name": "create_approval", "description": "Original frozen declaration",
+    frozen = {"name": frozen_name, "description": "Original frozen declaration",
               "parameters": {"type": "object", "properties": {}}, "replay": "safe", "version": "old"}
-    restored = runtime._tools({}, SimpleNamespace(snapshot={"tools": [frozen]}, resumable=True))
+    restored = runtime._tools({"execution_enabled": True}, SimpleNamespace(snapshot={"tools": [frozen]}, resumable=True))
     assert len(restored) == 1
     assert restored[0].description == frozen["description"]
     assert restored[0].parameters == frozen["parameters"]
