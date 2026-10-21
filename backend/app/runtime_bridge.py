@@ -250,9 +250,9 @@ class RuntimeBridge:
                 ". Do not include the newer tail in the summary. A tool failure must not cause "
                 "you to omit that history: keep answering from the full context supplied here.\n")
 
-    def _system(self, context, *, summary_maintenance=True):
+    def _system(self, context, *, summary_maintenance=True, worker=False):
         from .twin_prompts import conversation_system
-        return conversation_system(context, summary_instruction=self._summary_policy(context) if summary_maintenance else "")
+        return conversation_system(context, summary_instruction=self._summary_policy(context) if summary_maintenance else "", worker=worker)
 
     def _tools(self, context, session, execution_tools=()):
         execution_actions = {tool.name: tool for tool in execution_tools if tool.replay == "never"}
@@ -592,11 +592,7 @@ class RuntimeBridge:
         from .twin_execution import assemble
         execution_tools, context, memory_index = await assemble(self.service, session, context, include_memory=False)
         tools = [*self._tools(context, session, execution_tools), *execution_tools]
-        system = ("You are a background worker for the chat's Twin. Complete the assigned task and "
-                  "return a concise factual result, verified actions, blockers and remaining steps to the parent. "
-                  "Your goal is limited to the assigned subtask; broader mission guidance below "
-                  "does not authorize taking over the parent goal. Do not claim that your text was "
-                  "posted to the chat. Use only the tools installed for this originating conversation.\n" + self._system(context, summary_maintenance=False))
+        system = self._system(context, summary_maintenance=False, worker=True)
         if not session.resumable:
             system += await self._credential_continuation_history(context)
         if memory_index:

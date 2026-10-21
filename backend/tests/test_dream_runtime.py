@@ -34,8 +34,8 @@ def test_prompt_composes_soul_and_server_hook_without_private_memory(monkeypatch
     context = {"owner_id": "owner", "chat": {"kind": "group"},
                "execution_config": {"profile": {"soul": "Speak gently.", "soul_version": 2}},
                "private_memory": "must never appear"}
-    assert "Actively complete" in platform_prompt(context)
-    monkeypatch.setattr(twin_prompts, "platform_prompt", lambda _: "server-only policy")
+    assert "You are your owner's front-facing Twin." in platform_prompt(context)
+    monkeypatch.setattr(twin_prompts, "platform_prompt", lambda _, **kwargs: "server-only policy")
     prompt = conversation_system(context)
     assert "group conversation" in prompt and "Speak gently." in prompt
     assert "server-only policy" in prompt
