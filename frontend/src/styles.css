@@ -41,3 +41,6 @@ button{transition:background-color 100ms,border-color 100ms,color 100ms}button:h
 
 /* Local echoes have no canonical message actions or read receipts. */
 .local-send-status{display:flex;align-items:center;gap:5px;min-height:22px;font-size:11px;line-height:18px;color:#616161;margin-top:4px}.local-send-status .text-button{font-size:11px;padding:0 5px}.local-send.failed .local-send-status{color:#a4262c}.local-input-label{display:block;color:#616161;font-size:11px;line-height:17px;margin-bottom:6px}.local-send.sending .message-bubble{opacity:.85}.local-send .message-content{min-width:0}.local-send .message-text{overflow-wrap:anywhere}
+
+.failed-chip .icon-button{width:22px;height:22px;padding:3px;flex-shrink:0}
+.message-request-chips:empty{display:none}

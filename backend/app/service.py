@@ -844,6 +844,8 @@ class ProductService:
         return {**{k: getattr(row, k) for k in ("id", "chat_id", "approver_id", "title", "description", "target", "impact", "status")}, "created_at": iso(row.created_at), "action": row.sdk_reference.get("action")}
 
     def chat_detail(self, owner_id, chat_id, limit=100, before_seq=None):
+        from sqlalchemy.orm import aliased
+
         with self.transaction() as db:
             chat, member = self.membership(db, owner_id, chat_id)
             query = select(Message).where(Message.chat_id == chat_id, Message.seq >= member.lower_seq, Message.state == "published")
@@ -853,11 +855,14 @@ class ProductService:
             has_more = len(messages) > limit
             messages = messages[-limit:]
             checked = {}
-            requests = list(db.scalars(select(ReplyRequest).where(ReplyRequest.chat_id == chat_id, ReplyRequest.status.in_(["queued", "running", "failed"])).order_by(ReplyRequest.accepted_at.desc(), ReplyRequest.accepted_seq.desc()).limit(200)))
-            latest_generations = {}
-            for request in requests:
-                latest_generations[request.intent_key] = max(latest_generations.get(request.intent_key, -1), request.generation)
-            requests = [request for request in requests if request.generation == latest_generations[request.intent_key]]
+            newer = aliased(ReplyRequest)
+            # Terminal retries also supersede older failures. Select the latest
+            # generation before limiting so old attempts cannot consume the page.
+            superseded = select(newer.id).where(newer.intent_key == ReplyRequest.intent_key,
+                newer.generation > ReplyRequest.generation).exists()
+            requests = list(db.scalars(select(ReplyRequest).where(ReplyRequest.chat_id == chat_id,
+                ReplyRequest.status.in_(["queued", "running", "failed"]), ~superseded)
+                .order_by(ReplyRequest.accepted_at.desc(), ReplyRequest.accepted_seq.desc()).limit(200)))
             requests = [r for r in requests if chat.kind != "private" or r.private_generation == chat.reset_generation]
             requests = [r for r in requests if r.raw_owner_input is None or r.requester_id == owner_id]
             requests = [r for r in requests if (r.source_message_id and self.visible_message(db, member, r.source_message_id, False, cache=checked)) or (r.source_message_id is None and r.requester_id == owner_id)]
