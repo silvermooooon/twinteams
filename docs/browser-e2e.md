@@ -51,8 +51,8 @@ profile, Memory or Reset mutations safe.
 
 ## Offline coverage and evidence
 
-There are now 35 registered offline workflows: 18 conversation workflows, eight
-notification workflows and nine personal workflows. Each compound workflow
+There are now 36 registered offline workflows: 18 conversation workflows, eight
+notification workflows, one avatar presentation workflow and nine personal workflows. Each compound workflow
 counts once, regardless of its assertions. The historical 27/26-case results
 below predate the notification addition; current notification verification and
 its browser/OS boundary are recorded in [browser-notifications.md](browser-notifications.md).
@@ -115,6 +115,59 @@ are deliberately explicit (`E2E SKILL`, `E2E MEMORY`, `E2E CREDENTIAL`,
 `E2E APPROVAL`, and the conversation commands). A scripted success sentence alone
 is not evidence of an effect: cases also check canonical messages, Activity,
 stored resources or inspector metadata.
+
+## Default avatar presentation check
+
+The `avatars /` workflow is one small real-app presentation check; it does not
+send chat messages or invoke a provider. Run only that workflow with:
+
+```sh
+cd backend
+TWINTEAMS_BROWSER_CHANNEL=chrome TWINTEAMS_E2E_CASE='^avatars /' \
+  .venv/bin/python checks/browser_e2e.py --node "$(command -v node)" \
+  --artifact-dir /tmp/twinteams-avatar-presentation
+```
+
+Default colors use Fluent UI's fixed colorful-avatar palette and name hash
+(`actor.name`, falling back to ID). The same actor remains consistent across
+pages and reloads; a rename can change its default color. This is not a unique
+color allocation scheme, and different names may collide. See Microsoft's
+[Avatar name/color selection](https://github.com/microsoft/fluentui/blob/master/packages/react-components/react-avatar/library/src/components/Avatar/useAvatar.tsx)
+and [paired foreground/background styles](https://github.com/microsoft/fluentui/blob/master/packages/react-components/react-avatar/library/src/components/Avatar/useAvatarStyles.styles.ts).
+
+The check captures the real three-person group-members view and three owners'
+default Twin profile views, records their computed background/foreground colors
+and text-pair contrast, and verifies stable rendering across contacts, account,
+private-chat header, profile and reload. Human initials and Twin branding remain
+visible. It also saves a normal preset and uploads a valid image through the UI.
+Only that uploaded avatar's exact image resource receives one deliberate 404 to
+exercise fallback; business JSON and WebSocket traffic are not intercepted.
+The report identifies this image-resource fault injection explicitly.
+
+The filtered workflow **passed 1/1 in 4.610 seconds** with Chrome
+**155.0.8059.85**, at `2026-10-22T18:21:22.323Z`–`18:21:27.335Z`.
+Artifacts, including `avatar-group-members.png` and the three default Twin
+profile screenshots, are in `/tmp/twinteams-avatar-colors-final-20261023/`.
+Its six owned processes, schema/root and Redis namespace were cleaned. No
+messages or real provider calls were needed. The candidate was based on HEAD
+`610936eab14419aacc45a5e811ba448e4617ddf2`, with the avatar changes uncommitted.
+The earlier `/tmp/twinteams-avatar-colors-20261023/` report remains failed:
+reload selected the private chat, while the test assumed the group Workspace
+was still selected. Explicit UI reselection corrected that test precondition;
+product navigation was unchanged. This is a filtered pass, **not a full
+36-case pass**.
+
+Observed default foreground/background pairs (contrast is the pair's measured
+luminance ratio; Twin brand artwork retains its existing colors):
+
+| Actor | Background | Foreground | Contrast |
+| --- | --- | --- | --- |
+| AAA | `#ffddb3` | `#8f4e00` | 4.987:1 |
+| BBB | `#9bd9db` | `#02494c` | 6.477:1 |
+| CCC | `#ecdfa5` | `#6c5700` | 5.220:1 |
+| AAA's Twin | `#f9e2ae` | `#835b00` | 4.772:1 |
+| BBB's Twin | `#a6e9ed` | `#00666d` | 4.966:1 |
+| CCC's Twin | `#e0cea2` | `#553e06` | 6.506:1 |
 
 ## Opt-in live continuous workflow
 

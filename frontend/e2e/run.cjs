@@ -129,6 +129,7 @@ async function main() {
     : [
         require("./conversations.cjs"),
         require("./notifications.cjs"),
+        require("./avatar.cjs"),
         require("./personal.cjs"),
       ];
   const registered = suites

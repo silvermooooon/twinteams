@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { Actor, Chat } from './api/client';
 import { t, formatDate, formatTime } from './i18n';
 import { PresetAvatar } from './TwinAvatars';
+import { defaultAvatarColor } from './avatarColors';
 export type IconName = 'chat' | 'bell' | 'search' | 'send' | 'smile' | 'edit' | 'check' | 'clock' | 'plus' | 'more' | 'chevron' | 'people' | 'info' | 'close' | 'reply' | 'spark' | 'sidebar' | 'folder' | 'file' | 'arrow' | 'refresh' | 'settings' | 'trash' | 'video' | 'apps' | 'image' | 'attachment' | 'star' | 'panel-left';
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
@@ -16,7 +17,9 @@ export function BrandMark() { return <span className="brand-mark" aria-hidden="t
 export function Avatar({ actor, size = 36, twin = false, group = false }: { actor?: Actor; size?: number; twin?: boolean; group?: boolean }) {
   const isTwin = twin || actor?.kind === 'twin';
   const [failedUrl, setFailedUrl] = useState('');
-  return <span className={`avatar ${isTwin ? 'twin' : ''} ${group ? 'group-avatar' : ''}`} style={{ width: size, height: size, backgroundColor: actor?.color || undefined, fontSize: size * .33 }} aria-hidden="true">{group ? <Icon name="people" size={size * .55} /> : actor?.avatar_preset ? <PresetAvatar preset={actor.avatar_preset} /> : actor?.avatar_url && failedUrl !== actor.avatar_url ? <img src={actor.avatar_url} alt="" onError={() => setFailedUrl(actor.avatar_url || '')} /> : isTwin ? <BrandMark /> : actor?.initials || '·'}{isTwin && <span className="twin-badge">✧</span>}</span>;
+  const fallback = !group && !actor?.avatar_preset && (!actor?.avatar_url || failedUrl === actor.avatar_url);
+  const colors = fallback && actor ? defaultAvatarColor(actor.name || actor.id) : undefined;
+  return <span className={`avatar ${isTwin ? 'twin' : ''} ${group ? 'group-avatar' : ''}`} style={{ width: size, height: size, backgroundColor: colors?.backgroundColor || (!isTwin ? actor?.color || undefined : undefined), color: colors?.color, fontSize: size * .33 }} aria-hidden="true">{group ? <Icon name="people" size={size * .55} /> : actor?.avatar_preset ? <PresetAvatar preset={actor.avatar_preset} /> : actor?.avatar_url && failedUrl !== actor.avatar_url ? <img src={actor.avatar_url} alt="" onError={() => setFailedUrl(actor.avatar_url || '')} /> : isTwin ? <BrandMark /> : actor?.initials || '·'}{isTwin && <span className="twin-badge">✧</span>}</span>;
 }
 export function chatTitle(chat: Chat, actors: Actor[], ownerId: string) {
   const peer = chat.kind === 'group' && chat.member_owner_ids.length === 2 ? chat.member_owner_ids.find(id => id !== ownerId) : null;
