@@ -1250,11 +1250,11 @@ class ProductService:
             candidate = TriggerCandidate(chat_id=chat.id, message_id=message.id, target_twin_id=twin.id, causal_chain_id=chain.id, state=state, due_at=aware(message.created_at) + timedelta(seconds=settings.response_delay_seconds) if online else now(), evidence={"online": online, "viewing": viewing, "read": seen, "replied": replied, "observed_at": iso(now())})
             db.add(candidate)
             db.flush()
+            # New candidates settle only after the worker refreshes presence; a
+            # previously cached offline observation cannot authorize a new reply.
             prior = db.scalar(select(ReplyRequest).where(ReplyRequest.intent_key == f"message:{message.id}:{twin.id}", ReplyRequest.generation == 0))
             if prior:
                 candidate.state, candidate.accepted_request_id = "accepted", prior.id
-            elif state == "waiting" and online is not None and (not online or aware(candidate.due_at) <= now()):
-                self.accept_request(db, chat, twin.id, source_owner, "auto", f"auto:{message.id}:{twin.id}", source_message_id=message.id, causal_chain_id=chain.id)
 
     def pending_routes(self, scopes=None):
         with self.transaction() as db:

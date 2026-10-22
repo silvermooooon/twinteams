@@ -1,5 +1,9 @@
 """Independent automatic reply boundaries; disposable PG, no worker or model calls."""
+import asyncio
+import json
 from datetime import timedelta
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -42,6 +46,8 @@ def test_known_offline_accepts_immediately_but_unknown_presence_does_not(send_cl
     product, _, _ = send_clients
     product._presence_cache["owner-maya"] = {"expires_at": 0, "focused_chats": []}
     message_id, _ = route(product, chat_id)
+    assert candidate(product, message_id)["state"] == "waiting"
+    product.process_candidates({chat_id})
     row = candidate(product, message_id)
     assert row["state"] == "accepted" and row["request_id"]
     with product.transaction() as db:
@@ -52,6 +58,46 @@ def test_known_offline_accepts_immediately_but_unknown_presence_does_not(send_cl
     unknown, _ = route(product, chat_id)
     product.process_candidates({chat_id})
     assert candidate(product, unknown)["request_id"] is None
+
+
+
+@pytest.mark.parametrize("online", [False, True])
+def test_stale_offline_cache_cannot_bypass_fresh_presence_sample(send_clients, monkeypatch, online):
+    product, _, _ = send_clients
+    chat_id = "group-alex-maya"
+    product._presence_cache["owner-maya"] = {"expires_at": 0, "focused_chats": []}
+    message_id, _ = route(product, chat_id)
+    assert candidate(product, message_id)["request_id"] is None
+    # Use the worker's existing Redis refresh with a fresh read-only sample,
+    # after routing created the waiting candidate. No presence value is rewritten.
+    redis = SimpleNamespace(
+        smembers=AsyncMock(return_value={"live-device"} if online else set()),
+        mget=AsyncMock(return_value=[json.dumps({"chat_id": chat_id, "visible": True})]),
+    )
+    monkeypatch.setattr(service_module.notifications, "redis", redis)
+    asyncio.run(product.refresh_presence({chat_id}))
+    redis.smembers.assert_awaited_once()
+    product.process_candidates({chat_id})
+    if online:
+        first = candidate(product, message_id)
+        assert first["state"] == "waiting" and first["request_id"] is None
+        with product.transaction() as db:
+            assert first["due_at"] == aware(db.get(Message, message_id).created_at) + timedelta(seconds=10)
+        clock_after_source(product, monkeypatch, message_id, 9)
+        product.process_candidates({chat_id})
+        assert candidate(product, message_id)["request_id"] is None
+        clock_after_source(product, monkeypatch, message_id, 11)
+        product.process_candidates({chat_id})
+    else:
+        request_id = candidate(product, message_id)["request_id"]
+        with product.transaction() as db:
+            request = db.get(ReplyRequest, request_id)
+            assert aware(request.accepted_at) - aware(db.get(Message, message_id).created_at) < timedelta(seconds=10)
+    assert candidate(product, message_id)["state"] == "accepted"
+    product.process_candidates({chat_id})
+    with product.transaction() as db:
+        assert db.scalar(select(func.count()).select_from(ReplyRequest).where(
+            ReplyRequest.source_message_id == message_id, ReplyRequest.target_twin_id == "twin-maya")) == 1
 
 
 @pytest.mark.parametrize("chat_id", ["group-alex-maya", "group-team"])

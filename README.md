@@ -95,6 +95,11 @@ are explicit test implementations. The separately launched
 `checks/acceptance_fixture.py --port 8011` uses the same schema isolation and labels
 its simulated responses; it is never an application fallback.
 
+For real browser coverage against disposable PostgreSQL, Redis, two APIs and a
+worker, see [browser E2E](docs/browser-e2e.md). Its one-command launcher uses a
+deterministic offline provider while exercising real UI actions, tools and durable
+state; it never targets the production instance.
+
 See [database operation](docs/postgresql.md) and
 [recovery boundaries](docs/recovery-fixes.md).
 
