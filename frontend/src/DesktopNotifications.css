@@ -1,0 +1,109 @@
+.desktop-notification-prompt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #deddf2;
+  background: #f5f5fc;
+  color: #242424;
+  flex-shrink: 0;
+}
+.desktop-notification-prompt > svg {
+  color: #5b5fc7;
+  flex-shrink: 0;
+}
+.desktop-notification-prompt > div {
+  flex: 1;
+  min-width: 0;
+}
+.desktop-notification-prompt strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.desktop-notification-prompt p {
+  font-size: 12px;
+  line-height: 18px;
+  color: #616161;
+  margin-top: 2px;
+}
+.desktop-notification-prompt > .secondary-button {
+  white-space: nowrap;
+  font-size: 12px;
+}
+.desktop-notification-setting {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 0 20px;
+  border-bottom: 1px solid #ebebeb;
+}
+.desktop-notification-setting > div {
+  flex: 1;
+  min-width: 0;
+}
+.desktop-notification-setting h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.desktop-notification-setting p,
+.notification-permission {
+  font-size: 13px;
+  line-height: 20px;
+  color: #616161;
+  margin-top: 7px;
+}
+.notification-permission {
+  margin: 18px 0 8px;
+}
+.notification-switch {
+  width: 38px;
+  height: 21px;
+  border-radius: 12px;
+  border: 1px solid #616161;
+  background: #fff;
+  padding: 3px;
+  flex-shrink: 0;
+}
+.notification-switch > span {
+  display: block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #616161;
+  transition:
+    transform 130ms,
+    background-color 130ms;
+}
+.notification-switch.on {
+  background: #5b5fc7;
+  border-color: #5b5fc7;
+}
+.notification-switch.on > span {
+  transform: translateX(16px);
+  background: #fff;
+}
+.notification-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 600px) {
+  .desktop-notification-prompt {
+    padding: 10px 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .desktop-notification-prompt > div {
+    flex-basis: calc(100% - 65px);
+  }
+  .desktop-notification-prompt > .secondary-button {
+    margin-left: 28px;
+  }
+  .desktop-notification-prompt > .icon-button {
+    margin-left: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notification-switch > span {
+    transition: none;
+  }
+}

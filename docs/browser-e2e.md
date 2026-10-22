@@ -51,9 +51,11 @@ profile, Memory or Reset mutations safe.
 
 ## Offline coverage and evidence
 
-There are now 27 registered offline workflows: 18 conversation workflows and 9
-personal workflows. The results below distinguish the current 27-case full run,
-the earlier 26-case full run, and the filtered Tracking-scope development run. Each compound workflow counts once, regardless of its assertions.
+There are now 35 registered offline workflows: 18 conversation workflows, eight
+notification workflows and nine personal workflows. Each compound workflow
+counts once, regardless of its assertions. The historical 27/26-case results
+below predate the notification addition; current notification verification and
+its browser/OS boundary are recorded in [browser-notifications.md](browser-notifications.md).
 
 Each named case records its result in `report.json`. Browser actions perform
 ordinary product mutations; authenticated GETs check the resulting durable
@@ -379,8 +381,22 @@ the fake-secret marker is redacted from runner errors/reports. Reports contain
 metadata and assertions, not provider keys or saved credential values. Do not
 commit generated logs, traces, reports, instance files or temporary state.
 
-Latest full offline verification on **2026-10-23 (Asia/Shanghai)**: **27/27
-workflows passed, 0 failed**, with `full_suite: true`, 27 registered/executed cases
+Latest full offline verification on **2026-10-23 (Asia/Shanghai)**: **35/35
+workflows passed, 0 failed**, with all 35 registered cases executed and
+`full_suite: true`. The run lasted **347.785 seconds**, from
+`2026-10-22T17:58:42.370Z` to `2026-10-22T18:04:30.155Z`, using Chrome
+**155.0.8059.85**. Artifacts are in
+`/tmp/twinteams-desktop-notifications-full-verified-20261023/`. Its seven owned
+process instances, schema/root and Redis namespace were cleaned; no real
+provider calls were made. Source HEAD `43b25fc33abef4ab25563a6a48f486de2a47bf06`
+is the candidate working tree's base, not a final tested delivery commit.
+See [browser-notifications.md](browser-notifications.md) for the added eight
+workflows, preserved development failures and the important distinction between
+a real Chrome Notification constructor and controlled background inputs. OS
+banner/sound and physical window blur were not verified.
+
+Historical pre-notification full verification on **2026-10-23
+(Asia/Shanghai)**: **27/27 workflows passed, 0 failed**, with `full_suite: true`, 27 registered/executed cases
 and no unrun cases. The browser run used installed Chrome **155.0.8059.85** and
 lasted **249.927 seconds**, from `2026-10-22T16:29:04.998Z` to
 `2026-10-22T16:33:14.925Z`. Results are retained in

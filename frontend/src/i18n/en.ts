@@ -1,6 +1,21 @@
 /** English product copy. User-authored content is displayed as supplied. */
 import { twinEn } from './twin';
 export const en = {
+  'notifications.title': 'Notifications and activity',
+  'notifications.prompt': 'Turn on desktop notifications',
+  'notifications.promptDetail': 'Know when your twin replies or someone sends you a message while you are away.',
+  'notifications.turnOn': 'Turn on',
+  'notifications.desktop': 'Desktop notifications',
+  'notifications.description': 'Show message previews when this window is not in focus.',
+  'notifications.on': 'On. New messages can appear as browser desktop notifications.',
+  'notifications.off': 'Off in this browser. You can turn notifications back on here.',
+  'notifications.ask': 'Turn this on to let your browser ask for notification permission.',
+  'notifications.denied': 'Notifications are blocked in your browser. Allow notifications for this site in browser settings, then return here.',
+  'notifications.insecure': 'Desktop notifications require a secure connection (HTTPS or localhost).',
+  'notifications.unsupported': 'This browser does not support desktop notifications. Use a supported desktop browser.',
+  'notifications.unavailable': 'This browser could not show desktop notifications. Check browser and system notification settings.',
+  'notifications.limit': 'Notifications work while Twinteams is open in your browser. Browser and system settings, including Do Not Disturb, control how alerts appear.',
+  'notifications.attachment': 'Sent an attachment',
   "reactions.moreTypes": "{count} more reaction types",
   "reactions.actions": "Message actions and reactions",
   "reactions.react": "React {emoji}",

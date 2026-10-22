@@ -661,7 +661,7 @@ class ProductService:
     def chat_json(self, db, chat, member, owner_ids=None):
         from sqlalchemy.dialects.postgresql import JSONB
         from sqlalchemy.orm import load_only
-        metadata = load_only(Message.id, Message.chat_id, Message.seq, Message.author_id, Message.state,
+        metadata = load_only(Message.id, Message.chat_id, Message.seq, Message.author_id, Message.kind, Message.created_at, Message.state,
                              Message.source_floor_seq, Message.source_message_ids, Message.source_provenance)
         visible = select(Message).options(metadata).where(Message.chat_id == chat.id, Message.seq >= member.lower_seq, Message.state == "published")
         last, cursor = None, None
@@ -690,7 +690,9 @@ class ProductService:
         return {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, member.owner_id, owner_ids), "revision": chat.revision,
                 "can_rename": chat.kind == "group" and len(owner_ids) >= 3,
                 "member_owner_ids": owner_ids, "unread_count": unread,
-                "last_message": last.body if last else None}
+                "last_message": last.body if last else None,
+                "last_message_meta": {"id": last.id, "seq": last.seq, "author_id": last.author_id,
+                                      "kind": last.kind, "created_at": iso(last.created_at)} if last else None}
 
     def settings_row(self, db, owner_id, chat):
         row = db.get(ChatSetting, (owner_id, chat.id))
@@ -711,7 +713,7 @@ class ProductService:
             if not db.get(Owner, owner_id):
                 fail(401, "Unknown owner identity")
             memberships = list(db.scalars(select(Membership).where(Membership.owner_id == owner_id, Membership.left_at.is_(None))))
-            return {"current_owner_id": owner_id, "actors": [self.actor_json(a) for a in db.scalars(select(Actor).order_by(Actor.kind, Actor.name))], "chats": [self.chat_json(db, db.get(Chat, m.chat_id), m) for m in memberships], "reminders": [self.reminder_json(r) for r in db.scalars(select(Reminder).where(Reminder.owner_id == owner_id).order_by(Reminder.due_at))], "model_configured": self.model_configured, "development_mode": settings.local_identity_enabled}
+            return {"server_time": iso(now()), "current_owner_id": owner_id, "actors": [self.actor_json(a) for a in db.scalars(select(Actor).order_by(Actor.kind, Actor.name))], "chats": [self.chat_json(db, db.get(Chat, m.chat_id), m) for m in memberships], "reminders": [self.reminder_json(r) for r in db.scalars(select(Reminder).where(Reminder.owner_id == owner_id).order_by(Reminder.due_at))], "model_configured": self.model_configured, "development_mode": settings.local_identity_enabled}
 
     def people(self, owner_id, query):
         with self.transaction() as db:

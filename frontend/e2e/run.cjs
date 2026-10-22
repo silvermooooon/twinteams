@@ -126,7 +126,11 @@ async function main() {
               : "./continuous-workflow.cjs",
         ),
       ]
-    : [require("./conversations.cjs"), require("./personal.cjs")];
+    : [
+        require("./conversations.cjs"),
+        require("./notifications.cjs"),
+        require("./personal.cjs"),
+      ];
   const registered = suites
     .flatMap((suite) => suite.cases || [])
     .sort((a, b) => Number(!!a.last) - Number(!!b.last));
@@ -232,6 +236,7 @@ async function main() {
             permissions: ["clipboard-read", "clipboard-write"],
           });
           contexts.push(context);
+          if (options.contextSetup) await options.contextSetup(context);
           if (!test.sensitive)
             await context.tracing.start({
               screenshots: true,
