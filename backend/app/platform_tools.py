@@ -15,8 +15,8 @@ from .models import (
 PLATFORM_TOOLS = {"set_message_reaction", "list_people", "get_chat", "create_chat", "rename_chat", "add_chat_members",
                   "list_reminders", "update_reminder", "list_workspace", "read_workspace_file",
                   "get_twin_status", "get_reply_request", "cancel_reply_request", "retry_reply_request"}
-SCOPED_TOOLS = {"history", "list_tracking", "get_tracking", "create_tracking", "update_tracking",
-                "delete_tracking", "add_tracking_update", "create_reminder"}
+TRACKING_TOOLS = {"list_tracking", "get_tracking", "create_tracking", "update_tracking", "delete_tracking", "add_tracking_update"}
+SCOPED_TOOLS = {"history", "create_reminder"} | TRACKING_TOOLS
 WRITE_TOOLS = {"set_message_reaction", "send_chat_message", "create_chat", "rename_chat", "add_chat_members", "create_reminder",
                "update_reminder", "create_tracking", "update_tracking", "delete_tracking",
                "add_tracking_update", "save_summary", "cancel_reply_request", "retry_reply_request"}

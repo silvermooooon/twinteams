@@ -1,7 +1,8 @@
 """Build and run real browser E2E with isolated PG/Redis/two APIs/worker.
 
-Only the model provider is deterministic/offline. No production process, schema,
-workspace or frontend/dist is changed. Use --serve while developing browser cases.
+The default model provider is deterministic/offline; --live-model enables only
+the explicit bounded scenario. No production process, schema, workspace or
+frontend/dist is changed. Use --serve while developing browser cases.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -45,7 +47,23 @@ async def main():
     parser.add_argument('--serve', action='store_true', help='Keep the disposable stack alive until interrupted')
     parser.add_argument('--artifact-dir', type=Path)
     parser.add_argument('--node', default=os.getenv('TWINTEAMS_E2E_NODE'), help='Node >=22.12 executable')
+    parser.add_argument('--live-model', action='store_true', help='Explicit bounded real gpt-6-luna scenario; offline remains the default')
+    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking'])
+    parser.add_argument('--live-max-attempts', type=int, default=60, help='Frozen per-campaign HTTP-attempt ceiling, including smoke and worker restarts')
     args = parser.parse_args()
+    if not 1 <= args.live_max_attempts <= 60:
+        parser.error('--live-max-attempts must be between 1 and 60')
+    if args.live_model != bool(args.scenario):
+        parser.error('--live-model requires an explicit dedicated --scenario')
+    if not args.live_model and args.live_max_attempts != 60:
+        parser.error('--live-max-attempts requires --live-model')
+    if args.live_model and os.environ.get('TWINTEAMS_E2E_CASE'):
+        parser.error('Live mode uses its dedicated scenario, not an offline case filter')
+    live = {}
+    if args.live_model:
+        sys.path.insert(0, str(BACKEND))
+        from checks.browser_e2e_live import configuration
+        live = configuration()
     candidates = [args.node or shutil.which('node')]
     if not args.node:
         candidates += [str(path) for path in Path('/usr/local/n/versions/node').glob('*/bin/node')]
@@ -99,6 +117,10 @@ async def main():
             AGENT_SECRETS_DIR=str(root / 'secrets'), AGENT_SECRETS_KEY=Fernet.generate_key().decode(),
             AGENT_PROVIDER='openai', AGENT_API='browser-e2e-offline', AGENT_MODEL='gpt-6-luna',
             TWINTEAMS_SUBAGENT_MODEL='gpt-6-luna', OPENAI_API_KEY='explicit-offline-not-a-provider-key')
+        if args.live_model:
+            env.pop('OPENAI_API_KEY')
+            env.update(AGENT_API='openai-responses', AGENT_MAX_TOKENS='4096',
+                TWINTEAMS_E2E_MODEL_MODE='live-gpt-6-luna', TWINTEAMS_E2E_SCENARIO=args.scenario)
         (root / 'gitconfig').write_text('')
         for folder in ('tmp', 'workspaces', 'memory', 'secrets'):
             (root / folder).mkdir(mode=0o700)
@@ -112,7 +134,10 @@ async def main():
             command = [sys.executable, '-u', str(FIXTURE), role]
             if port:
                 command += ['--port', str(port)]
-            process = subprocess.Popen(command, cwd=BACKEND, env=env, stdin=subprocess.DEVNULL,
+            child_env = {**env, 'TWINTEAMS_E2E_ROLE': role}
+            if args.live_model and role == 'worker':
+                child_env.update(live)
+            process = subprocess.Popen(command, cwd=BACKEND, env=child_env, stdin=subprocess.DEVNULL,
                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             processes.append(process)
             if role == 'worker':
@@ -130,7 +155,7 @@ async def main():
                         return
                 except (httpx.HTTPError, ValueError):
                     pass
-                await asyncio.sleep(.1)
+                await asyncio.sleep(1 if args.live_model else .1)
             raise RuntimeError('Fixture API readiness timed out')
 
         try:
@@ -149,6 +174,9 @@ async def main():
             url_a, url_b = f'http://127.0.0.1:{port_a}', f'http://127.0.0.1:{port_b}'
             env['TWINTEAMS_CORS_ORIGINS'] = url_a + ',' + url_b
             state.write_text(json.dumps({'env': env, 'root': str(root)}))
+            if args.live_model:
+                from checks.browser_e2e_live import initialize_budget
+                initialize_budget(root, max_attempts=args.live_max_attempts)
             spawn('worker')
             spawn('api', port_a)
             spawn('api', port_b)
@@ -178,25 +206,45 @@ async def main():
                 await asyncio.gather(ready(first), ready(second))
             runner_env = {**env, **{name: value for name, value in os.environ.items() if name in {'TWINTEAMS_E2E_CASE', 'TWINTEAMS_E2E_HEADED', 'TWINTEAMS_BROWSER_CHANNEL', 'PLAYWRIGHT_BROWSERS_PATH', 'HEADED', 'BROWSER_CHANNEL'}}, 'TWINTEAMS_E2E_URL': url_a, 'TWINTEAMS_E2E_SECONDARY_URL': url_b,
                 'TWINTEAMS_E2E_ARTIFACT_DIR': str(artifacts), 'TWINTEAMS_E2E_NAMESPACE': namespace,
-                'TWINTEAMS_E2E_MODEL_MODE': 'deterministic-offline', 'TWINTEAMS_E2E_STATE': str(state),
+                'TWINTEAMS_E2E_MODEL_MODE': 'live-gpt-6-luna' if args.live_model else 'deterministic-offline', 'TWINTEAMS_E2E_STATE': str(state),
                 'TWINTEAMS_E2E_PYTHON': sys.executable}
+            if args.live_model:
+                runner_env['TWINTEAMS_E2E_SCENARIO'] = args.scenario
             public = {key: value for key, value in runner_env.items() if key.startswith('TWINTEAMS_E2E_') and key not in {'TWINTEAMS_E2E_ROOT', 'TWINTEAMS_E2E_DIST'}}
             (artifacts / 'instance.json').write_text(json.dumps(public, indent=2))
             print(json.dumps({'status': 'ready', **public}), flush=True)
             if args.serve:
                 stop = asyncio.Event()
                 loop = asyncio.get_running_loop()
-                await stop.wait()
+                if args.live_model:
+                    await asyncio.wait_for(stop.wait(), max(.01, json.loads((root / 'live-budget.json').read_text())['deadline_at'] - time.time()))
+                else:
+                    await stop.wait()
             else:
                 runner = await asyncio.create_subprocess_exec(node, str(FRONTEND / 'e2e' / 'run.cjs'), cwd=FRONTEND, env=runner_env, start_new_session=True)
                 processes.append(runner)
-                code = await runner.wait()
+                if args.live_model:
+                    code = await asyncio.wait_for(runner.wait(), max(.01, json.loads((root / 'live-budget.json').read_text())['deadline_at'] - time.time()))
+                else:
+                    code = await runner.wait()
                 if code:
                     raise RuntimeError(f'Browser E2E runner failed with exit {code}; see {artifacts}')
         finally:
             if monitor:
                 monitor.cancel()
                 await asyncio.gather(monitor, return_exceptions=True)
+            if args.live_model:
+                # Preserve terminal allowlisted evidence before its disposable DB is removed.
+                snapshot = await asyncio.create_subprocess_exec(sys.executable, str(FIXTURE), 'inspect', '--state', str(state),
+                    cwd=BACKEND, env=env, stdin=subprocess.DEVNULL,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, start_new_session=True)
+                processes.append(snapshot)
+                try:
+                    output, _ = await asyncio.wait_for(snapshot.communicate(), 15)
+                    value = json.loads(output) if snapshot.returncode == 0 else {'snapshot_failed': True, 'exit_code': snapshot.returncode}
+                except (TimeoutError, ValueError):
+                    value = {'snapshot_failed': True}
+                (artifacts / 'live-final-inspect.json').write_text(json.dumps(value, indent=2))
             if (root / 'provider-calls.jsonl').exists():
                 shutil.copyfile(root / 'provider-calls.jsonl', artifacts / 'provider-calls.jsonl')
             for process in processes:
@@ -220,10 +268,13 @@ async def main():
                         await asyncio.to_thread(process.wait, 5)
             for handle in handles:
                 handle.close()
+            for filename in ('live-budget.json', 'live-smoke.json'):
+                if (root / filename).exists():
+                    shutil.copyfile(root / filename, artifacts / filename)
             # Logs contain only synthetic fixture data; redact private connection strings.
             for path in artifacts.glob('*.log'):
                 content = path.read_text(errors='replace')
-                for value in (private['DATABASE_URL'], private['TWINTEAMS_REDIS_URL'], database.url, env['AGENT_SECRETS_KEY']):
+                for value in (private['DATABASE_URL'], private['TWINTEAMS_REDIS_URL'], database.url, env['AGENT_SECRETS_KEY'], *live.values()):
                     content = content.replace(value, '<private-test-config>')
                 path.write_text(content)
             redis = Redis.from_url(env['TWINTEAMS_REDIS_URL'])

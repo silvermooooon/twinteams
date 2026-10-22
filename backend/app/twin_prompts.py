@@ -161,7 +161,7 @@ def conversation_system(context, *, summary_instruction="", worker=False):
         + "Destination audience (current participants): " + safe_text(context.get("chat", {}).get("audience", [])) + "\n"
         + "Authorized summary: " + safe_text(summary or "No summary yet.") + "\n"
         + "Authorized recent messages, with no gap after summary: " + json.dumps(history, ensure_ascii=False) + "\n"
-        + "Tracking index for this chat: " + safe_text(context.get("tracking", []))
+        + "Visible Tracking index (owner private: own and authorized groups; group: this group only; use each item's chat_id for details/changes): " + safe_text(context.get("tracking", []))
         + "\nAvailable enabled Skills (catalog metadata; load relevant instructions with load_skill before applying a Skill): "
         + safe_text(context.get("execution_config", {}).get("skills", []))
         + summary_instruction

@@ -1308,5 +1308,199 @@ const cases = [
       });
     },
   },
+  {
+    name: "tracking scopes / private union labels sources and writes to the originating group while groups stay isolated",
+    run: async (t) => {
+      const alex = await t.session(),
+        maya = await t.session("DEV-BBB", { baseURL: t.secondaryURL }),
+        jordan = await t.session("DEV-CCC");
+      const label = t.unique("scope");
+      async function panel(page) {
+        if (!(await page.locator(".detail-sidebar").isVisible()))
+          await page
+            .getByRole("button", { name: "Toggle sidebar", exact: true })
+            .click();
+        await page.getByRole("tab", { name: "Tracking", exact: true }).click();
+      }
+      async function create(page, chat, title) {
+        const source = await sendMessage(page, `Scope source ${title}`);
+        const action = source.getByTitle("Track this message", { exact: true });
+        await action.focus();
+        await action.press("Enter");
+        const modal = page.locator('.modal[role="dialog"]');
+        await modal.getByLabel("Topic", { exact: true }).fill(title);
+        await modal
+          .getByLabel("Description", { exact: true })
+          .fill(`Ongoing scope work ${label}`);
+        await modal.getByRole("button", { name: "Save", exact: true }).click();
+        await modal.waitFor({ state: "hidden" });
+        return poll(
+          async () =>
+            (await detail(page, chat)).tracking.find(
+              (topic) => topic.title === title,
+            ),
+          "UI-created sourced topic",
+        );
+      }
+      const ab = await startChat(alex.page, ["BBB"]);
+      const first = await create(alex.page, ab, `AB ${label}`);
+      const ac = await startChat(alex.page, ["CCC"]);
+      const second = await create(alex.page, ac, `AC ${label}`);
+      const own = await privateChat(alex.page);
+      await panel(alex.page);
+      const card = (title) =>
+        alex.page.locator(".tracking-card").filter({
+          has: alex.page.getByRole("heading", { name: title, exact: true }),
+        });
+      await card(first.title).waitFor();
+      await card(second.title).waitFor();
+      assert.equal(
+        await card(first.title).getAttribute("data-tracking-chat-id"),
+        ab.id,
+      );
+      assert.match(
+        await card(first.title).locator(".tracking-source").innerText(),
+        /^Group · /,
+      );
+      assert.equal(
+        await card(second.title).getAttribute("data-tracking-chat-id"),
+        ac.id,
+      );
+      await alex.page.screenshot({
+        path: path.join(t.artifactDir, "tracking-private-union.png"),
+        fullPage: true,
+      });
+      await startChat(maya.page, ["AAA"]);
+      const watched = [];
+      alex.page.on("request", (request) => {
+        if (request.method() === "GET")
+          watched.push(new URL(request.url()).pathname);
+      });
+      const input = alex.page.locator(".composer textarea");
+      await input.fill(`Keep this draft ${label}`);
+      await input.focus();
+      const incoming = await create(maya.page, ab, `Live AB ${label}`);
+      await card(incoming.title).waitFor();
+      assert.equal(await input.inputValue(), `Keep this draft ${label}`);
+      assert.equal(
+        await input.evaluate((node) => node === document.activeElement),
+        true,
+      );
+      assert.ok(
+        watched.includes(`/api/chats/${own.id}/tracking`),
+        "owner Tracking hint fetches the small union index",
+      );
+      assert.ok(
+        !watched.includes("/api/bootstrap") &&
+          !watched.includes(`/api/chats/${own.id}`),
+        "external Tracking mutation does not reload the whole private chat or bootstrap",
+      );
+      await card(first.title).click();
+      let drawer = alex.page.getByRole("dialog", {
+        name: first.title,
+        exact: true,
+      });
+      await drawer.locator(".tracking-source").waitFor();
+      await drawer.getByRole("button", { name: "Edit", exact: true }).click();
+      const modal = alex.page.locator('.modal[role="dialog"]'),
+        renamed = `Edited AB ${label}`;
+      await modal.getByLabel("Topic", { exact: true }).fill(renamed);
+      await modal.getByRole("button", { name: "Save", exact: true }).click();
+      await modal.waitFor({ state: "hidden" });
+      await poll(
+        async () =>
+          (await api(alex.page, `/chats/${ab.id}/tracking/${first.id}`))
+            .title === renamed,
+        "private union edit reached original group",
+      );
+      drawer = alex.page.getByRole("dialog", { name: renamed, exact: true });
+      await drawer
+        .getByLabel("Add an update", { exact: true })
+        .fill(`Actual group progress ${label}`);
+      await drawer.getByRole("button", { name: "Add", exact: true }).click();
+      await poll(
+        async () =>
+          (
+            await api(maya.page, `/chats/${ab.id}/tracking/${first.id}`)
+          ).updates.some(
+            (update) => update.body === `Actual group progress ${label}`,
+          ),
+        "group update visible to other member",
+      );
+      await drawer.getByRole("button", { name: "Delete", exact: true }).click();
+      await alex.page
+        .locator('.modal[role="dialog"]')
+        .getByRole("button", { name: "Delete", exact: true })
+        .click();
+      await poll(
+        async () =>
+          !(await detail(alex.page, ab)).tracking.some(
+            (topic) => topic.id === first.id,
+          ),
+        "union delete tombstones the source group topic",
+      );
+      await card(renamed).waitFor({ state: "hidden" });
+      await card(second.title).waitFor();
+      await privateChat(maya.page);
+      await panel(maya.page);
+      await maya.page
+        .locator(".tracking-card")
+        .filter({ hasText: incoming.title })
+        .waitFor();
+      assert.equal(
+        await maya.page
+          .locator(".tracking-card")
+          .filter({ hasText: second.title })
+          .count(),
+        0,
+        "another owner's group is absent from private union",
+      );
+      await privateChat(jordan.page);
+      await panel(jordan.page);
+      await jordan.page
+        .locator(".tracking-card")
+        .filter({ hasText: second.title })
+        .waitFor();
+      assert.equal(
+        await jordan.page
+          .locator(".tracking-card")
+          .filter({ hasText: incoming.title })
+          .count(),
+        0,
+      );
+      await input.fill("");
+      const privateTopic = await create(alex.page, own, `Private ${label}`);
+      assert.equal(
+        privateTopic.chat_id,
+        own.id,
+        "New in private keeps the original private write scope",
+      );
+      await card(privateTopic.title).waitFor();
+      assert.equal(
+        await card(privateTopic.title).locator(".tracking-source").innerText(),
+        "Private conversation",
+      );
+      await startChat(alex.page, ["CCC"]);
+      await panel(alex.page);
+      await card(second.title).waitFor();
+      assert.equal(await card(incoming.title).count(), 0);
+      assert.equal(
+        await card(privateTopic.title).count(),
+        0,
+        "group panel only lists its own group",
+      );
+      t.record("scope", {
+        private_chat: own.id,
+        source_groups: [ab.id, ac.id],
+        cross_owner_isolation: true,
+        source_edit_update_delete: true,
+        local_tracking_refresh_only: true,
+      });
+      await alex.page.screenshot({
+        path: path.join(t.artifactDir, "tracking-group-scope.png"),
+        fullPage: true,
+      });
+    },
+  },
 ];
 module.exports = { cases, startChat, workspace, detail, waitMessage };

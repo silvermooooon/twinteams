@@ -115,6 +115,7 @@ class ProductService:
         scopes = set()
         work_scopes = set()
         new_members = set()
+        tracking_scopes, tracking_owners = set(), set()
         with SessionLocal() as db, db.begin():
             def collect(session, context, instances):
                 for row in (*session.new, *session.dirty, *session.deleted):
@@ -126,6 +127,13 @@ class ProductService:
                     if isinstance(row, (Receipt, MessageReaction)):
                         message = session.get(Message, row.message_id)
                         chat_id = message.chat_id if message else None
+                    if isinstance(row, (TrackingTopic, Membership)) or (
+                            isinstance(row, Message) and row not in session.new and row.state == "withdrawn" and
+                            sa_inspect(row).attrs.state.history.has_changes()):
+                        if chat_id:
+                            tracking_scopes.add(chat_id)
+                        if isinstance(row, Membership):
+                            tracking_owners.add(row.owner_id)
                     if chat_id:
                         scopes.add(chat_id)
                         if isinstance(row, (ReplyRequest, RoutingDecision, TriggerCandidate, PendingChildResult, AllowanceGrant, Approval, TwinFollowup, MemoryDreamState)):
@@ -138,6 +146,9 @@ class ProductService:
             sa_event.listen(db, "before_flush", collect)
             yield db
             db.flush()
+            if tracking_scopes:
+                tracking_owners.update(db.scalars(select(Membership.owner_id).where(
+                    Membership.chat_id.in_(tracking_scopes), Membership.left_at.is_(None)).distinct()))
             for chat_id in sorted(scopes):
                 revision = db.scalar(update(Chat).where(Chat.id == chat_id).values(revision=Chat.revision + 1).returning(Chat.revision))
                 if revision is not None:
@@ -147,6 +158,8 @@ class ProductService:
             notifications.emit(chat_id, work=chat_id in work_scopes)
         for owner_id in new_members:
             notifications.emit_personal(owner_id, "chats")
+        for owner_id in tracking_owners:
+            notifications.emit_personal(owner_id, "tracking")
 
     def initialize(self, create_schema=False):
         if settings.local_identity_enabled or create_schema:
@@ -828,7 +841,7 @@ class ProductService:
         result = self.chat_json(db, chat, member, current_ids)
         return chat, result
 
-    def tracking_json(self, db, topic, member, details=False):
+    def tracking_json(self, db, topic, member, details=False, *, chat=None, title=None):
         if not topic.source_message_ids:
             cutoff = member.joined_at if member.history_policy == "no_prior" else member.joined_at - timedelta(days=7) if member.history_policy == "fixed_7d" else None
             if cutoff and aware(topic.created_at) < aware(cutoff):
@@ -836,9 +849,41 @@ class ProductService:
         if topic.deleted_at or not self.sources_allowed(db, member, topic.source_message_ids, topic.source_floor_seq) or not self.provenance_allowed(db, member, topic.source_provenance):
             return None
         result = {**{k: getattr(topic, k) for k in ("id", "chat_id", "title", "description", "status", "revision")}, "created_at": iso(topic.created_at), "updated_at": iso(topic.updated_at)}
+        chat = chat or db.get(Chat, topic.chat_id)
+        result.update(chat_kind=chat.kind, chat_title=title if title is not None else self.chat_title(db, chat, member.owner_id))
         if details:
             result["updates"] = [{"id": u.id, "body": u.body, "created_at": iso(u.created_at)} for u in db.scalars(select(TrackingUpdate).where(TrackingUpdate.topic_id == topic.id).order_by(TrackingUpdate.created_at)) if self.sources_allowed(db, member, u.source_message_ids, u.source_floor_seq) and self.provenance_allowed(db, member, u.source_provenance) and (u.source_message_ids or member.history_policy == "all" or aware(u.created_at) >= aware(member.joined_at) - timedelta(days=7 if member.history_policy == "fixed_7d" else 0))]
         return result
+
+    def _tracking_scope(self, db, chat, member):
+        """An owner's private index unifies their authorized chats; groups stay local."""
+        query = (select(TrackingTopic, Chat, Membership).join(Chat, Chat.id == TrackingTopic.chat_id)
+                 .join(Membership, Membership.chat_id == Chat.id).where(
+                     Membership.owner_id == member.owner_id, Membership.left_at.is_(None),
+                     TrackingTopic.deleted_at.is_(None)))
+        if chat.kind == "private" and chat.private_owner_id == member.owner_id:
+            query = query.where(or_(Chat.id == chat.id, Chat.kind == "group"))
+        else:
+            query = query.where(Chat.id == chat.id)
+        titles, rows = {}, []
+        for topic, origin, source_member in db.execute(query.order_by(TrackingTopic.created_at, TrackingTopic.id)):
+            if origin.id not in titles:
+                titles[origin.id] = self.chat_title(db, origin, member.owner_id)
+            projection = self.tracking_json(db, topic, source_member, chat=origin, title=titles[origin.id])
+            if projection:
+                rows.append((topic, origin, source_member, projection))
+        return rows
+
+    @staticmethod
+    def _tracking_provenance(topic):
+        return [*(topic.source_provenance or []), {"kind": "tracking", "id": topic.id,
+            "revision": topic.revision, "floor_seq": topic.source_floor_seq,
+            "created_at": iso(topic.created_at), "source_message_ids": topic.source_message_ids}]
+
+    def tracking_index(self, owner_id, chat_id):
+        with self.transaction() as db:
+            chat, member = self.membership(db, owner_id, chat_id)
+            return {"tracking": [row[3] for row in self._tracking_scope(db, chat, member)]}
 
     def approval_json(self, row):
         return {**{k: getattr(row, k) for k in ("id", "chat_id", "approver_id", "title", "description", "target", "impact", "status")}, "created_at": iso(row.created_at), "action": row.sdk_reference.get("action")}
@@ -866,7 +911,7 @@ class ProductService:
             requests = [r for r in requests if chat.kind != "private" or r.private_generation == chat.reset_generation]
             requests = [r for r in requests if r.raw_owner_input is None or r.requester_id == owner_id]
             requests = [r for r in requests if (r.source_message_id and self.visible_message(db, member, r.source_message_id, False, cache=checked)) or (r.source_message_id is None and r.requester_id == owner_id)]
-            tracking = [self.tracking_json(db, t, member) for t in db.scalars(select(TrackingTopic).where(TrackingTopic.chat_id == chat_id, TrackingTopic.deleted_at.is_(None)).order_by(TrackingTopic.created_at))]
+            tracking = [row[3] for row in self._tracking_scope(db, chat, member)]
             members = [m.owner_id for m in self.members(db, chat_id)]
             return {"revision": chat.revision, "has_more": has_more, "before_seq": messages[0].seq if messages else None, "chat": self.chat_json(db, chat, member), "messages": self.messages_json(db, [m for m in messages if self.message_sources_visible(db, member, m, cache=checked)], member, cache=checked), "requests": [self.request_json(db, r, owner_id) for r in requests], "automatic_conversations": self.automatic_conversations(db, chat, member), "approvals": self._approval_inbox(db, chat, member), "tracking": [t for t in tracking if t], "settings": self.settings_json(self.settings_row(db, owner_id, chat)), "members": [self.actor_json(a) for a in db.scalars(select(Actor).where(Actor.owner_id.in_(members)).order_by(Actor.kind, Actor.name))]}
 
@@ -1614,12 +1659,11 @@ class ProductService:
                         sources.extend(summary.source_provenance or [])
                         break
             tracking = []
-            for topic in db.scalars(select(TrackingTopic).where(TrackingTopic.chat_id == chat.id, TrackingTopic.deleted_at.is_(None))):
-                projection = self.tracking_json(db, topic, member)
-                if projection:
-                    tracking.append(projection)
-                    sources.extend(topic.source_provenance or [])
-                    sources.append({"kind": "tracking", "id": topic.id, "revision": topic.revision, "floor_seq": topic.source_floor_seq, "created_at": iso(topic.created_at), "source_message_ids": topic.source_message_ids})
+            for topic, origin, _, projection in self._tracking_scope(db, chat, member):
+                tracking.append(projection)
+                topic_sources = self._tracking_provenance(topic)
+                sources.extend(topic_sources if origin.id == chat.id else [
+                    {"kind": "chat_context", "chat_id": origin.id, "sources": topic_sources}])
             manifest = ContextManifest(request_id=request.id, owner_id=twin.owner_id, grant_version=member.grant_version, high_water_seq=chat.next_message_seq - 1, sources=sources, source_digest=digest(sources))
             db.add(manifest)
             request.context_grant_version = member.grant_version
@@ -2422,8 +2466,7 @@ class ProductService:
             rows = [m for m in db.scalars(query.order_by(Message.seq.desc()).limit(limit)) if self.message_sources_visible(db, member, m)]
             return {"messages": self.messages_json(db, reversed(rows), member), "history_lower_seq": member.lower_seq, "next_before_seq": rows[-1].seq if len(rows) == limit else None}
         if name == "list_tracking":
-            topics = [self.tracking_json(db, t, member) for t in db.scalars(select(TrackingTopic).where(TrackingTopic.chat_id == chat.id, TrackingTopic.deleted_at.is_(None)).order_by(TrackingTopic.created_at))]
-            return {"tracking": [t for t in topics if t]}
+            return {"tracking": [row[3] for row in self._tracking_scope(db, chat, member)]}
         if name == "get_tracking":
             return self.tracking_json(db, self._tracking_row(db, member, args["id"]), member, True)
         if name == "create_tracking":
@@ -2721,12 +2764,14 @@ class ProductService:
         chat_id = chat_value.get("id") if isinstance(chat_value, dict) else chat_value
         chat_id = chat_id or context.get("chat_id")
         owner_id = context.get("owner_id")
-        from .platform_tools import PLATFORM_TOOLS, SCOPED_TOOLS, WRITE_TOOLS, dispatch, lock_scope
+        from .platform_tools import PLATFORM_TOOLS, SCOPED_TOOLS, TRACKING_TOOLS, WRITE_TOOLS, dispatch, lock_scope
         mutations = WRITE_TOOLS | {"create_approval"}
         with self.transaction() as db:
             locked_ids = lock_scope(self, db, name, args, context)
             chat, member = self.membership(db, owner_id, chat_id)
             self._authorize_generation(db, context)
+            if name in TRACKING_TOOLS and chat.kind == "group" and args.get("chat_id", chat.id) != chat.id:
+                fail(403, "Group Tracking tools are limited to the originating group")
             if context.get("context_manifest_id"):
                 origin_request, *_ = self._message_tool_origin(db, context)
                 context = {**context, "request_requester_id": origin_request.requester_id}
@@ -2801,9 +2846,15 @@ class ProductService:
                 tracking_ids = [row["id"] for row in result.get("tracking", [])] if name == "list_tracking" else [result["id"]] if name in {"get_tracking", "create_tracking", "update_tracking", "add_tracking_update"} and result.get("id") else []
                 for topic_id in tracking_ids:
                     topic = db.get(TrackingTopic, topic_id)
-                    if topic and self.tracking_json(db, topic, target_member):
-                        extra_provenance.extend(topic.source_provenance or [])
-                        extra_provenance.append({"kind": "tracking", "id": topic.id, "revision": topic.revision, "floor_seq": topic.source_floor_seq, "created_at": iso(topic.created_at), "source_message_ids": topic.source_message_ids})
+                    if not topic:
+                        continue
+                    topic_member = target_member
+                    if topic.chat_id != target_chat.id:
+                        topic_member = self.membership(db, owner_id, topic.chat_id)[1]
+                    if self.tracking_json(db, topic, topic_member):
+                        topic_sources = self._tracking_provenance(topic)
+                        extra_provenance.extend(topic_sources if topic.chat_id == target_chat.id else [
+                            {"kind": "chat_context", "chat_id": topic.chat_id, "sources": topic_sources}])
                         if name != "list_tracking":
                             for update in db.scalars(select(TrackingUpdate).where(TrackingUpdate.topic_id == topic.id)):
                                 if self.sources_allowed(db, target_member, update.source_message_ids, update.source_floor_seq) and self.provenance_allowed(db, target_member, update.source_provenance):

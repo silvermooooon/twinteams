@@ -51,7 +51,7 @@ def test_typed_platform_helpers_and_new_membership_notification(product, monkeyp
     people = call(product, context, "list_people", {"limit": 2})["people"]
     assert len(people) == 2 and all(row["kind"] == "human" for row in people)
     pair = call(product, context, "create_chat", {"owner_ids": ["owner-jordan"], "history_policy": "no_prior"}, "new-pair")
-    assert set(emitted) == {("owner-alex", "chats"), ("owner-jordan", "chats")}
+    assert set(emitted) == {(owner, section) for owner in ("owner-alex", "owner-jordan") for section in ("chats", "tracking")}
     emitted.clear()
     assert call(product, context, "create_chat", {"owner_ids": ["owner-jordan"]})["id"] == pair["id"]
     assert not emitted
@@ -59,7 +59,8 @@ def test_typed_platform_helpers_and_new_membership_notification(product, monkeyp
         grant = db.scalar(select(Membership).where(Membership.chat_id == pair["id"], Membership.owner_id == "owner-jordan"))
         assert grant.history_policy == "no_prior"
     call(product, context, "add_chat_members", {"chat_id": pair["id"], "owner_ids": ["owner-maya"], "history_policy": "all"})
-    assert emitted == [("owner-maya", "chats")]
+    assert [item for item in emitted if item[1] == "chats"] == [("owner-maya", "chats")]
+    assert {owner for owner, section in emitted if section == "tracking"} == {"owner-alex", "owner-maya", "owner-jordan"}
     renamed = call(product, context, "rename_chat", {"chat_id": pair["id"], "title": "  Coordinated group  "})
     assert renamed["title"] == "Coordinated group"
     assert call(product, context, "get_chat", {"chat_id": pair["id"]})["chat"]["title"] == renamed["title"]
@@ -85,8 +86,12 @@ def test_cross_chat_tracking_workspace_and_bounded_utf8_reads(product, monkeypat
     path.parent.mkdir(parents=True, exist_ok=True); path.write_text("Owner workspace reference", encoding="utf-8")
     assert call(product, context, "list_workspace", {"chat_id": "private-alex"})["entries"][0]["id"] == node_id
     assert call(product, context, "read_workspace_file", {"chat_id": "private-alex", "id": node_id})["content"] == "Owner workspace reference"
-    topic = call(product, context, "create_tracking", {"chat_id": "private-alex", "title": "Private topic", "description": "Owner subject", "source_message_ids": [source_id]})
-    assert call(product, context, "get_tracking", {"chat_id": "private-alex", "id": topic["id"]})["id"] == topic["id"]
+    with pytest.raises(HTTPException) as denied:
+        call(product, context, "create_tracking", {"chat_id": "private-alex", "title": "Private topic", "description": "Owner subject", "source_message_ids": [source_id]})
+    assert denied.value.status_code == 403
+    _, private_context = origin(product, "private-alex")
+    topic = call(product, private_context, "create_tracking", {"title": "Private topic", "description": "Owner subject", "source_message_ids": [source_id]})
+    assert call(product, private_context, "get_tracking", {"id": topic["id"]})["id"] == topic["id"]
     with product.transaction() as db:
         sources = db.get(ContextManifest, context["context_manifest_id"]).sources
         assert any(s["kind"] == "chat_context" and s["chat_id"] == "private-alex" for s in sources)

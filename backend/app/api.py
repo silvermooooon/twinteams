@@ -337,6 +337,11 @@ def preview_workspace(chat_id: str, node_id: str, owner: OwnerIdentity):
     return PlainTextResponse(path.read_text(encoding="utf-8", errors="replace"), headers={"X-Content-Type-Options": "nosniff"})
 
 
+@router.get("/chats/{chat_id}/tracking")
+def tracking_index(chat_id: str, owner: OwnerIdentity):
+    return service.tracking_index(owner, chat_id)
+
+
 @router.get("/chats/{chat_id}/tracking/{topic_id}")
 async def get_tracking(chat_id: str, topic_id: str, owner: OwnerIdentity):
     return await service.tracking_action("get_tracking", owner, chat_id, {"id": topic_id})

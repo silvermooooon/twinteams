@@ -54,7 +54,12 @@ def install_fixture(root):
     def deny_sync(*args, **kwargs):
         raise AssertionError('Browser E2E forbids outbound HTTP, including model requests')
 
-    httpx.AsyncClient.send, httpx.Client.send = deny_async, deny_sync
+    live = os.environ.get('TWINTEAMS_E2E_MODEL_MODE') == 'live-gpt-6-luna'
+    if live:
+        from checks.browser_e2e_live import install
+        install(root, os.environ.get('TWINTEAMS_E2E_ROLE'))
+    else:
+        httpx.AsyncClient.send, httpx.Client.send = deny_async, deny_sync
     from app import twin_execution
     original_backend = twin_execution.TwinExecutionBackend
 
@@ -63,6 +68,8 @@ def install_fixture(root):
             super().__init__(identity, workspace, directory=root / 'execution')
 
     twin_execution.TwinExecutionBackend = FixtureExecutionBackend
+    if live:
+        return  # Use the actual SDK provider, never a scripted response.
     from agent_runtime import AssistantMessageEventStream, assistant_message
 
     from app.runtime_bridge import RuntimeBridge
@@ -285,7 +292,7 @@ def api_app():
 
     @app.get('/api/config')
     def fixture_config():
-        return {**api.config(), 'acceptance_fixture': True}
+        return {**api.config(), 'acceptance_fixture': os.environ.get('TWINTEAMS_E2E_MODEL_MODE') != 'live-gpt-6-luna'}
 
     for router in (api.router, credentials, personal, provider):
         app.include_router(router)
@@ -293,7 +300,9 @@ def api_app():
     @app.get('/health')
     def fixture_health():
         return {**main.health(),
-                'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID']}
+                'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
+                'model_mode': os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline'),
+                'scenario': os.environ.get('TWINTEAMS_E2E_SCENARIO')}
 
     dist = Path(os.environ['TWINTEAMS_E2E_DIST'])
     app.mount('/assets', StaticFiles(directory=dist / 'assets'), name='fixture-assets')
@@ -317,10 +326,20 @@ def inspect_fixture(root):
     from sqlalchemy import select, text
 
     from app.credential_models import CredentialRequest
-    from app.models import Approval, Message, ReplyRequest, TrackingTopic
+    from app.models import (
+        Approval,
+        Chat,
+        ChatAttachment,
+        ContextManifest,
+        Message,
+        ReplyRequest,
+        TrackingRevision,
+        TrackingTopic,
+        TwinFollowup,
+    )
     from app.service import service
     with service.transaction() as db:
-        requests = [{key: getattr(row, key) for key in ('id', 'chat_id', 'requester_id', 'target_twin_id', 'source', 'status', 'generation', 'private_generation', 'source_message_id', 'causal_chain_id')} for row in db.scalars(select(ReplyRequest))]
+        requests = [{key: getattr(row, key) for key in ('id', 'chat_id', 'requester_id', 'target_twin_id', 'source', 'status', 'generation', 'private_generation', 'source_message_id', 'causal_chain_id', 'session_id', 'run_id')} for row in db.scalars(select(ReplyRequest))]
         dreams = []
         for request in db.scalars(select(ReplyRequest).where(ReplyRequest.source == 'memory_dream')):
             if not request.input_body:
@@ -331,29 +350,103 @@ def inspect_fixture(root):
                 message = db.get(Message, ref['id'])
                 refs.append({'id': ref['id'], 'chat_id': message.chat_id if message else None, 'kind': message.kind if message else None, 'seq': ref['seq']})
             dreams.append({'request_id': request.id, 'owner_id': payload.get('owner_id'), 'scope': payload.get('scope'), 'messages': refs})
-        tracking = [{'id': row.id, 'chat_id': row.chat_id, 'source_message_ids': row.source_message_ids, 'deleted': row.deleted_at is not None} for row in db.scalars(select(TrackingTopic))]
+        def tracking_refs(sources, chat_id, via_context=False):
+            found = []
+            for source in sources or []:
+                if source.get('kind') == 'tracking' and isinstance(source.get('id'), str):
+                    found.append({'tracking_id': source['id'], 'chat_id': chat_id, 'via_chat_context': via_context})
+                elif source.get('kind') == 'chat_context':
+                    found.extend(tracking_refs(source.get('sources'), source.get('chat_id'), True))
+            return found
+        request_chats = {row['id']: row['chat_id'] for row in requests}
+        manifests = []
+        for row in db.scalars(select(ContextManifest)):
+            refs = tracking_refs(row.sources, request_chats.get(row.request_id))
+            manifests.append({'request_id': row.request_id, 'owner_id': row.owner_id,
+                              'tracking_ids': list(dict.fromkeys(ref['tracking_id'] for ref in refs)),
+                              'tracking_refs': refs})
+        tracking = [{'id': row.id, 'chat_id': row.chat_id, 'source_message_ids': row.source_message_ids, 'revision': row.revision, 'status': row.status, 'deleted': row.deleted_at is not None} for row in db.scalars(select(TrackingTopic))]
+        revisions = [{key: getattr(row, key) for key in ('topic_id', 'revision', 'status', 'source_message_ids', 'changed_by', 'deleted')} for row in db.scalars(select(TrackingRevision))]
+        followups = [{**{key: getattr(row, key) for key in ('id', 'owner_id', 'chat_id', 'origin_request_id', 'target_chat_id', 'sent_message_id', 'causal_chain_id', 'status', 'reply_message_id', 'notification_state', 'continuation_request_id')}, 'created_at': row.created_at.isoformat(), 'due_at': row.due_at.isoformat(), 'settled_at': row.settled_at.isoformat() if row.settled_at else None} for row in db.scalars(select(TwinFollowup))]
+        runs = [dict(row._mapping) for row in db.execute(text('SELECT session_id,run_id,user_id,root_run_id,source,status FROM agent_runs'))]
         approvals = [{'id': row.id, 'status': row.status, 'owner_id': row.approver_id, 'continuation_request_id': row.continuation_request_id} for row in db.scalars(select(Approval))]
         credentials = [{'id': row.id, 'status': row.status, 'owner_id': row.owner_id, 'continuation_request_id': row.continuation_request_id} for row in db.scalars(select(CredentialRequest))]
+        private_chats = {row.private_owner_id: row.id for row in db.scalars(select(Chat).where(Chat.kind == "private"))}
+        attachments = [{key: getattr(row, key) for key in ('id', 'chat_id', 'relative_path')} for row in db.scalars(select(ChatAttachment))]
         records = list(db.execute(text('SELECT session_id, record FROM agent_session_events ORDER BY session_id, seq')))
-    current, returned, tools = {}, {}, []
+    current, arguments, returned, tools, files, model_calls = {}, {}, {}, [], [], []
+    request_ids = {(row['session_id'], row['run_id']): row['id'] for row in requests}
+    run_owners = {(row['session_id'], row['run_id']): row['user_id'] for row in runs}
     for session_id, record in records:
         data, kind, run_id = record.get('data', {}), record.get('type'), record.get('run_id')
         if kind == 'model_completed':
+            usage = data.get('message', {}).get('usage', {})
+            model_calls.append({'session_id': session_id, 'run_id': run_id,
+                'request_id': request_ids.get((session_id, run_id)),
+                'usage': {name: value for name, value in usage.items() if type(value) in {int, float}}})
             for call in data.get('message', {}).get('content', []):
                 if call.get('type') == 'toolCall':
                     current[(session_id, run_id, call['id'])] = call['name']
+                    arguments[(session_id, run_id, call['id'])] = call.get('arguments', {})
         key = session_id, run_id, data.get('call_id')
         if kind == 'tool_returned':
             returned[key] = data.get('result', {})
         elif kind == 'tool_completed':
             result = returned.get(key, {}) if data.get('use_returned') else data.get('result', {})
             output = text_content(result)
-            tools.append({'name': current.get(key), 'session_id': session_id, 'run_id': run_id,
+            name, args = current.get(key), arguments.get(key, {})
+            try:
+                result_value = json.loads(output)
+            except (ValueError, TypeError):
+                result_value = {}
+            tools.append({'name': name, 'session_id': session_id, 'run_id': run_id,
+                'call_id': data.get('call_id'), 'event_id': record.get('id'), 'seq': record.get('seq'),
+                'request_id': request_ids.get((session_id, run_id)), 'owner_id': run_owners.get((session_id, run_id)),
+                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key') if field in args},
+                'result_ids': {field: result_value[field] for field in ('id', 'chat_id', 'message_id', 'request_id', 'continuation_request_id') if isinstance(result_value, dict) and isinstance(result_value.get(field), str)},
                 'success': not result.get('isError', False),
                 'credential_available': 'E2E_CREDENTIAL_AVAILABLE' in output,
                 'owner_cwd_verified': 'owner-cwd=' in output and '/workspaces/private-' in output})
+            from app.config import settings
+            tools[-1]['memory_key'] = args.get('key') if name and name.startswith('memory_') else None
+            tools[-1]['result_memory_keys'] = [match['key'] for match in result_value.get('matches', [])
+                if isinstance(match, dict) and isinstance(match.get('key'), str)] if name == 'memory_search' and isinstance(result_value, dict) else []
+            tools[-1]['tracking_id'] = args.get('id') if name == 'get_tracking' else None
+            tools[-1]['result_tracking_markers'] = sorted(set(re.findall(r'\bGROUP-[0-9a-f]{8}\b', output)))
+            tools[-1]['attachment_ids_read'] = []
+            tools[-1]['attachment_paths_mentioned'] = []
+            for attachment in attachments:
+                expected = (settings.workspace_root / attachment['chat_id'] / attachment['relative_path']).resolve()
+                read_path = Path(args.get('path', ''))
+                if not read_path.is_absolute():
+                    owner = run_owners.get((session_id, run_id))
+                    read_path = settings.workspace_root / private_chats[owner] / read_path if owner in private_chats else read_path
+                if name == 'read' and not result.get('isError') and read_path.resolve() == expected:
+                    tools[-1]['attachment_ids_read'].append(attachment['id'])
+                elif name == 'bash':
+                    owner = run_owners.get((session_id, run_id))
+                    owner_root = settings.workspace_root / private_chats[owner] if owner in private_chats else None
+                    paths = [str(expected)]
+                    if owner_root and expected.is_relative_to(owner_root):
+                        paths.append(expected.relative_to(owner_root).as_posix())
+                    if any(path in args.get('command', '') for path in paths):
+                        tools[-1]['attachment_paths_mentioned'].append(attachment['id'])
+            if name == 'write' and not result.get('isError') and isinstance(args.get('path'), str):
+                import hashlib
+
+                from app import personal
+                from app.config import settings
+                owner = run_owners.get((session_id, run_id))
+                path = Path(args['path'])
+                if not path.is_absolute() and owner:
+                    path = personal.resolve_twin_workspace(owner) / path
+                path = path.resolve()
+                if path.is_relative_to(settings.workspace_root) and path.is_file():
+                    with path.open('rb') as source:
+                        checksum = hashlib.file_digest(source, 'sha256').hexdigest()
+                    files.append({'path': str(path), 'chat_id': path.relative_to(settings.workspace_root).parts[0], 'size': path.stat().st_size, 'sha256': checksum, 'request_id': request_ids.get((session_id, run_id)), 'run_id': run_id})
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
-            'requests': requests, 'dreams': dreams, 'tracking': tracking, 'approvals': approvals, 'credentials': credentials,
+            'requests': requests, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'followups': followups, 'files': files, 'approvals': approvals, 'credentials': credentials,
             'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}
 
 
@@ -424,6 +517,9 @@ def main():
         import uvicorn
         uvicorn.run(api_app(), host='127.0.0.1', port=args.port, log_level='warning', ws_max_size=65536, ws_max_queue=64)
     else:
+        if os.environ.get('TWINTEAMS_E2E_MODEL_MODE') == 'live-gpt-6-luna':
+            from checks.browser_e2e_live import smoke
+            asyncio.run(smoke(root))
         runpy.run_module('app.worker', run_name='__main__')
 
 

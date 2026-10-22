@@ -114,6 +114,8 @@ def test_busy_router_does_not_discard_other_workers_result(product):
                 assert db.scalar(select(RoutingDecision).where(RoutingDecision.message_id == message["id"])).status == "pending"
             runtime.route_targets = AsyncMock(return_value={"needs_response": True, "target_owner_ids": ["owner-maya"], "reason": "question"})
             await product.route_pending()
+            # Candidates pass through the existing fresh-presence processing turn.
+            product.process_candidates({chat})
             with product.transaction() as db:
                 assert db.scalar(select(RoutingDecision).where(RoutingDecision.message_id == message["id"])).status == "completed"
                 assert db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == message["id"]))

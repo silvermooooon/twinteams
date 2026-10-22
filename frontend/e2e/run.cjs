@@ -21,7 +21,10 @@ const report = {
   kind: "real-browser-e2e",
   business_api_interception: false,
   websocket_interception: false,
-  synthetic_model: true,
+  synthetic_model:
+    (process.env.TWINTEAMS_E2E_MODEL_MODE || process.env.MODEL_MODE) !==
+    "live-gpt-6-luna",
+  scenario: process.env.TWINTEAMS_E2E_SCENARIO || "offline-regression",
   model_mode: process.env.TWINTEAMS_E2E_MODEL_MODE || process.env.MODEL_MODE,
   test_namespace: process.env.TWINTEAMS_E2E_NAMESPACE,
   run_id: runId,
@@ -73,6 +76,14 @@ async function guardedURL(value, instance) {
     throw new Error(
       "E2E health marker/instance mismatch; refusing browser mutations",
     );
+  if (health.model_mode && health.model_mode !== report.model_mode)
+    throw new Error("E2E health model mode mismatch");
+  if (
+    report.model_mode === "live-gpt-6-luna" &&
+    (health.model_mode !== report.model_mode ||
+      health.scenario !== report.scenario)
+  )
+    throw new Error("Live E2E model/scenario marker mismatch");
   return url.origin;
 }
 async function main() {
@@ -86,15 +97,36 @@ async function main() {
   if (
     baseURL === secondaryURL ||
     !report.test_namespace ||
-    report.model_mode !== "deterministic-offline"
+    !["deterministic-offline", "live-gpt-6-luna"].includes(report.model_mode)
   )
     throw new Error(
-      "Two isolated APIs, test namespace and deterministic-offline model mode are required",
+      "Two isolated APIs, test namespace and an explicit supported model mode are required",
     );
   report.instance_id = instance;
   report.base_url = baseURL;
   report.secondary_url = secondaryURL;
-  const suites = [require("./conversations.cjs"), require("./personal.cjs")];
+  const live = report.model_mode === "live-gpt-6-luna";
+  if (
+    live &&
+    ![
+      "continuous-workflow",
+      "tracking-resumption",
+      "first-private-group-tracking",
+    ].includes(process.env.TWINTEAMS_E2E_SCENARIO)
+  )
+    throw new Error("Explicit live scenario is required");
+  report.actual_model = live ? "gpt-6-luna" : null;
+  const suites = live
+    ? [
+        require(
+          report.scenario === "first-private-group-tracking"
+            ? "./first-private-group-tracking.cjs"
+            : report.scenario === "tracking-resumption"
+              ? "./tracking-resumption.cjs"
+              : "./continuous-workflow.cjs",
+        ),
+      ]
+    : [require("./conversations.cjs"), require("./personal.cjs")];
   const registered = suites
     .flatMap((suite) => suite.cases || [])
     .sort((a, b) => Number(!!a.last) - Number(!!b.last));
@@ -155,7 +187,9 @@ async function main() {
         artifacts: [],
         details,
       };
-      let label = 0;
+      let label = 0,
+        checkpointWrites = Promise.resolve();
+      const checkpointPath = path.join(artifactDir, `${slug}-progress.json`);
       const t = {
         browser,
         baseURL,
@@ -165,6 +199,25 @@ async function main() {
           `${prefix.replace(/[^a-z0-9_-]/gi, "-")}-${runId}-${serial}-${++label}`,
         record: (key, value) => {
           details[key] = value;
+          const snapshot = redact(
+            JSON.stringify(
+              {
+                case: test.name,
+                status: "running",
+                updated_at: new Date().toISOString(),
+                details,
+              },
+              null,
+              2,
+            ),
+          );
+          checkpointWrites = checkpointWrites
+            .then(() => fs.writeFile(checkpointPath, snapshot))
+            .catch((error) => {
+              errors.push(
+                redact(`Cannot save E2E checkpoint: ${error.message}`),
+              );
+            });
         },
         session: async (code = "DEV-AAA", options = {}) => {
           const origin = options.baseURL || baseURL;
@@ -199,7 +252,12 @@ async function main() {
           test.run(t),
           new Promise((_, reject) => {
             timer = setTimeout(
-              () => reject(new Error("E2E case exceeded 150 seconds")),
+              () =>
+                reject(
+                  new Error(
+                    `E2E case exceeded ${(test.timeout || 150000) / 1000} seconds`,
+                  ),
+                ),
               test.timeout || 150000,
             );
           }),
@@ -223,6 +281,7 @@ async function main() {
           }
       } finally {
         clearTimeout(timer);
+        await checkpointWrites.catch(() => {});
         for (let i = 0; i < contexts.length; i++) {
           if (!test.sensitive) {
             const target = path.join(artifactDir, `${slug}-${i}.zip`);

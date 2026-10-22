@@ -277,3 +277,6 @@
 .detail-sidebar .tree-chevron { transition: transform 200ms ease; }
 .new-chat-main:has(.people-picker-details) .new-conversation-empty { display: none; }
 @media (prefers-reduced-motion: reduce) { .modal button, .people-picker button, .detail-sidebar button, .automatic-conversations button, .approvals-drawer button, .detail-sidebar .tree-chevron { transition: none; } }
+
+.tracking-source { color: #616161; font-size: 11px; line-height: 17px; overflow-wrap: anywhere; }
+.tracking-card .tracking-source { display: block; margin: 3px 0; }
