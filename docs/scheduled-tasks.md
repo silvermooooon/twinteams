@@ -1,6 +1,10 @@
 # Scheduled tasks
 
-Open **Account → My Twin → Scheduled tasks** to give your Twin work to do later.
+Tell your Twin the outcome and timing in your own words; you do not need to name
+a feature or tool. A request for later or recurring work authorizes the Twin to
+save a suitable schedule, with clarification only when the goal or timing is
+materially missing. Ordinary questions do not authorize new ongoing commitments.
+You can review or adjust saved work in **Account → My Twin → Scheduled tasks**.
 A personal task contains a name, instructions, a time zone and a rule. Choose
 **Once**, **Daily**, **Weekly** (select weekdays), or **Interval** (at least
 60 seconds). Save the task to enable future runs. Times shown on each card and

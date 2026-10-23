@@ -104,7 +104,7 @@ def scheduled_tool_schemas():
     ]}
     fields = {"title": text, "instructions": text, "schedule": schedule, "timezone": text}
     return [
-        ("create_scheduled_task", "Save a personal scheduled task only when this owner explicitly asks for later or recurring work. Saved instructions authorize only their stated scope and reporting behavior. Available in the owner's private chat. Use an IANA timezone; weekly weekdays use Monday=0 through Sunday=6. Once at accepts ISO datetime; daily/weekly time uses HH:MM. A scheduled run cannot create schedules.",
+        ("create_scheduled_task", "Save later or recurring work requested by this owner; natural wording authorizes saving without naming this feature or redundant confirmation. Clarify materially missing goal or timing; never invent a frequency. Saved instructions authorize only their stated scope and reporting behavior. Available in the owner's private chat. Use an IANA timezone; weekly weekdays use Monday=0 through Sunday=6. Once at accepts ISO datetime; daily/weekly time uses HH:MM. A scheduled run cannot create schedules.",
          fields, ["title", "instructions", "schedule", "timezone"]),
         ("list_scheduled_tasks", "List this owner's personal tasks and platform system review, including timing, state and recent execution. Available in the owner's private chat. Listing does not authorize new work.", {}, []),
         ("update_scheduled_task", "Edit this owner's personal task only as explicitly requested, using its existing ID. Set enabled false to pause or true to resume. For platform system review, only enabled and an interval schedule may change; its title and instructions are server-owned. Scheduled runs cannot edit schedules.",

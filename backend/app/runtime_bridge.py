@@ -291,7 +291,7 @@ class RuntimeBridge:
              {"id": text}, ["id"]),
             ("save_summary", "Save a faithful summary in the originating chat only, citing every authorized source ID covered. Cannot select another chat or replace original history.",
              {"body": text, "source_message_ids": ids}, ["body", "source_message_ids"]),
-            ("create_reminder", "Create an in-app reminder explicitly requested by this owner. This does not schedule an external notification.",
+            ("create_reminder", "Create an in-app reminder record explicitly requested by this owner. It does not wake a Twin or deliver a timed notification. For future reminders or recurring execution, prefer suitable scheduled-task tools in the owner's private chat.",
              {"chat_id": text, "title": text, "detail": text, "due_at": text}, ["title"]),
         ]
         from .runtime_scheduled import scheduled_tool_schemas
