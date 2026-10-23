@@ -294,6 +294,30 @@ class TwinFollowup(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class ScheduledTask(Base):
+    """Durable owner schedule; execution history remains in ReplyRequest/SDK journals."""
+    __tablename__ = "tt_scheduled_tasks"
+    __table_args__ = (Index("tt_scheduled_due", "enabled", "next_run_at"),
+                      Index("tt_scheduled_dirty", "index_dirty", "id"),
+                      Index("tt_scheduled_owner", "owner_id", "created_at"),
+                      CheckConstraint("kind IN ('user','system_review')", name="tt_scheduled_kind"),
+                      CheckConstraint("revision > 0", name="tt_scheduled_revision"))
+    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
+    kind: Mapped[str] = mapped_column(String(24), default="user")
+    title: Mapped[str] = mapped_column(String(256))
+    instructions: Mapped[str] = mapped_column(Text)
+    timezone: Mapped[str] = mapped_column(String(80), default="UTC")
+    schedule: Mapped[dict] = mapped_column(JSON)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    index_dirty: Mapped[bool] = mapped_column(Boolean, default=True)
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class MemoryEditAudit(Base):
     """Real owner configuration events referenced by user-authored Git memory."""
     __tablename__ = "tt_memory_edit_audit"

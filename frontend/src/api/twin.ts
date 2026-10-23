@@ -16,10 +16,20 @@ export type CredentialList = { configured: boolean; credentials: Credential[] };
 export type CredentialRequests = { configured: boolean; requests: CredentialRequest[] };
 export type CredentialInput = { description?: string; values: Record<string, string> };
 export type RuntimeStatus = { configured: boolean; provider: string | null; model: string | null; api: string | null; memory: { enabled: boolean | null; mode: 'git' | 'local' | 'disabled' | null }; observed_at: number | null; worker: { online: boolean; expires_at: number | null } };
+export type TaskSchedule = { kind: 'once'; at: string } | { kind: 'daily'; time: string } | { kind: 'weekly'; time: string; weekdays: number[] } | { kind: 'interval'; seconds: number };
+export type ScheduledTaskRun = { request_id: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'; accepted_at: string; planned_at: string | null; trigger: 'manual' | 'scheduled'; run_id: string | null; error: string | null };
+export type ScheduledTask = { id: string; kind: 'user' | 'system_review'; title: string; instructions: string; timezone: string; schedule: TaskSchedule; enabled: boolean; revision: number; next_run_at: string | null; last_run_at: string | null; last_request_id: string | null; last_status: ScheduledTaskRun['status'] | 'silent' | null; last_error: string | null; active_request_id: string | null; pending_work: boolean; created_at: string; updated_at: string };
+export type ScheduledTaskInput = Pick<ScheduledTask, 'title' | 'instructions' | 'timezone' | 'schedule'>;
 
 export function twinApi(api: ApiClient) {
   return {
     profile: (signal?: AbortSignal) => api.get<{ actor: Actor }>('/me/twin', signal),
+    scheduledTasks: (signal?: AbortSignal) => api.get<{ items: ScheduledTask[] }>('/me/twin/scheduled-tasks', signal),
+    createScheduledTask: (data: ScheduledTaskInput) => api.post<ScheduledTask>('/me/twin/scheduled-tasks', data),
+    updateScheduledTask: (id: string, data: Partial<ScheduledTaskInput> & { enabled?: boolean }) => api.patch<ScheduledTask>(`/me/twin/scheduled-tasks/${encodeURIComponent(id)}`, data),
+    deleteScheduledTask: (id: string) => api.delete<{ ok: boolean }>(`/me/twin/scheduled-tasks/${encodeURIComponent(id)}`),
+    runScheduledTask: (id: string, key: string) => api.post<{ request_id: string; task: ScheduledTask }>(`/me/twin/scheduled-tasks/${encodeURIComponent(id)}/run-now`, { idempotency_key: key }),
+    scheduledTaskHistory: (id: string, signal?: AbortSignal) => api.get<{ items: ScheduledTaskRun[] }>(`/me/twin/scheduled-tasks/${encodeURIComponent(id)}/history?limit=20`, signal),
     resetStatus: (signal?: AbortSignal) => api.get<TwinResetStatus>('/me/twin/reset', signal),
     reset: (key: string, generation: number) => api.post<TwinResetStatus>('/me/twin/reset', { idempotency_key: key, expected_generation: generation }),
     update: (data: { name?: string; avatar_preset?: AvatarPreset | null }) => api.patch<Actor>('/me/twin', data),

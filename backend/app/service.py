@@ -29,7 +29,7 @@ from .db import Base, engine, SessionLocal
 from .models import (Actor, Approval, AutomaticReservation, AllowanceGrant, CausalChain,
                      Chat, ChatAttachment, ChatSetting, ContextManifest, DispatchCommand, PendingChildResult,
                      Membership, MemoryDreamState, Message, MessageReaction, Owner, Presence, ProductOperation, Receipt, DatabaseIdentity, ViewInterval, DevelopmentSession,
-                     Reminder, ReplyLane, ReplyRequest, ReplyProjection, RoutingDecision, Summary,
+                     Reminder, ReplyLane, ReplyRequest, ReplyProjection, RoutingDecision, ScheduledTask, Summary,
                      TrackingTopic, TrackingUpdate, TrackingRevision, TriggerCandidate, TwinFollowup, WorkspaceNode, ChangeOutbox, ActivityProjection,
                      now, uid)
 from .credential_models import CredentialRequest
@@ -82,6 +82,8 @@ class ProductService:
         self.ready_scopes = set()
         self.runtime_scopes = set()
         self.deadlines = {}
+        self.scheduled_task_loop = None
+        self.scheduled_due_index = None
 
     @property
     def automatic_reply_allowance(self):
@@ -116,9 +118,12 @@ class ProductService:
         work_scopes = set()
         new_members = set()
         tracking_scopes, tracking_owners = set(), set()
+        scheduled_owners = set()
         with SessionLocal() as db, db.begin():
             def collect(session, context, instances):
                 for row in (*session.new, *session.dirty, *session.deleted):
+                    if isinstance(row, ScheduledTask):
+                        scheduled_owners.add(row.owner_id)
                     if isinstance(row, Membership) and row in session.new:
                         new_members.add(row.owner_id)
                     if isinstance(row, ChangeOutbox) or (isinstance(row, ProductOperation) and row.name == "set_message_reaction"):
@@ -160,6 +165,9 @@ class ProductService:
             notifications.emit_personal(owner_id, "chats")
         for owner_id in tracking_owners:
             notifications.emit_personal(owner_id, "tracking")
+        for owner_id in scheduled_owners:
+            from .scheduled_tasks import changed
+            changed(owner_id)
 
     def initialize(self, create_schema=False):
         if settings.local_identity_enabled or create_schema:
@@ -168,6 +176,8 @@ class ProductService:
             upgrade_personal_schema(engine)
             from .followup_schema import upgrade_followup_schema
             upgrade_followup_schema(engine)
+            from .scheduled_task_schema import upgrade_scheduled_task_schema
+            upgrade_scheduled_task_schema(engine)
             from .direct_chat_schema import upgrade_direct_chat_schema
             upgrade_direct_chat_schema(engine)
             from .reaction_schema import upgrade_reaction_schema
@@ -227,6 +237,7 @@ class ProductService:
                 raise RuntimeError("Database belongs to a different tenant; each deployment requires its own database")
         if settings.local_identity_enabled:
             self.seed_local()
+        self.initialize_scheduled_tasks()
 
     def check_initialized(self):
         from sqlalchemy import inspect
@@ -235,6 +246,8 @@ class ProductService:
         check_personal_schema(inspector)
         from .followup_schema import check_followup_schema
         check_followup_schema(inspector)
+        from .scheduled_task_schema import check_scheduled_task_schema
+        check_scheduled_task_schema(inspector)
         from .direct_chat_schema import check_direct_chat_schema
         check_direct_chat_schema(inspector)
         from .reaction_schema import check_reaction_schema
@@ -417,7 +430,7 @@ class ProductService:
         request.source_owner_id = self.message_owner(db, source) if source else request.requester_id
         if previous:
             request.automatic_reservation_id = previous.automatic_reservation_id
-        elif request.source in {"auto", "private", "subagent_result", "followup_result"}:
+        elif request.source in {"auto", "private", "subagent_result", "followup_result", "scheduled_task", "system_review"}:
             # Additive migration lazily accounts already accepted legacy intent.
             # It cannot revoke queued/running work, even if older traffic exceeded
             # today's configured cap. New acceptance still uses the guarded path.
@@ -643,6 +656,8 @@ class ProductService:
         target = db.get(Actor, request.target_twin_id)
         owns = target is not None and target.owner_id == owner_id
         result = {**{k: getattr(request, k) for k in ("id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "error", "session_id", "run_id", "causal_chain_id", "source_owner_id", "automatic_reservation_id")}, "accepted_at": iso(request.accepted_at), "cancel_requested": request.cancel_requested, "can_cancel": not request.cancel_requested and ( (request.status == "queued" and (owns or request.requester_id == owner_id)) or (request.status == "running" and owns)), "can_retry": request.source != "memory_dream" and request.status == "failed" and owns}
+        from .scheduled_tasks import snapshot as scheduled_snapshot
+        result["quiet_background"] = bool(scheduled_snapshot(request))
         if request.requester_id == owner_id:
             result["client_request_key"] = request.client_request_key
         return result
@@ -712,6 +727,8 @@ class ProductService:
         with self.transaction() as db:
             if not db.get(Owner, owner_id):
                 fail(401, "Unknown owner identity")
+            from .scheduled_tasks import ensure_system
+            ensure_system(self, db, owner_id)
             memberships = list(db.scalars(select(Membership).where(Membership.owner_id == owner_id, Membership.left_at.is_(None))))
             return {"server_time": iso(now()), "current_owner_id": owner_id, "actors": [self.actor_json(a) for a in db.scalars(select(Actor).order_by(Actor.kind, Actor.name))], "chats": [self.chat_json(db, db.get(Chat, m.chat_id), m) for m in memberships], "reminders": [self.reminder_json(r) for r in db.scalars(select(Reminder).where(Reminder.owner_id == owner_id).order_by(Reminder.due_at))], "model_configured": self.model_configured, "development_mode": settings.local_identity_enabled}
 
@@ -857,7 +874,7 @@ class ProductService:
             result["updates"] = [{"id": u.id, "body": u.body, "created_at": iso(u.created_at)} for u in db.scalars(select(TrackingUpdate).where(TrackingUpdate.topic_id == topic.id).order_by(TrackingUpdate.created_at)) if self.sources_allowed(db, member, u.source_message_ids, u.source_floor_seq) and self.provenance_allowed(db, member, u.source_provenance) and (u.source_message_ids or member.history_policy == "all" or aware(u.created_at) >= aware(member.joined_at) - timedelta(days=7 if member.history_policy == "fixed_7d" else 0))]
         return result
 
-    def _tracking_scope(self, db, chat, member):
+    def _tracking_scope(self, db, chat, member, limit=None):
         """An owner's private index unifies their authorized chats; groups stay local."""
         query = (select(TrackingTopic, Chat, Membership).join(Chat, Chat.id == TrackingTopic.chat_id)
                  .join(Membership, Membership.chat_id == Chat.id).where(
@@ -868,7 +885,10 @@ class ProductService:
         else:
             query = query.where(Chat.id == chat.id)
         titles, rows = {}, []
-        for topic, origin, source_member in db.execute(query.order_by(TrackingTopic.created_at, TrackingTopic.id)):
+        query = query.order_by(TrackingTopic.created_at, TrackingTopic.id)
+        if limit is not None:
+            query = query.limit(limit)
+        for topic, origin, source_member in db.execute(query):
             if origin.id not in titles:
                 titles[origin.id] = self.chat_title(db, origin, member.owner_id)
             projection = self.tracking_json(db, topic, source_member, chat=origin, title=titles[origin.id])
@@ -1064,7 +1084,7 @@ class ProductService:
         reservation = db.get(AutomaticReservation, automatic_reservation_id) if automatic_reservation_id else None
         if reservation and reservation.causal_chain_id != chain.id:
             fail(409, "Retry reservation belongs to another causal chain")
-        if source in {"auto", "private", "subagent_result", "followup_result"} and not reservation:
+        if source in {"auto", "private", "subagent_result", "followup_result", "scheduled_task", "system_review"} and not reservation:
             reservation, pause_reason = self.reserve_automatic(db, chain.id, intent_key, source_owner_id, target.owner_id, input_body if input_body is not None else source_message.body if source_message else "")
             if pause_reason:
                 if source_message_id and source != "subagent_result":
@@ -1536,6 +1556,9 @@ class ProductService:
                         command.kind, command.state = "cancel", "pending"
         from .followups import cancel
         cancel(db, request)
+        if request.status == "cancelled":
+            from .scheduled_tasks import finish as scheduled_finish
+            scheduled_finish(db, request, "cancelled")
         return result
 
     def retry_request(self, owner_id, request_id, key):
@@ -1570,11 +1593,12 @@ class ProductService:
         chain = self.request_chain(db, old)
         # Retry is a new generation of this delivery, retaining its private
         # authorization checks and terminal-only/silent output policy.
-        source = "followup_result" if old.source == "followup_result" else "tool_retry" if automatic else "retry"
+        source = old.source if old.source in {"followup_result", "scheduled_task", "system_review"} else "tool_retry" if automatic else "retry"
         request = self.accept_request(db, chat, old.target_twin_id, owner_id, source, key, source_message_id=old.source_message_id, raw=old.raw_owner_input, prompt=old.frozen_prompt, reply_to=old.reply_to_message_id, generation=generation, intent_key=old.intent_key, input_body=old.input_body, causal_chain_id=causal_chain_id or chain.id, automatic_reservation_id=automatic_reservation_id or old.automatic_reservation_id, source_owner_id=old.source_owner_id, input_attachment_ids=old.input_attachment_ids, command_fingerprint=old.command_fingerprint)
-        if automatic:
+        from .scheduled_tasks import snapshot as scheduled_snapshot
+        if automatic or scheduled_snapshot(old):
             from copy import deepcopy
-            request.execution_config = deepcopy(old.execution_config) if old.execution_config is not None else {
+            request.execution_config = deepcopy(old.execution_config) if old.execution_config is not None else None if scheduled_snapshot(old) else {
                 "version": 0, "skills": [], "credentials": [], "execution_enabled": False}
         if source == "followup_result" and not db.scalar(select(ContextManifest.id).where(ContextManifest.request_id == request.id).limit(1)):
             # Keep the reply's cross-chat provenance for checks during a
@@ -1604,6 +1628,15 @@ class ProductService:
         if chat.kind == "private" and (context.get("private_generation", 0) != chat.reset_generation
                 or request.cancel_requested or request.status in {"failed", "cancelled"}):
             fail(409, "Private runtime generation is no longer authorized")
+        from .scheduled_tasks import snapshot
+        task = snapshot(request)
+        if task:
+            twin = db.get(Actor, request.target_twin_id)
+            if chat.kind != "private" or chat.private_owner_id != context.get("owner_id") or twin.owner_id != chat.private_owner_id:
+                fail(403, "Scheduled execution requires the owner's private Twin")
+            member = self.membership(db, twin.owner_id, chat.id)[1]
+            if not self.provenance_allowed(db, member, self.manifest_provenance(db, request.id)):
+                fail(409, "Scheduled runtime sources are no longer authorized")
         return True
 
     def authorize_runtime_generation(self, context):
@@ -1670,6 +1703,8 @@ class ProductService:
             db.add(manifest)
             request.context_grant_version = member.grant_version
             db.flush()
+            from .scheduled_tasks import snapshot as scheduled_snapshot
+            scheduled_payload = scheduled_snapshot(request)
             followup_payload = None
             if request.source == "followup_result":
                 from .followups import context as followup_context
@@ -1677,7 +1712,7 @@ class ProductService:
             source_message = self.visible_message(db, member, request.source_message_id) if request.source_message_id else None
             file_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
             files = self.attachment_references(db, file_ids, member, private_request=request if request.raw_owner_input is not None else None)
-            return {"private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": self.messages_json(db, [m for m in rows if not applicable or m.seq > applicable["coverage_end_seq"]], member), "source_message": self.message_json(db, self.visible_message(db, member, request.source_message_id), member) if request.source_message_id else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": request.input_body, "request_id": request.id, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+            return {"scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": self.messages_json(db, [m for m in rows if not applicable or m.seq > applicable["coverage_end_seq"]], member), "source_message": self.message_json(db, self.visible_message(db, member, request.source_message_id), member) if request.source_message_id else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
 
     def bind_runtime_run(self, request_id, session_id, run_id):
         with self.transaction() as db:
@@ -1756,6 +1791,9 @@ class ProductService:
             prior = db.scalar(select(Message).where(Message.sdk_output_key == output_key))
             if prior and not is_reply_for_me:
                 return prior.id
+            from .scheduled_tasks import notice as scheduled_notice
+            if not scheduled_notice(db, request, body):
+                return None
             manifests = list(db.scalars(select(ContextManifest).where(ContextManifest.request_id == request.id)))
             source_ids = list({s["id"] for manifest in manifests for s in manifest.sources if s.get("kind") == "message"}) if manifests else ([request.source_message_id] if request.source_message_id else [])
             provenance = self.manifest_provenance(db, request.id)
@@ -1833,6 +1871,8 @@ class ProductService:
             elif status == "completed":
                 from .memory_dream import experience_completed
                 experience_completed(self, db, request)
+            from .scheduled_tasks import finish as scheduled_finish
+            scheduled_finish(db, request, status)
             lane = db.get(ReplyLane, (request.chat_id, request.target_twin_id))
             if lane and lane.active_request_id == request.id:
                 lane.active_request_id = None
@@ -1969,6 +2009,26 @@ class ProductService:
         from .followups import process
         return process(self, scopes)
 
+    def initialize_scheduled_tasks(self):
+        from .scheduled_tasks import ensure_system, system_id
+        with self.transaction() as db:
+            # Provisioning/startup only, never part of the short due-index loop.
+            for owner_id in db.scalars(select(Owner.id).order_by(Owner.id)):
+                if not db.get(ScheduledTask, system_id(owner_id)):
+                    ensure_system(self, db, owner_id)
+
+    async def scheduled_tasks_scheduler(self):
+        import logging
+        while not self.stopping:
+            try:
+                delay = await self.scheduled_due_index.tick()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logging.getLogger(__name__).exception("Scheduled task admission failed")
+                delay = 30
+            await asyncio.sleep(delay)
+
     def pending_notices(self):
         with self.transaction() as db:
             return [{"id": row.id, "chat_id": row.chat_id, "revision": row.revision, "kind": row.kind} for row in db.scalars(select(ChangeOutbox).where(ChangeOutbox.published.is_(False)).order_by(ChangeOutbox.created_at).limit(100))]
@@ -2040,6 +2100,8 @@ class ProductService:
             db.get(ReplyRequest, request_id).error = f"Stop awaiting runtime reconciliation: {error}"
 
     def _notify(self, event):
+        if event.get("kind") == "scheduled_tasks" and self.scheduled_due_index:
+            self.scheduled_due_index.dirty = True
         if self.runtime and hasattr(self.runtime, "notify"):
             self.runtime.notify(event)
         if not self.wakeup or event.get("worker_status") or event.get("relayed"):
@@ -2152,11 +2214,14 @@ class ProductService:
             self.wakeup = asyncio.Event()
             notifications.listeners.add(self._notify)
             self.scheduler_task = asyncio.create_task(self.scheduler())
+            from .scheduled_tasks import DueIndex
+            self.scheduled_due_index = DueIndex(self)
+            self.scheduled_task_loop = asyncio.create_task(self.scheduled_tasks_scheduler())
 
     async def close(self):
         self.stopping = True
         notifications.listeners.discard(self._notify)
-        tasks = [t for t in [self.scheduler_task, *self.routing_jobs.values(), *self.tasks.values()] if t]
+        tasks = [t for t in [self.scheduler_task, self.scheduled_task_loop, *self.routing_jobs.values(), *self.tasks.values()] if t]
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -2767,7 +2832,8 @@ class ProductService:
         chat_id = chat_id or context.get("chat_id")
         owner_id = context.get("owner_id")
         from .platform_tools import PLATFORM_TOOLS, SCOPED_TOOLS, TRACKING_TOOLS, WRITE_TOOLS, dispatch, lock_scope
-        mutations = WRITE_TOOLS | {"create_approval"}
+        from .scheduled_tasks import TOOLS as SCHEDULED_TOOLS, MUTATIONS as SCHEDULED_MUTATIONS, runtime_dispatch
+        mutations = WRITE_TOOLS | {"create_approval"} | SCHEDULED_MUTATIONS
         with self.transaction() as db:
             locked_ids = lock_scope(self, db, name, args, context)
             chat, member = self.membership(db, owner_id, chat_id)
@@ -2826,7 +2892,9 @@ class ProductService:
             dispatch_context = context
             if target_chat.id != chat.id:
                 dispatch_context = {**context, "inherited_provenance": [{"kind": "chat_context", "chat_id": chat.id, "sources": context.get("inherited_provenance", [])}]}
-            if name in PLATFORM_TOOLS:
+            if name in SCHEDULED_TOOLS:
+                result = runtime_dispatch(self, db, name, args, context, chat)
+            elif name in PLATFORM_TOOLS:
                 result = dispatch(self, db, name, args, context, chat, member, locked_ids)
             elif name in {"send_chat_message", "list_authorized_chats"}:
                 result = self._twin_message_tool(db, name, args, context)

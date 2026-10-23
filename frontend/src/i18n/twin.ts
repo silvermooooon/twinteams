@@ -1,7 +1,7 @@
 export const twinEn = {
   'twin.reset': 'Reset', 'twin.resetTitle': 'Reset Twin content', 'twin.resetSummary': 'Clear your private conversation and saved Memory while keeping your Twin.',
   'twin.resetConfirmTitle': 'Reset your Twin’s content?', 'twin.resetConfirm': 'Confirm reset', 'twin.resetting': 'Resetting…',
-  'twin.resetDeletes': 'This clears your private Twin conversation and saved Memory.',
+  'twin.resetDeletes': 'This clears your private Twin conversation and saved Memory. Personal scheduled tasks are paused.',
   'twin.resetKeeps': 'Group conversations, workspace files, your Twin identity, name, avatar, SOUL.md, Skills and credentials are kept.',
   'twin.resetIrreversible': 'This cannot be undone. New conversations can start after the reset.', 'twin.resetCompleted': 'Private conversation and Memory reset.',
   'twin.resetPending': 'The reset is still pending. Retry to finish the same reset; this will not reset newer content again.', 'twin.resetConflict': 'A reset happened on another device. Close this dialog and review the current state before confirming a new reset.',
@@ -24,7 +24,7 @@ export const twinEn = {
   'twin.references': 'Reference files', 'twin.loadMore': 'Load more',
   'twin.addField': 'Add field', 'twin.credentialStoreUnavailable': 'The private credential store is not configured.',
   'twin.title': 'My Twin', 'twin.subtitle': 'Your digital twin, its tools and private resources.',
-  'twin.profile': 'Profile', 'twin.runtime': 'Runtime', 'twin.skills': 'Skills', 'twin.memory': 'Memory', 'twin.credentials': 'Credentials',
+  'twin.scheduled': 'Scheduled tasks', 'twin.profile': 'Profile', 'twin.runtime': 'Runtime', 'twin.skills': 'Skills', 'twin.memory': 'Memory', 'twin.credentials': 'Credentials',
   'twin.account': 'Your account', 'twin.identity': 'Twin identity', 'twin.identityHint': 'This changes your Twin’s name and avatar.',
   'twin.name': 'Twin name', 'twin.saved': 'Saved', 'twin.saving': 'Saving…', 'twin.avatar': 'Twin avatar',
   'twin.changeAvatar': 'Choose avatar', 'twin.uploadAvatar': 'Upload image', 'twin.removeAvatar': 'Remove avatar',

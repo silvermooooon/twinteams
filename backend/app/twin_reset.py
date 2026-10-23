@@ -73,6 +73,8 @@ def fence(service, owner_id, key, expected_generation):
             raise HTTPException(409, "Private Twin generation changed; reload reset status")
         old_generation = chat.reset_generation
         chat.reset_generation, chat.reset_pending = old_generation + 1, True
+        from .scheduled_tasks import reset_owner
+        reset_owner(db, owner_id, chat.reset_generation)
         row = TwinReset(owner_id=owner_id, chat_id=chat.id, idempotency_key=key,
             expected_generation=old_generation, generation=chat.reset_generation)
         db.add(row)

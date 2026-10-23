@@ -426,7 +426,9 @@ def freeze_execution_config(request_id, config):
         db.scalar(select(Chat).where(Chat.id == request.chat_id).with_for_update())
         db.refresh(request)
         if request.execution_config is None:
-            request.execution_config = deepcopy(config)
+            from .scheduled_tasks import snapshot
+            task = snapshot(request)
+            request.execution_config = {**deepcopy(config), **({"scheduled_task": task} if task else {})}
         return deepcopy(request.execution_config)
 
 

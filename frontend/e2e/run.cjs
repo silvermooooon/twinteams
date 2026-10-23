@@ -112,6 +112,7 @@ async function main() {
       "continuous-workflow",
       "tracking-resumption",
       "first-private-group-tracking",
+      "scheduled-task-workflow",
     ].includes(process.env.TWINTEAMS_E2E_SCENARIO)
   )
     throw new Error("Explicit live scenario is required");
@@ -119,7 +120,9 @@ async function main() {
   const suites = live
     ? [
         require(
-          report.scenario === "first-private-group-tracking"
+          report.scenario === "scheduled-task-workflow"
+            ? "./scheduled-task-live.cjs"
+            : report.scenario === "first-private-group-tracking"
             ? "./first-private-group-tracking.cjs"
             : report.scenario === "tracking-resumption"
               ? "./tracking-resumption.cjs"
@@ -131,6 +134,8 @@ async function main() {
         require("./notifications.cjs"),
         require("./avatar.cjs"),
         require("./personal.cjs"),
+        require("./scheduled-tasks.cjs"),
+        require("./scheduled-task-dispatch.cjs"),
       ];
   const registered = suites
     .flatMap((suite) => suite.cases || [])

@@ -61,7 +61,7 @@ def final_text_record(records):
 
 
 def projectable_model_records(records, *, terminal_only=False):
-    """Follow-up notifications publish only a completed run's actual final text."""
+    """Background notifications publish only a completed run's actual final text."""
     if terminal_only:
         transition = next((record for record in reversed(records)
                            if record["type"] in {"run_completed", "run_interrupted", "run_resumed"}), None)
@@ -294,6 +294,8 @@ class RuntimeBridge:
             ("create_reminder", "Create an in-app reminder explicitly requested by this owner. This does not schedule an external notification.",
              {"chat_id": text, "title": text, "detail": text, "due_at": text}, ["title"]),
         ]
+        from .runtime_scheduled import scheduled_tool_schemas
+        schemas.extend(scheduled_tool_schemas())
         limit = {"type": "integer", "minimum": 1, "maximum": 100}
         policy = {"type": "string", "enum": ["all", "fixed_7d", "no_prior"]}
         schemas.extend([
@@ -425,15 +427,18 @@ class RuntimeBridge:
         twin_id = request["target_twin_id"]
         tenant_id = context.get("tenant_id", self.tenant_id)
         owner_id = context["owner_id"]
-        followup = request.get("source") == "followup_result"
+        from .runtime_scheduled import scheduled_context, terminal_output_only
+        terminal_only = terminal_output_only(request, context)
         session_id = request.get("session_id") or self.session_id(chat_id, twin_id, context.get("private_generation"))
         context = {
             **context, "tenant_id": tenant_id,
+            "current_time": datetime.now(UTC).isoformat(),
             "request_requester_id": request.get("requester_id"), "request_id": request_id,
             "origin_request_id": context.get("origin_request_id") or request.get("origin_request_id") or request_id,
             "causal_chain_id": context.get("causal_chain_id") or request.get("causal_chain_id"),
             "main_session_id": session_id,
             "request_source": request.get("source"),
+            "scheduled_task": scheduled_context(request, context),
         }
         from .twin_prompts import request_prompt
         prompt = request_prompt(request, context)
@@ -465,7 +470,7 @@ class RuntimeBridge:
                 agent.state.messages = [{"role": "system", "content": system, "timestamp": 0}]
             self.active[request_id] = agent
             if session.resumable:
-                await self._project_outputs(request_id, tenant_id, session_id, session.snapshot["run_id"], terminal_only=followup)
+                await self._project_outputs(request_id, tenant_id, session_id, session.snapshot["run_id"], terminal_only=terminal_only)
             last_seq = session.revision - 1
 
             async def observe(event, signal):
@@ -486,9 +491,10 @@ class RuntimeBridge:
                         signal.abort()
                         await self.store.request_cancel(tenant_id, request_id)
                     await self.service.db_call("bind_runtime_run", request_id, session_id, session.snapshot["run_id"])
-                    await self.service.db_call("record_activity", chat_id, owner_id, session_id, session.snapshot["run_id"], {"title": safe_text(prompt)[:180], "source": "followup_result" if followup else "user", "status": "running", "private_generation": agent_context.get("private_generation") or 0})
+                    await self.service.db_call("record_activity", chat_id, owner_id, session_id, session.snapshot["run_id"], {"title": safe_text(prompt)[:180], "source": request.get("source") if terminal_only else "user", "status": "running", "private_generation": agent_context.get("private_generation") or 0})
                     await self.emit(chat_id, type="changed", request_id=request_id)
-                elif kind == "message_start" and event.get("message", {}).get("role") == "assistant":
+                elif (kind == "message_start" and not terminal_only
+                      and event.get("message", {}).get("role") == "assistant"):
                     await self.emit(chat_id, type="operation_started", request_id=request_id,
                                     operation_id=f"{session_id}:{session.snapshot.get('run_id')}:{session.revision}")
                     await self.emit(chat_id, type="status", request_id=request_id, text="running")
@@ -498,12 +504,12 @@ class RuntimeBridge:
                         if record["type"] != "model_completed":
                             continue
                         body = text_content(record["data"].get("message"))
-                        if body and not followup:
+                        if body and not terminal_only:
                             await self.service.db_call("publish_runtime_output",
                                 request_id, body, session_id, record.get("run_id"), record["id"], record["seq"]
                             )
                         await self.service.db_call("record_activity", chat_id, owner_id, session_id, record.get("run_id"), {"summary": safe_text(body) if body else None, "private_generation": agent_context.get("private_generation") or 0})
-                        if not followup:
+                        if not terminal_only:
                             await self.emit(chat_id, type="output_committed", request_id=request_id, event_id=record["id"])
                     if records:
                         last_seq = records[-1]["seq"]
@@ -542,7 +548,7 @@ class RuntimeBridge:
                 raise RuntimeError("The SDK command has no durable run identity.")
             await self.service.db_call("record_activity", chat_id, owner_id, session_id, run_id, {"title": safe_text(prompt)[:180], "status": status, "private_generation": context.get("private_generation") or 0, "finished_at": datetime.now(UTC) if status in ("completed", "failed", "stopped", "cancelled") else None})
             records = await self._run_records(tenant_id, session_id, run_id)
-            if not followup:
+            if not terminal_only:
                 await self._project_outputs(request_id, tenant_id, session_id, run_id, records, terminal_only=False)
             final = final_text_record(records)
             if status in ("failed", "stopped", "cancelled") or snapshot.get("status") in ("failed", "stopped"):
@@ -552,7 +558,7 @@ class RuntimeBridge:
                 raise RuntimeError(safe_text(result.get("error") or snapshot.get("error") or "The reply was interrupted."))
             if status != "completed":
                 raise RuntimeError("The SDK reply has not reached durable completion.")
-            if followup:
+            if terminal_only:
                 await self._project_outputs(request_id, tenant_id, session_id, run_id, records, terminal_only=True)
             return {"session_id": session_id, "run_id": run_id,
                     "body": text_content(final["data"].get("message")) if final else "",
@@ -573,7 +579,8 @@ class RuntimeBridge:
             request = await self.service.db_call("get_request", request_id)
             if request.get("source") == "memory_dream":
                 return
-            terminal_only = request.get("source") == "followup_result"
+            from .runtime_scheduled import terminal_output_only
+            terminal_only = terminal_output_only(request)
         for record in projectable_model_records(records, terminal_only=terminal_only):
             await self.service.db_call("publish_runtime_output",
                 request_id, text_content(record["data"].get("message")), session_id, run_id, record["id"], record["seq"]
@@ -661,6 +668,10 @@ class RuntimeBridge:
             manager.parent = agent
         agent.state.tools.extend(create_subagent_tools(manager))
         return manager
+
+    async def has_unresolved_scheduled_work(self, request):
+        from .runtime_scheduled import has_unresolved_children
+        return await has_unresolved_children(self, request)
 
     async def recover_background(self):
         await self.recover_pending()

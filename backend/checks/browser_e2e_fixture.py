@@ -265,8 +265,11 @@ def install_fixture(root):
 
 
 def seed(root):
+    from datetime import timedelta
+
     from app.init_db import main as provision
-    from app.models import Actor
+    from app.models import Actor, now
+    from app.scheduled_tasks import ensure_system
     from app.service import service
     asyncio.run(provision())
     for owner in ('alex', 'maya', 'jordan'):
@@ -276,6 +279,11 @@ def seed(root):
         (folder.parent.parent / 'e2e-owner-sentinel.txt').write_text('E2E owner ' + owner + '\n')
     with service.transaction() as db:
         assert db.get(Actor, 'owner-alex') is not None
+        for owner_id in ('owner-alex', 'owner-maya', 'owner-jordan'):
+            review = ensure_system(service, db, owner_id)
+            # A test preset, not a shorter product interval or a claim of elapsed time.
+            # Explicit review cases advance their selected task through the guarded CLI.
+            review.next_run_at, review.index_dirty = now() + timedelta(minutes=30), True
 
 
 def api_app():
@@ -287,6 +295,7 @@ def api_app():
     from app.credential_api import router as credentials
     from app.personal_api import router as personal
     from app.provider_config import router as provider
+    from app.scheduled_task_api import router as scheduled_tasks
     app = FastAPI(title='Twinteams isolated browser E2E', lifespan=main.lifespan)
     app.exception_handlers = main.app.exception_handlers.copy()
 
@@ -294,7 +303,7 @@ def api_app():
     def fixture_config():
         return {**api.config(), 'acceptance_fixture': os.environ.get('TWINTEAMS_E2E_MODEL_MODE') != 'live-gpt-6-luna'}
 
-    for router in (api.router, credentials, personal, provider):
+    for router in (api.router, credentials, personal, provider, scheduled_tasks):
         app.include_router(router)
 
     @app.get('/health')
@@ -333,6 +342,7 @@ def inspect_fixture(root):
         ContextManifest,
         Message,
         ReplyRequest,
+        ScheduledTask,
         TrackingRevision,
         TrackingTopic,
         TwinFollowup,
@@ -340,6 +350,11 @@ def inspect_fixture(root):
     from app.service import service
     with service.transaction() as db:
         requests = [{key: getattr(row, key) for key in ('id', 'chat_id', 'requester_id', 'target_twin_id', 'source', 'status', 'generation', 'private_generation', 'source_message_id', 'causal_chain_id', 'session_id', 'run_id')} for row in db.scalars(select(ReplyRequest))]
+        tasks = [{**{key: getattr(row, key) for key in ('id', 'owner_id', 'kind', 'revision', 'enabled', 'index_dirty')},
+                  'next_run_at': row.next_run_at.isoformat() if row.next_run_at else None,
+                  'active_request_id': (row.details or {}).get('active_request_id'),
+                  'last_request_id': (row.details or {}).get('last_request_id'),
+                  'last_status': (row.details or {}).get('last_status')} for row in db.scalars(select(ScheduledTask))]
         dreams = []
         for request in db.scalars(select(ReplyRequest).where(ReplyRequest.source == 'memory_dream')):
             if not request.input_body:
@@ -402,7 +417,7 @@ def inspect_fixture(root):
             tools.append({'name': name, 'session_id': session_id, 'run_id': run_id,
                 'call_id': data.get('call_id'), 'event_id': record.get('id'), 'seq': record.get('seq'),
                 'request_id': request_ids.get((session_id, run_id)), 'owner_id': run_owners.get((session_id, run_id)),
-                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key') if field in args},
+                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key', 'title', 'timezone', 'schedule') if field in args},
                 'result_ids': {field: result_value[field] for field in ('id', 'chat_id', 'message_id', 'request_id', 'continuation_request_id') if isinstance(result_value, dict) and isinstance(result_value.get(field), str)},
                 'success': not result.get('isError', False),
                 'credential_available': 'E2E_CREDENTIAL_AVAILABLE' in output,
@@ -445,8 +460,10 @@ def inspect_fixture(root):
                     with path.open('rb') as source:
                         checksum = hashlib.file_digest(source, 'sha256').hexdigest()
                     files.append({'path': str(path), 'chat_id': path.relative_to(settings.workspace_root).parts[0], 'size': path.stat().st_size, 'sha256': checksum, 'request_id': request_ids.get((session_id, run_id)), 'run_id': run_id})
+    budget = json.loads((root / 'live-budget.json').read_text()) if (root / 'live-budget.json').exists() else None
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
-            'requests': requests, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'followups': followups, 'files': files, 'approvals': approvals, 'credentials': credentials,
+            'live_budget': budget,
+            'requests': requests, 'scheduled_tasks': tasks, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'followups': followups, 'files': files, 'approvals': approvals, 'credentials': credentials,
             'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}
 
 
@@ -474,13 +491,45 @@ async def presence_fixture():
             'observed_at': datetime.now(UTC).isoformat(), 'owners': owners}
 
 
+async def advance_schedule_fixture(task_id):
+    """Explicitly advance one isolated fixture due time, never the application clock."""
+    guard()
+    from datetime import timedelta
+
+    from redis.asyncio import Redis
+
+    from app.config import settings
+    from app.models import ScheduledTask, now
+    from app.service import service
+
+    if not task_id:
+        raise RuntimeError('An isolated scheduled task ID is required')
+    with service.transaction() as db:
+        task = db.get(ScheduledTask, task_id)
+        if not task or not task.enabled or task.next_run_at is None:
+            raise RuntimeError('The isolated scheduled task must exist and be enabled')
+        before, revision = task.next_run_at.isoformat(), task.revision
+        task.next_run_at, task.index_dirty = now() - timedelta(seconds=2), True
+        after, owner_id = task.next_run_at.isoformat(), task.owner_id
+    client = Redis.from_url(settings.redis_url)
+    try:
+        await client.publish(settings.redis_prefix + ':changes', json.dumps({'kind': 'scheduled_tasks', 'owner_id': owner_id}))
+    finally:
+        await client.aclose()
+    return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
+            'test_only_due_advance': True, 'clock_advanced': False, 'elapsed_interval_claimed': False,
+            'task_id': task_id, 'revision_unchanged': revision,
+            'previous_next_run_at': before, 'fixture_next_run_at': after}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence'])
+    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule'])
     parser.add_argument('--port', type=int)
     parser.add_argument('--state', type=Path)
+    parser.add_argument('--task-id')
     args = parser.parse_args()
-    if args.role in {'inspect', 'restart-worker', 'presence'}:
+    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule'}:
         if not args.state or args.state.is_symlink() or args.state.stat().st_mode & 0o077:
             raise RuntimeError('Inspect requires its private fixture state file')
         saved = json.loads(args.state.read_text())
@@ -489,6 +538,9 @@ def main():
     root = guard()
     if args.state and args.state.resolve().parent != root:
         raise RuntimeError('State file must belong to its disposable root')
+    if args.role == 'advance-schedule':
+        print(json.dumps(asyncio.run(advance_schedule_fixture(args.task_id))))
+        return
     if args.role == 'presence':
         print(json.dumps(asyncio.run(presence_fixture())))
         return

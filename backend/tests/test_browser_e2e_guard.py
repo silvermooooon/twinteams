@@ -56,7 +56,7 @@ def test_duplicate_schema_options_and_replaced_marker_are_rejected(isolated, mon
         guard()
 
 
-@pytest.mark.parametrize("maximum", [12, 20, 48, 60])
+@pytest.mark.parametrize("maximum", [12, 20, 40, 48, 60])
 def test_live_budget_counts_failures_and_survives_restart(tmp_path, maximum):
     import json
 
@@ -70,6 +70,16 @@ def test_live_budget_counts_failures_and_survives_restart(tmp_path, maximum):
     assert len(json.loads((tmp_path / 'live-budget.json').read_text())['attempts']) == maximum
     with pytest.raises(RuntimeError, match='budget exhausted'):
         reserve(tmp_path, payload)
+
+
+def test_due_advance_rejects_non_fixture_before_database_access(monkeypatch):
+    import asyncio
+
+    from checks.browser_e2e_fixture import advance_schedule_fixture
+
+    monkeypatch.delenv('TWINTEAMS_BROWSER_E2E', raising=False)
+    with pytest.raises(RuntimeError, match='disposable schema'):
+        asyncio.run(advance_schedule_fixture('not-a-production-task'))
 
 
 def test_live_budget_rejects_wrong_model_unbounded_output_and_expired_window(tmp_path):

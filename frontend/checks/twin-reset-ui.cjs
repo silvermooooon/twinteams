@@ -21,7 +21,7 @@ async function run() {
   await page.getByLabel('Memory key', { exact: true }).fill('draft/reset-current'); await page.getByLabel('Memory content', { exact: true }).fill('Current configuration draft'); await page.keyboard.press('Escape');
   await tab('Soul'); await page.getByLabel('Soul content', { exact: true }).fill('Soul draft during reset'); await tab('Profile');
   await page.getByRole('button', { name: 'Reset', exact: true }).click();
-  await page.getByText('This clears your private Twin conversation and saved Memory.', { exact: true }).waitFor();
+  await page.getByText('This clears your private Twin conversation and saved Memory. Personal scheduled tasks are paused.', { exact: true }).waitFor();
   assert.equal(await page.getByRole('dialog').getByRole('textbox').count(), 0);
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   assert.equal(mock.calls.filter(row => row.path === '/api/me/twin/reset' && row.method === 'POST').length, 0);
