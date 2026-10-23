@@ -308,7 +308,10 @@ def review_snapshot(service, db, row, moment):
     result["deadlines"] = [{"id": reminder.id, "title": reminder.title, "due_at": iso(reminder.due_at)}
         for reminder in db.scalars(select(Reminder).where(Reminder.owner_id == row.owner_id,
             Reminder.done.is_(False)).order_by(Reminder.due_at.asc().nulls_last()).limit(30))]
-    result["needs_review"] = bool(tracking or private.next_message_seq > member.lower_seq or approvals or followups or children or memory or dream or result["deadlines"])
+    conversation = db.scalar(select(Message.id).where(Message.chat_id == private.id,
+        Message.seq >= member.lower_seq, Message.state == "published",
+        Message.kind.in_(["human", "twin", "reply_for_me"])).limit(1))
+    result["needs_review"] = bool(tracking or conversation or approvals or followups or children or memory or dream or result["deadlines"])
     return result
 
 

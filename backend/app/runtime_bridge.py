@@ -296,6 +296,14 @@ class RuntimeBridge:
         ]
         from .runtime_scheduled import scheduled_tool_schemas
         schemas.extend(scheduled_tool_schemas())
+        from .onboarding import TOOL as ONBOARDING_TOOL
+        from .onboarding import tool_schema
+        if (not getattr(session, "subagent_creation", None)
+                and context.get("request_source") == "private"
+                and context.get("request_requester_id") == context.get("owner_id")
+                and context.get("raw_owner_input") is None
+                and (context.get("onboarding") or any(row.get("name") == ONBOARDING_TOOL for row in saved or []))):
+            schemas.append(tool_schema())
         limit = {"type": "integer", "minimum": 1, "maximum": 100}
         policy = {"type": "string", "enum": ["all", "fixed_7d", "no_prior"]}
         schemas.extend([

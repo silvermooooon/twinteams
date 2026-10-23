@@ -48,12 +48,12 @@ async def main():
     parser.add_argument('--artifact-dir', type=Path)
     parser.add_argument('--node', default=os.getenv('TWINTEAMS_E2E_NODE'), help='Node >=22.12 executable')
     parser.add_argument('--live-model', action='store_true', help='Explicit bounded real gpt-6-luna scenario; offline remains the default')
-    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking', 'scheduled-task-workflow'])
+    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking', 'scheduled-task-workflow', 'personal-onboarding'])
     parser.add_argument('--live-max-attempts', type=int, default=60, help='Frozen per-campaign HTTP-attempt ceiling, including smoke and worker restarts')
     args = parser.parse_args()
     if not 1 <= args.live_max_attempts <= 60:
         parser.error('--live-max-attempts must be between 1 and 60')
-    if args.live_model != bool(args.scenario):
+    if (args.live_model and not args.scenario) or (not args.live_model and args.scenario not in {None, 'personal-onboarding'}):
         parser.error('--live-model requires an explicit dedicated --scenario')
     if not args.live_model and args.live_max_attempts != 60:
         parser.error('--live-max-attempts requires --live-model')
@@ -117,6 +117,9 @@ async def main():
             AGENT_SECRETS_DIR=str(root / 'secrets'), AGENT_SECRETS_KEY=Fernet.generate_key().decode(),
             AGENT_PROVIDER='openai', AGENT_API='browser-e2e-offline', AGENT_MODEL='gpt-6-luna',
             TWINTEAMS_SUBAGENT_MODEL='gpt-6-luna', OPENAI_API_KEY='explicit-offline-not-a-provider-key')
+        env['TWINTEAMS_ONBOARDING_ENABLED'] = 'true' if args.scenario == 'personal-onboarding' else 'false'
+        if args.scenario:
+            env['TWINTEAMS_E2E_SCENARIO'] = args.scenario
         if args.live_model:
             env.pop('OPENAI_API_KEY')
             env.update(AGENT_API='openai-responses', AGENT_MAX_TOKENS='4096',

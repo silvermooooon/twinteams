@@ -117,7 +117,9 @@ async function main() {
   )
     throw new Error("Explicit live scenario is required");
   report.actual_model = live ? "gpt-6-luna" : null;
-  const suites = live
+  const suites = !live && report.scenario === "personal-onboarding"
+    ? [require("./onboarding.cjs")]
+    : live
     ? [
         require(
           report.scenario === "scheduled-task-workflow"

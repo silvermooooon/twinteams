@@ -16,6 +16,7 @@ from .api import router
 from .config import settings
 from .credential_api import router as credential_router
 from .personal_api import router as personal_router
+from .onboarding_api import router as onboarding_router
 from .scheduled_task_api import router as scheduled_task_router
 from .provider_config import router as provider_config_router
 from .service import service
@@ -52,6 +53,7 @@ app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), al
 app.include_router(router)
 app.include_router(provider_config_router)
 app.include_router(personal_router)
+app.include_router(onboarding_router)
 app.include_router(scheduled_task_router)
 app.include_router(credential_router)
 

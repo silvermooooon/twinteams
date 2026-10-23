@@ -178,6 +178,8 @@ class ProductService:
             upgrade_followup_schema(engine)
             from .scheduled_task_schema import upgrade_scheduled_task_schema
             upgrade_scheduled_task_schema(engine)
+            from .onboarding_schema import upgrade_onboarding_schema
+            upgrade_onboarding_schema(engine)
             from .direct_chat_schema import upgrade_direct_chat_schema
             upgrade_direct_chat_schema(engine)
             from .reaction_schema import upgrade_reaction_schema
@@ -248,6 +250,8 @@ class ProductService:
         check_followup_schema(inspector)
         from .scheduled_task_schema import check_scheduled_task_schema
         check_scheduled_task_schema(inspector)
+        from .onboarding_schema import check_onboarding_schema
+        check_onboarding_schema(inspector)
         from .direct_chat_schema import check_direct_chat_schema
         check_direct_chat_schema(inspector)
         from .reaction_schema import check_reaction_schema
@@ -1165,6 +1169,8 @@ class ProductService:
                 msg = self.append_message(db, chat, author_id=owner_id, kind="human", body=body, reply_to_message_id=reply_to, command_owner_id=owner_id, client_request_key=key, causal_chain_id=chain.id, attachment_ids=attachment_ids, command_fingerprint=fingerprint)
                 for row in attachments:
                     row.message_id = msg.id
+                from .onboarding import owner_message
+                owner_message(db, chat, msg)
                 chain.root_message_id = msg.id
                 db.add(Receipt(message_id=msg.id, owner_id=owner_id))
                 self.suppress_candidates(db, owner_id, chat_id, "human_reply")
@@ -1712,7 +1718,8 @@ class ProductService:
             source_message = self.visible_message(db, member, request.source_message_id) if request.source_message_id else None
             file_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
             files = self.attachment_references(db, file_ids, member, private_request=request if request.raw_owner_input is not None else None)
-            return {"scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": self.messages_json(db, [m for m in rows if not applicable or m.seq > applicable["coverage_end_seq"]], member), "source_message": self.message_json(db, self.visible_message(db, member, request.source_message_id), member) if request.source_message_id else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+            from .onboarding import context_for_request
+            return {"onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": self.messages_json(db, [m for m in rows if not applicable or m.seq > applicable["coverage_end_seq"]], member), "source_message": self.message_json(db, self.visible_message(db, member, request.source_message_id), member) if request.source_message_id else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
 
     def bind_runtime_run(self, request_id, session_id, run_id):
         with self.transaction() as db:
@@ -2833,7 +2840,8 @@ class ProductService:
         owner_id = context.get("owner_id")
         from .platform_tools import PLATFORM_TOOLS, SCOPED_TOOLS, TRACKING_TOOLS, WRITE_TOOLS, dispatch, lock_scope
         from .scheduled_tasks import TOOLS as SCHEDULED_TOOLS, MUTATIONS as SCHEDULED_MUTATIONS, runtime_dispatch
-        mutations = WRITE_TOOLS | {"create_approval"} | SCHEDULED_MUTATIONS
+        from .onboarding import TOOL as ONBOARDING_TOOL, finish as finish_onboarding
+        mutations = WRITE_TOOLS | {"create_approval", ONBOARDING_TOOL} | SCHEDULED_MUTATIONS
         with self.transaction() as db:
             locked_ids = lock_scope(self, db, name, args, context)
             chat, member = self.membership(db, owner_id, chat_id)
@@ -2892,7 +2900,9 @@ class ProductService:
             dispatch_context = context
             if target_chat.id != chat.id:
                 dispatch_context = {**context, "inherited_provenance": [{"kind": "chat_context", "chat_id": chat.id, "sources": context.get("inherited_provenance", [])}]}
-            if name in SCHEDULED_TOOLS:
+            if name == ONBOARDING_TOOL:
+                result = finish_onboarding(self, db, args, context, chat)
+            elif name in SCHEDULED_TOOLS:
                 result = runtime_dispatch(self, db, name, args, context, chat)
             elif name in PLATFORM_TOOLS:
                 result = dispatch(self, db, name, args, context, chat, member, locked_ids)

@@ -145,7 +145,8 @@ def conversation_system(context, *, summary_instruction="", worker=False):
          if row.get(key) is not None}
         for row in context.get("messages", []) if row.get("state") != "withdrawn"
     ]
-    extension = platform_prompt(context, worker=worker)
+    from .onboarding import temporary_prompt
+    extension = platform_prompt(context, worker=worker) + temporary_prompt(context, worker=worker)
     profile = context.get("execution_config", {}).get("profile", {})
     soul = profile.get("soul", "")
     identity = ("\nOwner's Soul: behavioral preferences for this Twin. Follow these preferences "

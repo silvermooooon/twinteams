@@ -38,6 +38,7 @@ class Settings:
     scheduled_task_max_per_owner: int = max(1, int(os.getenv("TWINTEAMS_SCHEDULED_TASK_MAX_PER_OWNER", "100")))
     scheduled_task_batch_size: int = max(1, min(500, int(os.getenv("TWINTEAMS_SCHEDULED_TASK_BATCH_SIZE", "100"))))
     scheduled_task_reconcile_seconds: int = max(30, int(os.getenv("TWINTEAMS_SCHEDULED_TASK_RECONCILE_SECONDS", "300")))
+    onboarding_enabled: bool = flag("TWINTEAMS_ONBOARDING_ENABLED", True)
     max_running: int = int(os.getenv("TWINTEAMS_MAX_RUNNING", "8"))
     max_per_owner: int = int(os.getenv("TWINTEAMS_MAX_PER_OWNER", "2"))
     routing_concurrency: int = int(os.getenv("TWINTEAMS_ROUTING_CONCURRENCY", "2"))

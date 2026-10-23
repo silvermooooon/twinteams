@@ -22,6 +22,18 @@ class Owner(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class OnboardingState(Base):
+    __tablename__ = "tt_onboarding"
+    __table_args__ = (CheckConstraint("status IN ('active','completed','skipped')", name="tt_onboarding_status"),)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), primary_key=True)
+    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"))
+    status: Mapped[str] = mapped_column(String(16))
+    welcome_message_id: Mapped[str | None] = mapped_column(String(80))
+    first_message_id: Mapped[str | None] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Actor(Base):
     __tablename__ = "tt_actors"
     __table_args__ = (UniqueConstraint("owner_id", "kind"), CheckConstraint("kind IN ('human','twin')", name="tt_actor_kind"))

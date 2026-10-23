@@ -296,6 +296,7 @@ def api_app():
     from app.personal_api import router as personal
     from app.provider_config import router as provider
     from app.scheduled_task_api import router as scheduled_tasks
+    from app.onboarding_api import router as onboarding
     app = FastAPI(title='Twinteams isolated browser E2E', lifespan=main.lifespan)
     app.exception_handlers = main.app.exception_handlers.copy()
 
@@ -303,7 +304,7 @@ def api_app():
     def fixture_config():
         return {**api.config(), 'acceptance_fixture': os.environ.get('TWINTEAMS_E2E_MODEL_MODE') != 'live-gpt-6-luna'}
 
-    for router in (api.router, credentials, personal, provider, scheduled_tasks):
+    for router in (api.router, credentials, personal, provider, scheduled_tasks, onboarding):
         app.include_router(router)
 
     @app.get('/health')
