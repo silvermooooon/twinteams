@@ -2381,7 +2381,9 @@ class ProductService:
         return aware(node.created_at) >= cutoff
 
     def attachment_json(self, attachment):
-        return {key: getattr(attachment, key) for key in ("id", "name", "mime_type", "size", "kind", "width", "height")} | {"url": f"/api/chats/{attachment.chat_id}/attachments/{attachment.id}", "workspace_path": str(settings.workspace_root / attachment.relative_path)}
+        from .attachments import preview_kind
+        kind = preview_kind(attachment.name, attachment.mime_type) if attachment.kind != "image" else None
+        return {"preview_kind": kind, "preview_url": f"/api/chats/{attachment.chat_id}/attachments/{attachment.id}/preview" if kind else None} | {key: getattr(attachment, key) for key in ("id", "name", "mime_type", "size", "kind", "width", "height")} | {"url": f"/api/chats/{attachment.chat_id}/attachments/{attachment.id}", "workspace_path": str(settings.workspace_root / attachment.relative_path)}
 
     def _attachment_path(self, attachment):
         root = settings.workspace_root
@@ -2433,7 +2435,16 @@ class ProductService:
                 self.visible_message(db, member, attachment.message_id)
             elif attachment.owner_id != owner_id:
                 fail(404, "Attachment is unavailable")
-            return self._attachment_path(attachment), self.attachment_json(attachment)
+            return self._attachment_path(attachment), self.attachment_json(attachment) | {"sha256": attachment.sha256}
+
+    def attachment_content(self, owner_id, chat_id, attachment_id):
+        from .attachments import MAX_ATTACHMENT_BYTES
+        path, info = self.attachment_file(owner_id, chat_id, attachment_id)
+        with path.open("rb") as stream:
+            data = stream.read(MAX_ATTACHMENT_BYTES + 1)
+        if len(data) != info["size"] or hashlib.sha256(data).hexdigest() != info["sha256"]:
+            fail(409, "Immutable attachment content changed")
+        return data, info
 
     def _attachment_selection(self, db, owner_id, chat_id, attachment_ids):
         from .attachments import MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS
@@ -2466,7 +2477,7 @@ class ProductService:
             data = self._attachment_path(attachment).read_bytes()
             if len(data) != attachment.size or hashlib.sha256(data).hexdigest() != attachment.sha256:
                 fail(409, "Immutable attachment content changed; reply withheld")
-            references.append({key: value for key, value in self.attachment_json(attachment).items() if key != "url"})
+            references.append({key: value for key, value in self.attachment_json(attachment).items() if key not in {"url", "preview_url"}})
         return references
 
     def upload_workspace_file(self, owner_id, chat_id, filename, data, source_ids=None):
@@ -2749,6 +2760,9 @@ class ProductService:
         return request, twin, chat, member, inherited
 
     def _twin_message_tool(self, db, name, args, context):
+        if name == "present_files":
+            from .deliverables import present_files
+            return present_files(self, db, args, context)
         request, twin, origin, origin_member, inherited = self._message_tool_origin(db, context)
         if name == "list_authorized_chats":
             chats = []
@@ -2871,7 +2885,7 @@ class ProductService:
                 if prior:
                     if (prior.chat_id, prior.owner_id, prior.name, prior.arguments_hash) != (chat_id, owner_id, name, arguments_hash):
                         fail(409, "Product operation identity conflicts with its original action")
-                    if name == "send_chat_message":
+                    if name in {"send_chat_message", "present_files"}:
                         self._message_tool_origin(db, context)
                         destination_member = self.membership(db, owner_id, prior.result["chat_id"])[1]
                         if prior.result.get("message_id"):
@@ -2911,7 +2925,7 @@ class ProductService:
                 result = runtime_dispatch(self, db, name, args, context, chat)
             elif name in PLATFORM_TOOLS:
                 result = dispatch(self, db, name, args, context, chat, member, locked_ids)
-            elif name in {"send_chat_message", "list_authorized_chats"}:
+            elif name in {"send_chat_message", "present_files", "list_authorized_chats"}:
                 result = self._twin_message_tool(db, name, args, context)
             else:
                 result = self._tool_dispatch(db, name, args, dispatch_context, target_chat, target_member)

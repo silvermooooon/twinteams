@@ -121,7 +121,7 @@ def install_fixture(root):
             payload = json.loads(text)
             message = payload['message']
             body = message.get('body', '')
-            needs = bool(re.search(r'\bE2E (?:ECHO|MARKDOWN|SLOW|FAIL_ONCE|FILE|IDENTITY|OWNER_DM|CHAIN)\b', body))
+            needs = bool(re.search(r'\bE2E (?:ECHO|MARKDOWN|SLOW|FAIL_ONCE|FILE|FILE_PREVIEW|FILE_PREVIEW_OVERWRITE|IDENTITY|OWNER_DM|CHAIN)\b', body))
             if message.get('kind') in {'twin', 'reply_for_me'} and not body.startswith('E2E CHAIN '):
                 needs = False
             allowed = json.loads(system.rsplit('Allowed owners: ', 1)[1])
@@ -193,6 +193,19 @@ def install_fixture(root):
                 final = 'E2E retry succeeded: ' + label
             elif command == 'MARKDOWN':
                 final = '# E2E Markdown ' + label + '\n\n**Bold** and `inline code`.\n\n- First item\n- Second item\n\n```python\nprint("E2E")\n```\n\n| Column | Value |\n| --- | --- |\n| E2E | passed |'
+            elif command == 'FILE_PREVIEW':
+                documents = preview_documents(label)
+                written = names.count('write')
+                if written < len(documents):
+                    extension, content = documents[written]
+                    name, arguments = 'write', {'path': info['workspace'] + '/generated/' + label + '.' + extension, 'content': content}
+                elif 'present_files' not in names:
+                    name, arguments = 'present_files', {'paths': [info['workspace'] + '/generated/' + label + '.' + ext for ext, _ in documents], 'caption': 'E2E delivered files: ' + label}
+                final = 'E2E file preview delivered: ' + label
+            elif command == 'FILE_PREVIEW_OVERWRITE':
+                if 'write' not in names:
+                    name, arguments = 'write', {'path': info['workspace'] + '/generated/' + label + '.md', 'content': 'Changed source: ' + label}
+                final = 'E2E file preview source overwritten: ' + label
             elif command == 'FILE':
                 if 'write' not in names:
                     name, arguments = 'write', {'path': info['workspace'] + '/e2e-' + label + '.txt', 'content': 'E2E generated workspace artifact: ' + label + '\n'}
@@ -264,6 +277,23 @@ def install_fixture(root):
     RuntimeBridge.__init__ = initialize
 
 
+def preview_documents(label):
+    """Synthetic fixture bytes; creation still goes through actual SDK write tools."""
+    stream = f"BT /F1 12 Tf 30 100 Td (PDF_{label}) Tj ET"
+    objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 150] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>", f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream"]
+    pdf, offsets = "%PDF-1.4\n", [0]
+    for index, value in enumerate(objects, 1):
+        offsets.append(len(pdf)); pdf += f"{index} 0 obj\n{value}\nendobj\n"
+    offset = len(pdf)
+    pdf += "xref\n0 6\n0000000000 65535 f \n" + "".join(f"{n:010d} 00000 n \n" for n in offsets[1:])
+    pdf += f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{offset}\n%%EOF\n"
+    return [("md", f"# Delivery {label}\n\n**Verified content**\n\n<script>window.__previewInjected=true</script>"),
+        ("txt", f"<script>window.__previewInjected=true</script>\nTEXT_{label}"), ("pdf", pdf),
+        ("html", f"<!doctype html><html><head><meta charset='utf-8'></head><body><h1>HTML_{label}</h1><button id='counter'>Count: 0</button><script>let count=0;document.getElementById('counter').onclick=()=>{{document.getElementById('counter').textContent='Count: '+(++count)}};</script></body></html>")]
+
+
 def seed(root):
     from datetime import timedelta
 
@@ -293,10 +323,10 @@ def api_app():
 
     from app import api, main
     from app.credential_api import router as credentials
+    from app.onboarding_api import router as onboarding
     from app.personal_api import router as personal
     from app.provider_config import router as provider
     from app.scheduled_task_api import router as scheduled_tasks
-    from app.onboarding_api import router as onboarding
     app = FastAPI(title='Twinteams isolated browser E2E', lifespan=main.lifespan)
     app.exception_handlers = main.app.exception_handlers.copy()
 

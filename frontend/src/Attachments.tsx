@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ApiClient, ChatAttachment } from './api/client';
 import { t } from './i18n';
-import { Icon, IconButton, Modal } from './ui';
+import { Icon, IconButton } from './ui';
+import { FilePreview, openHtmlPreview } from './FilePreview';
 
 export type AttachmentMetadata = ChatAttachment;
 export type DraftAttachment = { localId: string; file: File; preview?: string; status: 'uploading' | 'ready' | 'failed'; attachment?: AttachmentMetadata; error?: string };
@@ -60,5 +61,15 @@ export function DraftAttachmentList({ items, error, onRemove, onRetry, onDismiss
 }
 export function MessageAttachments({ attachments }: { attachments: AttachmentMetadata[] }) {
   const [preview, setPreview] = useState<AttachmentMetadata | null>(null);
-  return <><div className="message-attachments">{attachments.map(attachment => attachment.kind === 'image' ? <button className="message-image-button" key={attachment.id} onClick={() => setPreview(attachment)} title={t('attachments.preview', { name: attachment.name })}><img loading="lazy" src={attachment.url} alt={attachment.name} width={attachment.width ?? undefined} height={attachment.height ?? undefined} /><span>{attachment.name}</span></button> : <div className="file-attachment" key={attachment.id}><Icon name="file" size={28} /><div><a href={attachment.url} download={attachment.name}>{attachment.name}</a><small>{fileSize(attachment.size)}</small></div></div>)}</div>{preview && <Modal title={preview.name} wide onClose={() => setPreview(null)}><div className="attachment-large-preview"><img src={preview.url} alt={preview.name} /><a href={preview.url} download={preview.name} className="secondary-button">{t('workspace.download')}</a></div></Modal>}</>;
+  const [error, setError] = useState(''); const htmlLoads = useRef(new Set<() => void>());
+  useEffect(() => () => { htmlLoads.current.forEach(cancel => cancel()); htmlLoads.current.clear(); }, []);
+  function openHtml(attachment: AttachmentMetadata) {
+    setError('');
+    try {
+      let cancel: () => void;
+      cancel = openHtmlPreview(attachment, () => htmlLoads.current.delete(cancel));
+      htmlLoads.current.add(cancel);
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not open this file.'); }
+  }
+  return <><div className="message-attachments">{attachments.map(attachment => attachment.kind === 'image' ? <button className="message-image-button" key={attachment.id} onClick={() => setPreview(attachment)} title={t('attachments.preview', { name: attachment.name })}><img loading="lazy" src={attachment.url} alt={attachment.name} width={attachment.width ?? undefined} height={attachment.height ?? undefined} /><span>{attachment.name}</span></button> : <div className="file-attachment" key={attachment.id} data-attachment-id={attachment.id}><Icon name="file" size={28} /><div><a href={attachment.url} download={attachment.name} title={`Download ${attachment.name}`}>{attachment.name}</a><small>{fileSize(attachment.size)}</small></div>{attachment.preview_kind === 'html' ? <IconButton icon="arrow" label={`Open ${attachment.name} in new tab`} onClick={() => openHtml(attachment)} /> : attachment.preview_kind && <IconButton icon="search" label={`Preview ${attachment.name}`} onClick={() => setPreview(attachment)} />}</div>)}</div>{error && <div className="attachment-preview-notice" role="alert"><Icon name="info" size={16} /><span>{error}</span><IconButton icon="close" label="Dismiss file preview error" size={14} onClick={() => setError('')} /></div>}{preview && <FilePreview key={preview.id} attachment={preview} onClose={() => setPreview(null)} />}</>;
 }

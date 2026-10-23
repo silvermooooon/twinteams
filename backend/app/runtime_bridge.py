@@ -273,6 +273,8 @@ class RuntimeBridge:
              {"chat_id": text, "body": text, "source_message_ids": ids,
               "reply_to_message_id": text, "wait_for_reply": {"type": "boolean", "default": False}},
              ["chat_id", "body", "source_message_ids"]),
+            ("present_files", "Publish completed local files as visible chat attachments, with an optional caption. Defaults to the current chat; another destination must already be authorized. Files must be in your owner workspace or the current chat's shared workspace. Publication saves snapshots, not live paths; report success only after this tool succeeds. Do not repeat its caption in your final reply. For delegated work, normally return files to the parent for review; publish directly only when that delivery is within the delegated task.",
+             {"paths": {"type": "array", "items": text, "minItems": 1, "maxItems": 4}, "caption": text, "chat_id": text}, ["paths"]),
             ("list_tracking", "Read visible Tracking: owner private chat includes its own and authorized groups; group origin stays in that group. Use each item's chat_id for details or changes.", {"chat_id": text}, []),
             ("get_tracking", "Read a relevant topic and its authorized chronological updates before resuming work or changing its state. Set chat_id to the item's source chat_id.", {"chat_id": text, "id": text}, ["id"]),
             ("create_tracking", "Record a concrete ongoing goal with its current state, blockers and next steps from authorized sources. Reuse a relevant existing topic; simple one-off answers need no topic. Deleted old topics cannot be silently revived.",
@@ -337,7 +339,7 @@ class RuntimeBridge:
         ])
         approval_actions = {
             "set_message_reaction",
-            "send_chat_message", "create_chat", "rename_chat", "add_chat_members",
+            "send_chat_message", "present_files", "create_chat", "rename_chat", "add_chat_members",
             "create_reminder", "update_reminder", "create_tracking", "update_tracking",
             "delete_tracking", "add_tracking_update", "save_summary",
             "cancel_reply_request", "retry_reply_request",

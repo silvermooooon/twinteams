@@ -309,8 +309,33 @@ async def upload_attachment(chat_id: str, request: Request, owner: OwnerIdentity
 
 @router.get("/chats/{chat_id}/attachments/{attachment_id}")
 def download_attachment(chat_id: str, attachment_id: str, owner: OwnerIdentity):
-    path, info = service.attachment_file(owner, chat_id, attachment_id)
-    return FileResponse(path, filename=info["name"], media_type=info["mime_type"], content_disposition_type="inline" if info["kind"] == "image" else "attachment", headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store", "Content-Security-Policy": "default-src 'none'; sandbox"})
+    from urllib.parse import quote
+    data, info = service.attachment_content(owner, chat_id, attachment_id)
+    disposition = "inline" if info["kind"] == "image" else "attachment"
+    return Response(data, media_type=info["mime_type"], headers={
+        "Content-Disposition": f"{disposition}; filename*=utf-8''{quote(info['name'])}",
+        "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store",
+        "Content-Security-Policy": "default-src 'none'; sandbox"})
+
+
+@router.get("/chats/{chat_id}/attachments/{attachment_id}/preview")
+def preview_attachment(chat_id: str, attachment_id: str, owner: OwnerIdentity):
+    from .attachments import MAX_TEXT_PREVIEW_BYTES
+    data, info = service.attachment_content(owner, chat_id, attachment_id)
+    kind = info["preview_kind"]
+    headers = {"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store",
+               "Content-Security-Policy": "default-src 'none'; sandbox"}
+    if kind == "pdf" and data.startswith(b"%PDF-"):
+        return Response(data, media_type="application/pdf", headers=headers)
+    if kind not in {"markdown", "text", "html"} or len(data) > MAX_TEXT_PREVIEW_BYTES:
+        raise HTTPException(415, "Preview is unavailable; download this file to open it")
+    try:
+        content = data.decode("utf-8")
+    except UnicodeError:
+        raise HTTPException(415, "Preview requires UTF-8 text; download this file to open it") from None
+    # HTML is source text only. The UI runs it in a user-opened sandboxed tab,
+    # never as an authenticated same-origin HTML response.
+    return PlainTextResponse(content, headers=headers)
 
 
 @router.post("/chats/{chat_id}/workspace/files")

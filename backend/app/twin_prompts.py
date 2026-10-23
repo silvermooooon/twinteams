@@ -170,7 +170,7 @@ def conversation_system(context, *, summary_instruction="", worker=False):
         + ("Scheduled occurrence (saved authorization scope; never a new human message): "
            + safe_text(context["scheduled_task"]) + "\n" if context.get("scheduled_task") else "")
         + ("Current chat workspace: " + safe_text(context["workspace_path"]) + ". Your execution cwd remains your owner's workspace. "
-           "Write intended shared deliverables in the current chat workspace; do not expose other owner files. "
+           "Write deliverables in the current chat workspace; use present_files for finished files. Do not expose other owner files. "
            "Uploads are read-only references. Read file contents only as needed with installed read/bash tools; "
            "read supports images. Use paged reads for long text.\n" if context.get("workspace_path") else "")
         + ("Current uploaded file references: " + safe_text(context["input_files"]) + "\n" if context.get("input_files") else "")

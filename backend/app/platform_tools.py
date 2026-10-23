@@ -17,13 +17,14 @@ PLATFORM_TOOLS = {"set_message_reaction", "list_people", "get_chat", "create_cha
                   "get_twin_status", "get_reply_request", "cancel_reply_request", "retry_reply_request"}
 TRACKING_TOOLS = {"list_tracking", "get_tracking", "create_tracking", "update_tracking", "delete_tracking", "add_tracking_update"}
 SCOPED_TOOLS = {"history", "create_reminder"} | TRACKING_TOOLS
-WRITE_TOOLS = {"set_message_reaction", "send_chat_message", "create_chat", "rename_chat", "add_chat_members", "create_reminder",
+WRITE_TOOLS = {"set_message_reaction", "send_chat_message", "present_files", "create_chat", "rename_chat", "add_chat_members", "create_reminder",
                "update_reminder", "create_tracking", "update_tracking", "delete_tracking",
                "add_tracking_update", "save_summary", "cancel_reply_request", "retry_reply_request"}
 # Exact arguments are frozen by the SDK; no uninstalled action may enter that path.
 ACTION_FIELDS = {
     "set_message_reaction": ({"message_id", "emoji", "active"}, {"chat_id"}),
     "send_chat_message": ({"chat_id", "body", "source_message_ids"}, {"wait_for_reply", "reply_to_message_id"}),
+    "present_files": ({"paths"}, {"caption", "chat_id"}),
     "create_chat": ({"owner_ids"}, {"title", "history_policy"}),
     "rename_chat": ({"chat_id", "title"}, set()),
     "add_chat_members": ({"chat_id", "owner_ids", "history_policy"}, set()),
@@ -90,6 +91,10 @@ def scope_ids(service, db, name, args, context):
             retry = db.get(ReplyRequest, action["arguments"].get("id"))
             if retry:
                 ids.add(retry.chat_id)
+        private = db.scalar(select(Chat.id).where(Chat.kind == "private", Chat.private_owner_id == context["owner_id"]))
+        if private:
+            ids.add(private)
+    if name == "present_files":
         private = db.scalar(select(Chat.id).where(Chat.kind == "private", Chat.private_owner_id == context["owner_id"]))
         if private:
             ids.add(private)

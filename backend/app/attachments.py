@@ -50,3 +50,20 @@ def inspect_upload(name: str, declared_type: str, data: bytes) -> dict:
         # A preview decoder limitation must not reject an otherwise valid file.
         result.update(kind="file", mime_type="application/octet-stream", width=None, height=None)
     return result
+
+
+TEXT_SUFFIXES = {".txt", ".json", ".csv", ".log", ".py", ".ts", ".tsx", ".js", ".jsx", ".yaml", ".yml", ".css", ".xml", ".sh", ".sql"}
+MAX_TEXT_PREVIEW_BYTES = 1024 * 1024
+
+
+def preview_kind(name, mime_type):
+    suffix = Path(name).suffix.casefold()
+    if suffix in {".md", ".markdown"}:
+        return "markdown"
+    if suffix in {".html", ".htm"}:
+        return "html"
+    if suffix == ".pdf":
+        return "pdf"
+    if suffix in TEXT_SUFFIXES or mime_type.startswith("text/"):
+        return "text"
+    return None
