@@ -16,7 +16,7 @@ including two-owner and larger group chats. When B asks A's Twin to work, worksp
 Soul, credential references and main-session read/write Memory belong to A. The model sees
 current audience names/IDs and the original requester, distinguishes B's request from A's
 consent, and asks A before sensitive owner operations when consent has not already been granted.
-Background workers share A's execution configuration but have no Memory tools. Credential forms
+Background workers share A's execution configuration, credentials and Memory tools, with independent task context. Credential forms
 and their completion APIs remain A-only; filling a form supplies bindings without approving an action.
 Private history/provenance and existing per-action followup/retry restrictions still apply.
 

@@ -220,7 +220,7 @@ def test_unicode_credential_names_are_metadata(product):
     assert "fake-unicode-test" not in str(result)
 
 
-def test_assembly_freezes_catalog_child_has_no_memory_and_group_has_owner_tools(product, tmp_path, monkeypatch):
+def test_assembly_freezes_catalog_and_shares_owner_tools_with_children_and_groups(product, tmp_path, monkeypatch):
     from app import personal, twin_execution
     from app.models import Chat
     original_backend = twin_execution.TwinExecutionBackend
@@ -246,9 +246,9 @@ def test_assembly_freezes_catalog_child_has_no_memory_and_group_has_owner_tools(
         (skill_root / "SKILL.md").write_text("---\nname: offline-demo\ndescription: New skill description\n---\nNew instructions.\n")
         await store.put("assembly-ref", {"ASSEMBLY_TOKEN": "fake-assembly-new"}, description="New credential metadata")
         child = SimpleNamespace(info=SessionInfo("assembly-child", "local", "owner-alex"), subagent_creation={"task": "offline worker"})
-        child_tools, inherited, _ = await twin_execution.assemble(product, child, context, include_memory=False)
+        child_tools, inherited, _ = await twin_execution.assemble(product, child, context)
         assert inherited["execution_config"] == initial
-        assert not any(tool.name.startswith("memory_") for tool in child_tools)
+        assert {tool.name for tool in child_tools} == main_names
         recovered_tools, recovered, _ = await twin_execution.assemble(product, session, context)
         assert recovered["execution_config"] == initial
         recovered_bash = next(tool for tool in recovered_tools if tool.name == "bash")
@@ -286,8 +286,13 @@ def test_legacy_unfinished_run_keeps_original_tools_and_new_prompt_gets_executio
         assert personal.get_execution_config(request["id"]) is None
         child = SimpleNamespace(info=SessionInfo("legacy-child", "local", "owner-alex"),
             subagent_creation={"task": "old worker"}, resumable=False)
-        child_tools, child_config, _ = await twin_execution.assemble(product, child, context, include_memory=False)
-        assert child_tools == [] and not child_config["execution_enabled"]
+        child_tools, child_config, _ = await twin_execution.assemble(product, child, context)
+        assert {tool.name for tool in child_tools} == {tool.name for tool in tools}
+        assert not child_config["execution_enabled"]
+        child.resumable = True
+        child.snapshot = {"tools": []}
+        old_tools, _, _ = await twin_execution.assemble(product, child, context)
+        assert old_tools == [], "an accepted old worker keeps its empty frozen declarations"
         assert personal.get_execution_config(request["id"]) is None
         # A new accepted prompt in the same now-idle SDK session gets the feature.
         session.resumable = False

@@ -17,11 +17,11 @@ class TwinExecutionBackend(LocalExecutionBackend):
         self.cwd = str(Path(workspace).resolve())
 
 
-async def assemble(service, session, context, *, include_memory=True):
+async def assemble(service, session, context):
     from . import personal
     request_id = context.get("request_id") or context.get("origin_request_id")
     owner_id = context["owner_id"]
-    if context.get("private_generation") is not None:
+    if request_id or context.get("private_generation") is not None:
         await service.db_call("authorize_runtime_generation", context)
     # Never trust inherited flags: recheck product ownership at every factory.
     authorized = await service.db_call(owner_execution_allowed, service, owner_id, request_id)
@@ -57,14 +57,17 @@ async def assemble(service, session, context, *, include_memory=True):
         backend = TwinExecutionBackend(session.info, config["workspace"])
         tools.extend(await create_execution_tools(session=session, backend=backend,
             secrets=secret_store, credential_refs=[item["ref"] for item in config.get("credentials", [])]))
-    # Main Twin sessions use the owner's store with Git CAS across chats. Workers
-    # keep their existing no-Memory contract and report findings to the parent.
-    if authorized and (enabled or legacy and context.get("chat", {}).get("kind") == "private") and include_memory and not getattr(session, "subagent_creation", None):
+    # Every context uses the same owner store and its existing Git CAS/reset guard.
+    if authorized and (enabled or legacy and context.get("chat", {}).get("kind") == "private"):
         store = await service.db_call(personal.make_memory_store, session.info)
         if store is not None:
             tools.extend(create_memory_tools(session=session, store=store))
             memory = await store.read("MEMORY")
             memory_index = memory.to_dict() if memory else None
+    saved = getattr(session, "snapshot", {}).get("tools") if getattr(session, "resumable", False) else None
+    if saved is not None:
+        names = {tool["name"] for tool in saved}
+        tools = [tool for tool in tools if tool.name in names]
     return tools, {**context, "execution_config": config, "execution_enabled": enabled}, memory_index
 
 

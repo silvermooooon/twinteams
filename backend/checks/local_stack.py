@@ -76,7 +76,6 @@ def environment(role):
         AGENT_PROVIDER="openai",
         AGENT_API="openai-responses",
         AGENT_MODEL="gpt-6-luna",
-        TWINTEAMS_SUBAGENT_MODEL="gpt-6-luna",
     )
     if role == "worker":
         if not env.get("OPENAI_API_KEY"):

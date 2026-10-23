@@ -127,14 +127,17 @@ async def has_unresolved_children(runtime, request):
     if runtime.store is None:
         raise RuntimeError("Runtime storage is unavailable for scheduled child admission")
     tenant = runtime.tenant_id
+    descendants = set()
     after = None
     while True:
         rows = await runtime.store.list_child_commands(tenant, session_id, limit=1000, after=after)
         for row in rows:
             origin = row.get("payload", {}).get("subagent", {})
             parent_run = row.get("parent_run_id") or origin.get("parent_run_id") or origin.get("root_run_id")
-            if parent_run == run_id and row["state"] in {"accepted", "applied"}:
-                return True
+            if parent_run == run_id:
+                if row["state"] in {"accepted", "applied"}:
+                    return True
+                descendants.add((row["session_id"], row["run_id"]))
         if len(rows) < 1000:
             break
         after = (rows[-1]["session_id"], rows[-1]["command_seq"])
@@ -144,5 +147,9 @@ async def has_unresolved_children(runtime, request):
         if any((row["payload"].get("parent_run_id") or row["payload"].get("root_run_id")) == run_id for row in rows):
             return True
         if len(rows) < 1000:
-            return False
+            break
         after_seq = rows[-1]["command_seq"]
+    for child_session, child_run in descendants:
+        if await has_unresolved_children(runtime, {"session_id": child_session, "run_id": child_run}):
+            return True
+    return False

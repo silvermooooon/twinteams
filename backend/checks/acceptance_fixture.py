@@ -52,7 +52,6 @@ for name, value in {
     "AGENT_PROVIDER": "openai",
     "AGENT_MODEL": "acceptance-fixture-offline",
     "AGENT_API": API,
-    "TWINTEAMS_SUBAGENT_MODEL": "acceptance-fixture-offline",
     "AGENT_REASONING": "off",
     "OPENAI_API_KEY": "acceptance-fixture-placeholder-not-a-real-key",
     "ANTHROPIC_API_KEY": "acceptance-fixture-placeholder-not-a-real-key",

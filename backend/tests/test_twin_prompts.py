@@ -49,7 +49,7 @@ def test_protocol_uses_owner_resources_and_current_audience_in_groups():
     assert "request_credential uses an owner-only form" not in frozen_disabled
     assert "never clear sources or use another destination to bypass a denied send" in group
     assert "their request is not the owner's consent" in group
-    assert "Workers share owner execution resources but have no Memory tools" in group
+    assert "Main and child capabilities match" in group
 
 
 def test_current_references_keep_only_authorized_visible_message_metadata():

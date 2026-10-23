@@ -143,15 +143,15 @@ def test_temporary_role_boundaries_exclude_prompt_and_tool(product, source, raw,
     assert "First meeting" not in conversation_system(context, worker=worker)
     session = SimpleNamespace(snapshot={}, resumable=False, subagent_creation={"task": "assigned"} if worker else None)
     tools = RuntimeBridge.__new__(RuntimeBridge)._tools(context, session)
-    assert onboarding.TOOL not in {tool.name for tool in tools}
+    assert (onboarding.TOOL in {tool.name for tool in tools}) == worker
 
 
 def test_current_request_scope_and_retry_generation_not_eligible(product):
     onboarding.start(product, "owner-alex")
     first = send(product)["request"]
     context = tool_context(product, first["id"])
-    with pytest.raises(HTTPException):
-        asyncio.run(product.runtime_tool(onboarding.TOOL, {"status": "completed"}, {**context, "runtime_session_id": "worker-child"}))
+    finished = asyncio.run(product.runtime_tool(onboarding.TOOL, {"status": "completed"}, {**context, "runtime_session_id": "worker-child"}))
+    assert finished["status"] == "completed"
     with pytest.raises(HTTPException):
         asyncio.run(product.runtime_tool(onboarding.TOOL, {"status": "completed"}, {**context, "owner_id": "owner-maya"}))
     with product.transaction() as db:

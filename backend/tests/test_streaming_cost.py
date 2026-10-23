@@ -13,7 +13,7 @@ from app.models import Message
 from app.runtime_bridge import RuntimeBridge
 
 
-async def measure_stream(product, bridge_type=RuntimeBridge, *, deltas=100):
+async def measure_stream(product, bridge_type=RuntimeBridge, *, deltas=100, owner="alex"):
     runtime = bridge_type(product)
     metrics = {"gates": 0, "gate_sql": 0, "product_sql": 0}
     inside_gate = False
@@ -47,7 +47,7 @@ async def measure_stream(product, bridge_type=RuntimeBridge, *, deltas=100):
     runtime.models.register_api("offline-regression", offline)
     await runtime.start()
     try:
-        request = product.send_message("owner-alex", "private-alex", "Synthetic stream request", uuid4().hex)["request"]
+        request = product.send_message("owner-" + owner, "private-" + owner, "Synthetic stream request", uuid4().hex)["request"]
         event.listen(service_module.engine, "before_cursor_execute", statement)
         started = time.perf_counter()
         result = await runtime.execute(product.get_request(request["id"]), product.get_runtime_context(request["id"]))
@@ -64,7 +64,7 @@ async def measure_stream(product, bridge_type=RuntimeBridge, *, deltas=100):
 def test_live_delta_count_does_not_increase_product_authorization_queries(product):
     async def run():
         empty = await measure_stream(product, deltas=0)
-        many = await measure_stream(product, deltas=100)
+        many = await measure_stream(product, deltas=100, owner="maya")
         assert many["gates"] == empty["gates"]
         assert many["gate_sql"] == empty["gate_sql"]
         assert empty["gate_sql"] > 0  # Request/tool/commit boundaries still run.

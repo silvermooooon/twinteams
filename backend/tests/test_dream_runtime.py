@@ -40,7 +40,7 @@ def test_prompt_composes_soul_and_server_hook_without_private_memory(monkeypatch
     assert "group conversation" in prompt and "Speak gently." in prompt
     assert "server-only policy" in prompt
     assert "must never appear" not in prompt
-    assert "Workers share owner execution resources but have no Memory tools" in prompt
+    assert "Main and child capabilities match" in prompt
     assert "Pending approvals" in prompt and "wait_for_reply=true" in prompt
 
 
@@ -244,18 +244,18 @@ def test_soul_freezes_per_request_and_parent_workers_share_it(monkeypatch):
         request = product.send_message("owner-alex", "private-alex", "Soul snapshot test", uuid4().hex)["request"]
         context = product.get_runtime_context(request["id"])
         session = SimpleNamespace(info=SessionInfo("snapshot", "local", "owner-alex"), resumable=False, subagent_creation=None)
-        _, original, _ = await twin_execution.assemble(product, session, context, include_memory=False)
+        _, original, _ = await twin_execution.assemble(product, session, context)
         assert original["execution_config"]["profile"]["soul"] == "First personality"
         latest = personal.get_soul("owner-alex")
         personal.write_soul("owner-alex", "Second personality", latest["version"])
-        _, resumed, _ = await twin_execution.assemble(product, session, context, include_memory=False)
+        _, resumed, _ = await twin_execution.assemble(product, session, context)
         assert resumed["execution_config"]["profile"] == original["execution_config"]["profile"]
         session.subagent_creation = {"parent_session_id": "snapshot"}
-        _, child, memory = await twin_execution.assemble(product, session, context, include_memory=False)
-        assert child["execution_config"]["profile"] == original["execution_config"]["profile"] and memory is None
+        _, child, _ = await twin_execution.assemble(product, session, context)
+        assert child["execution_config"]["profile"] == original["execution_config"]["profile"]
         second = product.send_message("owner-alex", "private-alex", "New request personality", uuid4().hex)["request"]
         session.subagent_creation = None
-        _, fresh, _ = await twin_execution.assemble(product, session, product.get_runtime_context(second["id"]), include_memory=False)
+        _, fresh, _ = await twin_execution.assemble(product, session, product.get_runtime_context(second["id"]))
         assert fresh["execution_config"]["profile"]["soul"] == "Second personality"
     # Assembly uses the real authorization/configuration path; tools aren't executed.
     try:

@@ -116,7 +116,7 @@ async def main():
             TWINTEAMS_WORKSPACE_ROOT=str(root / 'workspaces'), AGENT_MEMORY_DIR=str(root / 'memory'),
             AGENT_SECRETS_DIR=str(root / 'secrets'), AGENT_SECRETS_KEY=Fernet.generate_key().decode(),
             AGENT_PROVIDER='openai', AGENT_API='browser-e2e-offline', AGENT_MODEL='gpt-6-luna',
-            TWINTEAMS_SUBAGENT_MODEL='gpt-6-luna', OPENAI_API_KEY='explicit-offline-not-a-provider-key')
+            OPENAI_API_KEY='explicit-offline-not-a-provider-key')
         env['TWINTEAMS_ONBOARDING_ENABLED'] = 'true' if args.scenario == 'personal-onboarding' else 'false'
         if args.scenario:
             env['TWINTEAMS_E2E_SCENARIO'] = args.scenario

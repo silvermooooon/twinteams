@@ -47,6 +47,12 @@ class ProductStub:
     def get_request(self, request_id):
         return self.requests[request_id]
 
+    def authorize_runtime_generation(self, context):
+        request = self.requests[context["request_id"]]
+        if request.get("cancel_requested"):
+            raise PermissionError("Synthetic request was cancelled")
+        return True
+
     def bind_runtime_run(self, request_id, session_id, run_id):
         self.requests[request_id].update(session_id=session_id, run_id=run_id)
 
@@ -84,7 +90,7 @@ def test_proactive_send_schema_preserves_followup_and_reply_reference():
     system = runtime._system(context)
     assert "existing authorized chat" in tool.description
     assert "audience restrictions" in system
-    assert "courtesy replies" in system
+    assert "courtesy loops" in system
 
 
 @pytest.mark.parametrize("final_body,failed", [("", False), ("Useful completed result.", False), ("", True)])

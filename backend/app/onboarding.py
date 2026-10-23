@@ -125,8 +125,7 @@ def finish(service, db, args, context, chat):
     request, twin, origin, _, _ = service._message_tool_origin(db, context)
     if not settings.onboarding_enabled:
         return _state(db, chat)
-    if (context.get("runtime_session_id") != context.get("main_session_id")
-            or origin.id != chat.id or twin.owner_id != chat.private_owner_id
+    if (origin.id != chat.id or twin.owner_id != chat.private_owner_id
             or context_for_request(db, request, chat) is None):
         fail(403, "Onboarding belongs to the first owner-private input")
     row = db.get(OnboardingState, twin.owner_id)

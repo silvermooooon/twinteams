@@ -80,10 +80,10 @@ def test_other_participant_uses_target_twin_profile_skills_and_sdk_identity(
         child = SimpleNamespace(info=SessionInfo('owner-child', 'local', target_owner),
                                 subagent_creation={'parent_session_id': 'owner-assembly'}, resumable=False)
         child_tools, child_context, child_memory = await twin_execution.assemble(
-            product, child, context, include_memory=False)
-        assert child_context['execution_config'] == frozen and child_memory is None
+            product, child, context)
+        assert child_context['execution_config'] == frozen and child_memory == memory
         assert {'bash', 'read', 'write', 'load_skill'} <= {tool.name for tool in child_tools}
-        assert not any(tool.name.startswith('memory_') for tool in child_tools)
+        assert {'memory_read', 'memory_write', 'memory_search', 'memory_delete'} <= {tool.name for tool in child_tools}
 
         runtime = RuntimeBridge(product)
         await runtime.start()
