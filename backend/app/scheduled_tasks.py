@@ -181,6 +181,9 @@ def busy(db, row):
     from .credential_models import CredentialRequest
     if db.scalar(select(CredentialRequest.id).where(CredentialRequest.origin_request_id.in_(requests), CredentialRequest.status == "pending").limit(1)):
         return True
+    from .question_models import QuestionRequest
+    if db.scalar(select(QuestionRequest.id).where(QuestionRequest.origin_request_id.in_(requests), QuestionRequest.status == "pending").limit(1)):
+        return True
     request_ids = set(db.scalars(requests))
     # Approval SDK references are JSON; keep the bounded inspection inside the owner's private chat.
     for approval in db.scalars(select(Approval).where(Approval.chat_id == request.chat_id, Approval.status == "pending").limit(100)):
@@ -196,7 +199,8 @@ def payload(db, row):
         ReplyRequest.status.in_(["queued", "running"]), ReplyRequest.target_twin_id == request.target_twin_id,
         ReplyRequest.chat_id == request.chat_id).order_by(ReplyRequest.accepted_at.desc()).limit(1)) if request else None
     pending = busy(db, row) if request else False
-    return {"id": row.id, "kind": row.kind, "title": row.title, "instructions": SYSTEM_INSTRUCTIONS if row.kind == "system_review" else row.instructions,
+    from .proactivity import payload as proactivity_payload
+    return {"proactivity": proactivity_payload(row) if row.kind == "system_review" else None, "id": row.id, "kind": row.kind, "title": row.title, "instructions": SYSTEM_INSTRUCTIONS if row.kind == "system_review" else row.instructions,
         "timezone": row.timezone, "schedule": row.schedule, "enabled": row.enabled,
         "revision": row.revision, "next_run_at": iso(row.next_run_at),
         "last_run_at": details.get("last_run_at"), "last_request_id": details.get("last_request_id"),
@@ -337,6 +341,8 @@ def enqueue(service, db, row, planned, moment, *, manual_key=None):
         "timezone": row.timezone, "schedule": row.schedule, "revision": row.revision,
         "planned_at": iso(planned), "occurrence_id": key}
     if row.kind == "system_review":
+        from .proactivity import payload as proactivity_payload
+        context["proactivity"] = proactivity_payload(row)
         context["system_review"] = review_snapshot(service, db, row, moment)
         if not context["system_review"]["needs_review"] and not manual_key:
             row.details = {**details, "last_status": "silent", "last_run_at": iso(moment), "last_successful_cutoff": iso(moment)}
@@ -391,6 +397,11 @@ def process_due(service, task_ids=None, *, moment=None, blocked_task_ids=None):
             if not row or not row.enabled or row.next_run_at is None or aware(row.next_run_at) > moment:
                 continue
             if row.id in (blocked_task_ids or set()):
+                continue
+            from .proactivity import quiet_until
+            quiet_end = quiet_until(row, moment)
+            if quiet_end:
+                row.next_run_at, row.updated_at, row.index_dirty = quiet_end, moment, True
                 continue
             planned = aware(row.next_run_at)
             request = enqueue(service, db, row, planned, moment)
@@ -524,7 +535,7 @@ def reset_owner(db, owner_id, generation):
     moment = now()
     for row in db.scalars(select(ScheduledTask).where(ScheduledTask.owner_id == owner_id)):
         row.revision += 1
-        row.details = {"private_generation": generation, **({"deleted": True} if (row.details or {}).get("deleted") else {})}
+        row.details = {"private_generation": generation, **({"deleted": True} if (row.details or {}).get("deleted") else {}), **({"proactivity": row.details["proactivity"]} if row.kind == "system_review" and (row.details or {}).get("proactivity") else {})}
         if row.kind == "user":
             row.enabled, row.next_run_at = False, None
         else:

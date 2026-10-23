@@ -30,6 +30,10 @@ def create(service, db, origin, owner_id, destination, message, provenance):
 def reply_scope_ids(service, db, chat_id, reply_to):
     ids = {chat_id}
     if reply_to:
+        from .question_models import QuestionRequest
+        question = db.scalar(select(QuestionRequest).where(QuestionRequest.message_id == reply_to))
+        if question:
+            ids.update({question.chat_id, question.origin_chat_id})
         for row in db.scalars(select(TwinFollowup).where(
                 TwinFollowup.sent_message_id == reply_to, TwinFollowup.status == "waiting")):
             origin = db.get(ReplyRequest, row.origin_request_id)

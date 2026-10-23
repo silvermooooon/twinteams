@@ -15,10 +15,11 @@ from starlette.middleware.gzip import GZipMiddleware
 from .api import router
 from .config import settings
 from .credential_api import router as credential_router
-from .personal_api import router as personal_router
 from .onboarding_api import router as onboarding_router
-from .scheduled_task_api import router as scheduled_task_router
+from .personal_api import router as personal_router
 from .provider_config import router as provider_config_router
+from .question_api import router as question_router
+from .scheduled_task_api import router as scheduled_task_router
 from .service import service
 
 if sys.version_info[:2] != (3, 13):
@@ -56,6 +57,7 @@ app.include_router(personal_router)
 app.include_router(onboarding_router)
 app.include_router(scheduled_task_router)
 app.include_router(credential_router)
+app.include_router(question_router)
 
 
 @app.exception_handler(RequestValidationError)

@@ -298,6 +298,8 @@ class RuntimeBridge:
         ]
         from .runtime_scheduled import scheduled_tool_schemas
         schemas.extend(scheduled_tool_schemas())
+        from .proactivity import tool_schemas as proactivity_tool_schemas
+        schemas.extend(proactivity_tool_schemas())
         from .onboarding import TOOL as ONBOARDING_TOOL
         from .onboarding import tool_schema
         if (context.get("request_source") == "private"
@@ -362,6 +364,12 @@ class RuntimeBridge:
             schemas.append(("request_credential", "Open an owner-only credential form for required authentication that is missing or unusable; first reuse suitable available references and verify authentication is needed. Returns pending immediately; continue independent authorized work without polling. Submission queues remaining work after the origin settles; credentials grant no action approval. Never ask for secret values in chat.",
                 {"name": text, "description": text, "keynames": {"type": "array", "items": text, "minItems": 1, "maxItems": 32, "uniqueItems": True}, "reason": text},
                 ["name", "description", "keynames", "reason"]))
+        schemas.extend([
+            ("ask_question", "Ask your own owner one focused non-secret question needed for the current task. Optional two or three suggestions still allow free text. A durable question appears in the owner's private chat, with this task as its origin. Returns pending immediately: continue independent work, then yield rather than wait or poll. The answer resumes this exact task; it is input, not action approval. Never request credentials here or repeat the question in your final reply.",
+             {"question": text, "options": {"type": "array", "items": text, "minItems": 2, "maxItems": 3}}, ["question"]),
+            ("answer_question", "Associate this fresh owner's human input with a pending question only when it clearly answers that question. Supply the current source message ID; the server uses its exact text. Unrelated or ambiguous input remains a new request; never invent or rewrite an owner's decision. This grants no action approval.",
+             {"question_id": text, "message_id": text}, ["question_id", "message_id"]),
+        ])
         result = []
         for name, description, properties, required in schemas:
             def make_execute(tool_name):
@@ -403,6 +411,10 @@ class RuntimeBridge:
                         from .notifications import notifications
                         value = await self.service.db_call(create_request, self.service, args, tool_context)
                         notifications.emit_personal(context["owner_id"], "credentials")
+                    elif tool_name in {"ask_question", "answer_question"}:
+                        from . import questions
+                        action = questions.create if tool_name == "ask_question" else questions.answer_from_message
+                        value = await self.service.db_call(action, self.service, args, tool_context)
                     else:
                         value = await self.service.runtime_tool(tool_name, args, tool_context)
                     return AgentToolResult(content=[{"type": "text", "text": safe_text(value)}], details=safe_value(value))
@@ -430,6 +442,11 @@ class RuntimeBridge:
         if request.get("source") == "memory_dream":
             from .runtime_memory_dream import execute_dream
             return await execute_dream(self, request, context)
+        if request.get("source") == "question_result":
+            from .runtime_questions import execute_child_answer
+            child_result = await execute_child_answer(self, request, context)
+            if child_result is not None:
+                return child_result
         from agent_runtime.execution import DurableExecutor
         request_id = request["id"]
         chat_id = request["chat_id"]
@@ -451,6 +468,7 @@ class RuntimeBridge:
         }
         from .twin_prompts import request_prompt
         prompt = request_prompt(request, context)
+        activity_title = "Continuing your task" if request.get("source") == "question_result" else safe_text(prompt)[:180]
         # The stable command body identifies the accepted request. Fresh context is provided
         # by the factory and frozen by the SDK's model_request boundary on recovery.
         message = {"role": "user", "content": [{"type": "text", "text": prompt}],
@@ -476,7 +494,8 @@ class RuntimeBridge:
             # New runs use the currently authorized context; old journal remains intact.
             # Resumptions keep the SDK-frozen request and re-injected tool contract.
             if not session.resumable:
-                agent.state.messages = [{"role": "system", "content": system, "timestamp": 0}]
+                retained = [message for message in agent.state.messages if message.get("role") != "system"] if request.get("source") == "question_result" else []
+                agent.state.messages = [{"role": "system", "content": system, "timestamp": 0}, *retained]
             self.active[request_id] = agent
             if session.resumable:
                 await self._project_outputs(request_id, tenant_id, session_id, session.snapshot["run_id"], terminal_only=terminal_only)
@@ -500,7 +519,7 @@ class RuntimeBridge:
                         signal.abort()
                         await self.store.request_cancel(tenant_id, request_id)
                     await self.service.db_call("bind_runtime_run", request_id, session_id, session.snapshot["run_id"])
-                    await self.service.db_call("record_activity", chat_id, owner_id, session_id, session.snapshot["run_id"], {"title": safe_text(prompt)[:180], "source": request.get("source") if terminal_only else "user", "status": "running", "private_generation": agent_context.get("private_generation") or 0})
+                    await self.service.db_call("record_activity", chat_id, owner_id, session_id, session.snapshot["run_id"], {"title": activity_title, "source": request.get("source") if terminal_only else "user", "status": "running", "private_generation": agent_context.get("private_generation") or 0})
                     await self.emit(chat_id, type="changed", request_id=request_id)
                 elif (kind == "message_start" and not terminal_only
                       and event.get("message", {}).get("role") == "assistant"):
@@ -555,7 +574,7 @@ class RuntimeBridge:
             run_id = result.get("run_id") or snapshot.get("run_id")
             if not run_id:
                 raise RuntimeError("The SDK command has no durable run identity.")
-            await self.service.db_call("record_activity", chat_id, owner_id, session_id, run_id, {"title": safe_text(prompt)[:180], "status": status, "private_generation": context.get("private_generation") or 0, "finished_at": datetime.now(UTC) if status in ("completed", "failed", "stopped", "cancelled") else None})
+            await self.service.db_call("record_activity", chat_id, owner_id, session_id, run_id, {"title": activity_title, "status": status, "private_generation": context.get("private_generation") or 0, "finished_at": datetime.now(UTC) if status in ("completed", "failed", "stopped", "cancelled") else None})
             records = await self._run_records(tenant_id, session_id, run_id)
             if not terminal_only:
                 await self._project_outputs(request_id, tenant_id, session_id, run_id, records, terminal_only=False)
@@ -616,6 +635,11 @@ class RuntimeBridge:
     async def _child_factory(self, session):
         origin = session.subagent_creation or {}
         context = await self._background_context(origin["parent_session_id"], origin.get("parent_run_id") or origin.get("root_run_id"), origin.get("root_run_id"))
+        question_request = (getattr(session, "accepted_command", None) or {}).get("payload", {}).get("question_result")
+        if question_request:
+            # The worker keeps its original product authorization/manifest and
+            # ancestry. The carrier adds only this exact owner-answer guard.
+            context = {**context, "question_request_id": question_request}
         await self._check_generation(context)
         from .twin_execution import assemble
         execution_tools, context, memory_index = await assemble(self.service, session, context)
@@ -642,6 +666,8 @@ class RuntimeBridge:
                 snapshot = session.snapshot
                 run_id = snapshot.get("run_id")
                 if run_id:
+                    if question_request and event.get("type") == "agent_start":
+                        await self.service.db_call("bind_runtime_run", question_request, session.session_id, run_id)
                     await self.service.db_call("record_activity", context["chat"]["id"], context["owner_id"], session.session_id, run_id,
                         {"private_generation": context.get("private_generation") or 0, "parent_run_id": origin.get("parent_run_id") or origin.get("root_run_id"), "source": "subagent", "title": safe_text(origin.get("task", "Background task"))[:180], "status": snapshot.get("status", "running"), "finished_at": datetime.now(UTC) if event.get("type") == "agent_end" else None})
         agent.subscribe(child_activity)

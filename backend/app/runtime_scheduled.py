@@ -84,7 +84,8 @@ def scheduled_policy(context):
             "blockers or necessary owner decisions; omit unchanged notices, routine check-ins "
             "and worker narration. Prior review facts are reference data for avoiding repeats. "
         )
-    return policy + "\n"
+    from .proactivity import policy_prompt
+    return policy + " " + policy_prompt(task) + "\n"
 
 
 def scheduled_tool_schemas():
@@ -124,6 +125,8 @@ async def has_unresolved_children(runtime, request):
     session_id, run_id = request.get("session_id"), request.get("run_id")
     if not session_id or not run_id:
         return False
+    if await runtime.service.db_call("pending_owner_question_for_run", session_id, run_id):
+        return True
     if runtime.store is None:
         raise RuntimeError("Runtime storage is unavailable for scheduled child admission")
     tenant = runtime.tenant_id

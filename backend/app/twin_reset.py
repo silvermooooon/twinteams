@@ -61,9 +61,17 @@ def status(service, owner_id):
 
 def fence(service, owner_id, key, expected_generation):
     with service.transaction() as db:
-        chat = db.scalar(select(Chat).where(Chat.private_owner_id == owner_id).with_for_update())
+        chat = db.scalar(select(Chat).where(Chat.private_owner_id == owner_id))
         if not chat:
             raise HTTPException(404, "Private Twin chat not found")
+        from .questions import reset_scope_ids
+        scopes = {chat.id, *reset_scope_ids(db, owner_id)}
+        for scope in sorted(scopes):
+            db.scalar(select(Chat.id).where(Chat.id == scope).with_for_update())
+        db.expire_all()
+        if not reset_scope_ids(db, owner_id).issubset(scopes):
+            raise HTTPException(409, "Question context changed while waiting; retry the same reset")
+        db.refresh(chat)
         prior = db.scalar(select(TwinReset).where(TwinReset.owner_id == owner_id, TwinReset.idempotency_key == key))
         if prior:
             if prior.expected_generation != expected_generation:
@@ -104,6 +112,8 @@ def fence(service, owner_id, key, expected_generation):
             status="cancelled", notification_state="cancelled", source_provenance=[]))
         db.execute(update(CredentialRequest).where(CredentialRequest.chat_id == chat.id).values(
             status="cancelled", reason="", source_provenance=[]))
+        from .questions import reset_owner as reset_questions
+        reset_questions(service, db, owner_id)
         db.execute(update(ContextManifest).where(ContextManifest.request_id.in_(ids)).values(sources=[], source_digest="reset"))
         db.execute(update(Summary).where(Summary.chat_id == chat.id).values(body="", source_message_ids=[], source_provenance=[], state="revoked"))
         topic_ids = select(TrackingTopic.id).where(TrackingTopic.chat_id == chat.id)

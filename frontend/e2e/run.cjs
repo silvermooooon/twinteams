@@ -113,11 +113,18 @@ async function main() {
       "tracking-resumption",
       "first-private-group-tracking",
       "scheduled-task-workflow",
+      "interaction-live",
     ].includes(process.env.TWINTEAMS_E2E_SCENARIO)
   )
     throw new Error("Explicit live scenario is required");
   report.actual_model = live ? "gpt-6-luna" : null;
-  const suites = !live && report.scenario === "file-delivery-preview"
+  const suites = live && report.scenario === "interaction-live"
+    ? [require("./interaction-live.cjs")]
+    : !live && report.scenario === "proactivity"
+    ? [require("./proactivity.cjs")]
+    : !live && report.scenario === "ask-user"
+    ? [require("./ask-user.cjs")]
+    : !live && report.scenario === "file-delivery-preview"
     ? [require("./file-preview.cjs")]
     : !live && report.scenario === "personal-onboarding"
     ? [require("./onboarding.cjs")]

@@ -180,6 +180,8 @@ class ProductService:
             upgrade_scheduled_task_schema(engine)
             from .onboarding_schema import upgrade_onboarding_schema
             upgrade_onboarding_schema(engine)
+            from .question_schema import upgrade_question_schema
+            upgrade_question_schema(engine)
             from .direct_chat_schema import upgrade_direct_chat_schema
             upgrade_direct_chat_schema(engine)
             from .reaction_schema import upgrade_reaction_schema
@@ -252,6 +254,8 @@ class ProductService:
         check_scheduled_task_schema(inspector)
         from .onboarding_schema import check_onboarding_schema
         check_onboarding_schema(inspector)
+        from .question_schema import check_question_schema
+        check_question_schema(inspector)
         from .direct_chat_schema import check_direct_chat_schema
         check_direct_chat_schema(inspector)
         from .reaction_schema import check_reaction_schema
@@ -939,7 +943,8 @@ class ProductService:
             requests = [r for r in requests if (r.source_message_id and self.visible_message(db, member, r.source_message_id, False, cache=checked)) or (r.source_message_id is None and r.requester_id == owner_id)]
             tracking = [row[3] for row in self._tracking_scope(db, chat, member)]
             members = [m.owner_id for m in self.members(db, chat_id)]
-            return {"revision": chat.revision, "has_more": has_more, "before_seq": messages[0].seq if messages else None, "chat": self.chat_json(db, chat, member), "messages": self.messages_json(db, [m for m in messages if self.message_sources_visible(db, member, m, cache=checked)], member, cache=checked), "requests": [self.request_json(db, r, owner_id) for r in requests], "automatic_conversations": self.automatic_conversations(db, chat, member), "approvals": self._approval_inbox(db, chat, member), "tracking": [t for t in tracking if t], "settings": self.settings_json(self.settings_row(db, owner_id, chat)), "members": [self.actor_json(a) for a in db.scalars(select(Actor).where(Actor.owner_id.in_(members)).order_by(Actor.kind, Actor.name))]}
+            from .questions import for_chat
+            return {"questions": for_chat(self, db, chat, member, [m.id for m in messages if self.message_sources_visible(db, member, m, cache=checked)]), "revision": chat.revision, "has_more": has_more, "before_seq": messages[0].seq if messages else None, "chat": self.chat_json(db, chat, member), "messages": self.messages_json(db, [m for m in messages if self.message_sources_visible(db, member, m, cache=checked)], member, cache=checked), "requests": [self.request_json(db, r, owner_id) for r in requests], "automatic_conversations": self.automatic_conversations(db, chat, member), "approvals": self._approval_inbox(db, chat, member), "tracking": [t for t in tracking if t], "settings": self.settings_json(self.settings_row(db, owner_id, chat)), "members": [self.actor_json(a) for a in db.scalars(select(Actor).where(Actor.owner_id.in_(members)).order_by(Actor.kind, Actor.name))]}
 
     def _approval_inbox(self, db, chat, member):
         query = select(Approval).where(Approval.approver_id == member.owner_id, Approval.status == "pending")
@@ -1174,7 +1179,11 @@ class ProductService:
                 chain.root_message_id = msg.id
                 db.add(Receipt(message_id=msg.id, owner_id=owner_id))
                 self.suppress_candidates(db, owner_id, chat_id, "human_reply")
-                if chat.kind == "private" and has_model_input:
+                from .questions import consume_reply
+                question_continuation = consume_reply(self, db, msg)
+                if question_continuation:
+                    request = question_continuation
+                elif chat.kind == "private" and has_model_input:
                     request = self.accept_request(db, chat, self.twin(db, owner_id).id, owner_id, "private", f"auto:{msg.id}", source_message_id=msg.id)
                 else:
                     if has_model_input:
@@ -1562,6 +1571,8 @@ class ProductService:
                         command.kind, command.state = "cancel", "pending"
         from .followups import cancel
         cancel(db, request)
+        from .questions import cancel_origin
+        cancel_origin(db, request.id)
         if request.status == "cancelled":
             from .scheduled_tasks import finish as scheduled_finish
             scheduled_finish(db, request, "cancelled")
@@ -1599,7 +1610,7 @@ class ProductService:
         chain = self.request_chain(db, old)
         # Retry is a new generation of this delivery, retaining its private
         # authorization checks and terminal-only/silent output policy.
-        source = old.source if old.source in {"followup_result", "scheduled_task", "system_review"} else "tool_retry" if automatic else "retry"
+        source = old.source if old.source in {"question_result", "followup_result", "scheduled_task", "system_review"} else "tool_retry" if automatic else "retry"
         request = self.accept_request(db, chat, old.target_twin_id, owner_id, source, key, source_message_id=old.source_message_id, raw=old.raw_owner_input, prompt=old.frozen_prompt, reply_to=old.reply_to_message_id, generation=generation, intent_key=old.intent_key, input_body=old.input_body, causal_chain_id=causal_chain_id or chain.id, automatic_reservation_id=automatic_reservation_id or old.automatic_reservation_id, source_owner_id=old.source_owner_id, input_attachment_ids=old.input_attachment_ids, command_fingerprint=old.command_fingerprint)
         from .scheduled_tasks import snapshot as scheduled_snapshot
         if automatic or scheduled_snapshot(old):
@@ -1633,6 +1644,15 @@ class ProductService:
         chat = self._check_private_request(db, request)
         if request.cancel_requested or request.status in {"failed", "cancelled"}:
             fail(409, "Runtime request is no longer authorized")
+        if request.source == "question_result":
+            from .questions import continuation
+            continuation(self, db, request)
+        if context.get("question_request_id"):
+            from .questions import continuation
+            answered = db.get(ReplyRequest, context["question_request_id"])
+            if not answered or answered.cancel_requested or answered.status in {"cancelled", "failed"}:
+                fail(409, "Owner-answer continuation is no longer authorized")
+            continuation(self, db, answered)
         twin = db.get(Actor, request.target_twin_id)
         member = self.membership(db, twin.owner_id, chat.id)[1]
         if not self.provenance_allowed(db, member, self.manifest_provenance(db, request.id)):
@@ -1724,7 +1744,8 @@ class ProductService:
             file_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
             files = self.attachment_references(db, file_ids, member, private_request=request if request.raw_owner_input is not None else None)
             from .onboarding import context_for_request
-            return {"onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": self.messages_json(db, [m for m in rows if not applicable or m.seq > applicable["coverage_end_seq"]], member), "source_message": self.message_json(db, self.visible_message(db, member, request.source_message_id), member) if request.source_message_id else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+            from .questions import pending_questions
+            return {"pending_questions": pending_questions(self, db, request, twin.owner_id, {m.id for m in rows}) if chat.kind == "private" else [], "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": self.messages_json(db, [m for m in rows if not applicable or m.seq > applicable["coverage_end_seq"]], member), "source_message": self.message_json(db, self.visible_message(db, member, request.source_message_id), member) if request.source_message_id else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
 
     def bind_runtime_run(self, request_id, session_id, run_id):
         with self.transaction() as db:
@@ -1748,7 +1769,7 @@ class ProductService:
                 if state and state.queued_request_id == request.id:
                     state.last_status = "running"
             lane = db.get(ReplyLane, (request.chat_id, request.target_twin_id))
-            if request.source != "memory_dream":
+            if request.source not in {"memory_dream", "question_result"}:
                 lane.session_id = session_id
         self.publish_event(request.chat_id, {"type": "changed", "request_id": request_id})
 
@@ -2271,6 +2292,10 @@ class ProductService:
             if exc.status_code in {401, 403, 404, 409}:
                 raise PermissionError(exc.detail) from exc
             raise
+
+    def pending_owner_question_for_run(self, session_id, run_id):
+        from .questions import pending_for_run
+        return pending_for_run(self, session_id, run_id)
 
     def _accept_pending_child(self, db, pending):
         if pending.accepted_request_id:
@@ -2857,10 +2882,23 @@ class ProductService:
         chat_id = chat_value.get("id") if isinstance(chat_value, dict) else chat_value
         chat_id = chat_id or context.get("chat_id")
         owner_id = context.get("owner_id")
-        from .platform_tools import PLATFORM_TOOLS, SCOPED_TOOLS, TRACKING_TOOLS, WRITE_TOOLS, dispatch, lock_scope
-        from .scheduled_tasks import TOOLS as SCHEDULED_TOOLS, MUTATIONS as SCHEDULED_MUTATIONS, runtime_dispatch
-        from .onboarding import TOOL as ONBOARDING_TOOL, finish as finish_onboarding
-        mutations = WRITE_TOOLS | {"create_approval", ONBOARDING_TOOL} | SCHEDULED_MUTATIONS
+        from .onboarding import TOOL as ONBOARDING_TOOL
+        from .onboarding import finish as finish_onboarding
+        from .platform_tools import (
+            PLATFORM_TOOLS,
+            SCOPED_TOOLS,
+            TRACKING_TOOLS,
+            WRITE_TOOLS,
+            dispatch,
+            lock_scope,
+        )
+        from .proactivity import MUTATIONS as PROACTIVITY_MUTATIONS
+        from .proactivity import TOOLS as PROACTIVITY_TOOLS
+        from .proactivity import dispatch as proactivity_dispatch
+        from .scheduled_tasks import MUTATIONS as SCHEDULED_MUTATIONS
+        from .scheduled_tasks import TOOLS as SCHEDULED_TOOLS
+        from .scheduled_tasks import runtime_dispatch
+        mutations = WRITE_TOOLS | {"create_approval", ONBOARDING_TOOL} | SCHEDULED_MUTATIONS | PROACTIVITY_MUTATIONS
         with self.transaction() as db:
             locked_ids = lock_scope(self, db, name, args, context)
             chat, member = self.membership(db, owner_id, chat_id)
@@ -2923,6 +2961,8 @@ class ProductService:
                 result = finish_onboarding(self, db, args, context, chat)
             elif name in SCHEDULED_TOOLS:
                 result = runtime_dispatch(self, db, name, args, context, chat)
+            elif name in PROACTIVITY_TOOLS:
+                result = proactivity_dispatch(self, db, name, args, context)
             elif name in PLATFORM_TOOLS:
                 result = dispatch(self, db, name, args, context, chat, member, locked_ids)
             elif name in {"send_chat_message", "present_files", "list_authorized_chats"}:

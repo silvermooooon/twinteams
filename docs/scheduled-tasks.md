@@ -19,6 +19,25 @@ precheck found no work to review and skipped the model call. A model run that
 finishes without a chat message still shows **Completed**. Review errors remain
 visible in the task and its history.
 
+You can also tell your Twin how proactive to be in your private conversation.
+**Low** limits autonomous notices to important results, risks, blockers,
+approaching deadlines and decisions; **Normal** balances meaningful changes;
+**High** advances useful next steps already authorized. **Off** pauses only the
+built-in review. These levels do not change the existing four-hour interval,
+create commitments or pause explicit personal tasks, reminders or Dream.
+The Twin saves changes with `update_proactivity` and can read them with
+`get_proactivity`; it confirms only after saving succeeds.
+
+Optional quiet hours have start/end wall-clock times and an explicit IANA time
+zone. Automatic system reviews due inside that window move to its end using the
+same PostgreSQL next-run time and Redis index. Overnight windows and DST are
+supported. The window applies to admission: already accepted work may finish,
+and **Run now**, explicit schedules, answers, approvals, credentials and worker
+results continue normally. It is not a global desktop-notification mute or a
+queue of held messages. Clearing quiet hours or changing level keeps an existing
+planned review time; only reenabling an off review calculates a new next run.
+These explicit preferences survive private content reset.
+
 **Pause future runs** prevents later occurrences. An already queued or running
 request continues. While a task is waiting for delegated work or an approval,
 its card says **Waiting for pending work** and prevents a duplicate run or

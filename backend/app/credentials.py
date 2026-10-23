@@ -78,12 +78,12 @@ def request_json(row):
             "created_at": row.created_at.isoformat()}
 
 
-def runtime_origin(service, db, owner_id, request_id, *, executable=True):
+def runtime_origin(service, db, owner_id, request_id, *, executable=True, lock=True):
     request = db.get(ReplyRequest, request_id)
     if not request:
         fail(409, "Original request is unavailable")
     service._check_private_request(db, request)
-    chat, member = service.membership(db, owner_id, request.chat_id, True)
+    chat, member = service.membership(db, owner_id, request.chat_id, lock)
     target = db.get(Actor, request.target_twin_id)
     if not target or target.owner_id != owner_id:
         fail(403, "Execution belongs to the target Twin's owner")
@@ -93,19 +93,22 @@ def runtime_origin(service, db, owner_id, request_id, *, executable=True):
         fulfilled = fulfilled_for_continuation(db, owner_id, request)
         if not fulfilled:
             fail(409, "Credential continuation has no completed owner request")
-        runtime_origin(service, db, owner_id, fulfilled.origin_request_id, executable=executable)
+        runtime_origin(service, db, owner_id, fulfilled.origin_request_id, executable=executable, lock=lock)
+    elif request.source == "question_result":
+        from .questions import continuation
+        continuation(service, db, request)
     elif request.source == "subagent_result":
         child = db.scalar(select(PendingChildResult).where(PendingChildResult.accepted_request_id == request.id,
             PendingChildResult.owner_id == owner_id, PendingChildResult.state == "accepted"))
         if not child:
             fail(409, "Worker continuation has no retained owner request")
-        runtime_origin(service, db, owner_id, child.parent_request_id, executable=executable)
+        runtime_origin(service, db, owner_id, child.parent_request_id, executable=executable, lock=lock)
     elif request.source == "followup_result":
         from .followups import context as followup_context
         from .followups import continuation
         followup_context(service, db, request, owner_id)
         followup = continuation(db, request, owner_id)
-        runtime_origin(service, db, owner_id, followup.origin_request_id, executable=executable)
+        runtime_origin(service, db, owner_id, followup.origin_request_id, executable=executable, lock=lock)
     return request, chat, member
 
 

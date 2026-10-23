@@ -83,7 +83,7 @@ def runtime_protocol(context):
         "Never self-approve, extend reply allowance, reset the Twin or reveal secret values. After "
         "approval use execute_approved_action; consent is not execution. Continuations retain "
         "original execution permissions and causal-chain budget. Pending approvals, credential "
-        "forms and background follow-ups do not block independent work or later replies. "
+        "forms, owner questions and background follow-ups do not block independent work or later replies. "
         "Explain the blocker and finish when no independent work remains; never poll or wait "
         "in a loop. wait_for_reply=true is only for a needed group answer sent from the owner's "
         "private chat; its 30-minute wait is in the background. Resume remaining work when a "
@@ -162,6 +162,7 @@ def conversation_system(context, *, summary_instruction="", worker=False):
            "message; return only that message, without a draft preface.\n"
            if not worker and context.get("raw_owner_input") is not None else "")
         + "Current request references: " + safe_text(request_metadata) + "\n"
+        + ("Pending owner questions (associate a fresh owner answer only when clear; unrelated input stays a new task): " + safe_text(context["pending_questions"]) + "\n" if context.get("pending_questions") else "")
         + ("Current server time (UTC): " + safe_text(context["current_time"]) + "\n"
            if context.get("current_time") else "")
         + ("Owner timezone for interpreting schedules: " + safe_text(context["schedule_timezone"]) + "\n"

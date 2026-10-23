@@ -97,6 +97,7 @@ def install_fixture(root):
                 source = db.get(Message, request.source_message_id) if request.source_message_id else None
                 return {'id': request.id, 'source': request.source, 'generation': request.generation,
                         'chat_id': request.chat_id, 'owner_id': db.get(Actor, request.target_twin_id).owner_id,
+                        'source_message_id': request.source_message_id,
                         'reply_for_me': request.raw_owner_input is not None,
                         'body': request.raw_owner_input if request.raw_owner_input is not None else source.body if source else request.input_body or '',
                         'workspace': str(root / 'workspaces' / request.chat_id)}
@@ -121,7 +122,7 @@ def install_fixture(root):
             payload = json.loads(text)
             message = payload['message']
             body = message.get('body', '')
-            needs = bool(re.search(r'\bE2E (?:ECHO|MARKDOWN|SLOW|FAIL_ONCE|FILE|FILE_PREVIEW|FILE_PREVIEW_OVERWRITE|IDENTITY|OWNER_DM|CHAIN)\b', body))
+            needs = bool(re.search(r'\bE2E (?:ECHO|MARKDOWN|SLOW|FAIL_ONCE|FILE|FILE_PREVIEW|FILE_PREVIEW_OVERWRITE|IDENTITY|OWNER_DM|CHAIN|QUESTION|CHILD_QUESTION|ANSWER)\b', body))
             if message.get('kind') in {'twin', 'reply_for_me'} and not body.startswith('E2E CHAIN '):
                 needs = False
             allowed = json.loads(system.rsplit('Allowed owners: ', 1)[1])
@@ -135,6 +136,13 @@ def install_fixture(root):
             match = re.search(r'\bE2E ([A-Z_]+)(?: ([A-Za-z0-9_-]+))?', info.get('body') or text)
             command, label = match.groups() if match else ('ECHO', 'message')
             label = label or 'fixture'
+            question_resume = None
+            if text.startswith('The owner answered or explicitly declined the focused question below.'):
+                question_resume = json.loads(text.split('\n', 1)[1])
+                resumed_label = re.search(r'for ([A-Za-z0-9_-]+)\?', question_resume['question'])
+                if not resumed_label:
+                    raise RuntimeError('The isolated continuation must retain its question label')
+                command, label = 'QUESTION_RESUME', resumed_label.group(1)
             name, arguments = None, None
             final = 'E2E echo: ' + label
             if 'memory_publish' in tools:
@@ -157,7 +165,11 @@ def install_fixture(root):
                     name, arguments = 'memory_write', {'key': 'e2e-dream-' + info.get('id', 'source')[:12], 'content': content + '\nE2E Dream consolidated authorized private evidence.', 'expected_version': entry.get('version')}
                 else:
                     name, arguments = 'memory_publish', {}
-            elif info.get('reply_for_me'):
+            elif question_resume is not None or info.get('source') == 'question_result':
+                final = ('E2E question declined: ' if question_resume and question_resume.get('owner_declined') else 'E2E question resumed: ') + label
+            elif info.get('source') == 'system_review' and os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'proactivity':
+                final = ''  # Offline decision: this explicit manual review has no useful update.
+            elif info.get('reply_for_me') and command not in {'QUESTION', 'CHILD_QUESTION'}:
                 final = 'E2E echo: ' + label
             elif info.get('source') == 'credential_result':
                 if 'bash' not in names:
@@ -183,7 +195,55 @@ def install_fixture(root):
                 if name or 'execute_approved_action' in names:
                     final = 'E2E approval executed: ' + label
             elif info.get('source') == 'subagent_result':
-                final = 'E2E delegation reviewed: ' + label
+                final = ('E2E child question reviewed: ' if command == 'CHILD_QUESTION' else 'E2E delegation reviewed: ') + label
+            elif command == 'QUESTION':
+                if 'ask_question' not in names:
+                    name, arguments = 'ask_question', {'question': 'Which delivery date should I use for ' + label + '?',
+                        'options': ['Earlier date ' + label, 'Later date ' + label]}
+                final = 'E2E question pending: ' + label
+            elif command == 'CHILD_QUESTION':
+                if 'spawn_agent' not in names:
+                    name, arguments = 'spawn_agent', {'name': 'worker', 'task': 'E2E QUESTION ' + label}
+                final = 'E2E question delegated: ' + label
+            elif command == 'ANSWER':
+                if 'answer_question' not in names:
+                    from sqlalchemy import select
+
+                    from app.question_models import QuestionRequest
+                    from app.service import service
+
+                    def focused_question():
+                        with service.transaction() as db:
+                            rows = list(db.scalars(select(QuestionRequest).where(QuestionRequest.owner_id == info['owner_id'],
+                                QuestionRequest.status == 'pending', QuestionRequest.question.contains(label))))
+                            if len(rows) != 1:
+                                raise RuntimeError('The isolated answer must match one pending question')
+                            return rows[0].id
+                    name, arguments = 'answer_question', {'question_id': await asyncio.to_thread(focused_question),
+                        'message_id': info['source_message_id']}
+                final = 'E2E question associated: ' + label
+            elif command.startswith('PROACTIVITY_') or command in {'QUIET', 'QUIET_NOW', 'QUIET_CLEAR'}:
+                levels = {'PROACTIVITY_OFF': 'off', 'PROACTIVITY_LOW': 'low', 'PROACTIVITY_NORMAL': 'normal', 'PROACTIVITY_HIGH': 'high'}
+                if command != 'PROACTIVITY_GET' and 'update_proactivity' not in names:
+                    if command in levels:
+                        arguments = {'level': levels[command]}
+                    elif command == 'QUIET':
+                        arguments = {'quiet_hours': {'start': '22:00', 'end': '08:00', 'timezone': 'Asia/Shanghai'}}
+                    elif command == 'QUIET_NOW':
+                        from datetime import UTC, datetime, timedelta
+                        actual = datetime.now(UTC)
+                        arguments = {'quiet_hours': {'start': (actual - timedelta(hours=1)).strftime('%H:%M'),
+                            'end': (actual + timedelta(hours=1)).strftime('%H:%M'), 'timezone': 'UTC'}}
+                    elif command == 'QUIET_CLEAR':
+                        arguments = {'quiet_hours': None}
+                    else:
+                        raise RuntimeError('Unknown isolated proactivity command')
+                    name = 'update_proactivity'
+                elif 'get_proactivity' not in names:
+                    name, arguments = 'get_proactivity', {}
+                else:
+                    returned = json.loads(text_content(next(row for row in reversed(results) if row.get('toolName') == 'get_proactivity')))
+                    final = 'E2E proactivity readback ' + label + ': ' + json.dumps(returned, sort_keys=True)
             elif command == 'SLOW':
                 await options['signal'].run(asyncio.sleep(8))
                 final = 'E2E slow completed: ' + label
@@ -326,6 +386,7 @@ def api_app():
     from app.onboarding_api import router as onboarding
     from app.personal_api import router as personal
     from app.provider_config import router as provider
+    from app.question_api import router as questions
     from app.scheduled_task_api import router as scheduled_tasks
     app = FastAPI(title='Twinteams isolated browser E2E', lifespan=main.lifespan)
     app.exception_handlers = main.app.exception_handlers.copy()
@@ -334,7 +395,7 @@ def api_app():
     def fixture_config():
         return {**api.config(), 'acceptance_fixture': os.environ.get('TWINTEAMS_E2E_MODEL_MODE') != 'live-gpt-6-luna'}
 
-    for router in (api.router, credentials, personal, provider, scheduled_tasks, onboarding):
+    for router in (api.router, credentials, personal, provider, scheduled_tasks, onboarding, questions):
         app.include_router(router)
 
     @app.get('/health')
@@ -378,6 +439,7 @@ def inspect_fixture(root):
         TrackingTopic,
         TwinFollowup,
     )
+    from app.question_models import QuestionRequest
     from app.service import service
     with service.transaction() as db:
         requests = [{key: getattr(row, key) for key in ('id', 'chat_id', 'requester_id', 'target_twin_id', 'source', 'status', 'generation', 'private_generation', 'source_message_id', 'causal_chain_id', 'session_id', 'run_id')} for row in db.scalars(select(ReplyRequest))]
@@ -417,6 +479,7 @@ def inspect_fixture(root):
         runs = [dict(row._mapping) for row in db.execute(text('SELECT session_id,run_id,user_id,root_run_id,source,status FROM agent_runs'))]
         approvals = [{'id': row.id, 'status': row.status, 'owner_id': row.approver_id, 'continuation_request_id': row.continuation_request_id} for row in db.scalars(select(Approval))]
         credentials = [{'id': row.id, 'status': row.status, 'owner_id': row.owner_id, 'continuation_request_id': row.continuation_request_id} for row in db.scalars(select(CredentialRequest))]
+        questions = [{key: getattr(row, key) for key in ('id', 'owner_id', 'chat_id', 'message_id', 'origin_chat_id', 'origin_request_id', 'status', 'answer_message_id', 'runtime_session_id', 'runtime_run_id', 'runtime_command_id', 'continuation_request_id')} for row in db.scalars(select(QuestionRequest))]
         private_chats = {row.private_owner_id: row.id for row in db.scalars(select(Chat).where(Chat.kind == "private"))}
         attachments = [{key: getattr(row, key) for key in ('id', 'chat_id', 'relative_path')} for row in db.scalars(select(ChatAttachment))]
         records = list(db.execute(text('SELECT session_id, record FROM agent_session_events ORDER BY session_id, seq')))
@@ -448,7 +511,7 @@ def inspect_fixture(root):
             tools.append({'name': name, 'session_id': session_id, 'run_id': run_id,
                 'call_id': data.get('call_id'), 'event_id': record.get('id'), 'seq': record.get('seq'),
                 'request_id': request_ids.get((session_id, run_id)), 'owner_id': run_owners.get((session_id, run_id)),
-                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key', 'title', 'timezone', 'schedule') if field in args},
+                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key', 'title', 'timezone', 'schedule', 'question_id', 'message_id', 'level', 'quiet_hours') if field in args},
                 'result_ids': {field: result_value[field] for field in ('id', 'chat_id', 'message_id', 'request_id', 'continuation_request_id') if isinstance(result_value, dict) and isinstance(result_value.get(field), str)},
                 'success': not result.get('isError', False),
                 'credential_available': 'E2E_CREDENTIAL_AVAILABLE' in output,
@@ -495,7 +558,7 @@ def inspect_fixture(root):
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
             'live_budget': budget,
             'requests': requests, 'scheduled_tasks': tasks, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'followups': followups, 'files': files, 'approvals': approvals, 'credentials': credentials,
-            'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}
+            'questions': questions, 'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}
 
 
 
@@ -553,14 +616,44 @@ async def advance_schedule_fixture(task_id):
             'previous_next_run_at': before, 'fixture_next_run_at': after}
 
 
+def question_history_fixture(question_id):
+    """Explicit canonical-history seed, not fabricated API/UI response data."""
+    from sqlalchemy import select
+
+    from app.models import Chat
+    from app.question_models import QuestionRequest
+    from app.service import service
+    if os.environ.get('TWINTEAMS_E2E_SCENARIO') != 'ask-user':
+        raise RuntimeError('Question history seeding requires its isolated scenario')
+    with service.transaction() as db:
+        question = db.get(QuestionRequest, question_id)
+        if not question or question.status != 'pending':
+            raise RuntimeError('A real pending SDK question is required')
+        chat = db.scalar(select(Chat).where(Chat.id == question.chat_id).with_for_update())
+        if chat.kind != 'private' or chat.private_owner_id != question.owner_id:
+            raise RuntimeError('Question history must remain in its owner inbox')
+        first = chat.next_message_seq
+        twin_id = service.twin(db, question.owner_id).id
+        for index in range(101):
+            service.append_message(db, chat, consume_followup=False,
+                author_id=twin_id, kind='system',
+                body=f'Isolated pagination fixture {question_id} entry {index + 1}')
+        chat_id, last = chat.id, chat.next_message_seq - 1
+    return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
+        'test_only_canonical_history_seed': True, 'question_id': question_id,
+        'chat_id': chat_id, 'message_count': 101, 'first_seq': first, 'last_seq': last,
+        'model_runs_added': 0}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule'])
+    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'question-history'])
     parser.add_argument('--port', type=int)
     parser.add_argument('--state', type=Path)
     parser.add_argument('--task-id')
+    parser.add_argument('--question-id')
     args = parser.parse_args()
-    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule'}:
+    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'question-history'}:
         if not args.state or args.state.is_symlink() or args.state.stat().st_mode & 0o077:
             raise RuntimeError('Inspect requires its private fixture state file')
         saved = json.loads(args.state.read_text())
@@ -569,6 +662,9 @@ def main():
     root = guard()
     if args.state and args.state.resolve().parent != root:
         raise RuntimeError('State file must belong to its disposable root')
+    if args.role == 'question-history':
+        print(json.dumps(question_history_fixture(args.question_id)))
+        return
     if args.role == 'advance-schedule':
         print(json.dumps(asyncio.run(advance_schedule_fixture(args.task_id))))
         return
