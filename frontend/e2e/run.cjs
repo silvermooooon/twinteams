@@ -114,11 +114,14 @@ async function main() {
       "first-private-group-tracking",
       "scheduled-task-workflow",
       "interaction-live",
+      "read-unread-live",
     ].includes(process.env.TWINTEAMS_E2E_SCENARIO)
   )
     throw new Error("Explicit live scenario is required");
   report.actual_model = live ? "gpt-6-luna" : null;
-  const suites = live && report.scenario === "interaction-live"
+  const suites = live && report.scenario === "read-unread-live"
+    ? [require("./read-unread-live.cjs")]
+    : live && report.scenario === "interaction-live"
     ? [require("./interaction-live.cjs")]
     : !live && report.scenario === "proactivity"
     ? [require("./proactivity.cjs")]
@@ -309,9 +312,9 @@ async function main() {
             const target = path.join(artifactDir, `${slug}-${i}.zip`);
             try {
               await contexts[i].tracing.stop(
-                result.status === "failed" ? { path: target } : {},
+                result.status === "failed" || test.retainTrace ? { path: target } : {},
               );
-              if (result.status === "failed")
+              if (result.status === "failed" || test.retainTrace)
                 result.artifacts.push(path.basename(target));
             } catch {}
           }

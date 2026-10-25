@@ -433,16 +433,40 @@ def inspect_fixture(root):
         ChatAttachment,
         ContextManifest,
         Message,
+        Receipt,
         ReplyRequest,
+        RoutingDecision,
         ScheduledTask,
         TrackingRevision,
         TrackingTopic,
+        TriggerCandidate,
         TwinFollowup,
     )
     from app.question_models import QuestionRequest
     from app.service import service
     with service.transaction() as db:
-        requests = [{key: getattr(row, key) for key in ('id', 'chat_id', 'requester_id', 'target_twin_id', 'source', 'status', 'generation', 'private_generation', 'source_message_id', 'causal_chain_id', 'session_id', 'run_id')} for row in db.scalars(select(ReplyRequest))]
+        requests = [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'requester_id', 'target_twin_id', 'source', 'status', 'generation', 'private_generation', 'source_message_id', 'causal_chain_id', 'session_id', 'run_id')},
+                     'accepted_at': row.accepted_at.isoformat()} for row in db.scalars(select(ReplyRequest))]
+        automatic_reply_evidence = None
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'read-unread-live':
+            automatic_reply_evidence = {
+                'messages': [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'seq', 'author_id', 'kind', 'state', 'request_id')},
+                              'created_at': row.created_at.isoformat()} for row in db.scalars(select(Message).order_by(Message.created_at))],
+                'receipts': [{'message_id': row.message_id, 'owner_id': row.owner_id, 'seen_at': row.seen_at.isoformat()}
+                             for row in db.scalars(select(Receipt))],
+                'candidates': [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'message_id', 'target_twin_id', 'state', 'evidence', 'accepted_request_id')},
+                                'due_at': row.due_at.isoformat()} for row in db.scalars(select(TriggerCandidate))],
+                'routes': [{**{key: getattr(row, key) for key in ('id', 'message_id', 'status', 'needs_response', 'inferred_owner_ids', 'mentioned_owner_ids')},
+                            'created_at': row.created_at.isoformat(), 'has_error': row.error is not None}
+                           for row in db.scalars(select(RoutingDecision))],
+                'requests': [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'target_twin_id', 'source_message_id', 'source', 'status', 'cancel_requested')},
+                              'accepted_at': row.accepted_at.isoformat(), 'has_error': row.error is not None}
+                             for row in db.scalars(select(ReplyRequest))],
+                'sdk_commands': [{key: value.isoformat() if hasattr(value, 'isoformat') else value for key, value in row.items()}
+                                 for row in db.execute(text('SELECT command_id,session_id,run_id,state,accepted_at,updated_at FROM agent_commands')).mappings()],
+                'sdk_runs': [{key: value.isoformat() if hasattr(value, 'isoformat') else value for key, value in row.items()}
+                             for row in db.execute(text('SELECT session_id,run_id,status,started_at,finished_at FROM agent_runs')).mappings()],
+            }
         tasks = [{**{key: getattr(row, key) for key in ('id', 'owner_id', 'kind', 'revision', 'enabled', 'index_dirty')},
                   'next_run_at': row.next_run_at.isoformat() if row.next_run_at else None,
                   'active_request_id': (row.details or {}).get('active_request_id'),
@@ -558,7 +582,8 @@ def inspect_fixture(root):
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
             'live_budget': budget,
             'requests': requests, 'scheduled_tasks': tasks, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'followups': followups, 'files': files, 'approvals': approvals, 'credentials': credentials,
-            'questions': questions, 'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}
+            'questions': questions, 'automatic_reply_evidence': automatic_reply_evidence,
+            'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}
 
 
 

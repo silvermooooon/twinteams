@@ -519,3 +519,67 @@ external effects, crash/failover stress, and an exhaustive browser/device matrix
 remain outside this suite. The older disposable-PG and intercepted-API checks
 still cover narrower fault injection and protocol boundaries; they are not
 reported as real browser E2E results.
+
+## Live read/unread automatic replies
+
+Run this dedicated workflow separately from the offline suite, using the
+previously authorized configured provider and only `gpt-6-luna`:
+
+```sh
+cd backend
+TWINTEAMS_BROWSER_CHANNEL=chrome .venv/bin/python checks/browser_e2e.py \
+  --node "$(command -v node)" --live-model --scenario read-unread-live \
+  --live-max-attempts 16 --artifact-dir /tmp/twinteams-read-unread-live
+```
+
+This is **one compound browser workflow with six stages**, not six independent
+tests. In both a two-person conversation and a newly created three-person group,
+AAA sends three explicitly addressed questions to BBB:
+
+1. M1 becomes visible in BBB's real chat page and receives a UI-generated read
+   receipt. BBB leaves through My Twin Profile. More than ten real seconds later,
+   M1 has no automatic request or reply.
+2. M2 arrives while BBB remains online on Profile, with the target conversation
+   unmounted. It has no BBB receipt and no request before the deadline. The real
+   router, worker and model produce exactly one automatic reply after ten seconds;
+   BBB reopens the chat and sees it.
+3. M3 is read within ten seconds, then BBB leaves again. It produces no automatic
+   request/reply; M1 remains suppressed and M2 remains exactly once.
+
+The case observes real HTTP receipts and WebSocket presence acknowledgments,
+checks actual namespaced Redis presence, and reads persisted routing/candidate/
+request/message timestamps through the guarded inspector. It never calls the
+read API itself, settles a route, inserts a candidate, changes the clock or
+overrides browser focus/visibility. Leaving the conversation is actual browser
+navigation, not a claim that physical OS-window blur was tested. Sender and
+recipient use separate browser sessions and API replicas. Success traces and
+screenshots are retained; cleanup removes the isolated schema, Redis keys,
+workspaces and owned processes without touching production accounts.
+
+On 2026-10-24, the final run in
+`/tmp/twinteams-read-unread-live-20261024-r3/` passed **1/1 workflow** in **81.668s**
+using Chrome **155.0.8059.85**. Pair/group M2 acceptance took **10.091s/10.047s**
+from persisted send time; actual model replies appeared at **13.435s/13.552s**.
+M1/M3 all had real receipts within one second and no automatic request after the
+deadline. `report.json`, `live-final-inspect.json`, `live-budget.json`, two trace
+ZIPs, four screenshots and `cleanup.json` retain the evidence. All 11 final-run
+provider attempts returned HTTP 200. The tested candidate was the working tree
+on base `2654f77`; `tested-source.json` records its exact source hashes rather
+than claiming the base commit already contained the changes.
+
+Two earlier reports remain unchanged: `/tmp/twinteams-read-unread-live-20261024/`
+stopped after M1 because the observer incorrectly watched only HTTP presence
+instead of the application's WebSocket transport (two provider attempts);
+`/tmp/twinteams-read-unread-live-20261024-r2/` verified M1, then its M2 router failed
+on a real provider `ConnectError` (three attempts, including that failure). The
+observer was corrected and failed routing now fails fast; neither was reported
+as a passing workflow. Across the three runs, 16 real provider attempts were
+made. These observations establish this actual run, not guaranteed network/model
+latency or broad failover/concurrency coverage.
+
+The existing offline `people / UI direct-chat` workflow now also keeps the online
+recipient on Profile and explicitly checks that its new source is unread. Its
+targeted real-browser regression passed **1/1** in **56.388s**, with zero real
+provider calls and complete cleanup, at
+`/tmp/twinteams-read-unread-people-offline-20261024/`. This was a filtered run,
+not a rerun or pass claim for the entire offline suite.

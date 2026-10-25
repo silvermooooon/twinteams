@@ -8,6 +8,7 @@ const {
   sendMessage,
   privateChat,
   chooseChat,
+  openTwinTab,
 } = require("./helpers.cjs");
 const fs = require("node:fs/promises");
 const { promisify } = require("node:util");
@@ -338,6 +339,9 @@ const cases = [
         "use the actual product timeout",
       );
       await maya.page.bringToFront();
+      // Reading the source now suppresses its automatic reply. Stay genuinely
+      // online elsewhere so this workflow tests the unread ten-second fallback.
+      await openTwinTab(maya.page, 'Profile');
       await sleep(4300);
       const presence = await poll(() => {
         const value = inspectFixture("presence");
@@ -349,6 +353,11 @@ const cases = [
       await sendMessage(alex.page, `E2E ECHO ${online}`);
       await maya.page.bringToFront();
       await sleep(7800);
+      const unreadSource = (await detail(alex.page, pair)).messages.find(
+        (m) => m.kind === 'human' && m.body === `E2E ECHO ${online}`,
+      );
+      assert.ok(unreadSource && !unreadSource.read_by.includes('owner-maya'),
+        'the online recipient has not read this new source message');
       assert.ok(
         !(await detail(alex.page, pair)).messages.some(
           (m) => m.kind === "twin" && m.body.includes(`E2E echo: ${online}`),

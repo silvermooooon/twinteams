@@ -101,7 +101,7 @@ def test_stale_offline_cache_cannot_bypass_fresh_presence_sample(send_clients, m
 
 
 @pytest.mark.parametrize("chat_id", ["group-alex-maya", "group-team"])
-def test_online_read_and_focus_are_not_replies_and_do_not_cancel_ten_second_wait(send_clients, monkeypatch, chat_id):
+def test_focus_without_a_receipt_does_not_cancel_ten_second_wait(send_clients, monkeypatch, chat_id):
     product, _, _ = send_clients
     product.presence("owner-maya", "focused-device", chat_id, True)
     message_id, _ = route(product, chat_id)
@@ -109,7 +109,6 @@ def test_online_read_and_focus_are_not_replies_and_do_not_cancel_ten_second_wait
     assert first["state"] == "waiting" and first["request_id"] is None
     with product.transaction() as db:
         assert first["due_at"] == aware(db.get(Message, message_id).created_at) + timedelta(seconds=10)
-    product.read("owner-maya", chat_id, [message_id])
     product.presence("owner-maya", "second-focused-device", chat_id, True)
     product.process_candidates({chat_id})
     assert candidate(product, message_id)["state"] == "waiting"
@@ -124,6 +123,75 @@ def test_online_read_and_focus_are_not_replies_and_do_not_cancel_ten_second_wait
     with product.transaction() as db:
         assert db.scalar(select(func.count()).select_from(ReplyRequest).where(
             ReplyRequest.source_message_id == message_id, ReplyRequest.target_twin_id == "twin-maya")) == 1
+
+
+@pytest.mark.parametrize("chat_id", ["group-alex-maya", "group-team"])
+def test_read_then_leave_suppresses_only_that_message(send_clients, monkeypatch, chat_id):
+    product, _, _ = send_clients
+    product.presence("owner-maya", "reader", chat_id, True)
+    first, _ = route(product, chat_id)
+    product.read("owner-maya", chat_id, [first])
+    product.presence("owner-maya", "reader", None, False)
+    clock_after_source(product, monkeypatch, first, 11)
+    product.process_candidates({chat_id})
+    assert candidate(product, first)["state"] == "suppressed"
+    assert candidate(product, first)["request_id"] is None
+
+    second, _ = route(product, chat_id)
+    clock_after_source(product, monkeypatch, second, 9)
+    product.process_candidates({chat_id})
+    assert candidate(product, second)["state"] == "waiting"
+    clock_after_source(product, monkeypatch, second, 11)
+    product.process_candidates({chat_id})
+    assert candidate(product, second)["request_id"]
+    assert candidate(product, first)["state"] == "suppressed"
+
+
+@pytest.mark.parametrize("router_late", [False, True])
+def test_receipt_before_acceptance_wins_even_with_delayed_routing(send_clients, monkeypatch, router_late):
+    product, _, _ = send_clients
+    product._presence_cache["owner-maya"] = {"expires_at": 0, "focused_chats": []}
+    message_id, decision_id = route(product, settle=not router_late)
+    product.read("owner-maya", "group-alex-maya", [message_id])
+    if router_late:
+        product._settle_route(decision_id, ["owner-maya"], True, "Delayed routing", None)
+    clock_after_source(product, monkeypatch, message_id, 11)
+    product.process_candidates({"group-alex-maya"})
+    assert candidate(product, message_id)["state"] == "suppressed"
+    assert candidate(product, message_id)["request_id"] is None
+
+
+def test_read_after_acceptance_does_not_cancel_existing_work(send_clients):
+    product, _, _ = send_clients
+    product._presence_cache["owner-maya"] = {"expires_at": 0, "focused_chats": []}
+    message_id, _ = route(product)
+    product.process_candidates({"group-alex-maya"})
+    accepted = candidate(product, message_id)
+    product.read("owner-maya", "group-alex-maya", [message_id])
+    assert candidate(product, message_id) == accepted
+    with product.transaction() as db:
+        request = db.get(ReplyRequest, accepted["request_id"])
+        assert request.status == "queued" and not request.cancel_requested
+
+
+def test_read_paused_message_is_not_revived_by_continue(send_clients):
+    product, _, _ = send_clients
+    product.presence("owner-maya", "reader", None, False)
+    message_id, _ = route(product)
+    first = candidate(product, message_id)
+    with product.transaction() as db:
+        row = db.get(TriggerCandidate, first["id"])
+        row.state, row.evidence = "paused", {**row.evidence, "pause_reason": "budget_exhausted"}
+        chain = db.get(CausalChain, first["chain_id"])
+        chain.spent = chain.allowance
+        allowance = chain.allowance
+    product.read("owner-maya", "group-alex-maya", [message_id])
+    with pytest.raises(service_module.HTTPException) as denied:
+        product.continue_automatic_conversation("owner-alex", "group-alex-maya",
+            first["chain_id"], uuid4().hex, allowance, allowance)
+    assert denied.value.status_code == 409
+    assert candidate(product, message_id)["state"] == "suppressed"
+    assert candidate(product, message_id)["request_id"] is None
 
 
 @pytest.mark.parametrize("reply_for_me", [False, True])

@@ -1295,11 +1295,13 @@ class ProductService:
 
     def read(self, owner_id, chat_id, message_ids):
         with self.transaction() as db:
-            _, member = self.membership(db, owner_id, chat_id, True)
+            chat, member = self.membership(db, owner_id, chat_id, True)
             for message_id in dict.fromkeys(message_ids):
                 self.visible_message(db, member, message_id)
                 if not db.get(Receipt, (message_id, owner_id)):
                     db.add(Receipt(message_id=message_id, owner_id=owner_id))
+            if chat.kind == "group":
+                self.suppress_candidates(db, owner_id, chat_id, "owner_read", message_ids=message_ids)
         self.publish_event(chat_id, {"type": "changed"})
         return {"ok": True}
 
@@ -1328,8 +1330,10 @@ class ProductService:
             online, viewing = self.presence_state(db, target_owner, chat.id)
             seen = db.get(Receipt, (message.id, target_owner)) is not None
             replied = self.owner_has_replied(db, target_owner, chat.id, message)
-            state = "suppressed" if replied else "waiting"
+            state = "suppressed" if replied or seen else "waiting"
             candidate = TriggerCandidate(chat_id=chat.id, message_id=message.id, target_twin_id=twin.id, causal_chain_id=chain.id, state=state, due_at=aware(message.created_at) + timedelta(seconds=settings.response_delay_seconds) if online else now(), evidence={"online": online, "viewing": viewing, "read": seen, "replied": replied, "observed_at": iso(now())})
+            if seen:
+                candidate.evidence = {**candidate.evidence, "suppression": "owner_read"}
             db.add(candidate)
             db.flush()
             # New candidates settle only after the worker refreshes presence; a
@@ -1469,6 +1473,11 @@ class ProductService:
                         changed.add(chat.id)
                         continue
                 message = db.get(Message, candidate.message_id)
+                if chat.kind == "group" and db.get(Receipt, (message.id, target.owner_id)):
+                    candidate.state = "suppressed"
+                    candidate.evidence = {**candidate.evidence, "suppression": "owner_read", "observed_at": iso(now())}
+                    changed.add(chat.id)
+                    continue
                 online, _ = self.presence_state(db, target.owner_id, chat.id)
                 if online is None:
                     continue
