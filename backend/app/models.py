@@ -1,7 +1,8 @@
 """PostgreSQL Twinteams business schema; no SDK execution-event duplicates."""
 from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, BigInteger, JSON, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, cast, DateTime, ForeignKey, Index, Integer, BigInteger, JSON, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -189,6 +190,7 @@ class RoutingDecision(Base):
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
     message_id: Mapped[str] = mapped_column(ForeignKey("tt_messages.id"), unique=True)
     strategy: Mapped[str] = mapped_column(String(16))
+    command_id: Mapped[str | None] = mapped_column(String(80))
     status: Mapped[str] = mapped_column(String(16), default="pending")
     inferred_owner_ids: Mapped[list] = mapped_column(JSON, default=list)
     mentioned_owner_ids: Mapped[list] = mapped_column(JSON, default=list)
@@ -432,6 +434,10 @@ class Approval(Base):
 
 class Summary(Base):
     __tablename__ = "tt_summaries"
+    __table_args__ = (Index("tt_summary_checkpoint", "chat_id", "owner_id", "grant_version", "coverage_end_seq"),)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("tt_owners.id"), index=True)
+    grant_version: Mapped[int | None] = mapped_column(Integer)
+    private_generation: Mapped[int | None] = mapped_column(Integer)
     source_provenance: Mapped[list] = mapped_column(JSON, default=list)
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
     chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), index=True)
@@ -442,6 +448,9 @@ class Summary(Base):
     state: Mapped[str] = mapped_column(String(16), default="valid")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
+
+Index("tt_summary_sources_gin", cast(Summary.source_message_ids, JSONB),
+      postgresql_using="gin", postgresql_where=Summary.state == "valid")
 
 class ContextManifest(Base):
     __tablename__ = "tt_context_manifests"

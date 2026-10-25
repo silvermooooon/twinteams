@@ -4,6 +4,8 @@ from .question_models import QuestionRequest
 
 def upgrade_question_schema(engine):
     QuestionRequest.__table__.create(engine, checkfirst=True)
+    for index in QuestionRequest.__table__.indexes:
+        index.create(engine, checkfirst=True)
 
 
 def check_question_schema(inspector):

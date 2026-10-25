@@ -365,8 +365,9 @@ def test_old_platform_tool_contract_resumes_on_real_sdk_then_new_run_gets_capabi
 ):
     import copy
 
-    from agent_runtime import Agent
+    from agent_runtime import Agent, AgentTool, AgentToolResult
     from agent_runtime.sessions import DatabaseSession
+    from agent_runtime.sessions.base import tool_records
 
     class ProcessLost(BaseException):
         pass
@@ -408,7 +409,34 @@ def test_old_platform_tool_contract_resumes_on_real_sdk_then_new_run_gets_capabi
             ) if tool.name != "send_chat_message" else None
             tool.version = "legacy-platform-v1"
             tools.append(tool)
+        # New runs no longer advertise save_summary. Freeze its actual old schema
+        # explicitly so this remains a fourteen-tool legacy recovery acceptance.
+        summary_parameters = {
+            "type": "object",
+            "properties": {
+                "body": {"type": "string"},
+                "source_message_ids": {"type": "array", "items": {"type": "string"}, "maxItems": 500},
+            },
+            "required": ["body", "source_message_ids"],
+            "additionalProperties": False,
+        }
+
+        async def legacy_summary(call_id, arguments, signal, on_update):
+            signal.throw_if_aborted()
+            value = await product.runtime_tool("save_summary", arguments,
+                {**context, "operation_id": session.tool_operation_id(call_id)})
+            return AgentToolResult(content=[{"type": "text", "text": json.dumps(value)}], details=value)
+
+        tools.append(AgentTool(
+            name="save_summary",
+            description="Save a faithful summary in the originating chat only, citing every authorized source ID covered. Cannot select another chat or replace original history.",
+            parameters=summary_parameters,
+            execute=legacy_summary,
+            replay="safe",
+            version="legacy-platform-v1",
+        ))
         assert len(tools) == 14
+        assert {tool.name for tool in tools} == legacy_names
         if phase == "tools":
             send_tool = next(tool for tool in tools if tool.name == "send_chat_message")
             original = send_tool.execute
@@ -498,6 +526,9 @@ def test_old_platform_tool_contract_resumes_on_real_sdk_then_new_run_gets_capabi
                 tool.description for tool in tools
             ]
             assert all(tool.version == "legacy-platform-v1" for tool in restored_tools)
+            assert tool_records(restored_tools) == tool_records(tools)
+            restored_summary = next(tool for tool in restored_tools if tool.name == "save_summary")
+            assert restored_summary.parameters == summary_parameters
             resumed = Agent(
                 config=runtime.config,
                 models=runtime.models,
@@ -509,6 +540,8 @@ def test_old_platform_tool_contract_resumes_on_real_sdk_then_new_run_gets_capabi
             assert not reopened.resumable
             fresh_tools = runtime._tools(context, reopened)
             assert "set_message_reaction" in {tool.name for tool in fresh_tools}
+            assert "save_summary" not in {tool.name for tool in fresh_tools}
+            assert "save_summary" not in str(next(tool for tool in fresh_tools if tool.name == "create_approval").parameters)
             assert "get_chat" in {tool.name for tool in fresh_tools} and len(fresh_tools) > len(
                 tools
             )

@@ -76,10 +76,25 @@ loads committed outputs. WebSocket broadcasts contain only scope revisions;
 content is loaded through authorized HTTP. The former SSE/token transport and
 three-second full-chat polling have been removed. Reconciliation deduplicates
 by SDK event ID. SDK lease loss keeps the logical request recoverable. Slow model
-routing is scheduled separately from ready replies. Approval decisions are durable
+routing is scheduled separately from ready replies. Failed group routing appears on its source message. That message’s owner can explicitly retry; each click creates one fresh durable classifier attempt, retains the original causal-chain allowance and read checks, and never retries itself. Apply [the additive routing retry column](docs/group-routing-retry-schema.sql) before rollout (also applied by `app.init_db`). Approval decisions are durable
 SDK facts, then enter the product FIFO as a continuation. Exact installed platform actions
 are frozen and replay-safe; approval does not install extra execution capabilities.
 No email/payment adapters are installed.
+
+Private replies, group replies and group routing use the same server-maintained
+conversation checkpoint plus a contiguous recent-message tail. Estimated tokens
+trigger checkpointing at 24,000 tokens, retaining about 8,000 recent tokens; a
+40-message trigger also bounds many tiny messages (20 raw messages retained).
+A dedicated SDK model operation writes a checkpoint of at most 2,000 estimated
+tokens; ordinary replies have no summary-maintenance tool or instruction. Source
+coverage is validated by the server, without a cumulative 500-ID tool limit.
+Original chat rows and SDK journals remain intact. Checkpoint failure preserves
+the previous valid state and visibly fails the attempt before incomplete history
+can reach the reply or routing model. Routing receives only authorized chat
+summary/history and participant metadata. Main and child tool runs additionally
+use native SDK compaction near the configured model context limit, retaining its
+20,000-token recent tool history with a 16,384-token reserve. Interrupted commands
+keep their frozen input and tools; legacy frozen summary calls can still settle.
 
 Workspace files and private memory remain separate persistent file components.
 Duets can explicitly deliver finished workspace files into chat attachment cards with `present_files`; each delivery captures a snapshot. Markdown, text and PDF support in-app preview. HTML opens only after a user action in a separate sandboxed tab and remains downloadable.

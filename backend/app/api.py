@@ -77,6 +77,10 @@ class Retry(Input):
     client_request_key: str = Field(min_length=1, max_length=160)
 
 
+class RetryRoute(Retry):
+    expected_command_id: str = Field(min_length=1, max_length=80)
+
+
 class ContinueAutomaticConversation(Input):
     client_request_key: str = Field(min_length=1, max_length=160)
     additional_replies: int = Field(ge=1, strict=True)
@@ -222,6 +226,11 @@ def send_message(chat_id: str, data: SendMessage, owner: OwnerIdentity):
 @router.post("/chats/{chat_id}/reply-requests")
 def request_reply(chat_id: str, data: RequestReply, owner: OwnerIdentity):
     return service.manual_request(owner, chat_id, data.message_id, data.target_twin_id, data.client_request_key)
+
+
+@router.post("/chats/{chat_id}/routing-decisions/{decision_id}/retry")
+def retry_route(chat_id: str, decision_id: str, data: RetryRoute, owner: OwnerIdentity):
+    return service.retry_route(owner, chat_id, decision_id, data.client_request_key, data.expected_command_id)
 
 
 @router.post("/reply-requests/{request_id}/cancel")

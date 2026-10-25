@@ -84,9 +84,14 @@ def test_snapshot_and_bootstrap_query_growth_is_bounded(attachments, tmp_path):
             module.service.db_pool.shutdown()
             sys.modules.pop(spec.name, None)
     current_context, context_queries = measure("get_runtime_context:current", lambda: product.get_runtime_context(request["id"]))
-    assert len(current_context["messages"]) == 100
+    # Before deterministic maintenance, runtime exposes an explicitly incomplete
+    # bounded window. Chat/history pagination remains the complete journal above.
+    assert current_context["summary"] is None and current_context["context_incomplete"]
+    assert len(current_context["messages"]) == 80
+    assert [row["id"] for row in current_context["messages"]] == [row["id"] for row in large["messages"][-80:]]
+    assert [row["seq"] for row in current_context["messages"]] == list(range(21, 101))
     if old_context:
-        assert current_context["messages"] == old_context["messages"]
+        assert current_context["messages"] == old_context["messages"][-80:]
     report = {"disposable_pg": True, "model_calls": 0, "synthetic_messages": 100,
               "dependent_twin_messages": 50, "additional_rooms": 12, "samples": samples}
     target = Path(os.environ.get("TWINTEAMS_PERFORMANCE_DB_REPORT", "/tmp/twinteams-performance-db-report.json"))
@@ -96,8 +101,8 @@ def test_snapshot_and_bootstrap_query_growth_is_bounded(attachments, tmp_path):
         assert hundred["queries"] - ten["queries"] <= 10, "Adding 90 visible rows must not add per-message SQL"
         assert hundred["queries"] <= 80
         assert boot["queries"] <= 160
-        # Runtime still projects full authorized history; this is a bounded fixture,
-        # not a claim that runtime context work is constant in history size.
+        # This measures the bounded initial window; the separate context tests
+        # prove maintenance precedes admission and checkpoints preserve history.
         assert context_queries["queries"] <= 180
 
 

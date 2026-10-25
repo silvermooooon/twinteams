@@ -190,7 +190,8 @@ async def main():
 
         async def route(mode):
             return await runtime.route_targets("chat", {"id": "route-" + mode, "body": mode,
-                "author_id": "twin-a", "author_owner_id": "owner-a"}, [], ["owner-a", "owner-b"])
+                "author_id": "twin-a", "author_owner_id": "owner-a"}, [], ["owner-a", "owner-b"], [
+                    {"id": "twin-b", "kind": "twin", "owner_id": "owner-b", "name": "Beacon Duet"}])
 
         decision = await route("question")
         assert decision == {"target_owner_ids": ["owner-b"], "needs_response": True,

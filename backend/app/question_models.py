@@ -1,7 +1,7 @@
 """Non-secret owner questions; answers are input, never action approval."""
 from datetime import datetime
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -11,6 +11,7 @@ from .models import now, uid
 class QuestionRequest(Base):
     __tablename__ = "tt_question_requests"
     __table_args__ = (Index("tt_question_pending_run", "runtime_session_id", "runtime_run_id", "status"),
+        Index("tt_question_owner_pending", "owner_id", "chat_id", "created_at", postgresql_where=text("status = 'pending'")),
         CheckConstraint("status IN ('pending','answered','cancelled')", name="tt_question_status"))
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
     owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), index=True)

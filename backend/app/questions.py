@@ -257,9 +257,11 @@ def continuation_context(service, request_id):
         return continuation(service, db, request) if request and request.source == "question_result" else None
 
 
-def pending_questions(service, db, request, owner_id, visible_ids):
+def pending_questions(service, db, request, owner_id, visible_ids=None):
     rows = db.scalars(select(QuestionRequest).where(QuestionRequest.owner_id == owner_id,
-        QuestionRequest.status == "pending", QuestionRequest.message_id.in_(visible_ids)).order_by(QuestionRequest.created_at).limit(50))
+        QuestionRequest.chat_id == request.chat_id, QuestionRequest.status == "pending",
+        *([QuestionRequest.message_id.in_(visible_ids)] if visible_ids is not None else [])
+        ).order_by(QuestionRequest.created_at).limit(50))
     result = []
     for row in rows:
         try:

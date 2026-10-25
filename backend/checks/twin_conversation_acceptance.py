@@ -59,7 +59,7 @@ def expect_http(code, call):
 class Router:
     configured = True
     no_response = {"Thanks @BBB"}
-    async def route_targets(self, chat_id, message, context, owners):
+    async def route_targets(self, chat_id, message, context, owners, participants, *, command_id=None):
         assert message["author_owner_id"] == message["source_owner_id"]
         if message["body"] == "INVALID_ROUTER @BBB":
             return ["owner-maya"]

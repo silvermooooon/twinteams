@@ -109,7 +109,7 @@ def test_group_router_gets_file_references_without_pixels_or_file_body(files):
     with product.transaction() as db:
         decision = db.scalar(select(RoutingDecision).where(RoutingDecision.message_id == result["message"]["id"]))
         decision_id = decision.id
-    _, payload, _, _ = product._prepare_route(decision_id)
+    _, payload, _, _, _, _ = product._prepare_route(decision_id)
     assert {row["id"] for row in payload["attachments"]} == {image["id"], document["id"]}
     assert "input_images" not in payload and "DO_NOT_AUTO_INJECT_72" not in json.dumps(payload)
     assert all(Path(row["workspace_path"]).is_relative_to(root / chat) for row in payload["attachments"])

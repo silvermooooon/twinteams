@@ -1,5 +1,6 @@
 """Independent real factory role checks; disposable PG and one scripted model response."""
 import asyncio
+import json
 from dataclasses import replace
 from uuid import uuid4
 
@@ -13,6 +14,12 @@ from app import personal
 from app.models import CausalChain
 from app.runtime_bridge import RuntimeBridge
 from app.twin_prompts import platform_prompt
+
+
+def request_references(system):
+    return json.loads(next(line.removeprefix("Current request references: ")
+                           for line in system.splitlines()
+                           if line.startswith("Current request references: ")))
 
 
 @pytest.mark.parametrize("reply_for_me", [False, True])
@@ -85,6 +92,58 @@ def test_actual_main_and_child_factories_keep_coordination_out_of_worker_role(pr
             recovered = await runtime._child_factory(child)
             assert recovered.state.model.id == old_model.id
             assert len(captured) == 1
+        finally:
+            await runtime.close()
+
+    asyncio.run(run())
+
+
+def test_actual_group_child_keeps_third_party_origin_without_parent_history(product):
+    """A delegate must not confuse its controlling owner with the human who asked."""
+    from checks.legacy_requests import legacy_request
+
+    async def run():
+        runtime = RuntimeBridge(product)
+
+        def offline(model, context, options):
+            stream = AssistantMessageEventStream()
+            stream.push({"type": "done", "message": assistant_message(model,
+                content=[{"type": "text", "text": "Synthetic coordination response."}], stopReason="stop")})
+            return stream
+
+        runtime.models.register_api("offline-regression", offline)
+        await runtime.start()
+        try:
+            source = product.send_message("owner-maya", "group-alex-maya",
+                "Please do this separate task for me", uuid4().hex)["message"]
+            request = legacy_request(product, "owner-maya", "group-alex-maya",
+                source["id"], "twin-alex", uuid4().hex)
+            context = product.get_runtime_context(request["id"])
+            result = await runtime.execute(product.get_request(request["id"]), context)
+            product.complete_request(request["id"], result)
+            parent = await DatabaseSession.open(runtime.store, tenant_id=runtime.tenant_id,
+                session_id=result["session_id"])
+            main = request_references(parent.snapshot["messages"][0]["content"])
+            child = DatabaseSession(runtime.store, tenant_id=runtime.tenant_id,
+                user_id="owner-alex", session_id="synthetic-origin-child-" + uuid4().hex)
+            await child.commit("subagent_created", parent_session_id=result["session_id"],
+                parent_run_id=result["run_id"], root_run_id=result["session_id"] + "/" + result["run_id"],
+                name="worker", task="Handle the third party's separate task", operation_id=uuid4().hex)
+            worker = await runtime._child_factory(child)
+            system = worker.state.messages[0]["content"]
+            references = request_references(system)
+            assert references == main
+            assert references["requester_id"] == references["source_owner_id"] == "owner-maya"
+            assert references["source_message"] == {
+                "id": source["id"], "author_id": "owner-maya",
+                "author_owner_id": "owner-maya", "kind": "human"}
+            assert child.info.user_id == "owner-alex"
+            assert "Authorized recent messages, with no gap after summary: []" in system
+            assert "Authorized summary: No summary yet." in system
+            assert source["body"] not in system
+            await worker.prompt("Handle the assigned subtask")
+            recovered = await runtime._child_factory(child)
+            assert request_references(recovered.state.messages[0]["content"]) == references
         finally:
             await runtime.close()
 

@@ -144,7 +144,7 @@ async def main():
     presence = s.create_chat("owner-alex", ["owner-maya"], "Presence")["id"]
     class PresenceRoutingFixture:
         configured = True
-        async def route_targets(self, chat_id, message, context, owners):
+        async def route_targets(self, chat_id, message, context, owners, participants, *, command_id=None):
             return {"needs_response": chat_id == presence, "target_owner_ids": ["owner-maya"] if chat_id == presence else [], "reason": "Explicit offline presence fixture"}
     s.bind_runtime(PresenceRoutingFixture())
     s.presence("owner-maya", "device-B", presence, True)

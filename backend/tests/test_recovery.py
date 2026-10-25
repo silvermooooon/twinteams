@@ -128,7 +128,7 @@ def test_slow_routing_does_not_block_private_dispatch(product):
     async def run():
         runtime = await bridge_for(product)
         entered, dispatched = asyncio.Event(), asyncio.Event()
-        async def route(*args):
+        async def route(*args, **kwargs):
             entered.set()
             await asyncio.Event().wait()
         async def execute(request_id):

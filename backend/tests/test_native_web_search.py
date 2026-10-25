@@ -253,7 +253,10 @@ def test_routing_classifier_keeps_responses_payload_tool_free(monkeypatch, tmp_p
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             harness = FactoryHarness(monkeypatch, tmp_path, client, "openai-responses")
-            result = await harness.runtime.route_targets("group", {"id": "route", "author_owner_id": "sender"}, [], ["owner"])
+            participants = [{"id": "twin-owner", "kind": "twin", "owner_id": "owner", "name": "Beacon Duet"}]
+            result = await harness.runtime.route_targets("group", {"id": "route", "author_owner_id": "sender"}, [], ["owner"], participants)
             assert result["target_owner_ids"] == ["owner"]
             assert "tools" not in payloads[0]
+            route_input = next(item for item in payloads[0]["input"] if item["role"] == "user")
+            assert json.loads(route_input["content"][0]["text"])["participants"] == participants
     asyncio.run(run())

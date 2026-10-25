@@ -122,7 +122,12 @@ def install_fixture(root):
             payload = json.loads(text)
             message = payload['message']
             body = message.get('body', '')
-            needs = bool(re.search(r'\bE2E (?:ECHO|MARKDOWN|SLOW|FAIL_ONCE|FILE|FILE_PREVIEW|FILE_PREVIEW_OVERWRITE|IDENTITY|OWNER_DM|CHAIN|QUESTION|CHILD_QUESTION|ANSWER)\b', body))
+            if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'group-route-recovery' and 'E2E ROUTE_FAIL_ONCE ' in body:
+                marker = root / ('route-fail-once-' + message['id'])
+                if not marker.exists():
+                    marker.write_text('deterministic offline classifier failure attempted')
+                    raise RuntimeError('E2E intentional offline classifier failure')
+            needs = bool(re.search(r'\bE2E (?:ECHO|MARKDOWN|SLOW|FAIL_ONCE|ROUTE_FAIL_ONCE|FILE|FILE_PREVIEW|FILE_PREVIEW_OVERWRITE|IDENTITY|OWNER_DM|CHAIN|QUESTION|CHILD_QUESTION|ANSWER)\b', body))
             if message.get('kind') in {'twin', 'reply_for_me'} and not body.startswith('E2E CHAIN '):
                 needs = False
             allowed = json.loads(system.rsplit('Allowed owners: ', 1)[1])
@@ -251,6 +256,8 @@ def install_fixture(root):
                 if info.get('generation', 0) == 0:
                     raise RuntimeError('E2E intentional first-attempt failure')
                 final = 'E2E retry succeeded: ' + label
+            elif command == 'ROUTE_FAIL_ONCE':
+                final = 'E2E route recovered: ' + label
             elif command == 'MARKDOWN':
                 final = '# E2E Markdown ' + label + '\n\n**Bold** and `inline code`.\n\n- First item\n- Second item\n\n```python\nprint("E2E")\n```\n\n| Column | Value |\n| --- | --- |\n| E2E | passed |'
             elif command == 'FILE_PREVIEW':
@@ -429,6 +436,9 @@ def inspect_fixture(root):
     from app.credential_models import CredentialRequest
     from app.models import (
         Approval,
+        Actor,
+        AutomaticReservation,
+        CausalChain,
         Chat,
         ChatAttachment,
         ContextManifest,
@@ -448,15 +458,16 @@ def inspect_fixture(root):
         requests = [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'requester_id', 'target_twin_id', 'source', 'status', 'generation', 'private_generation', 'source_message_id', 'causal_chain_id', 'session_id', 'run_id')},
                      'accepted_at': row.accepted_at.isoformat()} for row in db.scalars(select(ReplyRequest))]
         automatic_reply_evidence = None
-        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'read-unread-live':
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'read-unread-live', 'group-routing-live', 'group-routing-follow-on', 'group-route-recovery'}:
             automatic_reply_evidence = {
-                'messages': [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'seq', 'author_id', 'kind', 'state', 'request_id')},
+                'messages': [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'seq', 'author_id', 'kind', 'state', 'request_id', 'causal_chain_id', 'reply_to_message_id')},
                               'created_at': row.created_at.isoformat()} for row in db.scalars(select(Message).order_by(Message.created_at))],
                 'receipts': [{'message_id': row.message_id, 'owner_id': row.owner_id, 'seen_at': row.seen_at.isoformat()}
                              for row in db.scalars(select(Receipt))],
                 'candidates': [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'message_id', 'target_twin_id', 'state', 'evidence', 'accepted_request_id')},
                                 'due_at': row.due_at.isoformat()} for row in db.scalars(select(TriggerCandidate))],
-                'routes': [{**{key: getattr(row, key) for key in ('id', 'message_id', 'status', 'needs_response', 'inferred_owner_ids', 'mentioned_owner_ids')},
+                'routes': [{**{key: getattr(row, key) for key in ('id', 'message_id', 'status', 'needs_response', 'inferred_owner_ids', 'mentioned_owner_ids', 'reason')},
+                            'command_id': getattr(row, 'command_id', None),
                             'created_at': row.created_at.isoformat(), 'has_error': row.error is not None}
                            for row in db.scalars(select(RoutingDecision))],
                 'requests': [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'target_twin_id', 'source_message_id', 'source', 'status', 'cancel_requested')},
@@ -466,6 +477,12 @@ def inspect_fixture(root):
                                  for row in db.execute(text('SELECT command_id,session_id,run_id,state,accepted_at,updated_at FROM agent_commands')).mappings()],
                 'sdk_runs': [{key: value.isoformat() if hasattr(value, 'isoformat') else value for key, value in row.items()}
                              for row in db.execute(text('SELECT session_id,run_id,status,started_at,finished_at FROM agent_runs')).mappings()],
+                'actors': [{key: getattr(row, key) for key in ('id', 'kind', 'owner_id', 'name')}
+                           for row in db.scalars(select(Actor))],
+                'chains': [{key: getattr(row, key) for key in ('id', 'root_owner_id', 'root_message_id', 'spent', 'allowance')}
+                           for row in db.scalars(select(CausalChain))],
+                'reservations': [{key: getattr(row, key) for key in ('id', 'causal_chain_id', 'intent_key', 'source_owner_id', 'target_owner_id', 'accepted_request_id')}
+                                 for row in db.scalars(select(AutomaticReservation))],
             }
         tasks = [{**{key: getattr(row, key) for key in ('id', 'owner_id', 'kind', 'revision', 'enabled', 'index_dirty')},
                   'next_run_at': row.next_run_at.isoformat() if row.next_run_at else None,
@@ -507,12 +524,19 @@ def inspect_fixture(root):
         private_chats = {row.private_owner_id: row.id for row in db.scalars(select(Chat).where(Chat.kind == "private"))}
         attachments = [{key: getattr(row, key) for key in ('id', 'chat_id', 'relative_path')} for row in db.scalars(select(ChatAttachment))]
         records = list(db.execute(text('SELECT session_id, record FROM agent_session_events ORDER BY session_id, seq')))
-    current, arguments, returned, tools, files, model_calls = {}, {}, {}, [], [], []
+    current, arguments, returned, tools, files, model_calls, routing_outputs = {}, {}, {}, [], [], [], []
     request_ids = {(row['session_id'], row['run_id']): row['id'] for row in requests}
     run_owners = {(row['session_id'], row['run_id']): row['user_id'] for row in runs}
     for session_id, record in records:
         data, kind, run_id = record.get('data', {}), record.get('type'), record.get('run_id')
         if kind == 'model_completed':
+            if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'group-routing-live', 'group-routing-follow-on'}:
+                try:
+                    routed = json.loads(text_content(data.get('message', {})).strip().removeprefix('```json').removesuffix('```').strip())
+                except (ValueError, TypeError):
+                    routed = None
+                if isinstance(routed, dict) and set(routed) == {'target_owner_ids', 'needs_response', 'reason'}:
+                    routing_outputs.append({'session_id': session_id, 'run_id': run_id, 'decision': routed})
             usage = data.get('message', {}).get('usage', {})
             model_calls.append({'session_id': session_id, 'run_id': run_id,
                 'request_id': request_ids.get((session_id, run_id)),
@@ -582,7 +606,7 @@ def inspect_fixture(root):
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
             'live_budget': budget,
             'requests': requests, 'scheduled_tasks': tasks, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'followups': followups, 'files': files, 'approvals': approvals, 'credentials': credentials,
-            'questions': questions, 'automatic_reply_evidence': automatic_reply_evidence,
+            'questions': questions, 'automatic_reply_evidence': automatic_reply_evidence, 'routing_outputs': routing_outputs,
             'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}
 
 
