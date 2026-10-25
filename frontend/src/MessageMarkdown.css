@@ -5,13 +5,13 @@
 .markdown-content h1{font-size:1.45em}.markdown-content h2{font-size:1.3em}.markdown-content h3{font-size:1.15em}.markdown-content h4,.markdown-content h5,.markdown-content h6{font-size:1em}
 .markdown-content ul,.markdown-content ol{padding-left:24px;margin:8px 0 10px;list-style-position:outside}.markdown-content ul{list-style-type:disc}.markdown-content ol{list-style-type:decimal}.markdown-content li{margin:3px 0}.markdown-content li>p{margin-bottom:6px}.markdown-content li>ul,.markdown-content li>ol{margin:4px 0}
 .markdown-content strong{font-weight:650}.markdown-content em{font-style:italic}.markdown-content del{text-decoration:line-through}
-.markdown-content blockquote{border-left:3px solid #9294b1;margin:10px 0;padding:3px 0 3px 12px;color:#53545e}.markdown-content blockquote>:last-child{margin-bottom:0}
-.markdown-content a{color:#4249a0;text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}.markdown-content a:hover{color:#30367d}
-.markdown-content code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em;white-space:pre-wrap;background:#ffffff80;border:1px solid #dddde7;border-radius:3px;padding:1px 4px}
-.markdown-content pre{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;white-space:pre;overflow-wrap:normal;background:#ffffffa6;border:1px solid #d9dbe6;border-radius:5px;margin:10px 0;padding:10px 12px;line-height:1.5;tab-size:4}
+.markdown-content blockquote{border-left:3px solid #505359;margin:10px 0;padding:3px 0 3px 12px;color:#202124}.markdown-content blockquote>:last-child{margin-bottom:0}
+.markdown-content a{color:#505359;text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}.markdown-content a:hover{color:#202124}
+.markdown-content code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em;white-space:pre-wrap;background:#ffffff80;border:1px solid #f0f1f2;border-radius:3px;padding:1px 4px}
+.markdown-content pre{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;white-space:pre;overflow-wrap:normal;background:#ffffffa6;border:1px solid #d8dadd;border-radius:5px;margin:10px 0;padding:10px 12px;line-height:1.5;tab-size:4}
 .markdown-content pre code{font-size:12px;white-space:pre;overflow-wrap:normal;background:none;border:0;border-radius:0;padding:0}
-.markdown-table-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;margin:10px 0;border:1px solid #d6d8e4;border-radius:4px}
-.markdown-content table{border-collapse:collapse;min-width:100%;font-size:13px;line-height:1.5;text-align:left}.markdown-content th,.markdown-content td{padding:7px 10px;border-right:1px solid #d6d8e4;border-bottom:1px solid #d6d8e4;vertical-align:top;min-width:90px}.markdown-content th{background:#ffffff80;font-weight:650}.markdown-content tr>:last-child{border-right:0}.markdown-content tbody tr:last-child td{border-bottom:0}
-.markdown-content hr{border:0;border-top:1px solid #d6d8e4;margin:14px 0}
-.markdown-content .contains-task-list{list-style:none;padding-left:4px}.markdown-content .task-list-item input{margin-right:7px;accent-color:#5b5fc7}
-.markdown-content a:focus-visible,.markdown-content pre:focus-visible,.markdown-table-scroll:focus-visible{outline:2px solid #6264a7;outline-offset:2px}
+.markdown-table-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;margin:10px 0;border:1px solid #d8dadd;border-radius:4px}
+.markdown-content table{border-collapse:collapse;min-width:100%;font-size:13px;line-height:1.5;text-align:left}.markdown-content th,.markdown-content td{padding:7px 10px;border-right:1px solid #d8dadd;border-bottom:1px solid #d8dadd;vertical-align:top;min-width:90px}.markdown-content th{background:#ffffff80;font-weight:650}.markdown-content tr>:last-child{border-right:0}.markdown-content tbody tr:last-child td{border-bottom:0}
+.markdown-content hr{border:0;border-top:1px solid #d8dadd;margin:14px 0}
+.markdown-content .contains-task-list{list-style:none;padding-left:4px}.markdown-content .task-list-item input{margin-right:7px;accent-color:#505359}
+.markdown-content a:focus-visible,.markdown-content pre:focus-visible,.markdown-table-scroll:focus-visible{outline:2px solid #505359;outline-offset:2px}

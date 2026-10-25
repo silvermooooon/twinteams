@@ -1,4 +1,4 @@
-"""Twinteams API composition. Product business state and SDK state stay separate."""
+"""Duet API composition. Product business state and SDK state stay separate."""
 import logging
 import re
 import sys
@@ -49,7 +49,7 @@ async def lifespan(app):
         await runtime.close()
 
 
-app = FastAPI(title="Twinteams API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Duet API", version="0.2.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_credentials=False, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization", "X-Owner-Id"])
 app.include_router(router)
 app.include_router(provider_config_router)

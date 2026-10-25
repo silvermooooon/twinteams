@@ -73,7 +73,7 @@ function TaskEditor({ api, task, onSaved, onClose }: { api: ApiClient; task: Sch
   }
   return <Modal wide title={task ? 'Edit scheduled task' : 'New scheduled task'} onClose={onClose} closeDisabled={busy}>
     <form className="twin-content-editor twin-schedule-editor" onSubmit={save}>
-      {system && <p className="twin-help">This system task is managed by TwinTeams. You can change its interval or pause future runs.</p>}
+      {system && <p className="twin-help">This system task is managed by Duet. You can change its interval or pause future runs.</p>}
       <label><span id={`${fieldsId}-title`}>Task name</span><input aria-labelledby={`${fieldsId}-title`} autoComplete="off" required maxLength={256} value={title} readOnly={system} disabled={busy} onChange={event => setTitle(event.target.value)} /></label>
       <label><span id={`${fieldsId}-instructions`}>Instructions</span><textarea aria-labelledby={`${fieldsId}-instructions`} required maxLength={20000} value={instructions} readOnly={system} disabled={busy} onChange={event => setInstructions(event.target.value)} /></label>
       <div className="twin-schedule-fields">

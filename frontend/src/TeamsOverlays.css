@@ -1,4 +1,4 @@
-/* Shared Fluent surfaces for dialogs and TwinTeams detail tools. */
+/* Shared Fluent surfaces for dialogs and Duet detail tools. */
 .twins-modal-backdrop {
   background: rgb(0 0 0 / 32%);
   backdrop-filter: none;
@@ -46,7 +46,7 @@
 .people-picker-details input:focus, .people-picker-details select:focus,
 .detail-sidebar .update-form textarea:focus {
   border-color: #d1d1d1;
-  border-bottom: 2px solid #5b5fc7;
+  border-bottom: 2px solid #505359;
   padding-bottom: 4px;
   box-shadow: none;
 }
@@ -54,7 +54,7 @@
 .modal p { color: #424242; font-size: 14px; line-height: 20px; }
 .modal .form-note, .people-picker .form-note { margin: 0 0 18px; color: #616161; font-size: 13px; line-height: 20px; }
 .modal .checkbox-label { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; }
-.modal input[type="checkbox"] { width: 16px; min-height: 16px; height: 16px; padding: 0; accent-color: #5b5fc7; }
+.modal input[type="checkbox"] { width: 16px; min-height: 16px; height: 16px; padding: 0; accent-color: #505359; }
 .modal .modal-actions, .people-picker .modal-actions { gap: 8px; margin-top: 24px; }
 .modal .primary-button, .modal .secondary-button, .modal .danger-button,
 .people-picker .primary-button, .people-picker .secondary-button,
@@ -66,8 +66,8 @@
   line-height: 20px;
   border-radius: 4px;
 }
-.modal .primary-button, .people-picker .primary-button, .detail-sidebar .primary-button, .reminders-main .primary-button { background: #5b5fc7; border-color: #5b5fc7; color: white; }
-.modal .primary-button:hover:not(:disabled), .people-picker .primary-button:hover:not(:disabled), .detail-sidebar .primary-button:hover:not(:disabled), .reminders-main .primary-button:hover:not(:disabled) { background: #4f52b2; border-color: #4f52b2; }
+.modal .primary-button, .people-picker .primary-button, .detail-sidebar .primary-button, .reminders-main .primary-button { background: #505359; border-color: #505359; color: white; }
+.modal .primary-button:hover:not(:disabled), .people-picker .primary-button:hover:not(:disabled), .detail-sidebar .primary-button:hover:not(:disabled), .reminders-main .primary-button:hover:not(:disabled) { background: #505359; border-color: #505359; }
 .modal .secondary-button, .people-picker .secondary-button { color: #242424; background: #fff; border: 1px solid #d1d1d1; }
 .modal .secondary-button:hover:not(:disabled), .people-picker .secondary-button:hover:not(:disabled) { background: #f5f5f5; }
 .modal .danger-button { background: #c4314b; border: 1px solid #c4314b; }
@@ -85,7 +85,7 @@
   color: #616161;
   background: #fff;
 }
-.people-picker .people-recipient-field:focus-within { border-bottom: 2px solid #5b5fc7; padding-bottom: 1px; }
+.people-picker .people-recipient-field:focus-within { border-bottom: 2px solid #505359; padding-bottom: 1px; }
 .people-picker .people-recipient-field input {
   flex: 1;
   width: 180px;
@@ -116,15 +116,15 @@
 }
 .people-picker .person-option>span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .people-picker .person-option:hover, .people-picker .person-option.keyboard-active { background: #f0f0f0; }
-.people-picker .person-option[aria-selected="true"] { background: #e8ebfa; }
-.people-picker .person-option>svg { margin-left: auto; color: #5b5fc7; }
+.people-picker .person-option[aria-selected="true"] { background: #f0f1f2; }
+.people-picker .person-option>svg { margin-left: auto; color: #505359; }
 .people-picker .people-options>.muted { padding: 16px 12px; color: #616161; font-size: 13px; }
 .people-picker .selected-people { gap: 6px; margin: 0 0 20px; }
-.people-picker .selected-people button, .people-picker .recipient-chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 4px; background: #e8ebfa; color: #383966; padding: 4px 8px; font-size: 13px; line-height: 20px; }
-.people-picker .selected-people button:hover, .people-picker .recipient-chip:hover { background: #d9dcf5; }
+.people-picker .selected-people button, .people-picker .recipient-chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 4px; background: #f0f1f2; color: #202124; padding: 4px 8px; font-size: 13px; line-height: 20px; }
+.people-picker .selected-people button:hover, .people-picker .recipient-chip:hover { background: #f0f1f2; }
 .people-picker.people-picker-inline { flex: 1; min-height: 0; position: relative; background: #fff; }
 .people-picker-inline .people-recipient-field { min-height: 62px; border: 0; border-bottom: 1px solid #e0e0e0; border-radius: 0; padding: 12px 32px; }
-.people-picker-inline .people-recipient-field:focus-within { padding-bottom: 11px; border-bottom: 2px solid #5b5fc7; }
+.people-picker-inline .people-recipient-field:focus-within { padding-bottom: 11px; border-bottom: 2px solid #505359; }
 .people-picker-inline .people-to-label { margin: 0 10px 0 0; color: #242424; font-size: 14px; line-height: 20px; }
 .people-picker-inline .people-recipient-field input { min-width: 200px; font-size: 14px; }
 .people-picker-inline .people-suggestions { position: absolute; z-index: 15; left: 60px; top: calc(100% + 4px); width: min(460px, calc(100% - 88px)); margin: 0; border: 1px solid #e0e0e0; border-radius: 4px; background: #fff; padding: 4px; box-shadow: 0 0 2px rgb(0 0 0 / 12%), 0 8px 16px rgb(0 0 0 / 14%); animation: teams-overlay-enter 140ms ease-out; }
@@ -138,32 +138,32 @@
 .detail-sidebar .detail-tabs { min-height: 44px; padding: 0 16px; gap: 20px; border-bottom-color: #e0e0e0; }
 .detail-sidebar .detail-tabs>button { flex: 0 1 auto; padding: 0 0 10px; font-size: 14px; color: #616161; }
 .detail-sidebar .detail-tabs>button.selected { font-weight: 600; color: #242424; }
-.detail-sidebar .detail-tabs>button.selected:after { background: #5b5fc7; height: 3px; border-radius: 2px 2px 0 0; }
+.detail-sidebar .detail-tabs>button.selected:after { background: #505359; height: 3px; border-radius: 2px 2px 0 0; }
 .detail-sidebar .detail-content { padding: 20px 16px; scrollbar-width: thin; }
 .detail-sidebar .panel-label { font-size: 12px; font-weight: 600; color: #616161; margin-bottom: 12px; line-height: 20px; }
 .detail-sidebar .panel-actions { gap: 8px; margin-bottom: 12px; }
 .detail-sidebar .panel-actions .panel-label { margin: 0; }
-.detail-sidebar .text-button { font-size: 13px; color: #5b5fc7; line-height: 20px; }
+.detail-sidebar .text-button { font-size: 13px; color: #505359; line-height: 20px; }
 .detail-sidebar .run-card, .detail-sidebar .tracking-card { border: 1px solid #e0e0e0; border-radius: 4px; padding: 12px; margin-bottom: 8px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 3%); }
 .detail-sidebar .run-card:hover, .detail-sidebar .tracking-card:hover { border-color: #c7c7c7; background: #f5f5f5; }
 .detail-sidebar .run-top { gap: 6px; margin-bottom: 8px; }
 .detail-sidebar .run-status { font-size: 12px; font-weight: 400; color: #616161; }
-.detail-sidebar .run-status.running { color: #5b5fc7; }
+.detail-sidebar .run-status.running { color: #505359; }
 .detail-sidebar .run-status.completed { color: #237b4b; }
 .detail-sidebar .run-status.failed { color: #c4314b; }
 .detail-sidebar .run-tag { font-size: 10px; line-height: 16px; background: #f0f0f0; color: #616161; border-radius: 4px; padding: 1px 6px; }
-.detail-sidebar .run-tag.main { background: #e8ebfa; color: #4f52b2; }
+.detail-sidebar .run-tag.main { background: #f0f1f2; color: #505359; }
 .detail-sidebar .run-top>time { font-size: 10px; color: #616161; }
 .detail-sidebar .run-card h3, .detail-sidebar .tracking-card h3 { font-size: 14px; line-height: 20px; font-weight: 600; overflow-wrap: anywhere; }
 .detail-sidebar .run-card p, .detail-sidebar .tracking-card p { font-size: 12px; line-height: 18px; color: #616161; overflow-wrap: anywhere; }
 .detail-sidebar .tracking-card small { margin-top: 8px; color: #616161; font-size: 11px; }
-.detail-sidebar .tracking-status { border-color: #5b5fc7; }
+.detail-sidebar .tracking-status { border-color: #505359; }
 .detail-sidebar .tracking-status.completed { border-color: #237b4b; background: #237b4b; }
 .detail-sidebar .tracking-status.archived { border-color: #a3a3a3; }
 .detail-sidebar .tree-row { min-height: 36px; padding: 5px 4px; font-size: 14px; gap: 8px; border-radius: 4px; color: #424242; }
 .detail-sidebar .tree-row:hover { background: #f0f0f0; }
 .detail-sidebar .tree-row.folder>svg { color: #a67700; fill: #ffde83; width: 20px; height: 20px; }
-.detail-sidebar .tree-row.file>svg { color: #5b5fc7; width: 20px; height: 20px; }
+.detail-sidebar .tree-row.file>svg { color: #505359; width: 20px; height: 20px; }
 .detail-sidebar .tree-children { padding-left: 16px; }
 .detail-sidebar .members-section { border-color: #e0e0e0; margin-top: 16px; padding-top: 16px; }
 .detail-sidebar .member-row { margin: 14px 0; font-size: 14px; color: #242424; }
@@ -180,7 +180,7 @@
 .detail-sidebar .detail-fields dd, .modal .detail-fields dd { color: #242424; }
 .detail-sidebar .event-chain { border-left-color: #d1d1d1; }
 .detail-sidebar .event-card { border-color: #e0e0e0; border-radius: 4px; padding: 12px; }
-.detail-sidebar .event-dot { background: #5b5fc7; box-shadow: 0 0 0 1px #d1d1d1; }
+.detail-sidebar .event-dot { background: #505359; box-shadow: 0 0 0 1px #d1d1d1; }
 .detail-sidebar .event-title h4 { font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
 .detail-sidebar .event-title time { font-size: 10px; color: #616161; }
 .detail-sidebar .event-card>small { font-size: 11px; color: #616161; }
@@ -189,7 +189,7 @@
 .detail-sidebar .event-card pre { padding: 10px; font: 12px/18px ui-monospace, SFMono-Regular, Consolas, monospace; background: #f5f5f5; color: #424242; }
 .detail-sidebar .small-badge { font-size: 12px; line-height: 18px; padding: 2px 8px; background: #f0f0f0; color: #424242; border-radius: 4px; }
 .detail-sidebar .tracking-updates { border-color: #d1d1d1; }
-.detail-sidebar .tracking-updates article:before { background: #5b5fc7; }
+.detail-sidebar .tracking-updates article:before { background: #505359; }
 .detail-sidebar .tracking-updates time { color: #616161; font-size: 11px; }
 .detail-sidebar .tracking-updates p { color: #424242; font-size: 14px; line-height: 20px; }
 .detail-sidebar .update-form { border-color: #e0e0e0; }
@@ -217,20 +217,20 @@
 .approvals-drawer .approval-toggle { padding: 10px 12px; min-height: 40px; color: #424242; font-size: 13px; }
 .approvals-drawer .approval-tabs { border-color: #e0e0e0; gap: 12px; }
 .approvals-drawer .approval-tabs>button { color: #616161; font-size: 12px; line-height: 20px; padding: 8px 4px; }
-.approvals-drawer .approval-tabs>button.selected { color: #5b5fc7; border-bottom-color: #5b5fc7; }
+.approvals-drawer .approval-tabs>button.selected { color: #505359; border-bottom-color: #505359; }
 .approvals-drawer .approval-card { padding: 16px; }
 .approvals-drawer .approval-card h3 { color: #242424; font-size: 14px; line-height: 20px; }
 .approvals-drawer .approval-card>p { color: #424242; font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
 .approvals-drawer .detail-fields dd { min-width: 0; overflow-wrap: anywhere; }
 .approvals-drawer .approval-arguments { margin: 0; max-width: 100%; padding: 8px; border-radius: 4px; background: #fafafa; font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .approvals-drawer .approval-card>small { color: #616161; font-size: 11px; }
-.approvals-drawer .approval-actions .primary-button { background: #5b5fc7; border-color: #5b5fc7; }
+.approvals-drawer .approval-actions .primary-button { background: #505359; border-color: #505359; }
 .approvals-drawer .approval-actions .primary-button, .approvals-drawer .approval-actions .secondary-button { min-height: 32px; padding: 5px 12px; font-size: 13px; }
-.approvals-drawer .approval-actions .text-button { color: #5b5fc7; font-size: 12px; }
-.login-page.login-page { min-height: 560px; background: #ebebeb; color: #242424; }
+.approvals-drawer .approval-actions .text-button { color: #505359; font-size: 12px; }
+.login-page.login-page { min-height: 560px; background: #f3f3f3; color: #242424; }
 .login-page.login-page:before { content: none; }
 .login-page>header { min-height: 56px; height: 56px; padding: 0 24px; font-weight: 600; font-size: 18px; color: #242424; }
-.login-page .login-main { width: 440px; background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 40px; box-shadow: 0 4px 16px rgb(0 0 0 / 10%); }
+.login-page .login-main { width: 440px; background: #fff; border: 1px solid #e0e0e0; border-radius: 2px; padding: 40px; box-shadow: 0 4px 16px rgb(0 0 0 / 10%); }
 .login-page .login-symbol { width: 40px; height: 40px; background: transparent; margin-bottom: 20px; border-radius: 0; }
 .login-page .login-main h1 { font-size: 24px; font-weight: 600; line-height: 32px; letter-spacing: 0; color: #242424; }
 .login-page .login-main>p { margin-top: 8px; font-size: 14px; line-height: 20px; color: #616161; }
@@ -238,11 +238,11 @@
 .login-page .development-label { padding: 3px 8px; margin-bottom: 20px; background: #f0f0f0; color: #616161; font-size: 11px; line-height: 16px; border-radius: 4px; }
 .login-page .login-main label { color: #242424; font-size: 14px; line-height: 20px; gap: 6px; }
 .login-page .login-main input { min-height: 36px; border: 1px solid #d1d1d1; border-bottom-color: #616161; border-radius: 4px; padding: 7px 10px; font-size: 14px; color: #242424; }
-.login-page .login-main input:focus { border-color: #d1d1d1; border-bottom: 2px solid #5b5fc7; padding-bottom: 6px; box-shadow: none; }
+.login-page .login-main input:focus { border-color: #d1d1d1; border-bottom: 2px solid #505359; padding-bottom: 6px; box-shadow: none; }
 .login-page .login-main input::placeholder { color: #616161; }
 .login-page .login-hint, .login-page .login-footnote { color: #616161; font-size: 12px; line-height: 18px; }
-.login-page .login-main .primary-button { min-height: 36px; background: #5b5fc7; border-color: #5b5fc7; padding: 7px 12px; font-size: 14px; border-radius: 4px; }
-.login-page .login-main .primary-button:hover:not(:disabled) { background: #4f52b2; }
+.login-page .login-main .primary-button { min-height: 36px; background: var(--accent); border-color: var(--accent); padding: 7px 12px; font-size: 14px; border-radius: 4px; }
+.login-page .login-main .primary-button:hover:not(:disabled) { background: #37393d; }
 .login-page .login-error { color: #c4314b; font-size: 13px; line-height: 20px; }
 .login-page .login-status, .login-page .login-status p, .login-page .login-production, .login-page .login-production p { color: #616161; font-size: 14px; line-height: 20px; }
 .login-page>footer { color: #616161; font-size: 12px; }
@@ -260,7 +260,7 @@
 .reminders-main .reminder-card p { color: #424242; font-size: 14px; line-height: 20px; }
 .reminders-main .reminder-time { color: #616161; font-size: 12px; margin: 12px 0 4px; }
 .reminders-main .complete-button { width: 20px; height: 20px; border-color: #616161; }
-.reminders-main .done .complete-button { border-color: #5b5fc7; background: #5b5fc7; }
+.reminders-main .done .complete-button { border-color: #505359; background: #505359; }
 .reminders-main .reminder-empty { color: #a3a3a3; }
 .reminders-main .reminder-empty h3 { font-size: 14px; color: #616161; }
 @keyframes teams-overlay-enter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }

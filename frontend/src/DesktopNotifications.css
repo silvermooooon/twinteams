@@ -3,13 +3,13 @@
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
-  border-bottom: 1px solid #deddf2;
-  background: #f5f5fc;
+  border-bottom: 1px solid #f0f1f2;
+  background: #f0f1f2;
   color: #242424;
   flex-shrink: 0;
 }
 .desktop-notification-prompt > svg {
-  color: #5b5fc7;
+  color: #505359;
   flex-shrink: 0;
 }
 .desktop-notification-prompt > div {
@@ -75,8 +75,8 @@
     background-color 130ms;
 }
 .notification-switch.on {
-  background: #5b5fc7;
-  border-color: #5b5fc7;
+  background: #505359;
+  border-color: #505359;
 }
 .notification-switch.on > span {
   transform: translateX(16px);

@@ -1,4 +1,6 @@
-# Twinteams
+# Duet / 双重奏
+
+Duet connects people and their personal Twins. The checkout, configuration prefixes and storage identifiers retain `twinteams` for compatibility. See [the visual identity](docs/visual-identity.md).
 
 React/TypeScript + FastAPI application using the original
 [Agent Runtime](https://github.com/silvermooooon/agent-runtime) SDK.

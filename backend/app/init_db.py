@@ -16,7 +16,7 @@ async def main(backfill=False):
             await service.db_call(backfill_activity)
     finally:
         await runtime.close()
-    print(f"Twinteams business and SDK schemas ready for tenant {settings.tenant_id!r}.")
+    print(f"Duet business and SDK schemas ready for tenant {settings.tenant_id!r}.")
 
 
 if __name__ == "__main__":

@@ -355,7 +355,7 @@ class ProductService:
         with self.transaction() as db:
             owner = db.scalar(select(Owner).where(Owner.auth_subject == subject))
             if not owner:
-                fail(403, "Authenticated identity has no provisioned Twinteams owner")
+                fail(403, "Authenticated identity has no provisioned Duet owner")
             return owner.id
 
     def membership(self, db, owner_id, chat_id, lock=False):

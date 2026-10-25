@@ -1,6 +1,6 @@
 # English interface copy
 
-Twinteams uses English for all product-authored interface text and date/time formatting. `en.ts` and `twin.ts` hold the typed English copy; `t(key, values)` interpolates placeholders such as `{name}`. The interface does not offer a language selection and ignores obsolete `twinteams.locale` preferences. `main.tsx` sets the document language to `en`.
+Duet uses English for all product-authored interface text and date/time formatting. `en.ts` and `twin.ts` hold the typed English copy; `t(key, values)` interpolates placeholders such as `{name}`. The interface does not offer a language selection and ignores obsolete `twinteams.locale` preferences. `main.tsx` sets the document language to `en`.
 
 Use `formatDate`, `formatTime`, and `formatRelativeDay` for English dates and times. Navigation and filter state use stable IDs.
 

@@ -13,7 +13,7 @@ import "./DesktopNotifications.css";
 
 type Preferences = { enabled: boolean; dismissed: boolean };
 type Latest = { id: string | null; revision?: number };
-const BRAND_ICON = "/assets/twinteams-notification.svg";
+const BRAND_ICON = "/assets/duet-symbol.svg";
 const MAX_CLAIMS = 100;
 function readPreferences(key: string): Preferences {
   try {

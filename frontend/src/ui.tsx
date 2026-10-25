@@ -14,7 +14,7 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
-export function BrandMark() { return <span className="brand-mark" aria-hidden="true"><i /><i /><b>T</b></span>; }
+export function BrandMark() { return <span className="brand-mark" aria-hidden="true"><img src="/assets/duet-symbol.svg" alt="" /></span>; }
 export function Avatar({ actor, size = 36, twin = false, group = false }: { actor?: Actor; size?: number; twin?: boolean; group?: boolean }) {
   const isTwin = twin || actor?.kind === 'twin';
   const [failedUrl, setFailedUrl] = useState('');
