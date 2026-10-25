@@ -1,4 +1,4 @@
-"""Scheduled Twin input and publication policy, shared by recovery and continuations.
+"""Scheduled Duet input and publication policy, shared by recovery and continuations.
 
 The product scheduler owns due times, authorization and occurrence identity. The SDK
 still receives an ordinary durable command in the owner's existing private lane.
@@ -38,7 +38,7 @@ def scheduled_prompt(request, context):
             "Read relevant details before acting. Time passing can matter even without new "
             "local messages: evaluate unresolved time-sensitive work and known external watches. "
             "Continue useful work already authorized by the owner; delegate substantial "
-            "execution to background workers and keep the front-facing Twin responsive. "
+            "execution to background workers and keep the front-facing Duet responsive. "
             "Do not repeat completed operations or duplicate active children, pending requests "
             "or notices already covered by the prior review. A changed deadline, useful result, "
             "actionable blocker or necessary owner decision may justify a concise update. "

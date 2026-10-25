@@ -40,7 +40,7 @@ async function logout(page) {
 }
 async function openTwinTab(page, tab = "Profile") {
   await page.getByRole("button", { name: "Account", exact: true }).click();
-  await page.getByRole("menuitem", { name: "My Twin", exact: true }).click();
+  await page.getByRole("menuitem", { name: "My Duet", exact: true }).click();
   await page.getByRole("tab", { name: tab, exact: true }).click();
 }
 async function sendMessage(

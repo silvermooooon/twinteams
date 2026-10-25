@@ -134,7 +134,7 @@ const cases = [
         const header = await appearance(page.locator(".chat-header > .avatar"));
         assert.ok(
           header.brand && header.badge && !header.image,
-          "default Twin keeps its brand and badge",
+          "default Duet keeps its brand and badge",
         );
         sameColors(
           await appearance(page.locator(".account-button > .avatar")),
@@ -166,7 +166,7 @@ const cases = [
       assert.equal(
         new Set(Object.values(twinStyles).map((row) => row.background)).size,
         3,
-        "these three default Twin names also have distinct backgrounds",
+        "these three default Duet names also have distinct backgrounds",
       );
       t.record("default_actor_colors", {
         humans: humanStyles,

@@ -47,7 +47,7 @@ def start(service, owner_id):
         db.add(row)
         welcome = service.append_message(db, chat, consume_followup=False,
             author_id=twin.id, kind="system", body=(
-                f"Hi {owner.name}, I'm {twin.name}. I can help you think things through, "
+                f"Hi {owner.name}, I'm {twin.name}, your Duet. I can help you think things through, "
                 "draft messages, work with shared files, and coordinate work with people here. "
                 "Tell me the outcome, and I'll work out the steps and ask when your input is needed. "
                 "What would you like help with first?"))

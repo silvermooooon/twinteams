@@ -1,6 +1,6 @@
 # Duet / 双重奏
 
-Duet connects people and their personal Twins. The checkout, configuration prefixes and storage identifiers retain `twinteams` for compatibility. See [the visual identity](docs/visual-identity.md).
+Duet connects people and their personal Duets. The checkout, configuration prefixes and storage identifiers retain `twinteams` for compatibility. See [the visual identity](docs/visual-identity.md).
 
 React/TypeScript + FastAPI application using the original
 [Agent Runtime](https://github.com/silvermooooon/agent-runtime) SDK.
@@ -44,7 +44,7 @@ The application never searches for arbitrary environment files.
 
 Open http://127.0.0.1:8000. The server serves the built frontend and `/api` on the
 same origin. Development usernames `DEV-AAA`, `DEV-BBB`, `DEV-CCC` open separate
-people/Twin identities. This launcher enables local development explicitly, binds
+people/Duet identities. This launcher enables local development explicitly, binds
 loopback, and requires a local PostgreSQL address. Normal startup defaults to
 verified-identity mode. Production does not enable DEV login.
 
@@ -53,6 +53,15 @@ Use `AGENT_PROVIDER=openai`, `AGENT_API=openai-responses`,
 Subagents inherit that model unless explicitly configured. No credential is
 committed or returned through the configuration API. Missing model credentials
 produce a clear failure; the app never substitutes a test response.
+
+New Duet conversation and subagent runs using `openai-responses` enable OpenAI's
+native [`web_search`](https://developers.openai.com/api/docs/guides/tools-web-search)
+tool by default, including supported page opening and in-page search. The model
+decides when to use it. Other APIs and internal routing/Dream calls keep their
+existing tool policy. Interrupted runs retain their exact frozen tool declarations
+and options; older runs without search do not gain it during recovery. Citation
+sources appear as clickable links in chat while the SDK journal
+retains the original provider output. The SDK library itself remains opt-in.
 
 ## Storage and recovery
 
@@ -73,8 +82,8 @@ are frozen and replay-safe; approval does not install extra execution capabiliti
 No email/payment adapters are installed.
 
 Workspace files and private memory remain separate persistent file components.
-Twins can explicitly deliver finished workspace files into chat attachment cards with `present_files`; each delivery captures a snapshot. Markdown, text and PDF support in-app preview. HTML opens only after a user action in a separate sandboxed tab and remains downloadable.
-Chat uploads of every type, including images, live once in the chat workspace and reach the Twin as file-path references; installed `read`/`bash` tools inspect them on demand. The existing four-file/20 MiB limits remain. Workspace browsing lazily lists real files, including Agent outputs; private chats show the owner's execution directory and groups show only their shared chat directory. Message bodies have no business character cap; oversized WebSocket sends use HTTP with the same idempotency key. Transport and model context limits still apply. See [the file contract](docs/implementation-contract.md#uploaded-files-and-the-real-workspace), including the additive attachment-path migration required before rollout.
+Duets can explicitly deliver finished workspace files into chat attachment cards with `present_files`; each delivery captures a snapshot. Markdown, text and PDF support in-app preview. HTML opens only after a user action in a separate sandboxed tab and remains downloadable.
+Chat uploads of every type, including images, live once in the chat workspace and reach the Duet as file-path references; installed `read`/`bash` tools inspect them on demand. The existing four-file/20 MiB limits remain. Workspace browsing lazily lists real files, including Agent outputs; private chats show the owner's execution directory and groups show only their shared chat directory. Message bodies have no business character cap; oversized WebSocket sends use HTTP with the same idempotency key. Transport and model context limits still apply. See [the file contract](docs/implementation-contract.md#uploaded-files-and-the-real-workspace), including the additive attachment-path migration required before rollout.
 A fresh database starts with local demonstration identities and empty conversation
 state. PostgreSQL data survives application restart.
 

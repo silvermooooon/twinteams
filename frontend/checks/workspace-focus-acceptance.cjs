@@ -14,7 +14,7 @@ async function scenario(kind, nonempty) {
   const mock = await fixture(page, 'en', true);
   const chatId = kind === 'private' ? 'private-alex' : 'group-shared';
   const owner = { id:'owner-alex', owner_id:'owner-alex', kind:'human', name:'AAA', initials:'AA', color:'#7962bd' };
-  const twin = { id:'twin-alex', owner_id:owner.id, kind:'twin', name:"AAA's Twin", initials:'AT', color:'#6dbdad' };
+  const twin = { id:'twin-alex', owner_id:owner.id, kind:'twin', name:"AAA's Duet", initials:'AT', color:'#6dbdad' };
   const extraOwners = ['maya','jordan'].map((slug,i)=>({id:`owner-${slug}`,owner_id:`owner-${slug}`,kind:'human',name:i?'CCC':'BBB',initials:i?'CC':'BB',color:'#428b7d'}));
   const groupMembers = [owner,twin,...extraOwners];
   const chat = { id:chatId, kind, title:kind === 'private' ? twin.name : 'Shared team', member_owner_ids:kind==='group'?[owner.id,...extraOwners.map(a=>a.id)]:[owner.id], unread_count:0 };

@@ -308,7 +308,7 @@ const cases = [
     },
   },
   {
-    name: "notifications platform stub / own Twin alerts while blurred; own human ACK and focused replies do not; click navigates",
+    name: "notifications platform stub / own Duet alerts while blurred; own human ACK and focused replies do not; click navigates",
     run: async (t) => {
       const a = await probeSession(t, { clockSkew: 86400000 });
       t.record("client_clock_boundary", {
@@ -327,7 +327,7 @@ const cases = [
         chat,
         (message) => message.kind === "twin" && message.body.includes(focused),
       );
-      await noNew(a, 0, "focused normal Twin reply is silent");
+      await noNew(a, 0, "focused normal Duet reply is silent");
       const label = t.unique("own-twin");
       await sendMessage(a.page, `E2E SLOW ${label}`);
       await mode(a.page, "blurred");
@@ -374,7 +374,7 @@ const cases = [
     },
   },
   {
-    name: "notifications platform stub / incoming human, other Twin and other Reply for me alert; own rewrite is silent",
+    name: "notifications platform stub / incoming human, other Duet and other Reply for me alert; own rewrite is silent",
     run: async (t) => {
       const { recipient: a, peer: b, chat } = await recipientPair(t);
       await mode(a.page, "hidden");

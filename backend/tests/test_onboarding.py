@@ -50,6 +50,7 @@ def tool_context(product, request_id):
 def test_persisted_welcome_idempotent_not_model_dream_or_review_input(product, monkeypatch):
     assert onboarding.get_state(product, "owner-alex")["status"] == "new"
     with product.transaction() as db:
+        product.twin(db, "owner-alex").name = "Elysia"
         before_revision = db.get(Chat, "private-alex").revision
         before_outbox = db.scalar(select(func.count()).select_from(ChangeOutbox).where(ChangeOutbox.chat_id == "private-alex"))
     emitted = []
@@ -62,6 +63,8 @@ def test_persisted_welcome_idempotent_not_model_dream_or_review_input(product, m
         messages = list(db.scalars(select(Message).where(Message.chat_id == "private-alex")))
         assert len(messages) == 1 and messages[0].id == states[0]["welcome_message_id"]
         assert messages[0].kind == "system" and db.get(Actor, "owner-alex").name in messages[0].body
+        assert "I'm Elysia, your Duet." in messages[0].body
+        assert product.twin(db, "owner-alex").name == "Elysia"
         assert db.get(Chat, "private-alex").revision > before_revision
         assert db.scalar(select(func.count()).select_from(ChangeOutbox).where(ChangeOutbox.chat_id == "private-alex")) == before_outbox + 1
         assert emitted == [("private-alex", {"work": False})]

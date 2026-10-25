@@ -10,7 +10,7 @@ from . import credentials
 
 
 class TwinExecutionBackend(LocalExecutionBackend):
-    """Reuse SDK execution and private home/tmp, with the Twin's existing workspace."""
+    """Reuse SDK execution and private home/tmp, with the Duet's existing workspace."""
     def __init__(self, identity, workspace, *, directory=None):
         from .config import ROOT
         super().__init__(identity, directory or ROOT / "data" / "runtime-execution")

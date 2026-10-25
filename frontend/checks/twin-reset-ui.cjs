@@ -21,7 +21,7 @@ async function run() {
   await page.getByLabel('Memory key', { exact: true }).fill('draft/reset-current'); await page.getByLabel('Memory content', { exact: true }).fill('Current configuration draft'); await page.keyboard.press('Escape');
   await tab('Soul'); await page.getByLabel('Soul content', { exact: true }).fill('Soul draft during reset'); await tab('Profile');
   await page.getByRole('button', { name: 'Reset', exact: true }).click();
-  await page.getByText('This clears your private Twin conversation and saved Memory. Personal scheduled tasks are paused.', { exact: true }).waitFor();
+  await page.getByText('This clears your private Duet conversation and saved Memory. Personal scheduled tasks are paused.', { exact: true }).waitFor();
   assert.equal(await page.getByRole('dialog').getByRole('textbox').count(), 0);
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   assert.equal(mock.calls.filter(row => row.path === '/api/me/twin/reset' && row.method === 'POST').length, 0);
@@ -55,7 +55,7 @@ async function run() {
   let releaseChat; const chatGate = new Promise(resolve => { releaseChat = resolve; }); let interceptChat = true;
   await page.route('**/api/chats/private-alex?**', async intercept => {
     if (!interceptChat) return intercept.fallback(); interceptChat = false; await chatGate;
-    return intercept.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: 1, chat: { id: 'private-alex', kind: 'private', title: "AAA's Twin", member_owner_ids: ['owner-alex'], unread_count: 0 }, messages: [{ id: 'old-message', author_id: 'owner-alex', seq: 1, kind: 'human', state: 'published', body: 'Stale chat restored!', created_at: '2026-10-18T00:00:00Z' }], requests: [], approvals: [], tracking: [], settings: { sidebar_open: false, sidebar_tab: 'activity', reply_for_me_enabled: false }, members: [] }) });
+    return intercept.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: 1, chat: { id: 'private-alex', kind: 'private', title: "AAA's Duet", member_owner_ids: ['owner-alex'], unread_count: 0 }, messages: [{ id: 'old-message', author_id: 'owner-alex', seq: 1, kind: 'human', state: 'published', body: 'Stale chat restored!', created_at: '2026-10-18T00:00:00Z' }], requests: [], approvals: [], tracking: [], settings: { sidebar_open: false, sidebar_tab: 'activity', reply_for_me_enabled: false }, members: [] }) });
   });
   const chatRequested = page.waitForRequest(request => request.url().includes('/api/chats/private-alex?'));
   mock.sockets.at(-1).send(JSON.stringify({ v: 1, type: 'changed', chat_id: 'private-alex' })); await chatRequested;

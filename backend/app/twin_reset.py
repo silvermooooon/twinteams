@@ -53,7 +53,7 @@ def status(service, owner_id):
     with service.transaction() as db:
         chat = db.scalar(select(Chat).where(Chat.private_owner_id == owner_id))
         if not chat:
-            raise HTTPException(404, "Private Twin chat not found")
+            raise HTTPException(404, "Private Duet chat not found")
         row = db.scalar(select(TwinReset).where(TwinReset.owner_id == owner_id).order_by(TwinReset.generation.desc()).limit(1))
         return payload(row) if row else {"reset_id": None, "status": "ready", "generation": chat.reset_generation,
             "private_chat_id": chat.id, "idempotency_key": None, "expected_generation": None}
@@ -63,7 +63,7 @@ def fence(service, owner_id, key, expected_generation):
     with service.transaction() as db:
         chat = db.scalar(select(Chat).where(Chat.private_owner_id == owner_id))
         if not chat:
-            raise HTTPException(404, "Private Twin chat not found")
+            raise HTTPException(404, "Private Duet chat not found")
         from .questions import reset_scope_ids
         scopes = {chat.id, *reset_scope_ids(db, owner_id)}
         for scope in sorted(scopes):
@@ -78,7 +78,7 @@ def fence(service, owner_id, key, expected_generation):
                 raise HTTPException(409, "Reset key was used with another generation")
             return payload(prior)
         if chat.reset_pending or expected_generation != chat.reset_generation:
-            raise HTTPException(409, "Private Twin generation changed; reload reset status")
+            raise HTTPException(409, "Private Duet generation changed; reload reset status")
         old_generation = chat.reset_generation
         chat.reset_generation, chat.reset_pending = old_generation + 1, True
         from .scheduled_tasks import reset_owner

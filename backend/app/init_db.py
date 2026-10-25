@@ -7,6 +7,8 @@ from .service import service
 
 async def main(backfill=False):
     await service.db_call("initialize", create_schema=True)
+    from .duet_identity import upgrade_default_names
+    await service.db_call(upgrade_default_names, service)
     from .runtime_bridge import RuntimeBridge
     runtime = RuntimeBridge(service)
     try:

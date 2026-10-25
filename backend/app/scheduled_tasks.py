@@ -214,7 +214,7 @@ def mutate(service, db, owner_id, task_id=None, values=None, *, delete=False):
     values = values or {}
     chat = db.scalar(select(Chat).where(Chat.private_owner_id == owner_id).with_for_update())
     if not chat or chat.reset_pending:
-        fail(409, "Private Twin is unavailable while resetting")
+        fail(409, "Private Duet is unavailable while resetting")
     ensure_system(service, db, owner_id)
     moment = now()
     if any(value is None for value in values.values()):
@@ -418,7 +418,7 @@ def process_due(service, task_ids=None, *, moment=None, blocked_task_ids=None):
 
 def runtime_dispatch(service, db, name, args, context, chat):
     if chat.kind != "private" or chat.private_owner_id != context["owner_id"]:
-        fail(403, "Scheduled task tools require your own private Twin chat")
+        fail(403, "Scheduled task tools require your own private Duet chat")
     origin = db.get(ReplyRequest, context.get("request_id")) if context.get("request_id") else None
     if name != "list_scheduled_tasks" and (context.get("scheduled_task") or snapshot(origin)):
         fail(403, "Scheduled execution cannot change scheduled tasks")

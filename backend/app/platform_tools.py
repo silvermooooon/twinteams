@@ -258,7 +258,7 @@ def dispatch(service, db, name, args, context, chat, member, locked_ids):
             return service.request_json(db, row, owner_id)
         target_actor = db.get(Actor, row.target_twin_id)
         if owner_id not in {row.requester_id, target_actor.owner_id}:
-            fail(403, "Only the requester or target Twin owner may change this request")
+            fail(403, "Only the requester or target Duet owner may change this request")
         if name == "cancel_reply_request":
             return service._cancel_request_db(db, owner_id, row.id)
         if target.kind == "private" and target.id != chat.id:

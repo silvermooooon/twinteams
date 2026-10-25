@@ -86,7 +86,7 @@ def runtime_origin(service, db, owner_id, request_id, *, executable=True, lock=T
     chat, member = service.membership(db, owner_id, request.chat_id, lock)
     target = db.get(Actor, request.target_twin_id)
     if not target or target.owner_id != owner_id:
-        fail(403, "Execution belongs to the target Twin's owner")
+        fail(403, "Execution belongs to the target Duet's owner")
     if executable and (request.cancel_requested or request.status in {"cancelled", "failed"}):
         fail(409, "Original request was cancelled or failed")
     if request.source == "credential_result":
@@ -117,7 +117,7 @@ def private_origin(service, db, owner_id, request_id, *, executable=True):
     """Narrow private-task gate retained for existing cross-chat retry contracts."""
     request, chat, member = runtime_origin(service, db, owner_id, request_id, executable=executable)
     if chat.kind != "private" or chat.private_owner_id != owner_id or request.requester_id != owner_id:
-        fail(403, "This action requires your own private Twin conversation")
+        fail(403, "This action requires your own private Duet conversation")
     return request, chat, member
 
 def fulfilled_for_continuation(db, owner_id, request):

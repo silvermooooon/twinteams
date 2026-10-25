@@ -27,18 +27,18 @@ MAX_AVATAR_BYTES = 5 * 1024 * 1024
 
 
 def resolve_twin_workspace(owner_id):
-    """Use the existing unique private chat workspace for all work by this Twin."""
+    """Use the existing unique private chat workspace for all work by this Duet."""
     with service.transaction() as db:
         service.twin(db, owner_id)
         private_id = db.scalar(select(Chat.id).where(Chat.private_owner_id == owner_id, Chat.kind == "private"))
         if private_id is None:
-            fail(409, "Owner has no private Twin workspace")
+            fail(409, "Owner has no private Duet workspace")
     root = settings.workspace_root
     path = root / private_id
     if not path.resolve().is_relative_to(root) or any(
         part.is_symlink() for part in [path, *path.parents] if part.is_relative_to(root)
     ):
-        fail(403, "Invalid Twin workspace")
+        fail(403, "Invalid Duet workspace")
     return path
 
 
@@ -205,12 +205,12 @@ def patch_twin(owner_id, values):
     with service.transaction() as db:
         actor = db.scalar(select(Actor).where(Actor.owner_id == owner_id, Actor.kind == "twin").with_for_update())
         if actor is None:
-            fail(409, "Owner has no paired Twin")
+            fail(409, "Owner has no paired Duet")
         changed = False
         if "name" in values:
             name = values["name"].strip()
             if not name or len(name) > 128 or any(ord(c) < 32 for c in name):
-                fail(422, "Twin name must contain 1 to 128 visible characters")
+                fail(422, "Duet name must contain 1 to 128 visible characters")
             if actor.name != name:
                 actor.name = name
                 actor.initials = "".join(word[0] for word in name.split()[:2]).upper()[:2]
@@ -263,7 +263,7 @@ def set_avatar(owner_id, data):
     with service.transaction() as db:
         actor = db.scalar(select(Actor).where(Actor.owner_id == owner_id, Actor.kind == "twin").with_for_update())
         if actor is None:
-            fail(409, "Owner has no paired Twin")
+            fail(409, "Owner has no paired Duet")
         actor.avatar_data = normalized
         actor.avatar_digest = hashlib.sha256(normalized).hexdigest() if normalized else None
         actor.avatar_preset = None

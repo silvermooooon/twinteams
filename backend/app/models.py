@@ -550,7 +550,7 @@ class ActivityProjection(Base):
     parent_run_id: Mapped[str | None] = mapped_column(String(128))
     source: Mapped[str] = mapped_column(String(32), default="user")
     status: Mapped[str] = mapped_column(String(32), default="running")
-    title: Mapped[str] = mapped_column(Text, default="Twin response")
+    title: Mapped[str] = mapped_column(Text, default="Duet response")
     summary: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

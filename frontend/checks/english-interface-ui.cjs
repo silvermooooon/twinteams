@@ -57,7 +57,7 @@ async function run() {
     assert.deepEqual(writes.map(call => ({ method: call.method, path: call.path })), [], 'acceptance only reads fixture content and updates read receipts');
     assert.deepEqual(errors, []);
     await context.close();
-    console.log(`PASS English interface ${width}px: old locale ignored, language/dates, six Twin tabs, English emoji names with Chinese search, Chinese user content preserved; synthetic reads only.`);
+    console.log(`PASS English interface ${width}px: old locale ignored, language/dates, six Duet tabs, English emoji names with Chinese search, Chinese user content preserved; synthetic reads only.`);
   }
   await browser.close();
 }

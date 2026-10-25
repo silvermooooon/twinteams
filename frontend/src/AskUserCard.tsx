@@ -36,7 +36,7 @@ export function AskUserCard({ api, question: snapshot, onChanged, onOrigin }: { 
       if (!controller.signal.aborted) setBusy(false);
     }
   }
-  return <section className={`ask-user-card ${question.status}`} data-question-id={question.id} aria-label="Question from your Twin" aria-busy={busy}>
+  return <section className={`ask-user-card ${question.status}`} data-question-id={question.id} aria-label="Question from your Duet" aria-busy={busy}>
     <div className="ask-user-heading"><Icon name={question.status === 'answered' ? 'check' : question.status === 'cancelled' ? 'close' : 'reply'} size={16} /><strong>{question.status === 'pending' ? 'Waiting for your answer' : question.status === 'answered' ? 'Answered' : 'Dismissed'}</strong>{question.status === 'pending' && <IconButton icon="close" label="Dismiss question" size={15} disabled={busy} onClick={() => { void submit(); }} />}</div>
     <MessageMarkdown text={question.question} />
     {question.origin_chat_title && <a className="ask-user-origin" href="#/chat" onClick={event => { event.preventDefault(); onOrigin(question.origin_chat_id); }} title={`Open ${question.origin_chat_title}`}><Icon name="chat" size={13} /><span>From {question.origin_chat_title}</span><Icon name="arrow" size={13} /></a>}
@@ -44,7 +44,7 @@ export function AskUserCard({ api, question: snapshot, onChanged, onOrigin }: { 
       {!!question.options.length && <div className="ask-user-options" role="group" aria-label="Suggested answers">{question.options.map((option, index) => <button type="button" className="secondary-button" key={index} disabled={busy} onClick={() => { void submit(option); }}>{option}</button>)}</div>}
       <form className="ask-user-answer" onSubmit={event => { event.preventDefault(); void submit(answer); }}><textarea ref={input} rows={1} aria-label="Your answer" placeholder="Type an answer, or reply in the conversation" value={answer} disabled={busy} onChange={event => setAnswer(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(answer); } }} /><IconButton icon="send" label="Send answer" disabled={busy || !answer.trim()} onClick={() => { void submit(answer); }} /></form>
       <small className="ask-user-hint">You can keep chatting while this question is open.</small>
-    </> : question.status === 'answered' && question.answer !== null ? <div className="ask-user-saved-answer"><small>Your answer</small><p>{question.answer}</p></div> : <small className="ask-user-hint">Your Twin knows you chose not to answer.</small>}
+    </> : question.status === 'answered' && question.answer !== null ? <div className="ask-user-saved-answer"><small>Your answer</small><p>{question.answer}</p></div> : <small className="ask-user-hint">Your Duet knows you chose not to answer.</small>}
     {error && <p className="ask-user-error" role="alert">{error}</p>}
   </section>;
 }

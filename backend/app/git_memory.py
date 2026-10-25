@@ -56,7 +56,7 @@ class ManagedGitMemoryStore(GitMemoryStore):
                 prepared = Path(temporary) / "repo"
                 self._git(None, "init", "--quiet", "--bare", "--initial-branch=main", str(prepared))
                 tree = self._git(prepared, "hash-object", "-w", "-t", "tree", "/dev/null").stdout.decode().strip()
-                commit = self._git(prepared, "commit-tree", tree, "-m", "Initialize Twin memory").stdout.decode().strip()
+                commit = self._git(prepared, "commit-tree", tree, "-m", "Initialize Duet memory").stdout.decode().strip()
                 self._git(prepared, "update-ref", "refs/heads/main", commit, "0" * 40)
                 try:
                     os.rename(prepared, remote)
@@ -66,7 +66,7 @@ class ManagedGitMemoryStore(GitMemoryStore):
         exists = self._git(remote, "rev-parse", "--verify", "refs/heads/main", check=False)
         if exists.returncode:
             tree = self._git(remote, "hash-object", "-w", "-t", "tree", "/dev/null").stdout.decode().strip()
-            commit = self._git(remote, "commit-tree", tree, "-m", "Initialize Twin memory").stdout.decode().strip()
+            commit = self._git(remote, "commit-tree", tree, "-m", "Initialize Duet memory").stdout.decode().strip()
             # Native Git reference compare-and-swap chooses one initializer.
             self._git(remote, "update-ref", "refs/heads/main", commit, "0" * 40, check=False)
             self._git(remote, "rev-parse", "--verify", "refs/heads/main")

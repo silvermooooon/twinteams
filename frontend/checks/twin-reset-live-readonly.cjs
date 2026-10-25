@@ -27,7 +27,7 @@ async function run() {
   await page.getByRole('tab', { name: 'Profile', exact: true }).click(); const resetButton = page.getByRole('button', { name: 'Reset', exact: true });
   const background = await resetButton.evaluate(element => getComputedStyle(element).backgroundColor); const rgb = background.match(/\d+/g).map(Number); assert.ok(rgb[0] > rgb[1] && rgb[0] > rgb[2]);
   await resetButton.click(); await page.getByRole('button', { name: 'Confirm reset', exact: true }).waitFor(); assert.equal(await page.getByRole('dialog').getByRole('textbox').count(), 0);
-  await page.getByText('This clears your private Twin conversation and saved Memory. Personal scheduled tasks are paused.', { exact: true }).waitFor();
+  await page.getByText('This clears your private Duet conversation and saved Memory. Personal scheduled tasks are paused.', { exact: true }).waitFor();
   await page.screenshot({ path: '/tmp/twinteams-reset-live-desktop.png', fullPage: true }); await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('tab', { name: 'Memory', exact: true }).click(); await page.getByRole('button', { name: 'Dream now', exact: true }).waitFor();
   await page.getByText('Enabled · Git', { exact: true }).waitFor(); await page.screenshot({ path: '/tmp/twinteams-reset-live-memory.png', fullPage: true });

@@ -13,7 +13,7 @@ async function setup(width=1360,blockedStorage=false){
   const mock=await fixture(page,'zh-CN',true),errors=[],actions=[],sockets=[];page.on('pageerror',e=>errors.push(e.message));
   const makeMessage=(chat,id='source-message',seq=1)=>({id,chat_id:chat,seq,author_id:'owner-alex',kind:'human',body:'Synthetic retained message '+id,state:'published',created_at:'2026-10-22T00:00:00Z',read_by:[]});
   const makeRequest=(chat,id,source)=>({id,chat_id:chat,source_message_id:source,target_twin_id:'twin-alex',requester_id:'owner-alex',source:'private',status:'failed',error:'Synthetic failure diagnostic',accepted_at:'2026-10-22T00:00:01Z',can_retry:true,can_cancel:false});
-  const chats={'private-alex':mock.chat,'group-shared':mock.group,'private-maya':{...mock.chat,id:'private-maya',title:'Maya Twin',member_owner_ids:['owner-maya']}};
+  const chats={'private-alex':mock.chat,'group-shared':mock.group,'private-maya':{...mock.chat,id:'private-maya',title:'Maya Duet',member_owner_ids:['owner-maya']}};
   const state={owner:'owner-alex',messages:{},requests:{},revision:{}};
   for(const chat of Object.keys(chats)){state.messages[chat]=chat==='private-maya'?[]:[makeMessage(chat)];state.requests[chat]=chat==='private-maya'?[]:[makeRequest(chat,'message-failure','source-message'),makeRequest(chat,'composer-failure','older-source')];state.revision[chat]=1;}
   const reply=(route,value)=>route.fulfill({contentType:'application/json',body:JSON.stringify(value)});
@@ -64,7 +64,7 @@ async function alignment(){
   const h=await setup(),{page,state}=h;const other={...h.makeMessage('private-alex','twin-source',2),author_id:'twin-alex',kind:'twin'};state.messages['private-alex'].push(other);state.requests['private-alex'].push(h.makeRequest('private-alex','twin-message-failure',other.id));h.hint();await h.notice('twin-message-failure').waitFor();
   const own=await page.locator('[data-message-id="source-message"] .message-request-chips').evaluate(el=>getComputedStyle(el).justifyContent);
   const nonown=await page.locator('[data-message-id="twin-source"] .message-request-chips').evaluate(el=>getComputedStyle(el).justifyContent);
-  assert.equal(own,'flex-end');assert.notEqual(nonown,'flex-end');await page.screenshot({path:'/tmp/twinteams-failure-notice-alignment.png'});await h.finish('own failure chips right-aligned and Twin message chips retain left alignment');
+  assert.equal(own,'flex-end');assert.notEqual(nonown,'flex-end');await page.screenshot({path:'/tmp/twinteams-failure-notice-alignment.png'});await h.finish('own failure chips right-aligned and Duet message chips retain left alignment');
 }
 async function run(){browser=await chromium.launch({headless:true,channel:process.env.TWINTEAMS_BROWSER_CHANNEL||'chrome'});await dismissalAndScopes();await retryLifecycle(1360);await retryLifecycle(390);await storageUnavailable();await alignment();await browser.close();fs.writeFileSync('/tmp/twinteams-failure-notice-report.json',JSON.stringify({base,fixture_only:true,real_provider:false,tests:results},null,2));}
 run().catch(async error=>{console.error(error);await browser?.close();process.exitCode=1;});

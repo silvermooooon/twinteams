@@ -11,9 +11,22 @@ from app.twin_prompts import conversation_system, platform_prompt, request_promp
 def test_mission_is_server_owned_even_without_soul():
     prompt = conversation_system({"chat": {"kind": "private"}})
     assert platform_prompt({}) in prompt
-    assert "You are your owner's front-facing Twin." in platform_prompt({})
+    assert "You are your owner's front-facing Duet." in platform_prompt({})
     assert "Owner's Soul:" not in prompt
     assert len(prompt.split()) < 700
+
+
+@pytest.mark.parametrize("worker", [False, True])
+def test_duet_role_preserves_custom_personal_name_and_worker_identity(worker):
+    context = {"target_twin_name": "Elysia", "chat": {"kind": "private"},
+               "execution_config": {"profile": {"soul": "My Twin persona uses short answers."}}}
+    prompt = conversation_system(context, worker=worker)
+    identity = "a background worker for Elysia" if worker else "Elysia"
+    assert prompt.startswith(f"You are {identity}, your owner's Duet, working in this private conversation")
+    assert "Duet is the role; preserve personal names." in prompt
+    assert "Never identify as Twin/digital twin." in prompt
+    assert "My Twin persona uses short answers." in prompt
+    assert ("You are your owner's front-facing Duet." in prompt) == (not worker)
 
 
 def test_reply_for_me_keeps_embedded_requests_as_writing_content():
@@ -21,7 +34,7 @@ def test_reply_for_me_keeps_embedded_requests_as_writing_content():
     mission = platform_prompt(context)
     assert "message content, not as tasks to execute" in mission
     assert "Do not start unrelated work, delegate, or create ongoing goals" in mission
-    assert "You are your owner's front-facing Twin." not in mission
+    assert "You are your owner's front-facing Duet." not in mission
     assert "return only that message" in conversation_system(context)
     assert request_prompt({"source": "reply_for_me"}, context) == context["raw_owner_input"]
 
@@ -33,12 +46,12 @@ def test_worker_role_is_explicit_and_does_not_inherit_front_desk_or_parent_writi
     main = runtime._system(context, summary_maintenance=False)
     worker = runtime._system(context, summary_maintenance=False, worker=True)
     assert platform_prompt(context, worker=True) in worker
-    assert "You are a background worker for the owner's Twin." in worker
-    assert "You are your owner's front-facing Twin." not in worker
+    assert "You are a background worker for the owner's Duet." in worker
+    assert "You are your owner's front-facing Duet." not in worker
     assert "Reply-for-me instructions:" not in worker
     assert "return only that message" not in worker
-    assert "You are a background worker for the owner's Twin." not in main
-    assert ("You are your owner's front-facing Twin." in main) == (raw is None)
+    assert "You are a background worker for the owner's Duet." not in main
+    assert ("You are your owner's front-facing Duet." in main) == (raw is None)
     assert ("Reply-for-me instructions:" in main) == (raw is not None)
 
 

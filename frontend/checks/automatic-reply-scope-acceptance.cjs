@@ -43,13 +43,13 @@ async function scenario(kind, width) {
   const row = page.locator(`[data-message-id="${message.id}"]`); await row.waitFor();
   await page.locator('.connection-state.connected').waitFor({ state: 'attached' });
   await row.focus();
-  assert.equal(await page.getByRole('button', { name: /Ask my twin|Ask another twin|Choose a twin/i }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: /Ask my Duet|Ask another Duet|Choose a Duet/i }).count(), 0);
   assert.equal(await page.locator('.target-action, .target-menu').count(), 0);
   assert.equal(await row.getByTitle('Reply', { exact: true }).count(), 1);
   assert.equal(await row.getByTitle('Track this message', { exact: true }).count(), 1);
-  assert.equal(await row.locator('.failed-chip').filter({ hasText: "AAA's Twin" }).getByRole('button', { name: 'Retry', exact: true }).count(), 1);
+  assert.equal(await row.locator('.failed-chip').filter({ hasText: "AAA's Duet" }).getByRole('button', { name: 'Retry', exact: true }).count(), 1);
   if (kind !== 'private') {
-    assert.equal(await row.locator('.failed-chip').filter({ hasText: 'Maya Twin' }).getByRole('button', { name: 'Retry', exact: true }).count(), 0);
+    assert.equal(await row.locator('.failed-chip').filter({ hasText: 'Maya Duet' }).getByRole('button', { name: 'Retry', exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Continue automatically · 6 more replies', exact: true }).click();
     await page.getByRole('button', { name: 'Continuation authorized', exact: true }).waitFor();
     const continued = writes.find(call => call.path.endsWith('/automatic-conversations/chain/continue'));
@@ -68,7 +68,7 @@ async function scenario(kind, width) {
   assert.equal(Object.hasOwn(sent.payload, 'target_twin_id'), false);
   assert.equal(frames.filter(frame => frame.command === 'reply').length, 0);
   assert.equal(writes.filter(call => /\/chats\/[^/]+\/reply-requests$/.test(call.path)).length, 0);
-  assert.equal((await page.locator('body').innerText()).includes('ask a Twin manually'), false);
+  assert.equal((await page.locator('body').innerText()).includes('ask a Duet manually'), false);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
   const assets = await page.locator('script[src]').evaluateAll(nodes => nodes.map(node => new URL(node.src).pathname));

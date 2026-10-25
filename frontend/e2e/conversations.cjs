@@ -944,7 +944,7 @@ const cases = [
     },
   },
   {
-    name: "group resources / another participant invokes the Twin owner workspace and private Memory",
+    name: "group resources / another participant invokes the Duet owner workspace and private Memory",
     run: async (t) => {
       const alex = await t.session(),
         maya = await t.session("DEV-BBB", { baseURL: t.secondaryURL });
@@ -1001,7 +1001,7 @@ const cases = [
     },
   },
   {
-    name: "group delivery / Twin privately reports to its owner without copying private conversation into the group",
+    name: "group delivery / Duet privately reports to its owner without copying private conversation into the group",
     run: async (t) => {
       const alex = await t.session(),
         maya = await t.session("DEV-BBB", { baseURL: t.secondaryURL });

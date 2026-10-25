@@ -31,7 +31,7 @@ async function setup(width, locale = 'en', reducedMotion = 'reduce') {
 }
 async function desktop() {
   const { context, page, row, requests, errors } = await setup(1360);
-  assert.equal(await row.getByRole('button', { name: 'Ask my twin', exact: true }).count(), 0);
+  assert.equal(await row.getByRole('button', { name: 'Ask my Duet', exact: true }).count(), 0);
   await row.getByRole('button', { name: 'More reactions', exact: true }).click();
   const picker = page.locator('.reaction-picker'); await picker.getByLabel('Search emoji', { exact: true }).waitFor();
   assert.equal(await picker.getByRole('tab').count(), 10);

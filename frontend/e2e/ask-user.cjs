@@ -19,7 +19,7 @@ async function create(page, inbox, label) {
 async function resumed(page, inbox, value) {
   const inboxDetail = await detail(page, inbox.id);
   const message = inboxDetail.messages.find(message => message.id === value.message_id);
-  assert.ok(message, 'question belongs to a persisted Twin message');
+  assert.ok(message, 'question belongs to a persisted Duet message');
   return poll(async () => {
     // ChatDetail intentionally projects only queued/running/failed requests.
     // The guarded fixture exposes the actual all-status journal for completion.

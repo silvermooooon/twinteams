@@ -10,7 +10,7 @@ def backfill_activity():
             INSERT INTO tt_activity_runs
                 (session_id,run_id,chat_id,owner_id,parent_run_id,source,status,title,summary,started_at,finished_at)
             SELECT runs.session_id,runs.run_id,request.chat_id,actor.owner_id,NULL,runs.source,runs.status,
-                   left(coalesce(request.input_body,request.raw_owner_input,message.body,'Twin response'),180),
+                   left(coalesce(request.input_body,request.raw_owner_input,message.body,'Duet response'),180),
                    NULL,runs.started_at,runs.finished_at
             FROM tt_reply_requests request
             JOIN tt_actors actor ON actor.id=request.target_twin_id

@@ -84,7 +84,7 @@ async function openSidebar(page, tab) {
 
 const cases = [
   {
-    name: "live continuous workflow / private goal, peer Twin collaboration, real deliverable, autonomous Tracking and later resumption",
+    name: "live continuous workflow / private goal, peer Duet collaboration, real deliverable, autonomous Tracking and later resumption",
     timeout: 900000,
     run: async (t) => {
       const code = randomUUID().slice(0, 8),
@@ -565,7 +565,7 @@ const cases = [
               ),
             };
           },
-          "A Twin records the new public-only blocker in its actual group topic",
+          "A Duet records the new public-only blocker in its actual group topic",
           { timeout: 180000, interval: 1500 },
         );
       } catch (error) {

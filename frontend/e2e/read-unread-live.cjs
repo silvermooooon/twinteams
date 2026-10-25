@@ -36,7 +36,7 @@ async function startChat(page, names, title) {
 }
 
 async function enterChat(page, chatId) {
-  // Return from My Twin through its real UI; a reload does not stand in for focus.
+  // Return from My Duet through its real UI; a reload does not stand in for focus.
   if (await page.getByRole('button', { name: 'Back to chats', exact: true }).isVisible())
     await page.getByRole('button', { name: 'Back to chats', exact: true }).click();
   const chat = await poll(async () => (await api(page, '/bootstrap')).chats.find(c => c.id === chatId),
@@ -114,7 +114,7 @@ const cases = [{
     t.record('boundaries', { realModel: 'gpt-6-luna', realWaitSeconds: 10,
       productionAccounts: false, fakeClock: false, routeSettlement: false,
       directReadApi: false, focusVisibilityOverrides: false,
-      unreadSetup: 'Recipient uses real My Twin Profile UI; target-chat messages are not mounted, owner remains online.' });
+      unreadSetup: 'Recipient uses real My Duet Profile UI; target-chat messages are not mounted, owner remains online.' });
 
     for (const kind of ['pair', 'group']) {
       const label = t.unique(kind);
@@ -237,7 +237,7 @@ const cases = [{
       assert.equal(finalFirst.outputs.length, 0);
       const finalSecond = evidence(finalSnapshot, second.id);
       assert.equal(finalSecond.requests.length, 1, 'M2 remains exactly one request after another full response window');
-      assert.equal(finalSecond.outputs.length, 1, 'M2 remains exactly one canonical Twin reply');
+      assert.equal(finalSecond.outputs.length, 1, 'M2 remains exactly one canonical Duet reply');
       t.record(kind + '_M3', { ...third, left: leftM3, receipt: thirdReceipt, actual: thirdState,
         checkedAfterMs: Date.now() - new Date(third.createdAt).getTime() });
       results.push({ kind, chatId: chat.id, M1: first.id, M2: second.id, M3: third.id,

@@ -75,7 +75,7 @@ async function lifecycle(width) {
   const before = await input.boundingBox();
   await row.evaluate(node => { window.__privateStatusRow = node; });
   state.requests = [{ ...first, status: 'running' }];
-  const started = Date.now(); await refresh(); await row.getByText('Your twin is typing', { exact: true }).waitFor();
+  const started = Date.now(); await refresh(); await row.getByText('Your Duet is typing', { exact: true }).waitFor();
   assert.ok(Date.now() - started < 1500, 'private status must not introduce a 10-second delay');
   assert.equal(await row.getAttribute('data-reply-phase'), 'running');
   assert.equal(await row.evaluate(node => window.__privateStatusRow === node), true, 'queued→running must preserve the status row');
@@ -122,7 +122,7 @@ async function groupUnchanged(width) {
   assert.equal(await page.getByText('Preparing a reply…', { exact: true }).count(), 0);
   assert.equal(await page.locator('[data-message-id=m1] .queue-chip').count(), 1);
   state.requests = [{ ...first, status: 'running' }]; await refresh();
-  await page.locator('.typing-row').getByText('Your twin is typing', { exact: true }).waitFor();
+  await page.locator('.typing-row').getByText('Your Duet is typing', { exact: true }).waitFor();
   await page.locator('.typing-row').getByRole('button', { name: 'Stop replying', exact: true }).waitFor();
   await finish('group-unchanged');
 }
@@ -141,7 +141,7 @@ async function memoryHead(width) {
   state.requests = [second, { ...dream, status: 'running' }]; await refresh();
   await row.getByText('Organizing memory…', { exact: true }).waitFor();
   assert.equal(await row.evaluate(node => window.__memoryStatusRow === node), true);
-  assert.equal(await page.getByText('Your twin is typing', { exact: true }).count(), 0);
+  assert.equal(await page.getByText('Your Duet is typing', { exact: true }).count(), 0);
   state.requests = [second]; await refresh();
   await row.getByText('Preparing a reply…', { exact: true }).waitFor();
   assert.equal(await row.getAttribute('data-request-id'), 'r2');

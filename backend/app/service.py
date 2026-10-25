@@ -278,9 +278,9 @@ class ProductService:
                     continue
                 db.add(Owner(id=owner_id, auth_subject=f"local:{slug}"))
                 db.flush()
-                db.add_all([Actor(id=owner_id, owner_id=owner_id, kind="human", name=name, initials=initials, color=color), Actor(id=f"twin-{slug}", owner_id=owner_id, kind="twin", name=f"{name.split()[0]}'s Twin", initials=f"{initials[0]}T", color="#6dbdad")])
+                db.add_all([Actor(id=owner_id, owner_id=owner_id, kind="human", name=name, initials=initials, color=color), Actor(id=f"twin-{slug}", owner_id=owner_id, kind="twin", name=f"{name.split()[0]}'s Duet", initials=f"{initials[0]}D", color="#6dbdad")])
                 db.flush()
-                chat = Chat(id=f"private-{slug}", kind="private", title=f"{name.split()[0]}'s Twin", private_owner_id=owner_id)
+                chat = Chat(id=f"private-{slug}", kind="private", title=f"{name.split()[0]}'s Duet", private_owner_id=owner_id)
                 db.add(chat)
                 db.flush()
                 db.add(Membership(chat_id=chat.id, owner_id=owner_id, history_policy="all", lower_seq=1))
@@ -375,7 +375,7 @@ class ProductService:
     def twin(self, db, owner_id):
         twin = db.scalar(select(Actor).where(Actor.owner_id == owner_id, Actor.kind == "twin"))
         if not twin:
-            fail(409, "Owner has no paired twin")
+            fail(409, "Owner has no paired Duet")
         return twin
 
     def actor_json(self, actor):
@@ -786,7 +786,7 @@ class ProductService:
             fail(400, "Invalid history policy")
         others = list(dict.fromkeys([owner_id, *owner_ids]))
         if len(others) < 2:
-            fail(400, "Group chats require at least two owners; use your private chat for your own Twin")
+            fail(400, "Group chats require at least two owners; use your private chat for your own Duet")
         created = True
         names = list(db.scalars(select(Actor.name).where(Actor.owner_id.in_(others), Actor.kind == "human")))
         title = title.strip() if title and len(others) >= 3 else None
@@ -857,7 +857,7 @@ class ProductService:
         self._validate_owner_ids(owner_ids)
         chat, member = self.membership(db, owner_id, chat_id, True)
         if chat.kind != "group":
-            fail(409, "Create a group chat to add paired owners and Twins; private chats stay private")
+            fail(409, "Create a group chat to add paired owners and Duets; private chats stay private")
         was_pair = len(self.members(db, chat.id)) == 2
         self.add_members_locked(db, chat, owner_ids, history_policy)
         current_ids = [row.owner_id for row in self.members(db, chat.id)]
@@ -1070,7 +1070,7 @@ class ProductService:
             fail(409, "Private reset cleanup is pending; retry the original reset")
         target = db.get(Actor, target_twin_id)
         if not target or target.kind != "twin":
-            fail(400, "Target must be a paired Twin")
+            fail(400, "Target must be a paired Duet")
         self.membership(db, target.owner_id, chat.id)
         member = self.membership(db, requester_id, chat.id)[1]
         if source_message_id:
@@ -1198,7 +1198,7 @@ class ProductService:
             chat, member = self.membership(db, owner_id, chat_id, True)
             target = db.get(Actor, target_twin_id)
             if not target or target.kind != "twin" or target.owner_id != owner_id:
-                fail(403, "You can request replies only from your own Twin")
+                fail(403, "You can request replies only from your own Duet")
             source = self.visible_message(db, member, message_id)
             if not self.message_has_model_input(db, source):
                 fail(400, "This message has no text or files to send to the model")
@@ -1539,10 +1539,10 @@ class ProductService:
         db.refresh(request, with_for_update=True)
         target = db.get(Actor, request.target_twin_id)
         if owner_id not in {request.requester_id, target.owner_id}:
-            fail(403, "Only the requester or target Twin owner may access cancellation")
+            fail(403, "Only the requester or target Duet owner may access cancellation")
         if request.status == "queued":
             if owner_id not in {request.requester_id, target.owner_id}:
-                fail(403, "Only the requester or target Twin's owner can cancel this queued request")
+                fail(403, "Only the requester or target Duet's owner can cancel this queued request")
             request.status = "cancelled"
             request.cancel_requested = True
             if request.source == "memory_dream":
@@ -1553,7 +1553,7 @@ class ProductService:
             result = self.request_json(db, request, owner_id)
         elif request.status == "running":
             if owner_id != target.owner_id:
-                fail(403, "Only the target Twin's owner can stop a running reply")
+                fail(403, "Only the target Duet's owner can stop a running reply")
             request.cancel_requested = True
             self.withdraw_outputs(db, request)
             command = db.get(DispatchCommand, request.id)
@@ -1603,7 +1603,7 @@ class ProductService:
         db.refresh(old, with_for_update=True)
         target = db.get(Actor, old.target_twin_id)
         if (not automatic and owner_id != target.owner_id) or (automatic and owner_id not in {old.requester_id, target.owner_id}):
-            fail(403, "Only the target Twin's owner can manually retry")
+            fail(403, "Only the target Duet's owner can manually retry")
         self._check_private_request(db, old)
         if old.source == "memory_dream":
             fail(409, "Memory dreams use fresh scheduled attempts; uncertain publication requires reconciliation")
@@ -1673,7 +1673,7 @@ class ProductService:
         if task:
             twin = db.get(Actor, request.target_twin_id)
             if chat.kind != "private" or chat.private_owner_id != context.get("owner_id") or twin.owner_id != chat.private_owner_id:
-                fail(403, "Scheduled execution requires the owner's private Twin")
+                fail(403, "Scheduled execution requires the owner's private Duet")
             member = self.membership(db, twin.owner_id, chat.id)[1]
             if not self.provenance_allowed(db, member, self.manifest_provenance(db, request.id)):
                 fail(409, "Scheduled runtime sources are no longer authorized")
@@ -2717,7 +2717,7 @@ class ProductService:
         if name == "create_reminder":
             requester = context.get("request_requester_id", owner_id)
             if requester != owner_id and not context.get("approved_approval_id"):
-                fail(403, "Another participant cannot create personal reminders for this Twin's owner")
+                fail(403, "Another participant cannot create personal reminders for this Duet's owner")
             due = args.get("due_at")
             if isinstance(due, str):
                 try:
@@ -2772,22 +2772,22 @@ class ProductService:
     def _message_tool_origin(self, db, context):
         request = db.get(ReplyRequest, context.get("request_id"))
         if not request or request.cancel_requested or request.status in {"failed", "cancelled"}:
-            fail(403, "Twin messaging requires an authorized originating request")
+            fail(403, "Duet messaging requires an authorized originating request")
         twin = db.get(Actor, request.target_twin_id)
         chat, member = self.membership(db, twin.owner_id, request.chat_id)
         context_chat = context.get("chat", {})
         context_chat_id = context_chat.get("id") if isinstance(context_chat, dict) else context_chat
         if (context_chat_id and context_chat_id != chat.id) or (context.get("chat_id") and context["chat_id"] != chat.id):
-            fail(403, "Twin messaging cannot replace its originating chat")
+            fail(403, "Duet messaging cannot replace its originating chat")
         manifest = db.get(ContextManifest, context.get("context_manifest_id"))
         if context.get("owner_id") != twin.owner_id or context.get("target_twin_id") != twin.id or not manifest or manifest.request_id != request.id or manifest.owner_id != twin.owner_id:
-            fail(403, "Twin messaging has no matching model-input provenance")
+            fail(403, "Duet messaging has no matching model-input provenance")
         if context.get("causal_chain_id") and context["causal_chain_id"] != self.request_chain(db, request).id:
-            fail(403, "Twin messaging cannot replace its causal lineage")
+            fail(403, "Duet messaging cannot replace its causal lineage")
         if context.get("main_session_id") and request.session_id and context["main_session_id"] != request.session_id:
-            fail(403, "Twin messaging belongs to another originating session")
+            fail(403, "Duet messaging belongs to another originating session")
         if context.get("main_run_id") and request.run_id and context["main_run_id"] != request.run_id:
-            fail(403, "Twin messaging belongs to another originating run")
+            fail(403, "Duet messaging belongs to another originating run")
         inherited = self.manifest_provenance(db, request.id)
         if not self.provenance_allowed(db, member, inherited):
             fail(409, "Originating context is no longer authorized")
@@ -2810,9 +2810,9 @@ class ProductService:
         body = args.get("body")
         source_ids = args.get("source_message_ids", [])
         if not isinstance(body, str) or not body.strip():
-            fail(400, "Twin message body must contain text")
+            fail(400, "Duet message body must contain text")
         if not isinstance(source_ids, list) or len(source_ids) > 500 or not all(isinstance(source_id, str) for source_id in source_ids):
-            fail(400, "Twin message source_message_ids must be message IDs")
+            fail(400, "Duet message source_message_ids must be message IDs")
         target, target_member = self.membership(db, twin.owner_id, args.get("chat_id"), True)
         if target.id == origin.id:
             fail(400, "Use your normal assistant reply for the current chat; send_chat_message is only for other chats")
@@ -2828,7 +2828,7 @@ class ProductService:
             fail(400, "wait_for_reply must be a boolean")
         if wait_for_reply and (origin.kind != "private" or origin.private_owner_id != twin.owner_id
                 or request.requester_id != twin.owner_id or target.id == origin.id or target.kind != "group"):
-            fail(403, "Reply followup is available only from your own private Twin to an existing authorized group")
+            fail(403, "Reply followup is available only from your own private Duet to an existing authorized group")
         explicit = []
         for source_id in dict.fromkeys(source_ids):
             source = db.get(Message, source_id)

@@ -74,7 +74,7 @@ def get_twin(owner: OwnerIdentity):
 def patch_twin(data: TwinPatch, owner: OwnerIdentity):
     values = data.model_dump(exclude_unset=True)
     if "name" in values and values["name"] is None:
-        fail(422, "Twin name cannot be null")
+        fail(422, "Duet name cannot be null")
     return personal.patch_twin(owner, values)
 
 

@@ -126,7 +126,7 @@ const cases = [
       const original = (await api(page, "/me/twin")).actor;
       await openTwinTab(page, "Profile");
       const name = "E2E Twin " + t.unique("profile");
-      await page.getByLabel("Twin name", { exact: true }).fill(name);
+      await page.getByLabel("Duet name", { exact: true }).fill(name);
       await button(page, "Save").click();
       await saved(page, "/me/twin", (v) => v.actor.name === name);
       await button(page, "Choose avatar").click();
@@ -137,9 +137,9 @@ const cases = [
       await dialog(page).waitFor({ state: "hidden" });
       await saved(page, "/me/twin", (v) => v.actor.avatar_preset === "wave");
       await page.reload();
-      await page.getByLabel("Twin name", { exact: true }).waitFor();
+      await page.getByLabel("Duet name", { exact: true }).waitFor();
       assert.equal(
-        await page.getByLabel("Twin name", { exact: true }).inputValue(),
+        await page.getByLabel("Duet name", { exact: true }).inputValue(),
         name,
       );
       await poll(
@@ -161,7 +161,7 @@ const cases = [
       assert.notEqual((await api(peer.page, "/me/twin")).actor.id, original.id);
       assert.notEqual((await api(peer.page, "/me/twin")).actor.name, name);
       await openTwinTab(page, "Profile");
-      await page.getByLabel("Twin name", { exact: true }).fill(original.name);
+      await page.getByLabel("Duet name", { exact: true }).fill(original.name);
       await button(page, "Save").click();
       await saved(page, "/me/twin", (v) => v.actor.name === original.name);
       t.record("runtime", {

@@ -37,7 +37,7 @@ const cases = [
       const previewRequests = [];
       page.on('request', request => { if (request.method() === 'GET' && new URL(request.url()).pathname.endsWith('/preview')) previewRequests.push(new URL(request.url()).pathname); });
       await sendMessage(page, `E2E FILE_PREVIEW ${label}`);
-      const delivered = await poll(async () => (await api(page, '/chats/' + chat.id)).messages.find(message => message.kind === 'twin' && message.attachments?.length === 4 && message.attachments.some(file => file.name === label + '.html')), 'published Twin file delivery', { timeout: 45000 });
+      const delivered = await poll(async () => (await api(page, '/chats/' + chat.id)).messages.find(message => message.kind === 'twin' && message.attachments?.length === 4 && message.attachments.some(file => file.name === label + '.html')), 'published Duet file delivery', { timeout: 45000 });
       const row = page.locator(`article[data-message-id="${delivered.id}"]`);
       await row.waitFor();
       const byExtension = Object.fromEntries(delivered.attachments.map(file => [file.name.split('.').pop(), file]));

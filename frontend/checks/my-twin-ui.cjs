@@ -8,7 +8,7 @@ let activePage; let activeBrowser;
 
 async function fixture(page, locale = 'en', withGroup = false) {
   const owner = { id: 'owner-alex', owner_id: 'owner-alex', kind: 'human', name: 'AAA', initials: 'AA', color: '#7962bd' };
-  let twin = { id: 'twin-alex', owner_id: 'owner-alex', kind: 'twin', name: "AAA's Twin", initials: 'AT', color: '#6dbdad', avatar_preset: null, avatar_url: null, profile_revision: 1 };
+  let twin = { id: 'twin-alex', owner_id: 'owner-alex', kind: 'twin', name: "AAA's Duet", initials: 'AT', color: '#6dbdad', avatar_preset: null, avatar_url: null, profile_revision: 1 };
   let skills = [{ name: 'writer', description: 'Write clear documents', enabled: true, available: true, error: null }, { name: 'research', description: 'Gather context', enabled: false, available: true, error: null }];
   let credentials = [{ name: 'service-api', ref: 'service-api', description: 'Test service', keynames: ['TOKEN'] }];
   let requests = [{ id: 'request-1', owner_id: owner.id, chat_id: 'private-alex', origin_request_id: 'origin-1', name: 'service-api', ref: 'service-api', description: 'Service access', keynames: ['TOKEN'], reason: 'Connect the test service', status: 'pending', created_at: '2026-10-18T01:00:00Z' }];
@@ -17,7 +17,7 @@ async function fixture(page, locale = 'en', withGroup = false) {
   const nextCommit = () => (++memoryVersion).toString(16).padStart(40, '0');
   let reset = {generation:0,status:'ready',reset_id:null,private_chat_id:'private-alex'}; let resetFailure = false; let resetDelay = 0; const resets = new Map(); let dreamStatus = 'scheduled';
   const calls = []; const sockets = []; let failSave = false;
-  const peers = ['Maya', 'Lin'].flatMap((name,index) => [{ id:'owner-'+name.toLowerCase(),owner_id:'owner-'+name.toLowerCase(),kind:'human',name,initials:name.slice(0,1),color:index ? '#c7885b' : '#368b71' },{ id:'twin-'+name.toLowerCase(),owner_id:'owner-'+name.toLowerCase(),kind:'twin',name:name+' Twin',initials:name.slice(0,1)+'T',color:'#678bbb' }]);
+  const peers = ['Maya', 'Lin'].flatMap((name,index) => [{ id:'owner-'+name.toLowerCase(),owner_id:'owner-'+name.toLowerCase(),kind:'human',name,initials:name.slice(0,1),color:index ? '#c7885b' : '#368b71' },{ id:'twin-'+name.toLowerCase(),owner_id:'owner-'+name.toLowerCase(),kind:'twin',name:name+' Duet',initials:name.slice(0,1)+'T',color:'#678bbb' }]);
   const group = {id:'group-shared',kind:'group',title:'Shared team',member_owner_ids:[owner.id,'owner-maya','owner-lin'],unread_count:0,last_message:'Group content kept'};
   const chat = () => ({ id: 'private-alex', kind: 'private', title: twin.name, member_owner_ids: [owner.id], unread_count: 0, revision: 1 });
   const reply = (route, data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
@@ -70,8 +70,8 @@ async function run() {
   const mock = await fixture(page);
   await page.goto(`${base}/#chat`);
   await page.getByRole('button', { name: 'Account', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'My Twin' }).click();
-  await page.getByLabel('Twin name', { exact: true }).fill('Orbit Twin');
+  await page.getByRole('menuitem', { name: 'My Duet' }).click();
+  await page.getByLabel('Duet name', { exact: true }).fill('Orbit Twin');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByText('Saved', { exact: true }).waitFor();
   assert.equal(await page.locator('.account-name').innerText(), 'AAA');
@@ -144,7 +144,7 @@ async function run() {
   assert.equal(await page.getByRole('tab', { name: 'Profile', exact: true }).getAttribute('aria-selected'), 'true');
   await page.screenshot({ path: '/tmp/twinteams-my-twin-desktop.png', fullPage: true });
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' }); const mobilePage = await mobile.newPage(); await fixture(mobilePage, 'zh-CN');
-  await mobilePage.goto(`${base}/#/my-twin/profile`); await mobilePage.getByLabel('Twin name', { exact: true }).waitFor();
+  await mobilePage.goto(`${base}/#/my-twin/profile`); await mobilePage.getByLabel('Duet name', { exact: true }).waitFor();
   assert.equal(await mobilePage.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await mobilePage.getByRole('button', { name: 'Choose avatar', exact: true }).click();
   assert.equal(await mobilePage.getByRole('dialog').getByRole('button', { name: /^Default avatar/ }).count(), 6);

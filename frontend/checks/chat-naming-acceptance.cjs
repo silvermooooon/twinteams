@@ -9,7 +9,7 @@ async function scenario(viewer){
  const context=await browser.newContext({viewport:{width:1360,height:900},reducedMotion:'reduce'});
  const page=await context.newPage();const mock=await fixture(page,'en',true);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const humans=['alex','maya','jordan'].map((slug,i)=>({id:`owner-${slug}`,owner_id:`owner-${slug}`,kind:'human',name:['AAA','BBB','CCC'][i],initials:['AA','BB','CC'][i],color:'#7962bd'}));
- const twins=humans.map(h=>({id:h.id.replace('owner','twin'),owner_id:h.id,kind:'twin',name:`${h.name}'s Twin`,initials:'TT',color:'#6dbdad'}));
+ const twins=humans.map(h=>({id:h.id.replace('owner','twin'),owner_id:h.id,kind:'twin',name:`${h.name}'s Duet`,initials:'TT',color:'#6dbdad'}));
  const owner=humans[viewer],twin=twins[viewer],peer=humans[viewer?0:1];
  const privateId=`private-${viewer?'maya':'alex'}`;
  let tripleName='Launch group',failRename=false;const writes=[];
@@ -35,7 +35,7 @@ async function scenario(viewer){
  });
  await page.goto(base+'/#/chat');await page.locator('.composer textarea').waitFor();
  const input=page.locator('.composer textarea');
- assert.equal(await page.locator('.twin-toggle').count(),0,'Own Twin hides reply-for-me even when persisted true');
+ assert.equal(await page.locator('.twin-toggle').count(),0,'Own Duet hides reply-for-me even when persisted true');
  assert.equal(await page.locator('.mode-hint').count(),0);assert.equal(await page.locator('.composer.reply-mode').count(),0);
  const normalPlaceholder=await input.getAttribute('placeholder');
  await input.fill('Synthetic private input');await page.locator('.send-button').click();
