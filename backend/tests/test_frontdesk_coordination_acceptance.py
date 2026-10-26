@@ -51,6 +51,9 @@ def test_actual_main_and_child_factories_keep_coordination_out_of_worker_role(pr
             main_tools = {row["name"] for row in parent.snapshot["tools"]}
             assert {"spawn_agent", "get_agent", "send_agent_message", "wait_agent", "stop_agent"} <= main_tools
             assert platform_prompt(context) in captured[0].messages[0]["content"]
+            main_system = captured[0].messages[0]["content"]
+            assert ("Use set_message_reaction proactively" in main_system) == (not reply_for_me)
+            assert ("Routine current-chat reactions attributed to your Duet" in main_system) == (not reply_for_me)
             frozen_before = personal.get_execution_config(request["id"])
             with product.transaction() as db:
                 chain = db.get(CausalChain, request["causal_chain_id"])
@@ -70,6 +73,9 @@ def test_actual_main_and_child_factories_keep_coordination_out_of_worker_role(pr
             assert platform_prompt(context) not in worker_system
             assert "Reply-for-me instructions:" not in worker_system
             assert "This request is reply-for-me: transform" not in worker_system
+            assert "Use set_message_reaction proactively" not in worker_system
+            assert "Routine current-chat reactions attributed to your Duet" not in worker_system
+            assert "Automatic reply trigger:" not in worker_system
             assert child.info.user_id == parent.info.user_id == "owner-alex"
             names = {tool.name for tool in worker.state.tools}
             assert {"spawn_agent", "get_agent", "send_agent_message", "wait_agent", "stop_agent"} <= names

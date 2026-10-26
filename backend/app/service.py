@@ -1126,7 +1126,7 @@ class ProductService:
             consume_reply(self, db, msg)
         return msg
 
-    def accept_request(self, db, chat, target_twin_id, requester_id, source, key, source_message_id=None, raw=None, prompt=None, reply_to=None, generation=0, intent_key=None, input_body=None, causal_chain_id=None, automatic_reservation_id=None, source_owner_id=None, input_attachment_ids=None, command_fingerprint=None):
+    def accept_request(self, db, chat, target_twin_id, requester_id, source, key, source_message_id=None, raw=None, prompt=None, reply_to=None, generation=0, intent_key=None, input_body=None, causal_chain_id=None, automatic_reservation_id=None, source_owner_id=None, input_attachment_ids=None, command_fingerprint=None, automatic_reply=None):
         if chat.kind == "private" and chat.reset_pending:
             fail(409, "Private reset cleanup is pending; retry the original reset")
         target = db.get(Actor, target_twin_id)
@@ -1183,6 +1183,11 @@ class ProductService:
             candidate = db.scalar(select(TriggerCandidate).where(TriggerCandidate.message_id == source_message_id, TriggerCandidate.target_twin_id == target_twin_id))
             if candidate:
                 candidate.state, candidate.accepted_request_id = "accepted", request.id
+                if chat.kind == "group" and source == "auto" and automatic_reply is not None:
+                    # Keep the original admission observation even when retry
+                    # generations replace candidate.accepted_request_id.
+                    candidate.evidence = {**(candidate.evidence or {}),
+                        "automatic_reply": automatic_reply, "automatic_reply_request_id": request.id}
         db.flush()
         return request
 
@@ -1615,7 +1620,9 @@ class ProductService:
                         candidate.state = "suppressed"
                         candidate.evidence = {**candidate.evidence, "suppression": "same_source_owner"}
                     else:
-                        self.accept_request(db, chat, target.id, source_owner, "private" if chat.kind == "private" else "auto", f"auto:{message.id}:{target.id}", source_message_id=message.id, causal_chain_id=candidate.causal_chain_id)
+                        automatic_reply = {"reason": "owner_online_unread" if online else "owner_offline",
+                            "owner_id": target.owner_id, "observed_at": iso(now())} if chat.kind == "group" else None
+                        self.accept_request(db, chat, target.id, source_owner, "private" if chat.kind == "private" else "auto", f"auto:{message.id}:{target.id}", source_message_id=message.id, causal_chain_id=candidate.causal_chain_id, automatic_reply=automatic_reply)
                 changed.add(chat.id)
         for chat_id in changed:
             self.publish_event(chat_id, {"type": "changed"})
@@ -1820,6 +1827,27 @@ class ProductService:
             self.request_chain(db, request)
             return self.request_payload(request)
 
+    def automatic_reply_context(self, db, request, chat, twin):
+        """Historical admission evidence for a group auto intent and its retries."""
+        if chat.kind != "group" or request.source not in {"auto", "retry", "tool_retry"} or request.raw_owner_input is not None or not request.source_message_id:
+            return None
+        candidate = db.scalar(select(TriggerCandidate).where(
+            TriggerCandidate.message_id == request.source_message_id,
+            TriggerCandidate.target_twin_id == request.target_twin_id))
+        evidence = candidate.evidence if candidate else None
+        if not isinstance(evidence, dict):
+            return None
+        observation = evidence.get("automatic_reply")
+        origin_id = evidence.get("automatic_reply_request_id")
+        if not isinstance(observation, dict) or not isinstance(origin_id, str):
+            return None
+        origin = db.get(ReplyRequest, origin_id)
+        if not origin or origin.source != "auto" or origin.intent_key != request.intent_key or origin.chat_id != chat.id or origin.target_twin_id != twin.id or origin.source_message_id != request.source_message_id:
+            return None
+        if observation.get("reason") not in {"owner_offline", "owner_online_unread"} or observation.get("owner_id") != twin.owner_id or not isinstance(observation.get("observed_at"), str):
+            return None
+        return {key: observation[key] for key in ("reason", "owner_id", "observed_at")}
+
     def get_runtime_context(self, request_id, include_completed=False):
         with self.transaction() as db:
             request = db.get(ReplyRequest, request_id)
@@ -1872,7 +1900,7 @@ class ProductService:
             file_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
             files = self.attachment_references(db, file_ids, member, private_request=request if request.raw_owner_input is not None else None)
             from .onboarding import context_for_request
-            return {"pending_questions": pending, "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": conversation["messages"], "_summary_scope": summary_scope, "context_incomplete": conversation["context_incomplete"], "source_message": self.message_json(db, source_message, member, cache=checked) if source_message else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+            return {"automatic_reply": self.automatic_reply_context(db, request, chat, twin), "pending_questions": pending, "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": conversation["messages"], "_summary_scope": summary_scope, "context_incomplete": conversation["context_incomplete"], "source_message": self.message_json(db, source_message, member, cache=checked) if source_message else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
 
     def get_conversation_context(self, scope):
         from .conversation_context import get_context

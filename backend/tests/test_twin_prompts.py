@@ -13,7 +13,7 @@ def test_mission_is_server_owned_even_without_soul():
     assert platform_prompt({}) in prompt
     assert "You are your owner's front-facing Duet." in platform_prompt({})
     assert "Owner's Soul:" not in prompt
-    assert len(prompt.split()) < 700
+    assert len(prompt.split()) < 850
 
 
 @pytest.mark.parametrize("worker", [False, True])
@@ -53,6 +53,54 @@ def test_worker_role_is_explicit_and_does_not_inherit_front_desk_or_parent_writi
     assert "You are a background worker for the owner's Duet." not in main
     assert ("You are your owner's front-facing Duet." in main) == (raw is None)
     assert ("Reply-for-me instructions:" in main) == (raw is not None)
+    assert "Use set_message_reaction proactively" not in worker
+    assert ("Use set_message_reaction proactively" in main) == (raw is None)
+    assert ("Routine current-chat reactions attributed to your Duet" in main) == (raw is None)
+    assert "Routine current-chat reactions attributed to your Duet" not in worker
+
+
+@pytest.mark.parametrize("reason,expected", [
+    ("owner_offline", "your owner was observed offline"),
+    ("owner_online_unread", "your owner was observed online but had not read the source message"),
+])
+@pytest.mark.parametrize("source", ["auto", "retry", "tool_retry"])
+def test_automatic_trigger_is_historical_system_guidance_without_changing_input(reason, expected, source):
+    context = automatic_context(reason=reason, source=source)
+    runtime = RuntimeBridge.__new__(RuntimeBridge)
+    system = runtime._system(context)
+    assert expected in system and context["automatic_reply"]["observed_at"] in system
+    assert "historical trigger evidence, not current presence or owner agreement" in system
+    assert "You are covering your owner within existing scope" in system
+    assert "disclose presence to others only if necessary" in system
+    assert request_prompt({"source": source}, context) == "Please check the date."
+    assert "Automatic reply trigger:" not in runtime._system(context, worker=True)
+
+
+def automatic_context(*, reason="owner_offline", source="auto"):
+    return {
+        "owner_id": "owner-a", "request_source": source, "source_message_id": "message-a",
+        "chat": {"id": "group-a", "kind": "group"},
+        "source_message": {"id": "message-a", "kind": "twin", "author_owner_id": "owner-b",
+                           "body": "Please check the date."},
+        "automatic_reply": {"owner_id": "owner-a", "reason": reason,
+                            "observed_at": "2026-10-26T01:02:03+00:00"},
+    }
+
+
+@pytest.mark.parametrize("override", [
+    {"automatic_reply": None},
+    {"automatic_reply": {"owner_id": "owner-a", "reason": "unknown", "observed_at": "2026-10-26T01:02:03Z"}},
+    {"automatic_reply": {"owner_id": "owner-b", "reason": "owner_offline", "observed_at": "2026-10-26T01:02:03Z"}},
+    {"automatic_reply": {"owner_id": "owner-a", "reason": "owner_offline"}},
+    {"request_source": "private"}, {"request_source": "reply_for_me"},
+    {"request_source": "manual"}, {"request_source": "subagent_result"},
+    {"request_source": "question_result"}, {"request_source": "followup_result"},
+    {"chat": {"kind": "private"}}, {"raw_owner_input": "Ready-to-send text"},
+    {"owner_id": "owner-b"}, {"source_message_id": "different-message"}, {"source_message": None},
+])
+def test_automatic_trigger_guidance_rejects_inapplicable_or_incomplete_evidence(override):
+    context = {**automatic_context(), **override}
+    assert "Automatic reply trigger:" not in RuntimeBridge.__new__(RuntimeBridge)._system(context)
 
 
 def test_protocol_uses_owner_resources_and_current_audience_in_groups():
