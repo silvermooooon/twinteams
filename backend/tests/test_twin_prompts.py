@@ -22,7 +22,8 @@ def test_duet_role_preserves_custom_personal_name_and_worker_identity(worker):
                "execution_config": {"profile": {"soul": "My Twin persona uses short answers."}}}
     prompt = conversation_system(context, worker=worker)
     identity = "a background worker for Elysia" if worker else "Elysia"
-    assert prompt.startswith(f"You are {identity}, your owner's Duet, working in this private conversation")
+    assert prompt.startswith(platform_prompt(context, worker=worker))
+    assert f"You are {identity}, your owner's Duet, working in this private conversation" in prompt
     assert "Duet is the role; preserve personal names." in prompt
     assert "Never identify as Twin/digital twin." in prompt
     assert "My Twin persona uses short answers." in prompt
@@ -53,8 +54,8 @@ def test_worker_role_is_explicit_and_does_not_inherit_front_desk_or_parent_writi
     assert "You are a background worker for the owner's Duet." not in main
     assert ("You are your owner's front-facing Duet." in main) == (raw is None)
     assert ("Reply-for-me instructions:" in main) == (raw is not None)
-    assert "Use set_message_reaction proactively" not in worker
-    assert ("Use set_message_reaction proactively" in main) == (raw is None)
+    assert "Use set_message_reaction naturally" not in worker
+    assert ("Use set_message_reaction naturally" in main) == (raw is None)
     assert ("Routine current-chat reactions attributed to your Duet" in main) == (raw is None)
     assert "Routine current-chat reactions attributed to your Duet" not in worker
 
@@ -165,6 +166,8 @@ def test_new_soul_balances_clarification_and_preserves_existing_files(tmp_path):
     new_home, old_home = tmp_path / "new", tmp_path / "old"
     soul_file.initialize(new_home, "New")
     assert "ask a focused question with your recommendation" in soul_file.read(new_home)["content"]
+    assert "the right help to move the owner's work forward" in soul_file.read(new_home)["content"]
+    assert "Front-facing" not in soul_file.read(new_home)["content"]
     old_home.mkdir()
     original = "Owner's custom persona: answer without ceremony."
     (old_home / "SOUL.md").write_text(original)
@@ -173,3 +176,84 @@ def test_new_soul_balances_clarification_and_preserves_existing_files(tmp_path):
     (new_home / "SOUL.md").unlink()
     soul_file.initialize(new_home, "New")
     assert not (new_home / "SOUL.md").exists()
+
+
+def test_main_delegates_substantial_execution_without_doing_the_handoff_work_first():
+    main = platform_prompt({})
+    assert "quick replies, brief lookups and small bounded actions directly" in main
+    assert "Judge the whole owner's goal, not each small step in isolation" in main
+    assert "make spawn_agent your first choice after brief scope discovery" in main
+    assert "Multi-source analysis or research, implementation or debugging" in main
+    assert "creating and validating nontrivial deliverables belong to a worker" in main
+    assert "relevant paths, authorization limits and acceptance criteria" in main
+    assert "leave full analysis and execution to the worker" in main
+    assert "do not repeat the worker's task" in main
+    assert "normal final response to yield this turn" in main
+    assert "Completion notifications resume this task automatically" in main
+    assert "Yielding is not completing the owner's goal" in main
+    assert "substantial steps personally" in main
+    worker = platform_prompt({}, worker=True)
+    assert "Execute it, verify results" in worker
+    assert "small bounded actions directly" not in worker
+    assert "Skill procedures follow the same main/worker division" in worker
+
+
+def test_reaction_can_be_the_entire_social_response_and_keeps_substantive_care():
+    runtime = RuntimeBridge.__new__(RuntimeBridge)
+    main = platform_prompt({})
+    reaction = next(tool for tool in runtime._tools({}, SimpleNamespace(snapshot={}, resumable=False))
+                    if tool.name == "set_message_reaction")
+    for description in (main, reaction.description):
+        assert "acknowledgment, thanks, shared joy or appreciation of effort" in description
+        assert "never announce it" in description
+        assert "every message" in description
+        assert "Serious feelings" in description
+    assert "reaction alone can suffice" in main and "reaction alone can suffice" in reaction.description
+    assert "No message or model response is triggered" in reaction.description
+
+
+def test_product_subagent_guidance_preserves_sdk_capabilities_and_main_worker_parity():
+    from agent_runtime.subagents import create_subagent_tools
+    runtime = RuntimeBridge.__new__(RuntimeBridge)
+    def manager(worker=False):
+        return SimpleNamespace(parent=SimpleNamespace(session=SimpleNamespace(snapshot={}, resumable=False,
+            subagent_creation={"task": "assigned"} if worker else None)), agent_factories={"worker": None})
+    sdk = {tool.name: tool for tool in create_subagent_tools(manager())}
+    main = {tool.name: tool for tool in runtime._subagent_tools(manager())}
+    worker = {tool.name: tool for tool in runtime._subagent_tools(manager(True))}
+    assert main.keys() == worker.keys() == sdk.keys()
+    for name, tool in main.items():
+        assert tool.parameters == worker[name].parameters == sdk[name].parameters
+        assert tool.replay == worker[name].replay == sdk[name].replay
+        assert tool.description == worker[name].description
+    assert "durable acceptance/status immediately" in main["spawn_agent"].description
+    assert "queued does not mean execution has started" in main["spawn_agent"].description
+    assert "normal final response to yield this turn" in main["spawn_agent"].description
+    assert "Completion is notified automatically" in main["get_agent"].description
+    assert "Omitted timeout can wait indefinitely" in main["wait_agent"].description
+    assert "holds the current execution slot" in main["wait_agent"].description
+    assert "Normal" in main["wait_agent"].description
+    assert main["send_agent_message"].description == sdk["send_agent_message"].description
+
+
+def test_resumable_subagent_tools_keep_exact_frozen_declarations_and_order():
+    runtime = RuntimeBridge.__new__(RuntimeBridge)
+    frozen = [{"name": name, "description": "Original " + name,
+               "parameters": {"type": "object", "properties": {"original": {"type": "string"}}},
+               "replay": replay, "version": "original-v1"}
+              for name, replay in (("wait_agent", "safe"), ("spawn_agent", "safe"), ("stop_agent", "never"))]
+    manager = SimpleNamespace(parent=SimpleNamespace(session=SimpleNamespace(snapshot={"tools": frozen},
+                              resumable=True)), agent_factories={"worker": None})
+    restored = runtime._subagent_tools(manager)
+    assert [{key: getattr(tool, key) for key in ("name", "description", "parameters", "replay", "version")}
+            for tool in restored] == frozen
+    assert restored[0].parameters is not frozen[0]["parameters"]
+
+
+def test_custom_soul_cannot_remove_the_server_mission():
+    custom = "Prefer personally doing every step."
+    prompt = conversation_system({"execution_config": {"profile": {"soul": custom}}})
+    assert custom in prompt
+    assert platform_prompt({}) in prompt
+    assert prompt.index(platform_prompt({})) < prompt.index(runtime_protocol({})) < prompt.index(custom)
+    assert "within the platform mission, runtime rules and authorization boundaries" in prompt

@@ -358,12 +358,21 @@ def child(args):
         print(json.dumps({'selected_chat_id': args.chat_id, 'followup_deadlines_advanced': len(rows), 'test_only_time_seed': True})); return
     if args.role == 'inspect':
         value = snapshot(root)
+        if os.environ.get('TWINTEAMS_E2E_BEHAVIOR_ACCEPTANCE') == 'true':
+            from checks.duet_behavior_fixture import snapshot as behavior_snapshot
+            value['behavior'] = behavior_snapshot(root)
         print(json.dumps(verify_stage(value, args.verify_stage) if args.verify_stage else value)); return
     install_fixture(root)
+    if os.environ.get('TWINTEAMS_E2E_BEHAVIOR_ACCEPTANCE') == 'true':
+        from checks.duet_behavior_fixture import install as install_behavior
+        install_behavior(root)
     if os.environ.get('TWINTEAMS_E2E_MODEL_MODE') != 'live-gpt-6-luna':
         install_offline(root)
     if args.role == 'init':
         seed(root)
+        if os.environ.get('TWINTEAMS_E2E_BEHAVIOR_ACCEPTANCE') == 'true':
+            from checks.duet_behavior_fixture import seed_materials
+            seed_materials(root)
     elif args.role == 'api':
         if not args.port or args.port in {8000, 8001}:
             raise RuntimeError('Acceptance API requires an isolated nonproduction port')
@@ -411,6 +420,8 @@ async def launch(args):
         TWINTEAMS_WORKSPACE_ROOT=str(root / 'workspaces'), AGENT_MEMORY_DIR=str(root / 'memory'), AGENT_SECRETS_DIR=str(root / 'secrets'), AGENT_SECRETS_KEY=Fernet.generate_key().decode(),
         TWINTEAMS_ONBOARDING_ENABLED='false', AGENT_PROVIDER='openai', AGENT_API='openai-responses' if args.live else 'browser-e2e-offline', AGENT_MODEL='gpt-6-luna', AGENT_MAX_TOKENS='4096',
         OPENAI_API_KEY='explicit-offline-not-a-provider-key')
+    if args.behavior:
+        env['TWINTEAMS_E2E_BEHAVIOR_ACCEPTANCE'] = 'true'
     live = {}
     if args.live:
         from checks.browser_e2e_live import configuration, initialize_budget
@@ -455,7 +466,7 @@ async def launch(args):
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL); await asyncio.to_thread(process.wait, 5)
         for handle in handles: handle.close()
-        for name in ('provider-calls.jsonl', 'live-budget.json'):
+        for name in ('provider-calls.jsonl', 'live-budget.json', 'behavior-tools.jsonl', 'behavior-model-inputs.jsonl', 'behavior-tool-declarations.jsonl'):
             if (root / name).exists(): shutil.copyfile(root / name, artifacts / name); (artifacts / name).chmod(0o600)
         redis = Redis.from_url(private['TWINTEAMS_REDIS_URL'])
         keys = [key async for key in redis.scan_iter(match=prefix + ':*')]
@@ -471,6 +482,7 @@ def main():
     parser.add_argument('--task-source', choices=['scheduled_task', 'system_review'], default='scheduled_task'); parser.add_argument('--owner-id', default='owner-alex'); parser.add_argument('--request-id')
     parser.add_argument('--chat-id'); parser.add_argument('--port', type=int); parser.add_argument('--state', type=Path)
     parser.add_argument('--serve', action='store_true'); parser.add_argument('--live', action='store_true'); parser.add_argument('--live-approved', action='store_true')
+    parser.add_argument('--behavior', action='store_true')
     parser.add_argument('--max-attempts', type=int, default=30); parser.add_argument('--dist', type=Path, default=Path('/tmp/duet-collab-dist'))
     parser.add_argument('--artifact-dir', type=Path, default=Path('/tmp/duet-collaboration-acceptance-offline'))
     args = parser.parse_args()

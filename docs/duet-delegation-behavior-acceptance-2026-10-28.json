@@ -1,0 +1,437 @@
+{
+  "date": "2026-10-28",
+  "model": "gpt-6-luna",
+  "api": "openai-responses",
+  "status": "V2 six original behavior cases passed; V1 delegation failure retained",
+  "provider_calls_stopped": true,
+  "budget": {
+    "initial_aggregate_limit": 24,
+    "authorized_final_aggregate_limit": 32,
+    "used": 29,
+    "http_200": 28,
+    "transport_failures": 1,
+    "authorized_owner_ui_retries": 1,
+    "remaining_unused": 3,
+    "reason_for_extension": "Observed real child/parent chain cost; complete original five controls without reducing verification."
+  },
+  "campaigns": {
+    "v1": {
+      "http_attempts": 6,
+      "http_200": 6,
+      "early_delegation": "failed; main performed the work; no spawn",
+      "cleanup": "completed"
+    },
+    "v2": {
+      "http_attempts": 23,
+      "http_200": 22,
+      "initial_failure": "ConnectError before HTTP response; no tool events or file mutations before one authorized owner UI Retry",
+      "complex_chain": "early natural spawn; real SDK child file generation; accepted durable child result; automatic main continuation; useful owner delivery",
+      "main_output_writes": 0,
+      "child_output_writes": 2,
+      "main_review_reads": "three original inputs and two child outputs; not evidence of zero duplicate internal analysis",
+      "cases": {
+        "complex": "passed after authorized transport recovery",
+        "tiny_fact": "passed; direct answer; no tools",
+        "tiny_file": "passed; one real main write; no spawn",
+        "gratitude": "passed; persisted twin-alex reaction 😊",
+        "good_news": "passed; persisted twin-alex reaction 🎉",
+        "distress": "passed; substantive empathetic care; no delegation"
+      },
+      "cleanup": "completed"
+    }
+  },
+  "boundaries": {
+    "bash": "Declared unchanged; executor denied the child verification command. No shell command ran. Child recovered with real file reads.",
+    "native_web_search": "Not assembled because execution bypasses the local executor; no web E2E claim.",
+    "function_tool_declarations": "Original names/descriptions/schemas retained. Read/write/edit confined to owned temporary workspaces.",
+    "sample": "One complex case per frozen revision and one observation per control; not a statistical behavioral guarantee.",
+    "template": "Default SOUL is create-once; existing customized files and already frozen runs are not overwritten.",
+    "production": "The isolated acceptance itself made no production chat/state/service change, external message, provider config change, deployment, commit or push. The later authorized backend deployment and read-only browser smoke are recorded in release."
+  },
+  "source_hash_delta": [],
+  "frozen_product_hashes": {
+    "backend/app/twin_prompts.py": "8c449605a07f6b6cc292053fce5995b568f847c19a8243a5f7dd78ed200479dc",
+    "backend/app/soul_file.py": "fa77b3cbab8cfd91b95357aa889bee61ce346aa0f46298cf53e406857282b0c0",
+    "backend/app/runtime_bridge.py": "9d3c693b60f3f96267793f7feeb9ff2604d304af1b393d68c25fc5f80474d615"
+  },
+  "evidence": {
+    "v1": "/tmp/duet-behavior-live-20261028",
+    "v2": "/tmp/duet-behavior-live-v2-20261028",
+    "canonical": "/tmp/duet-behavior-live-v2-20261028/final-canonical.json",
+    "source_boundary": "/tmp/duet-behavior-live-v2-20261028/final-freeze-boundary.json"
+  },
+  "attempts": [
+    {
+      "campaign": "v1",
+      "attempt": 1,
+      "phase": "main:409811fe5c8752d4b0beeade92758cb1",
+      "started_at": 1793119496.3754299,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793119499.618529,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v1",
+      "attempt": 2,
+      "phase": "main:409811fe5c8752d4b0beeade92758cb1",
+      "started_at": 1793119501.0152261,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793119503.192536,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v1",
+      "attempt": 3,
+      "phase": "main:409811fe5c8752d4b0beeade92758cb1",
+      "started_at": 1793119506.0432498,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793119509.3615491,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v1",
+      "attempt": 4,
+      "phase": "main:409811fe5c8752d4b0beeade92758cb1",
+      "started_at": 1793119524.301138,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793119526.4521542,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v1",
+      "attempt": 5,
+      "phase": "main:409811fe5c8752d4b0beeade92758cb1",
+      "started_at": 1793119528.63329,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793119531.92312,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v1",
+      "attempt": 6,
+      "phase": "main:409811fe5c8752d4b0beeade92758cb1",
+      "started_at": 1793119534.982014,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793119537.907956,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 1,
+      "phase": "main:cad481d131d65674b1e21180e38c5511",
+      "started_at": 1793119925.363189,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793119930.377663,
+      "http_status": null,
+      "error_type": "ConnectError"
+    },
+    {
+      "campaign": "v2",
+      "attempt": 2,
+      "phase": "main:cad481d131d65674b1e21180e38c5511",
+      "started_at": 1793120091.9026089,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120094.3908951,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 3,
+      "phase": "main:cad481d131d65674b1e21180e38c5511",
+      "started_at": 1793120096.3635032,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120099.0393448,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 4,
+      "phase": "main:cad481d131d65674b1e21180e38c5511",
+      "started_at": 1793120102.26334,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120104.7426171,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 5,
+      "phase": "worker:b4b407c223c45a46a6531f9168266d4b",
+      "started_at": 1793120102.5189881,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120104.648381,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 6,
+      "phase": "worker:b4b407c223c45a46a6531f9168266d4b",
+      "started_at": 1793120106.127606,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120108.453252,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 7,
+      "phase": "worker:b4b407c223c45a46a6531f9168266d4b",
+      "started_at": 1793120111.352632,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120113.830511,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 8,
+      "phase": "worker:b4b407c223c45a46a6531f9168266d4b",
+      "started_at": 1793120130.612876,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120132.864157,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 9,
+      "phase": "worker:b4b407c223c45a46a6531f9168266d4b",
+      "started_at": 1793120141.643274,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120144.316227,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 10,
+      "phase": "worker:b4b407c223c45a46a6531f9168266d4b",
+      "started_at": 1793120146.770904,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120150.552741,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 11,
+      "phase": "worker:b4b407c223c45a46a6531f9168266d4b",
+      "started_at": 1793120153.756355,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120155.812122,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 12,
+      "phase": "main:cad481d131d65674b1e21180e38c5511",
+      "started_at": 1793120163.530352,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120166.6692321,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 13,
+      "phase": "main:cad481d131d65674b1e21180e38c5511",
+      "started_at": 1793120169.4536378,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120171.7327712,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 14,
+      "phase": "main:cad481d131d65674b1e21180e38c5511",
+      "started_at": 1793120179.0464609,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120181.0713542,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 15,
+      "phase": "main:cad481d131d65674b1e21180e38c5511",
+      "started_at": 1793120185.348094,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120187.651277,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 16,
+      "phase": "main:a2e5243041ce515b8d62b96d582e4806",
+      "started_at": 1793120250.4459488,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120252.8025138,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 17,
+      "phase": "main:a2e5243041ce515b8d62b96d582e4806",
+      "started_at": 1793120259.3714392,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120262.0666492,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 18,
+      "phase": "main:160ac2936b0055c6977e90dfbe7a65a8",
+      "started_at": 1793120310.296187,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120312.6493921,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 19,
+      "phase": "main:160ac2936b0055c6977e90dfbe7a65a8",
+      "started_at": 1793120320.0910258,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120322.7059069,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 20,
+      "phase": "main:1cad794191f953169f6fa8dbf7f233de",
+      "started_at": 1793120344.999855,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120347.4552221,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 21,
+      "phase": "main:53ce1e0fb9ba5c2ca230a5d17ebba969",
+      "started_at": 1793120385.2545018,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120387.6252,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 22,
+      "phase": "main:40cb7b978a305b128209f81f954f140b",
+      "started_at": 1793120451.0062232,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120453.949725,
+      "http_status": 200,
+      "error_type": null
+    },
+    {
+      "campaign": "v2",
+      "attempt": 23,
+      "phase": "main:40cb7b978a305b128209f81f954f140b",
+      "started_at": 1793120477.109478,
+      "model": "gpt-6-luna",
+      "max_output_tokens": 4096,
+      "response_at": 1793120479.7613618,
+      "http_status": 200,
+      "error_type": null
+    }
+  ],
+  "cleanup": {
+    "cleanup": "complete",
+    "method": "Graceful launcher SIGINT; launcher cleanup reported owned PostgreSQL schema removed and five owned Redis keys removed.",
+    "owned_schema_removed": true,
+    "owned_redis_keys_removed": 5,
+    "temporary_root_removed": true,
+    "owned_processes_gone": {
+      "52345": true,
+      "52378": true,
+      "52379": true
+    },
+    "fixture_port_closed": true,
+    "evidence_preserved": true
+  },
+  "release": {
+    "status": "deployed by runtime after Root authorization",
+    "finished_at": "2026-10-27T17:08:44.556066+00:00",
+    "evidence": "/tmp/duet-delegation-rollout.json",
+    "method": "Graceful SIGTERM of verified owned worker/APIs, backend-only restart; no migration, frontend publication or configuration write",
+    "preserved": {
+      "exact_data_preserved": true,
+      "soul_files_preserved": true,
+      "environment_preserved": true,
+      "sdk_git_preserved": true,
+      "frontend_preserved": true,
+      "frpc_preserved": true
+    },
+    "new_sdk_commands": 0,
+    "new_product_requests": 0,
+    "http_checks": {
+      "total": 12,
+      "http_200": 12,
+      "public_tls_verified": true,
+      "index": "index-BhuwDfMT.js",
+      "css": "index-o3WCLiE0.css",
+      "exact_asset_hashes_verified": true
+    },
+    "browser_smoke": {
+      "status": "completed; sign-in page reached locally and publicly",
+      "local_url": "http://127.0.0.1:8000/",
+      "public_url": "https://154.217.234.218/",
+      "observed_title": "Duet",
+      "observed_heading": "Welcome to Duet",
+      "authenticated_smoke": "not performed; both pages required sign-in and no login or account switch was authorized",
+      "messages_sent": 0,
+      "provider_calls": 0,
+      "tabs_closed": true,
+      "screenshots": [
+        "/tmp/duet-delegation-local-production-smoke.jpg",
+        "/tmp/duet-delegation-public-production-smoke.jpg"
+      ]
+    }
+  }
+}

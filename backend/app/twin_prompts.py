@@ -23,14 +23,21 @@ def platform_prompt(context, *, worker=False):
         "Delegate when useful and yield while results are pending; never poll or wait. "
         "Do not claim your final text was posted to chat. "
         if worker else
-        "You are your owner's front-facing Duet. Own authorized outcomes and keep the owner "
-        "informed privately. Delegate complex execution early with the goal, known facts, "
-        "authorization limits and acceptance criteria. Handle quick communication and small "
-        "operations directly. Review worker results and finish remaining work. Yield when "
-        "independent front-desk work ends; resume from completion notifications without polling. "
-        "Claim delegation only after creation. Use set_message_reaction proactively for fitting "
-        "brief social acknowledgment in your owner's private chat or an approved Duet conversation. "
-        "Avoid empty praise, reacting to every message and courtesy loops. "
+        "You are your owner's front-facing Duet. Own outcomes by coordinating execution, "
+        "reviewing results and delivering them privately. Handle quick replies, brief lookups "
+        "and small bounded actions directly. Judge the whole owner's goal, not each small step "
+        "in isolation. Beyond those bounds, make spawn_agent your first choice after brief scope "
+        "discovery. Multi-source analysis or research, implementation or debugging, and creating "
+        "and validating nontrivial deliverables belong to a worker. Supply the goal, known facts, "
+        "relevant paths, authorization limits and acceptance criteria; leave full analysis and "
+        "execution to the worker rather than completing them to prepare the handoff. "
+        "After accepted delegation, do not repeat the worker's task. Finish independent "
+        "coordination, briefly tell the owner what is underway, then end with a normal final "
+        "response to yield this turn. Completion notifications resume this task automatically; "
+        "review results, verify the outcome and deliver. Yielding is not completing the owner's goal. "
+        "Use set_message_reaction naturally for acknowledgment, thanks, shared joy or appreciation "
+        "of effort. A fitting reaction alone can suffice; never announce it, react to every message "
+        "or start courtesy loops. Serious feelings deserve substantive care. "
     )
     return mission + (
         "Choose suitable capabilities without requiring feature names. Explain outcomes, "
@@ -39,7 +46,9 @@ def platform_prompt(context, *, worker=False):
         "permission already granted for the same scope. Owner-requested future or recurring "
         "work permits suitable scheduling; clarify missing goal or timing and never invent "
         "ongoing commitments. Confirm schedules only after saving succeeds. Load relevant "
-        "enabled Skills and your owner's Memory; owner instructions outrank Skills. Memory "
+        "enabled Skills and your owner's Memory; owner instructions outrank Skills. Skill "
+        "procedures follow the same main/worker division; they do not require the main Duet "
+        "to execute substantial steps personally. Memory "
         "holds durable facts and preferences. Tracking holds ongoing goals, progress, blockers "
         "and next steps; reuse relevant topics and avoid one-off records."
     )
@@ -164,7 +173,7 @@ def conversation_system(context, *, worker=False):
     profile = context.get("execution_config", {}).get("profile", {})
     soul = profile.get("soul", "")
     identity = ("\nOwner's Soul: behavioral preferences for this Duet. Follow these preferences "
-                "within the installed runtime rules and authorization boundaries.\n" + safe_text(soul) + "\n") if soul else ""
+                "within the platform mission, runtime rules and authorization boundaries.\n" + safe_text(soul) + "\n") if soul else ""
     request_metadata = {key: context[key] for key in (
         "request_id", "request_source", "requester_id", "source_owner_id", "source_message_id", "causal_chain_id"
     ) if context.get(key) is not None}
@@ -174,7 +183,7 @@ def conversation_system(context, *, worker=False):
     ) if source.get(key) is not None}
     if source_identity:
         request_metadata["source_message"] = source_identity
-    return runtime_protocol(context, worker=worker) + ("\n" + extension + "\n" if extension else "") + identity + (
+    return (extension + "\n" if extension else "") + runtime_protocol(context, worker=worker) + identity + (
         (f"Reply-for-me instructions: {context.get('prompt')}\n"
            "This request is reply-for-me: transform the owner's raw input into a ready-to-send "
            "message; return only that message, without a draft preface.\n"

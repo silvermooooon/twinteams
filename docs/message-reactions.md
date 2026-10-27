@@ -14,7 +14,7 @@ Late acknowledgements retain owner/chat/reset-generation guards. A response's re
 
 ## Twin tools, permissions and recovery
 
-The human HTTP form and `set_message_reaction` share the same desired-state operation and aggregation. The installed Twin tool takes `{message_id,emoji,active,chat_id?}`; the originating chat is the default. For example:
+The main Duet uses fitting reactions naturally for acknowledgment, thanks, shared joy and appreciation of effort. A reaction can be the entire response when text adds nothing; it does not announce the reaction, respond mechanically to every message or replace substantive care for serious feelings. The human HTTP form and `set_message_reaction` share the same desired-state operation and aggregation. The installed Duet tool takes `{message_id,emoji,active,chat_id?}`; the originating chat is the default. For example:
 
 ```json
 {"message_id":"message-id","emoji":"👍","active":true}

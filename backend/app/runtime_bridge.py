@@ -428,7 +428,7 @@ class RuntimeBridge:
         limit = {"type": "integer", "minimum": 1, "maximum": 100}
         policy = {"type": "string", "enum": ["all", "fixed_7d", "no_prior"]}
         schemas.extend([
-            ("set_message_reaction", "Add or remove one supported emoji reaction in your own private chat or an active approved Duet conversation. Human chats cannot receive Duet reactions. The reaction belongs to this Duet, separately from the owner's human reactions; it never conveys owner consent or commitment. Routine current-chat reactions need no extra approval; respect source/audience restrictions. active is desired state, never a toggle; one actor may use up to 20 different emoji on a message. This does not send a message or trigger another model response. Defaults to the originating chat.",
+            ("set_message_reaction", "Add or remove a supported emoji in your own private chat or an active approved Duet conversation; never in human chats. Use naturally for acknowledgment, thanks, shared joy or appreciation of effort. A reaction alone can suffice when text adds nothing; never announce it or react mechanically to every message. Serious feelings need substantive care. This Duet's reaction is separate from the owner's and conveys no owner consent or commitment. Routine current-chat reactions need no extra approval; respect source/audience restrictions. active is desired state, not a toggle; up to 20 emoji per actor/message. No message or model response is triggered. Defaults to the originating chat.",
              {"chat_id": text, "message_id": text, "emoji": {"type": "string", "minLength": 1, "maxLength": 32}, "active": {"type": "boolean"}},
              ["message_id", "emoji", "active"]),
             ("list_people", "Find platform people by name or ID to address a chat. Listing people does not grant their private data.",
@@ -835,7 +835,7 @@ class RuntimeBridge:
         return agent
 
     async def _attach_subagents(self, agent, context):
-        from agent_runtime.subagents import DurableSubagentManager, create_subagent_tools
+        from agent_runtime.subagents import DurableSubagentManager
         sid = agent.session.session_id
         manager = self.managers.get(sid)
         if manager is None:
@@ -856,13 +856,47 @@ class RuntimeBridge:
             manager.subscribe(child_event)
         else:
             manager.parent = agent
-        tools = create_subagent_tools(manager)
-        saved = agent.session.snapshot.get("tools") if agent.session.resumable else None
-        if saved is not None:
-            names = {row["name"] for row in saved}
-            tools = [tool for tool in tools if tool.name in names]
-        agent.state.tools.extend(tools)
+        agent.state.tools.extend(self._subagent_tools(manager))
         return manager
+
+    @staticmethod
+    def _subagent_tools(manager):
+        """Describe Duet handoffs without changing the SDK's general capabilities."""
+        from agent_runtime.subagents import create_subagent_tools
+        tools = create_subagent_tools(manager)
+        session = manager.parent.session
+        saved = session.snapshot.get("tools") if session.resumable else None
+        if saved is not None:
+            current = {tool.name: tool for tool in tools}
+            return [AgentTool(name=row["name"], description=row["description"],
+                parameters=deepcopy(row["parameters"]), execute=current[row["name"]].execute,
+                replay=row["replay"], version=row.get("version"))
+                for row in saved if row.get("name") in current]
+        descriptions = {
+            "spawn_agent": (
+                "Delegate substantial work to a background worker with the goal, known facts, "
+                "relevant paths, authorization limits and acceptance criteria. Do not do the heavy "
+                "work first to prepare this handoff. Returns durable acceptance/status immediately; "
+                "queued does not mean execution has started. Completion automatically notifies and "
+                "resumes this task, including after the current turn ends. Do not repeat assigned "
+                "work or poll/wait for it. Finish independent coordination, then use a normal final "
+                "response to yield this turn; the owner's goal remains pending until reviewed. "
+                "Configurations: " + ", ".join(manager.agent_factories)),
+            "get_agent": (
+                "Inspect this task's child status or completed result when needed for coordination; "
+                "omit task_id to list children. Completion is notified automatically. Do not poll "
+                "to keep a turn alive or repeat a worker's work."),
+            "wait_agent": (
+                "Explicitly wait for a child result; this holds the current execution slot and "
+                "does not yield the turn. Omitted timeout can wait indefinitely; timeout does not "
+                "stop the child. Normally use automatic completion notifications and end the turn "
+                "with a normal final response instead. Use only when the assigned task specifically "
+                "requires a bounded synchronous wait."),
+        }
+        for tool in tools:
+            if tool.name in descriptions:
+                tool.description = descriptions[tool.name]
+        return tools
 
     async def has_unresolved_scheduled_work(self, request):
         from .runtime_scheduled import has_unresolved_children
