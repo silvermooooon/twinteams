@@ -30,15 +30,14 @@ def append(product, chat_id="group-alex-maya", **values):
         return row.id
 
 
-def test_empty_chat_and_pending_reply_for_me_have_no_message_metadata(attachments):
+def test_empty_chat_and_rejected_reply_for_me_have_no_message_metadata(attachments):
     _, client = attachments
     summary, bootstrap = summaries(client)
     server_time = datetime.fromisoformat(bootstrap["server_time"])
     assert server_time.tzinfo is not None
     assert summary["last_message"] is None and summary["last_message_meta"] is None
     pending = send(client, "group-alex-maya", body="Owner draft", reply_for_me=True)
-    assert pending.status_code == 200
-    assert pending.json()["request"]["status"] == "queued"
+    assert pending.status_code == 403
     summary, _ = summaries(client)
     assert summary["last_message"] is None and summary["last_message_meta"] is None
 
@@ -54,6 +53,9 @@ def test_summary_preserves_actual_actor_kind_and_existing_owner_mapping(attachme
     message_id = append(product, author_id=author, kind=kind)
     summary, bootstrap = summaries(client)
     meta = summary["last_message_meta"]
+    if kind != "human":
+        assert meta is None and summary["last_message"] is None
+        return
     assert set(meta) == {"id", "seq", "author_id", "kind", "created_at"}
     assert meta["id"] == message_id and meta["seq"] == 1
     assert meta["author_id"] == author and meta["kind"] == kind and meta["created_at"]
@@ -65,7 +67,7 @@ def test_metadata_uses_same_authorized_last_and_rechecks_withdrawal(attachments)
     product, client = attachments
     visible = append(product)
     private = append(product, "private-maya", body="Synthetic owner-only source")
-    hidden = append(product, author_id="twin-maya", kind="twin", body="Derived private output",
+    hidden = append(product, author_id="owner-maya", kind="human", body="Derived private output",
         source_provenance=[{"kind": "chat_context", "chat_id": "private-maya",
                             "sources": [{"kind": "message", "id": private}]}])
     withdrawn = append(product, state="withdrawn", body="Already withdrawn")

@@ -44,8 +44,8 @@ def test_terminal_retry_hides_old_failure_without_deleting_audit_or_messages(att
 
 def test_latest_failed_request_keeps_owner_retry_and_private_input_filters(attachments):
     product, client = attachments
-    chat = product.create_chat("owner-alex", ["owner-maya"], "Synthetic failure visibility")["id"]
-    initial = send(client, chat=chat, body="Synthetic private rewrite input", reply_for_me=True).json()["request"]
+    chat = "private-alex"
+    initial = send(client, chat=chat, body="Synthetic private task input").json()["request"]
     with product.transaction() as db:
         db.get(ReplyRequest, initial["id"]).status = "failed"
     retried = client.post(f'/api/reply-requests/{initial["id"]}/retry', json={"client_request_key": uuid4().hex})
@@ -55,21 +55,19 @@ def test_latest_failed_request_keeps_owner_retry_and_private_input_filters(attac
         row = db.get(ReplyRequest, latest_id)
         row.status, row.error = "failed", "Synthetic latest failure"
     own = client.get(f"/api/chats/{chat}").json()
-    other = client.get(f"/api/chats/{chat}", headers={"x-test-owner": "owner-maya"}).json()
+    other = client.get(f"/api/chats/{chat}", headers={"x-test-owner": "owner-maya"})
     assert [(row["id"], row["can_retry"]) for row in own["requests"]] == [(latest_id, True)]
-    assert other["requests"] == []
+    assert other.status_code in {403, 404}
     assert client.post(f"/api/reply-requests/{latest_id}/retry", headers={"x-test-owner": "owner-maya"},
                        json={"client_request_key": uuid4().hex}).status_code == 403
 
 
 def test_latest_generation_filter_does_not_bypass_source_visibility(attachments):
     product, client = attachments
-    chat = product.create_chat("owner-alex", ["owner-maya"], "Synthetic sourced failure")["id"]
-    source = send(client, chat=chat, body="Synthetic visible source").json()["message"]
-    response = client.post(f"/api/chats/{chat}/reply-requests", json={"message_id": source["id"],
-        "target_twin_id": "twin-alex", "client_request_key": uuid4().hex})
-    assert response.status_code == 200
-    request_id = response.json()["id"]
+    from duet_test_support import append_duet, approved_chat, request_duet_reply
+    chat = approved_chat(product, "duet-alex-maya")
+    source = append_duet(product, chat, "owner-maya", "Synthetic visible source")
+    request_id = request_duet_reply(product, "owner-maya", chat, source["id"], "twin-alex")["id"]
     with product.transaction() as db:
         db.get(ReplyRequest, request_id).status = "failed"
     assert request_id in {row["id"] for row in client.get(f"/api/chats/{chat}").json()["requests"]}

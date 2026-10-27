@@ -5,17 +5,17 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
+from duet_test_support import request_duet_reply as legacy_request
 from fastapi import HTTPException
 from sqlalchemy import select
 from test_memory_dream import product as product  # noqa: PLC0414
 
 from app.models import Chat, ContextManifest, Message, ReplyRequest
 from app.runtime_bridge import RuntimeBridge
-from checks.legacy_requests import legacy_request
 
 
 def accepted(product, kind):
-    chat_id = "private-alex" if kind == "private" else "group-alex-maya"
+    chat_id = "private-alex" if kind == "private" else "duet-alex-maya"
     if kind == "private":
         sent = product.send_message(
             "owner-alex", chat_id, "Synthetic original question", uuid4().hex
@@ -26,8 +26,8 @@ def accepted(product, kind):
             message_id = product.append_message(
                 db,
                 db.get(Chat, chat_id),
-                author_id="owner-maya",
-                kind="human",
+                author_id="twin-maya",
+                kind="twin",
                 body="Synthetic original question",
             ).id
         request = legacy_request(product,
@@ -190,3 +190,9 @@ def test_real_sdk_private_answer_is_unquoted_without_losing_request_lineage(prod
             await runtime.close()
 
     asyncio.run(run())
+
+
+@pytest.fixture(autouse=True)
+def approved_collaboration_fixtures(product):
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)

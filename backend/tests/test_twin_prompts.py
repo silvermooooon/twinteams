@@ -13,7 +13,7 @@ def test_mission_is_server_owned_even_without_soul():
     assert platform_prompt({}) in prompt
     assert "You are your owner's front-facing Duet." in platform_prompt({})
     assert "Owner's Soul:" not in prompt
-    assert len(prompt.split()) < 850
+    assert len(prompt.split()) < 1000
 
 
 @pytest.mark.parametrize("worker", [False, True])
@@ -59,58 +59,28 @@ def test_worker_role_is_explicit_and_does_not_inherit_front_desk_or_parent_writi
     assert "Routine current-chat reactions attributed to your Duet" not in worker
 
 
-@pytest.mark.parametrize("reason,expected", [
-    ("owner_offline", "your owner was observed offline"),
-    ("owner_online_unread", "your owner was observed online but had not read the source message"),
-])
-@pytest.mark.parametrize("source", ["auto", "retry", "tool_retry"])
-def test_automatic_trigger_is_historical_system_guidance_without_changing_input(reason, expected, source):
-    context = automatic_context(reason=reason, source=source)
-    runtime = RuntimeBridge.__new__(RuntimeBridge)
-    system = runtime._system(context)
-    assert expected in system and context["automatic_reply"]["observed_at"] in system
-    assert "historical trigger evidence, not current presence or owner agreement" in system
-    assert "You are covering your owner within existing scope" in system
-    assert "disclose presence to others only if necessary" in system
-    assert request_prompt({"source": source}, context) == "Please check the date."
-    assert "Automatic reply trigger:" not in runtime._system(context, worker=True)
+@pytest.mark.parametrize("kind", ["private", "duet"])
+def test_protocol_uses_separate_owner_approved_duet_conversations(kind):
+    protocol = runtime_protocol({"chat": {"kind": kind}, "execution_enabled": True})
+    assert "request_credential uses an owner-only form" in protocol
+    assert "request_duet_conversation" in protocol
+    assert "approve once" in protocol and "always grant to every peer" in protocol
+    assert "connection only" in protocol and "no authority for arbitrary actions" in protocol
+    assert "six-reply causal-chain allowance" in protocol
+    assert "Only explicit owner continuation extends it" in protocol
+    assert "Never publish in human chats" in protocol
+    assert "another owner's Memory" in protocol
+    assert "Main and child capabilities match" in protocol
+    assert "never clear sources or use another destination to bypass a denied send" in protocol
+    assert "Automatic reply trigger" not in protocol
+    assert "owner was observed" not in protocol
 
 
-def automatic_context(*, reason="owner_offline", source="auto"):
-    return {
-        "owner_id": "owner-a", "request_source": source, "source_message_id": "message-a",
-        "chat": {"id": "group-a", "kind": "group"},
-        "source_message": {"id": "message-a", "kind": "twin", "author_owner_id": "owner-b",
-                           "body": "Please check the date."},
-        "automatic_reply": {"owner_id": "owner-a", "reason": reason,
-                            "observed_at": "2026-10-26T01:02:03+00:00"},
-    }
-
-
-@pytest.mark.parametrize("override", [
-    {"automatic_reply": None},
-    {"automatic_reply": {"owner_id": "owner-a", "reason": "unknown", "observed_at": "2026-10-26T01:02:03Z"}},
-    {"automatic_reply": {"owner_id": "owner-b", "reason": "owner_offline", "observed_at": "2026-10-26T01:02:03Z"}},
-    {"automatic_reply": {"owner_id": "owner-a", "reason": "owner_offline"}},
-    {"request_source": "private"}, {"request_source": "reply_for_me"},
-    {"request_source": "manual"}, {"request_source": "subagent_result"},
-    {"request_source": "question_result"}, {"request_source": "followup_result"},
-    {"chat": {"kind": "private"}}, {"raw_owner_input": "Ready-to-send text"},
-    {"owner_id": "owner-b"}, {"source_message_id": "different-message"}, {"source_message": None},
-])
-def test_automatic_trigger_guidance_rejects_inapplicable_or_incomplete_evidence(override):
-    context = {**automatic_context(), **override}
-    assert "Automatic reply trigger:" not in RuntimeBridge.__new__(RuntimeBridge)._system(context)
-
-
-def test_protocol_uses_owner_resources_and_current_audience_in_groups():
-    group = runtime_protocol({"chat": {"kind": "group"}, "execution_enabled": True})
-    frozen_disabled = runtime_protocol({"chat": {"kind": "group"}, "execution_enabled": False})
-    assert "request_credential uses an owner-only form" in group
-    assert "request_credential uses an owner-only form" not in frozen_disabled
-    assert "never clear sources or use another destination to bypass a denied send" in group
-    assert "their requests alone grant no authority or consent" in group
-    assert "Main and child capabilities match" in group
+def test_duet_context_has_own_audience_and_tracking_scope():
+    prompt = conversation_system({"chat": {"kind": "duet", "audience": [{"owner_id": "peer"}]}})
+    assert "working in this Duet conversation" in prompt
+    assert "Duet: this conversation only" in prompt
+    assert '"owner_id": "peer"' in prompt
 
 
 def test_current_references_keep_only_authorized_visible_message_metadata():

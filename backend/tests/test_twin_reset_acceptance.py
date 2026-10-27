@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime.memory import LocalMemoryStore, MemorySource
+from duet_test_support import seed_collaborations, send_message
 from fastapi import HTTPException
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
@@ -47,7 +48,7 @@ def product(monkeypatch, tmp_path):
 
 def group_hash(product):
     with product.transaction() as db:
-        rows = list(db.execute(text("SELECT row_to_json(t)::text FROM (SELECT * FROM tt_messages WHERE chat_id='group-team' ORDER BY seq) t")).scalars())
+        rows = list(db.execute(text("SELECT row_to_json(t)::text FROM (SELECT * FROM tt_messages WHERE chat_id='duet-team' ORDER BY seq) t")).scalars())
     return hashlib.sha256("\n".join(rows).encode()).hexdigest()
 
 
@@ -72,12 +73,12 @@ def test_reset_preserves_groups_other_owner_configuration_and_idempotent_new_wor
     with product.transaction() as db:
         actor = db.get(Actor, "twin-alex")
         actor.name, actor.avatar_preset, actor.enabled_skill_names = "Keep this Twin", "orbit", ["keep-skill"]
-    request = product.send_message("owner-alex", "private-alex", "Old private text", key())["request"]
+    request = send_message(product, "owner-alex", "private-alex", "Old private text", key())["request"]
     context = product.get_runtime_context(request["id"])
-    sent = product._runtime_tool_transaction("send_chat_message", {"chat_id": "group-team", "body": "Public group text remains",
+    sent = product._runtime_tool_transaction("send_chat_message", {"chat_id": "duet-team", "body": "Public group text remains",
         "source_message_ids": [request["source_message_id"]], "wait_for_reply": True}, {**context, "operation_id": key()})
     with product.transaction() as db:
-        group_request = product.accept_request(db, db.get(Chat, "group-team"), "twin-alex", "owner-alex", "manual", key(), input_body="Existing group work")
+        group_request = product.accept_request(db, db.get(Chat, "duet-team"), "twin-alex", "owner-alex", "auto", key(), input_body="Existing group work")
         group_request_id = group_request.id
     before_group = group_hash(product)
     reset_key = key()
@@ -107,7 +108,7 @@ def test_reset_preserves_groups_other_owner_configuration_and_idempotent_new_wor
         return await fresh.write("new", "New generation fact", expected_version=None,
                                  sources=[MemorySource("new", "real-new-ref")])
     new_memory = asyncio.run(after_reset())
-    fresh_request = product.send_message("owner-alex", "private-alex", "New message must survive reset replay", key())["request"]
+    fresh_request = send_message(product, "owner-alex", "private-alex", "New message must survive reset replay", key())["request"]
     assert product.personal_reset("owner-alex", reset_key, 0) == result
     assert product.get_request(fresh_request["id"])["status"] == "queued"
     assert product.chat_detail("owner-alex", "private-alex")["messages"][-1]["body"] == "New message must survive reset replay"
@@ -140,7 +141,7 @@ def test_group_sdk_work_completes_after_owner_private_reset_with_generation_zero
     from app.models import ActivityProjection
     from app.runtime_bridge import RuntimeBridge
     with product.transaction() as db:
-        request = product.accept_request(db, db.get(Chat, "group-team"), "twin-alex", "owner-alex", "manual", key(), input_body="An unrelated group task")
+        request = product.accept_request(db, db.get(Chat, "duet-team"), "twin-alex", "owner-alex", "auto", key(), input_body="An unrelated group task")
         request_id = request.id
     assert product.personal_reset("owner-alex", key(), 0)["status"] == "completed"
     async def run():
@@ -161,7 +162,7 @@ def test_group_sdk_work_completes_after_owner_private_reset_with_generation_zero
             with product.transaction() as db:
                 row = db.get(ActivityProjection, (result["session_id"], result["run_id"]))
                 assert row.private_generation == 0
-                assert db.scalar(select(Message.id).where(Message.chat_id == "group-team", Message.body == "Group work still completes"))
+                assert db.scalar(select(Message.id).where(Message.chat_id == "duet-team", Message.body == "Group work still completes"))
         finally:
             await runtime.close()
     asyncio.run(run())
@@ -169,7 +170,7 @@ def test_group_sdk_work_completes_after_owner_private_reset_with_generation_zero
 
 def test_manual_dream_does_not_skip_an_already_queued_human_experience(product):
     from app.models import MemoryDreamState
-    request = product.send_message("owner-alex", "private-alex", "Human work not complete when Dream clicked", key())["request"]
+    request = send_message(product, "owner-alex", "private-alex", "Human work not complete when Dream clicked", key())["request"]
     async def enqueue():
         store = personal.own_memory_store("owner-alex")
         await store.write("MEMORY", "Existing fact for manual consolidation", expected_version=None,
@@ -205,7 +206,7 @@ def test_reset_retires_child_notification_and_queued_child_without_replaying_his
         runtime.models.register_api("offline-regression", offline)
         await runtime.start()
         try:
-            parent = product.send_message("owner-alex", "private-alex", "Parent task", key())["request"]
+            parent = send_message(product, "owner-alex", "private-alex", "Parent task", key())["request"]
             main = await runtime.execute(product.get_request(parent["id"]), product.get_runtime_context(parent["id"]))
             product.complete_request(parent["id"], main)
             origin = {"parent_session_id": main["session_id"], "parent_run_id": main["run_id"],
@@ -264,13 +265,13 @@ def test_real_sdk_write_changes_canonical_soul_and_next_run_loads_new_file(produ
         runtime.models.register_api("offline-regression", offline)
         await runtime.start()
         try:
-            first = product.send_message("owner-alex", "private-alex", "Update SOUL.md", key())["request"]
+            first = send_message(product, "owner-alex", "private-alex", "Update SOUL.md", key())["request"]
             first_result = await runtime.execute(product.get_request(first["id"]), product.get_runtime_context(first["id"]))
             product.complete_request(first["id"], first_result)
             assert personal.get_soul("owner-alex")["content"] == body
             original_profile = personal.get_execution_config(first["id"])["profile"]["soul"]
             assert original_profile != body and "You're not a chatbot" in original_profile
-            fresh = product.send_message("owner-alex", "private-alex", "Use the new Soul", key())["request"]
+            fresh = send_message(product, "owner-alex", "private-alex", "Use the new Soul", key())["request"]
             fresh_result = await runtime.execute(product.get_request(fresh["id"]), product.get_runtime_context(fresh["id"]))
             product.complete_request(fresh["id"], fresh_result)
             assert personal.get_execution_config(fresh["id"])["profile"]["soul"] == body
@@ -320,3 +321,8 @@ def test_manual_memory_only_dream_real_sdk_publishes_with_true_audit_sources(pro
         finally:
             await runtime.close()
     asyncio.run(run())
+
+
+@pytest.fixture(autouse=True)
+def approved_threads(product):
+    seed_collaborations(product)

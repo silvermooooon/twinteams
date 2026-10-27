@@ -10,7 +10,7 @@ from test_chat_attachments_ui_acceptance import attachments as attachments  # no
 from test_chat_attachments_ui_acceptance import send, upload
 
 from app import service as service_module
-from app.models import Chat, Message
+from app.models import Chat, ChatAttachment, Message
 
 
 def test_snapshot_and_bootstrap_query_growth_is_bounded(attachments, tmp_path):
@@ -112,9 +112,10 @@ def test_batched_projection_keeps_attachment_quote_and_source_grants_owner_scope
     shared = upload(client, chat=chat, name="shared.txt", mime="text/plain", data=b"synthetic shared attachment").json()
     source = send(client, chat=chat, body="Synthetic quoted source", ids=[shared["id"]]).json()["message"]
     private = upload(client, chat=chat, name="private.txt", mime="text/plain", data=b"synthetic owner input").json()
-    send(client, chat=chat, body="Synthetic private rewrite", ids=[private["id"]], reply_for_me=True)
     with product.transaction() as db:
-        output = product.append_message(db, db.get(Chat, chat), author_id="twin-alex", kind="twin",
+        db.get(ChatAttachment, private["id"]).private_owner_input = True
+    with product.transaction() as db:
+        output = product.append_message(db, db.get(Chat, chat), author_id="owner-alex", kind="human",
             body="Synthetic sourced output", source_message_ids=[source["id"]],
             source_provenance=[{"kind": "message", "id": source["id"]}], reply_to_message_id=source["id"],
             attachment_ids=[shared["id"], private["id"]])

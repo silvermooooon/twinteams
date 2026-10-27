@@ -8,10 +8,11 @@ import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from agent_runtime.sessions import DatabaseSession
 from agent_runtime.sessions.base import model_record
+from duet_test_support import seed_collaborations, send_message
 from test_credentials import product as product  # noqa: PLC0414
 
 from app import personal
-from app.models import CausalChain
+from app.models import CausalChain, Chat
 from app.runtime_bridge import RuntimeBridge
 from app.twin_prompts import platform_prompt
 
@@ -41,8 +42,14 @@ def test_actual_main_and_child_factories_keep_coordination_out_of_worker_role(pr
         runtime.models.register_api("offline-regression", offline)
         await runtime.start()
         try:
-            request = product.send_message("owner-alex", "private-alex", "Synthetic assigned work", uuid4().hex,
-                reply_for_me=reply_for_me)["request"]
+            if reply_for_me:
+                # Already accepted legacy writing requests keep their frozen role on recovery.
+                with product.transaction() as db:
+                    row = product.accept_request(db, db.get(Chat, "private-alex"), "twin-alex", "owner-alex",
+                        "manual", uuid4().hex, raw="Synthetic accepted legacy writing task")
+                    request = product.request_json(db, row, "owner-alex")
+            else:
+                request = send_message(product, "owner-alex", "private-alex", "Synthetic assigned work", uuid4().hex)["request"]
             context = product.get_runtime_context(request["id"])
             assert (context.get("raw_owner_input") is not None) == reply_for_me
             result = await runtime.execute(product.get_request(request["id"]), context)
@@ -106,7 +113,7 @@ def test_actual_main_and_child_factories_keep_coordination_out_of_worker_role(pr
 
 def test_actual_group_child_keeps_third_party_origin_without_parent_history(product):
     """A delegate must not confuse its controlling owner with the human who asked."""
-    from checks.legacy_requests import legacy_request
+    from duet_test_support import request_duet_reply as legacy_request
 
     async def run():
         runtime = RuntimeBridge(product)
@@ -120,9 +127,9 @@ def test_actual_group_child_keeps_third_party_origin_without_parent_history(prod
         runtime.models.register_api("offline-regression", offline)
         await runtime.start()
         try:
-            source = product.send_message("owner-maya", "group-alex-maya",
+            source = send_message(product, "owner-maya", "duet-alex-maya",
                 "Please do this separate task for me", uuid4().hex)["message"]
-            request = legacy_request(product, "owner-maya", "group-alex-maya",
+            request = legacy_request(product, "owner-maya", "duet-alex-maya",
                 source["id"], "twin-alex", uuid4().hex)
             context = product.get_runtime_context(request["id"])
             result = await runtime.execute(product.get_request(request["id"]), context)
@@ -141,8 +148,8 @@ def test_actual_group_child_keeps_third_party_origin_without_parent_history(prod
             assert references == main
             assert references["requester_id"] == references["source_owner_id"] == "owner-maya"
             assert references["source_message"] == {
-                "id": source["id"], "author_id": "owner-maya",
-                "author_owner_id": "owner-maya", "kind": "human"}
+                "id": source["id"], "author_id": "twin-maya",
+                "author_owner_id": "owner-maya", "kind": "twin"}
             assert child.info.user_id == "owner-alex"
             assert "Authorized recent messages, with no gap after summary: []" in system
             assert "Authorized summary: No summary yet." in system
@@ -154,3 +161,8 @@ def test_actual_group_child_keeps_third_party_origin_without_parent_history(prod
             await runtime.close()
 
     asyncio.run(run())
+
+
+@pytest.fixture(autouse=True)
+def approved_threads(product):
+    seed_collaborations(product)

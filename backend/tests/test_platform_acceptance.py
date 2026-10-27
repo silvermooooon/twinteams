@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
+from duet_test_support import request_duet_reply as legacy_request
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from test_memory_dream import product as product  # noqa: PLC0414
@@ -21,22 +22,22 @@ from app.models import (
     now,
 )
 from app.runtime_bridge import RuntimeBridge
-from checks.legacy_requests import legacy_request
 
 
 def append(product, chat_id, owner_id, body):
     with product.transaction() as db:
+        chain = product.new_causal_chain(db, owner_id)
         return product.append_message(
-            db, db.get(Chat, chat_id), author_id=owner_id, kind="human", body=body
+            db, db.get(Chat, chat_id), author_id=owner_id.replace("owner-", "twin-") if chat_id.startswith("duet-") else owner_id, kind="twin" if chat_id.startswith("duet-") else "human", body=body, causal_chain_id=chain.id
         ).id
 
 
 def origin(product):
     source = append(
-        product, "group-alex-maya", "owner-maya", "Please coordinate this task with the owner."
+        product, "duet-alex-maya", "owner-maya", "Please coordinate this independent task " + uuid4().hex
     )
     request = legacy_request(product,
-        "owner-maya", "group-alex-maya", source, "twin-alex", uuid4().hex
+        "owner-maya", "duet-alex-maya", source, "twin-alex", uuid4().hex
     )
     return request, product.get_runtime_context(request["id"])
 
@@ -52,7 +53,8 @@ def call(product, context, name, arguments, operation_id=None):
 def test_cross_chat_publication_is_new_text_not_a_history_grant(product):
     append(product, "private-alex", "owner-alex", "PRIVATE_HISTORY_MUST_STAY_OWNER_ONLY")
     request, context = origin(product)
-    target = product.create_chat("owner-alex", ["owner-jordan"])["id"]
+    from duet_test_support import approved_chat
+    target = approved_chat(product, "duet-alex-jordan", ["owner-alex", "owner-jordan"])
     with product.transaction() as db:
         before = db.scalar(
             select(func.count())
@@ -112,7 +114,7 @@ def test_cross_chat_publication_is_new_text_not_a_history_grant(product):
             {"chat_id": target, "body": "This must fail", "source_message_ids": [forbidden_source]},
         )
     with pytest.raises(HTTPException) as error:
-        product.chat_detail("owner-jordan", "group-alex-maya")
+        product.chat_detail("owner-jordan", "duet-alex-maya")
     assert error.value.status_code == 403
     for forbidden in ("private-maya", "private-jordan"):
         with pytest.raises(HTTPException):
@@ -149,14 +151,14 @@ def test_private_read_is_audited_and_normal_group_output_stays_conservative(prod
     )
     assert any(
         row["id"] == output_id
-        for row in product.chat_detail("owner-alex", "group-alex-maya")["messages"]
+        for row in product.chat_detail("owner-alex", "duet-alex-maya")["messages"]
     )
     assert all(
         row["id"] != output_id
-        for row in product.chat_detail("owner-maya", "group-alex-maya")["messages"]
+        for row in product.chat_detail("owner-maya", "duet-alex-maya")["messages"]
     )
     assert "PRIVATE_READ_REFERENCE_MARKER" not in str(
-        product.chat_detail("owner-maya", "group-alex-maya")
+        product.chat_detail("owner-maya", "duet-alex-maya")
     )
 
 
@@ -178,7 +180,7 @@ def test_late_cross_chat_send_revalidates_all_consumed_sources(product, change):
             else:
                 db.scalar(
                     select(Membership).where(
-                        Membership.chat_id == "group-alex-maya", Membership.owner_id == "owner-alex"
+                        Membership.chat_id == "duet-alex-maya", Membership.owner_id == "owner-alex"
                     )
                 ).left_at = now()
     with pytest.raises(HTTPException):
@@ -187,14 +189,14 @@ def test_late_cross_chat_send_revalidates_all_consumed_sources(product, change):
             context,
             "send_chat_message",
             {
-                "chat_id": "group-team",
+                "chat_id": "duet-team",
                 "body": "Late report must fail.",
                 "source_message_ids": [private_id],
             },
         )
     assert not any(
         row["body"] == "Late report must fail."
-        for row in product.chat_detail("owner-maya", "group-team")["messages"]
+        for row in product.chat_detail("owner-maya", "duet-team")["messages"]
     )
 
 
@@ -301,7 +303,7 @@ def test_group_actual_sdk_discovers_private_reads_and_reports_without_private_ex
                 and reports[0]["causal_chain_id"] == request["causal_chain_id"]
             )
             assert "Conservative group output after private read." not in str(
-                product.chat_detail("owner-maya", "group-alex-maya")
+                product.chat_detail("owner-maya", "duet-alex-maya")
             )
             with product.transaction() as db:
                 assert (
@@ -336,7 +338,7 @@ def test_automatic_retries_across_old_targets_share_controller_budget(product):
             call(product, context, "retry_reply_request", {"id": previous["id"]}, operation)
             == result
         )
-        if index == 6:
+        if index >= 5:
             assert result["status"] == "held" and result["reason"] == "budget_exhausted"
         else:
             accepted.append(result["id"])
@@ -344,7 +346,7 @@ def test_automatic_retries_across_old_targets_share_controller_budget(product):
     with product.transaction() as db:
         chain = db.get(CausalChain, controller["causal_chain_id"])
         assert chain.spent == chain.allowance == 6
-        assert db.scalar(select(func.count()).select_from(ReplyRequest)) == before + 6
+        assert db.scalar(select(func.count()).select_from(ReplyRequest)) == before + 5
         assert all(db.get(ReplyRequest, ident).automatic_reservation_id for ident in accepted)
         assert all(
             db.get(ReplyRequest, row["id"]).causal_chain_id == row["causal_chain_id"] for row in old
@@ -585,7 +587,7 @@ def test_saved_unknown_tool_names_do_not_install_an_executor():
     )
     assert (
         runtime._tools(
-            {"owner_id": "owner-alex", "chat": {"id": "group-team", "kind": "group"}}, session
+            {"owner_id": "owner-alex", "chat": {"id": "duet-team", "kind": "group"}}, session
         )
         == []
     )
@@ -602,7 +604,7 @@ def test_saved_unknown_tool_names_do_not_install_an_executor():
         },
         {
             "tool": "rename_chat",
-            "arguments": {"chat_id": "group-team", "title": "Injected", "approved": True},
+            "arguments": {"chat_id": "duet-team", "title": "Injected", "approved": True},
         },
     ],
 )
@@ -628,7 +630,7 @@ def test_approval_rejects_uninstalled_and_injected_actions(product, action):
         )
     assert error.value.status_code == 400
     with product.transaction() as db:
-        assert db.scalar(select(func.count()).select_from(Approval)) == 0
+        assert db.scalar(select(func.count()).select_from(Approval).where(Approval.sdk_reference["type"].as_string().is_(None))) == 0
 
 
 def test_group_approval_private_inbox_then_actual_sdk_executes_frozen_action_once(product):
@@ -645,8 +647,8 @@ def test_group_approval_private_inbox_then_actual_sdk_executes_frozen_action_onc
             runtime_run_id="approval-origin-run",
         )
         action = {
-            "tool": "rename_chat",
-            "arguments": {"chat_id": "group-team", "title": "Exact approved platform name"},
+            "tool": "create_reminder",
+            "arguments": {"chat_id": "duet-team", "title": "Exact approved owner reminder"},
         }
         try:
             approval = await product.runtime_tool(
@@ -662,19 +664,19 @@ def test_group_approval_private_inbox_then_actual_sdk_executes_frozen_action_onc
             )
             inbox = product.chat_detail("owner-alex", "private-alex")
             assert any(
-                row["id"] == approval["id"] and row["chat_id"] == "group-alex-maya"
+                row["id"] == approval["id"] and row["chat_id"] == "duet-alex-maya"
                 for row in inbox["approvals"]
             )
             assert not any(
                 row["id"] == approval["id"]
-                for row in product.chat_detail("owner-maya", "group-alex-maya")["approvals"]
+                for row in product.chat_detail("owner-maya", "duet-alex-maya")["approvals"]
             )
             with pytest.raises(PermissionError):
                 await product.runtime_tool(
                     "execute_approved_action", {"id": approval["id"]}, context
                 )
             payload = product.approval_for_execution(
-                "owner-alex", "group-alex-maya", approval["id"]
+                "owner-alex", "duet-alex-maya", approval["id"]
             )
             await runtime.decide_approval(payload, "approved")
             await product.reconcile_approvals()
@@ -683,7 +685,7 @@ def test_group_approval_private_inbox_then_actual_sdk_executes_frozen_action_onc
                 row = db.get(Approval, approval["id"])
                 continued = db.get(ReplyRequest, row.continuation_request_id)
                 assert (
-                    continued.chat_id == "group-alex-maya"
+                    continued.chat_id == "duet-alex-maya"
                     and continued.causal_chain_id == request["causal_chain_id"]
                 )
                 continued_id = continued.id
@@ -725,7 +727,7 @@ def test_group_approval_private_inbox_then_actual_sdk_executes_frozen_action_onc
             await product.execute_request(continued_id)
             assert product.get_request(continued_id)["status"] == "completed" and len(calls) == 2
             assert (
-                product.chat_detail("owner-maya", "group-team")["chat"]["title"]
+                product.bootstrap("owner-alex")["reminders"][0]["title"]
                 == action["arguments"]["title"]
             )
             continued_context = product.get_runtime_context(continued_id, include_completed=True)
@@ -738,8 +740,8 @@ def test_group_approval_private_inbox_then_actual_sdk_executes_frozen_action_onc
                     {
                         "id": approval["id"],
                         "action": {
-                            "tool": "rename_chat",
-                            "arguments": {"chat_id": "group-team", "title": "Tampered"},
+                            "tool": "create_reminder",
+                            "arguments": {"chat_id": "duet-team", "title": "Tampered"},
                         },
                     },
                     continued_context,
@@ -759,7 +761,7 @@ def test_group_approval_private_inbox_then_actual_sdk_executes_frozen_action_onc
                         .select_from(ReplyRequest)
                         .where(ReplyRequest.chat_id == "private-alex")
                     )
-                    == 0
+                    == 2
                 )
             assert len(calls) == 2
         finally:
@@ -772,7 +774,7 @@ def test_group_approval_private_inbox_then_actual_sdk_executes_frozen_action_onc
 def test_exact_owner_approval_private_retry_grants_one_atomically_and_respects_reset(
     product, reset_before_execution
 ):
-    from app.models import AllowanceGrant, Approval, MemoryDreamState
+    from app.models import AllowanceGrant, Approval
 
     old_group = []
     for _ in range(6):
@@ -847,7 +849,7 @@ def test_exact_owner_approval_private_retry_grants_one_atomically_and_respects_r
                 and "private execution" in approval["impact"].lower()
             )
             payload = product.approval_for_execution(
-                "owner-alex", "group-alex-maya", approval["id"]
+                "owner-alex", "duet-alex-maya", approval["id"]
             )
             await runtime.decide_approval(payload, "approved")
             await product.reconcile_approvals()
@@ -882,38 +884,20 @@ def test_exact_owner_approval_private_retry_grants_one_atomically_and_respects_r
                 assert result == await product.runtime_tool(
                     "execute_approved_action", {"id": approval["id"]}, continued_context
                 )
-                assert (
-                    result["causal_chain_id"] == controller["causal_chain_id"]
-                    and result["source"] == "tool_retry"
-                )
+                assert result["status"] == "held" and result["reason"] == "budget_exhausted"
                 with product.transaction() as db:
                     chain = db.get(CausalChain, controller["causal_chain_id"])
-                    assert chain.spent == chain.allowance == 7
-                    assert db.get(ReplyRequest, result["id"]).execution_config == frozen_config
+                    assert chain.spent == chain.allowance == 6
                     assert db.get(ReplyRequest, private["id"]).execution_config == frozen_config
-                    assert db.scalar(select(func.count()).select_from(ReplyRequest)) == before + 1
-                    assert (
-                        db.scalar(
-                            select(func.count())
-                            .select_from(AllowanceGrant)
-                            .where(
-                                AllowanceGrant.client_request_key == "approval:" + approval["id"]
-                            )
-                        )
-                        == 1
-                    )
-                with product.transaction() as db:
-                    state = db.get(MemoryDreamState, "owner-alex")
-                    before_dream = (state.message_cursor_seq, state.due_at, state.queued_request_id)
-                product.complete_request(
-                    result["id"], session_id="offline-retry-audit", run_id="offline-retry-audit-run"
-                )
-                with product.transaction() as db:
-                    state = db.get(MemoryDreamState, "owner-alex")
-                    assert (state.message_cursor_seq, state.due_at, state.queued_request_id) == before_dream, (
-                        "Completing a retry without a new published message adds no Dream evidence"
-                    )
+                    assert db.scalar(select(func.count()).select_from(ReplyRequest)) == before
+                    assert not db.scalar(select(AllowanceGrant.id).where(AllowanceGrant.client_request_key == "approval:" + approval["id"]))
         finally:
             await runtime.close()
 
     asyncio.run(run())
+
+
+@pytest.fixture(autouse=True)
+def approved_collaboration_fixtures(product):
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)

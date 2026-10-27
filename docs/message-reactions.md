@@ -2,7 +2,7 @@
 
 Implementation and acceptance record: 2026-10-19.
 
-One-to-one conversations (owner/private Twin and two-owner human chats) hide the per-message “Ask my twin” action. Groups with at least three owners retain it. “Ask another twin” remains unchanged.
+Human pair and multi-person chats accept only human reactions. Duets can react in their owner's private conversation or an active approved Duet thread. Owners inspect Duet threads read-only and cannot react there. Human chats expose no manual Duet reply controls.
 
 The reaction UI uses Microsoft's public Teams interaction contract and observed picker/customization layout: a floating quick bar, up to five quick reactions, a More reactions gallery, multiple reactions per actor (up to 20), selecting the same reaction again to remove it, counts and a named actor roster. At most five reaction kinds are shown below a message; `+N` opens the complete roster. Humans and Twins remain distinct Actors even when they share an owner. Existing published messages without a reactions field render normally.
 
@@ -22,7 +22,7 @@ The human HTTP form and `set_message_reaction` share the same desired-state oper
 
 To remove that Twin's reaction, call the same tool with `active:false`. A Twin writes as its own Actor and cannot cancel its owner's human reaction. The backend rechecks the durable originating request, current owner membership, message history/provenance and private reset generation on every operation. Cross-chat calls keep source auditing. The stable SDK operation identity supplies replay safety; a retried committed action does not duplicate a reaction. A reaction never sends a new message, routes another Twin response, creates a follow-up or resets the conversation-chain budget. The exact action can be owner-approved through the existing approval mechanism; it does not grant secret, admin or private-execution permissions.
 
-New authorized group runs also include owner-only credential requests alongside the platform tools. A genuinely resumable old run retains its frozen original tool names, schema, description and version, bound only to currently known executors. New tools are available in new runs, not silently inserted into an interrupted model request. Completed session history alone is not treated as a resume. See [twin-platform-tools.md](twin-platform-tools.md).
+New authorized Duet-thread runs also include owner-only credential requests alongside the platform tools. A genuinely resumable old run retains its frozen original tool names, schema, description and version, bound only to currently known executors. New tools are available in new runs, not silently inserted into an interrupted model request. Completed session history alone is not treated as a resume. See [twin-platform-tools.md](twin-platform-tools.md).
 
 ## Schema and deployment order
 

@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
+from duet_test_support import seed_collaborations, send_message
 from fastapi import HTTPException
 from sqlalchemy import select
 from test_memory_dream import product as product  # noqa: PLC0414
@@ -15,8 +16,9 @@ from app.service import digest
 
 def origin(product, chat_id="private-alex", *, reply_for_me=False):
     sender = "owner-maya" if chat_id != "private-alex" and not reply_for_me else "owner-alex"
-    sent = product.send_message(sender, chat_id, "Synthetic owner task", uuid4().hex,
-        reply_for_me=reply_for_me)
+    if chat_id.startswith("duet-"):
+        seed_collaborations(product)
+    sent = send_message(product, sender, chat_id, "Synthetic owner task", uuid4().hex)
     request = sent["request"]
     if not request:
         # The observed bug used an accepted automatic task owned by the recipient's Twin.
@@ -44,7 +46,7 @@ def complete(product, request_id, body):
         "run_id": "synthetic-run-" + request_id, "event_id": "synthetic-final-" + request_id, "event_seq": 2})
 
 
-@pytest.mark.parametrize("chat_id", ["private-alex", "group-alex-maya", "group-team"])
+@pytest.mark.parametrize("chat_id", ["private-alex", "duet-alex-maya", "duet-team"])
 def test_current_chat_tool_is_rejected_without_mutation_but_normal_reply_is_published_once(product, chat_id):
     request, context = origin(product, chat_id)
     body, operation = "Synthetic current-chat answer", uuid4().hex
@@ -61,7 +63,7 @@ def test_current_chat_tool_is_rejected_without_mutation_but_normal_reply_is_publ
 
 
 def test_cross_chat_report_replay_and_equal_text_normal_replies_remain_independent(product):
-    request, context = origin(product, "group-alex-maya")
+    request, context = origin(product, "duet-alex-maya")
     body = "Synthetic report text shared with the owner"
     args = {"chat_id": "private-alex", "body": body, "source_message_ids": []}
     operation = uuid4().hex
@@ -70,22 +72,20 @@ def test_cross_chat_report_replay_and_equal_text_normal_replies_remain_independe
     assert call(product, context, args, operation)["message_id"] == sent["message_id"]
     assert len(outputs(product, request["id"], "private-alex")) == 1
     complete(product, request["id"], body)
-    assert len(outputs(product, request["id"], "group-alex-maya")) == 1
-    second, _ = origin(product, "group-alex-maya")
+    assert len(outputs(product, request["id"], "duet-alex-maya")) == 1
+    second, _ = origin(product, "duet-alex-maya")
     complete(product, second["id"], body)
-    assert len(outputs(product, second["id"], "group-alex-maya")) == 1
+    assert len(outputs(product, second["id"], "duet-alex-maya")) == 1
 
 
-def test_reply_for_me_uses_its_canonical_projection_after_same_chat_tool_rejection(product):
-    request, context = origin(product, "group-alex-maya", reply_for_me=True)
-    body = "Synthetic generated wording"
-    with pytest.raises(HTTPException):
-        call(product, context, {"chat_id": "group-alex-maya", "body": body, "source_message_ids": []})
-    complete(product, request["id"], body)
-    complete(product, request["id"], body)
-    saved = outputs(product, request["id"], "group-alex-maya")
-    assert len(saved) == 1 and saved[0]["kind"] == "reply_for_me"
-    assert saved[0]["raw"] == "Synthetic owner task" and saved[0]["body"] == body
+def test_reply_for_me_cannot_add_an_agent_outlet_in_a_human_chat(product):
+    with product.transaction() as db:
+        before = db.get(Chat, "group-alex-maya").next_message_seq
+    with pytest.raises(HTTPException) as denied:
+        product.send_message("owner-alex", "group-alex-maya", "Synthetic rewrite", uuid4().hex, reply_for_me=True)
+    assert denied.value.status_code == 403
+    with product.transaction() as db:
+        assert db.get(Chat, "group-alex-maya").next_message_seq == before
 
 
 def test_preexisting_committed_same_chat_receipt_replays_without_a_new_effect_and_rechecks_visibility(product):

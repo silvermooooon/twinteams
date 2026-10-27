@@ -31,17 +31,17 @@ def test_dream_evidence_is_only_real_user_assistant_text():
 
 def test_prompt_composes_soul_and_server_hook_without_private_memory(monkeypatch):
     from app import twin_prompts
-    context = {"owner_id": "owner", "chat": {"kind": "group"},
+    context = {"owner_id": "owner", "chat": {"kind": "duet"},
                "execution_config": {"profile": {"soul": "Speak gently.", "soul_version": 2}},
                "private_memory": "must never appear"}
     assert "You are your owner's front-facing Duet." in platform_prompt(context)
     monkeypatch.setattr(twin_prompts, "platform_prompt", lambda _, **kwargs: "server-only policy")
     prompt = conversation_system(context)
-    assert "group conversation" in prompt and "Speak gently." in prompt
+    assert "Duet conversation" in prompt and "Speak gently." in prompt
     assert "server-only policy" in prompt
     assert "must never appear" not in prompt
     assert "Main and child capabilities match" in prompt
-    assert "Pending approvals" in prompt and "wait_for_reply=true" in prompt
+    assert "create_approval" in prompt and "wait_for_reply=true" in prompt
 
 
 class Product:

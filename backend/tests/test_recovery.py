@@ -4,16 +4,16 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+from agent_runtime import AssistantMessageEventStream, assistant_message
+from agent_runtime.storage.coordination import ExecutionLeaseError
 from fastapi import HTTPException
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from agent_runtime import AssistantMessageEventStream, assistant_message
-from agent_runtime.storage.coordination import ExecutionLeaseError
-from checks.postgres import TestDatabase
 from app import service as module
 from app.models import Approval, Message, Reminder, ReplyLane, ReplyRequest, RoutingDecision
 from app.runtime_bridge import RuntimeBridge, RuntimeBusy
+from checks.postgres import TestDatabase
 
 
 def key():
@@ -106,8 +106,9 @@ def test_busy_router_does_not_discard_other_workers_result(product):
     async def run():
         runtime = await bridge_for(product)
         try:
-            chat = product.create_chat("owner-alex", ["owner-maya"], "route")["id"]
-            message = product.send_message("owner-alex", chat, "Can you help?", key())["message"]
+            from duet_test_support import append_duet, approved_chat
+            chat = approved_chat(product, "duet-recovery")
+            message = append_duet(product, chat, "owner-alex", "Can you help?")
             runtime.route_targets = AsyncMock(side_effect=RuntimeBusy("other holder"))
             await product.route_pending()
             with product.transaction() as db:
@@ -135,8 +136,9 @@ def test_slow_routing_does_not_block_private_dispatch(product):
             dispatched.set()
         runtime.route_targets = route
         product.execute_request = execute
-        chat = product.create_chat("owner-alex", ["owner-maya"], "slow route")["id"]
-        product.send_message("owner-alex", chat, "question", key())
+        from duet_test_support import append_duet, approved_chat
+        chat = approved_chat(product, "duet-recovery")
+        append_duet(product, chat, "owner-alex", "question")
         await product.start()
         try:
             await asyncio.wait_for(entered.wait(), 2)
@@ -198,14 +200,15 @@ def test_approval_survives_decision_projection_gap_and_executes_once(product):
 
 def test_owner_admission_precedes_global_candidate_limit(product):
     """A busy owner's old queue cannot hide a later owner's ready FIFO head."""
-    from app.models import Actor, Chat, Membership
+    from duet_test_support import approved_chat
+
+    from app.models import Actor, Chat
+    for index in range(105):
+        approved_chat(product, f"duet-fair-{index}")
     with product.transaction() as db:
         for index in range(105):
-            chat = Chat(id=f"fair-{index}", kind="group", title="Fairness fixture")
-            db.add(chat)
-            db.flush()
-            db.add(Membership(chat_id=chat.id, owner_id="owner-alex"))
-            product.accept_request(db, chat, "twin-alex", "owner-alex", "manual", key(), input_body="Explicit test")
+            chat = db.get(Chat, f"duet-fair-{index}")
+            product.accept_request(db, chat, "twin-alex", "owner-maya", "auto", key(), input_body=f"Explicit independent task {index}")
         other = product.accept_request(db, db.get(Chat, "private-maya"), "twin-maya", "owner-maya", "manual", key(), input_body="Later other owner")
         other_id = other.id
     ready = product.claim_dispatches()

@@ -3,6 +3,7 @@ import asyncio
 from uuid import uuid4
 
 import pytest
+from duet_test_support import send_message
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from test_credentials import product as product  # noqa: PLC0414
@@ -16,9 +17,11 @@ from app.runtime_bridge import RuntimeBridge
 
 def pending(product, chat_id="private-alex"):
     if chat_id == "private-alex":
-        request = product.send_message("owner-alex", chat_id, "Prepare a useful report", uuid4().hex)["request"]
+        request = send_message(product, "owner-alex", chat_id, "Prepare a useful report", uuid4().hex)["request"]
     else:
-        sent = product.send_message("owner-maya", chat_id, "Prepare a useful report", uuid4().hex)
+        from duet_test_support import seed_collaborations
+        seed_collaborations(product)
+        sent = send_message(product, "owner-maya", chat_id, "Prepare a useful report", uuid4().hex)
         with product.transaction() as db:
             chat, _ = product.membership(db, "owner-alex", chat_id)
             request = product.request_payload(product.accept_request(db, chat, product.twin(db, "owner-alex").id,
@@ -58,7 +61,7 @@ def test_exact_answer_creates_only_one_original_task_continuation(product, mode)
         with pytest.raises(HTTPException):
             questions.answer(product, "owner-alex", row["id"], "A different answer")
     elif mode == "reply":
-        sent = product.send_message("owner-alex", "private-alex", "Detailed, verbatim owner text.", uuid4().hex, reply_to=row["message_id"])
+        sent = send_message(product, "owner-alex", "private-alex", "Detailed, verbatim owner text.", uuid4().hex, reply_to=row["message_id"])
         assert sent["request"]["source"] == "question_result"
     else:
         result = questions.dismiss(product, "owner-alex", row["id"])
@@ -77,7 +80,7 @@ def test_exact_answer_creates_only_one_original_task_continuation(product, mode)
 def test_unquoted_new_task_not_swallowed_and_model_uses_only_current_real_owner_text(product):
     _, _, row, _ = pending(product)
     key = uuid4().hex
-    sent = product.send_message("owner-alex", "private-alex", "Short please; keep this exact punctuation!", key)
+    sent = send_message(product, "owner-alex", "private-alex", "Short please; keep this exact punctuation!", key)
     assert sent["request"]["source"] == "private"
     with product.transaction() as db:
         assert db.get(QuestionRequest, row["id"]).status == "pending"
@@ -85,7 +88,7 @@ def test_unquoted_new_task_not_swallowed_and_model_uses_only_current_real_owner_
     result = questions.answer_from_message(product, {"question_id": row["id"], "message_id": sent["message"]["id"]}, context)
     assert result["answer"] == sent["message"]["body"]
     assert questions.answer_from_message(product, {"question_id": row["id"], "message_id": sent["message"]["id"]}, context) == result
-    repeated = product.send_message("owner-alex", "private-alex", sent["message"]["body"], key)
+    repeated = send_message(product, "owner-alex", "private-alex", sent["message"]["body"], key)
     assert repeated["message"]["id"] == sent["message"]["id"] and repeated["message"].get("reply_to") is None
     with pytest.raises(HTTPException):
         questions.answer_from_message(product, {"question_id": row["id"], "message_id": row["message_id"]}, context)
@@ -93,8 +96,8 @@ def test_unquoted_new_task_not_swallowed_and_model_uses_only_current_real_owner_
 
 def test_natural_association_rejects_existing_unrelated_quote(product):
     _, _, row, _ = pending(product)
-    other = product.send_message("owner-alex", "private-alex", "Another topic", uuid4().hex)
-    sent = product.send_message("owner-alex", "private-alex", "Short", uuid4().hex, reply_to=other["message"]["id"])
+    other = send_message(product, "owner-alex", "private-alex", "Another topic", uuid4().hex)
+    sent = send_message(product, "owner-alex", "private-alex", "Short", uuid4().hex, reply_to=other["message"]["id"])
     context = product.get_runtime_context(sent["request"]["id"])
     with pytest.raises(HTTPException) as caught:
         questions.answer_from_message(product, {"question_id": row["id"], "message_id": sent["message"]["id"]}, context)
@@ -103,12 +106,12 @@ def test_natural_association_rejects_existing_unrelated_quote(product):
 
 @pytest.mark.parametrize("revoke", ["withdraw", "leave", "cancel"])
 def test_group_owner_only_question_revocation_never_resumes_or_leaks_known_id(product, revoke):
-    request, _, row, _ = pending(product, "group-alex-maya")
+    request, _, row, _ = pending(product, "duet-alex-maya")
     with product.transaction() as db:
         if revoke == "withdraw":
             db.get(Message, request["source_message_id"]).state = "withdrawn"
         elif revoke == "leave":
-            product.membership(db, "owner-alex", "group-alex-maya")[1].left_at = db.get(Message, request["source_message_id"]).created_at
+            product.membership(db, "owner-alex", "duet-alex-maya")[1].left_at = db.get(Message, request["source_message_id"]).created_at
     if revoke == "cancel":
         asyncio.run(product.cancel_request("owner-alex", request["id"]))
     for action in [lambda: questions.answer(product, "owner-alex", row["id"], "Short"),
@@ -151,7 +154,7 @@ def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actu
         runtime.models.register_api("offline-regression", offline)
         await runtime.start(); product.bind_runtime(runtime)
         try:
-            original = product.send_message("owner-alex", "private-alex", "ROOT-ORIGINAL-TASK", uuid4().hex)["request"]
+            original = send_message(product, "owner-alex", "private-alex", "ROOT-ORIGINAL-TASK", uuid4().hex)["request"]
             await product.execute_request(original["id"])
             for _ in range(300):
                 with product.transaction() as db:
@@ -215,7 +218,7 @@ def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actu
 
 def test_frozen_answer_remains_task_input_after_message_withdrawal_but_not_before_association(product):
     _, _, row, _ = pending(product)
-    sent = product.send_message("owner-alex", "private-alex", "Detailed", uuid4().hex)
+    sent = send_message(product, "owner-alex", "private-alex", "Detailed", uuid4().hex)
     context = product.get_runtime_context(sent["request"]["id"])
     with product.transaction() as db:
         db.get(Message, sent["message"]["id"]).state = "withdrawn"
@@ -244,7 +247,7 @@ def test_reset_erases_pending_questions_and_replay_cannot_reenroll_or_reveal(pro
 
 @pytest.mark.parametrize("running", [False, True])
 def test_private_reset_hard_stops_only_answer_carriers_from_group_tasks(product, running):
-    request, _, row, _ = pending(product, "group-alex-maya")
+    request, _, row, _ = pending(product, "duet-alex-maya")
     questions.answer(product, "owner-alex", row["id"], "Short")
     with product.transaction() as db:
         continuation_id = db.get(QuestionRequest, row["id"]).continuation_request_id
@@ -291,8 +294,8 @@ def test_private_prompt_projection_does_not_reverse_group_answer_lock_order(prod
     from sqlalchemy import event
 
     from app import service as module
-    _, _, row, _ = pending(product, "group-alex-maya")
-    fresh = product.send_message("owner-alex", "private-alex", "Another ordinary task", uuid4().hex)["request"]
+    _, _, row, _ = pending(product, "duet-alex-maya")
+    fresh = send_message(product, "owner-alex", "private-alex", "Another ordinary task", uuid4().hex)["request"]
     private_locked, group_locked = threading.Event(), threading.Event()
     original = questions.pending_questions
     errors = []
@@ -304,7 +307,7 @@ def test_private_prompt_projection_does_not_reverse_group_answer_lock_order(prod
     monkeypatch.setattr(questions, "pending_questions", delayed)
     def observed(connection, cursor, statement, parameters, context, many):
         if (threading.current_thread().name == "question-answer" and "FOR UPDATE" in statement
-                and "tt_chats" in statement and "group-alex-maya" in str(parameters)):
+                and "tt_chats" in statement and "duet-alex-maya" in str(parameters)):
             group_locked.set()
     event.listen(module.engine, "after_cursor_execute", observed)
     def execute(action):

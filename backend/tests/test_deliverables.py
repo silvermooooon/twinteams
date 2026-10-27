@@ -14,12 +14,13 @@ from app.models import ChatAttachment, Message, ProductOperation
 
 def prepare(files, name="result.md", data=b"# Completed report\n", chat="private-alex"):
     product, client, root = files
-    sent = send(client, chat=chat, body="Prepare a synthetic deliverable").json()
-    request = sent.get("request")
-    if not request:
-        with product.transaction() as db:
-            group, _ = product.membership(db, "owner-alex", chat)
-            request = product.request_json(db, product.accept_request(db, group, "twin-alex", "owner-alex", "manual", uuid4().hex, source_message_id=sent["message"]["id"]), "owner-alex")
+    if chat.startswith("duet-"):
+        from duet_test_support import append_duet, request_duet_reply, seed_collaborations
+        seed_collaborations(product)
+        source = append_duet(product, chat, "owner-maya", "Prepare a synthetic deliverable")
+        request = request_duet_reply(product, "owner-maya", chat, source["id"], "twin-alex")
+    else:
+        request = send(client, chat=chat, body="Prepare a synthetic deliverable").json()["request"]
     context = product.get_runtime_context(request["id"])
     path = root / chat / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -99,18 +100,19 @@ def test_preview_limit_and_immutable_snapshot_tampering_are_explicit_errors(file
 
 def test_group_shared_source_and_owner_source_can_be_delivered_but_private_input_cannot(files):
     product, client, root = files
-    shared, context = prepare(files, "shared.txt", b"shared report", "group-alex-maya")
+    shared, context = prepare(files, "shared.txt", b"shared report", "duet-alex-maya")
     result = present(product, context, [shared])
     item = result["message"]["attachments"][0]
     assert client.get(item["url"], headers={"x-test-owner": "owner-maya"}).content == b"shared report"
     private = root / "private-alex" / "finished.txt"
     private.parent.mkdir(exist_ok=True); private.write_bytes(b"owner approved report")
     assert present(product, context, [private])["sent"]
-    uploaded = upload(client, chat="group-alex-maya", name="raw.txt", mime="text/plain", data=b"private raw input").json()
-    rewrite = send(client, chat="group-alex-maya", body="Rewrite privately", ids=[uploaded["id"]], reply_for_me=True).json()
-    assert rewrite["request"]
+    assert upload(client, chat="duet-alex-maya", name="raw.txt").status_code == 403
+    uploaded = upload(client, name="raw.txt", mime="text/plain", data=b"private raw input").json()
+    with product.transaction() as db:
+        db.get(ChatAttachment, uploaded["id"]).private_owner_input = True
     with pytest.raises(HTTPException, match="Private owner-input"):
-        present(product, context, [root / "group-alex-maya" / "uploads" / uploaded["id"] / "raw.txt"])
+        present(product, context, [root / "private-alex" / "uploads" / uploaded["id"] / "raw.txt"])
     with product.transaction() as db:
         db.get(Message, result["message_id"]).state = "withdrawn"
     assert client.get(item["url"], headers={"x-test-owner": "owner-maya"}).status_code == 404

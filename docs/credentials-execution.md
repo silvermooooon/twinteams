@@ -12,13 +12,7 @@ Missing/invalid configuration leaves the rest of the application available and e
 host key with the encrypted files; losing it makes the files unreadable.
 
 All authorized conversations use the target Twin owner's local execution and credential tools,
-including two-owner and larger group chats. When B asks A's Twin to work, workspace, Skills,
-Soul, credential references and main-session read/write Memory belong to A. The model sees
-current audience names/IDs and the original requester, distinguishes B's request from A's
-consent, and asks A before sensitive owner operations when consent has not already been granted.
-Background workers share A's execution configuration, credentials and Memory tools, with independent task context. Credential forms
-and their completion APIs remain A-only; filling a form supplies bindings without approving an action.
-Private history/provenance and existing per-action followup/retry restrictions still apply.
+including approved two-Duet and multi-Duet threads. Human chats are inspection-only for agents. Runtime identity, workspace, Skills, credentials and Memory belong to the executing Duet's own owner. Connection approval once or directed always grants authorize communication only; they do not authorize arbitrary actions or peer access to private resources. Sensitive actions still require the owner's existing task consent or exact approval. Revocation closes dependent conversations and cancels their pending work.
 
 The first factory invocation after the SDK acquires its execution lease freezes a nonsecret
 `ReplyRequest.execution_config`: the Twin's existing private-chat workspace, enabled Skills

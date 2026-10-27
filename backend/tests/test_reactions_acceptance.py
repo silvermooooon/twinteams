@@ -6,6 +6,8 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
+from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import seed_collaborations
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import event, select
@@ -15,7 +17,6 @@ from app import service as service_module
 from app.main import app
 from app.models import Chat, Membership, Message, now
 from app.runtime_bridge import RuntimeBridge
-from checks.legacy_requests import legacy_request
 
 
 def seed_message(
@@ -27,8 +28,10 @@ def seed_message(
         ).id
 
 
-def context_for(product, chat_id="group-team"):
-    mid = seed_message(product, chat_id)
+def context_for(product, chat_id="duet-team"):
+    seed_collaborations(product)
+    from duet_test_support import append_duet
+    mid = append_duet(product, chat_id, "owner-maya", "Synthetic reaction target")["id"]
     request = legacy_request(product, "owner-maya", chat_id, mid, "twin-alex", uuid4().hex)
     return request, product.get_runtime_context(request["id"]), mid
 
@@ -84,7 +87,7 @@ def test_reaction_late_and_replayed_operations_recheck_visibility(product, chang
         chat_id = "private-alex"
     else:
         _request, context, mid = context_for(product)
-        chat_id = "group-team"
+        chat_id = "duet-team"
     args = {"message_id": mid, "chat_id": chat_id, "emoji": "👍", "active": True}
     first = asyncio.run(
         product.runtime_tool(
@@ -119,8 +122,9 @@ def test_reaction_late_and_replayed_operations_recheck_visibility(product, chang
 
 def test_actual_sdk_twin_add_remove_keeps_human_state_and_replay_does_not_call_model(product):
     request, _context, mid = context_for(product)
-    human = client("DEV-BBB")
-    assert reaction(human, "group-team", mid, True).status_code == 200
+    from app.reactions import set_reaction
+    with product.transaction() as db:
+        set_reaction(product, db, "owner-maya", "duet-team", mid, "twin-maya", "👍", True)
 
     async def run():
         runtime = RuntimeBridge(product)
@@ -139,7 +143,7 @@ def test_actual_sdk_twin_add_remove_keeps_human_state_and_replay_does_not_call_m
                 state = result["reactions"][0]
                 assert state["count"] == 2 and state["mine"] is False
                 assert {(a["id"], a["kind"]) for a in state["actors"]} == {
-                    ("owner-maya", "human"),
+                    ("twin-maya", "twin"),
                     ("twin-alex", "twin"),
                 }
             if len(calls) == 3:
@@ -150,7 +154,6 @@ def test_actual_sdk_twin_add_remove_keeps_human_state_and_replay_does_not_call_m
                 )
                 target = next(row for row in history["messages"] if row["id"] == mid)
                 assert {actor["kind"] for actor in target["reactions"][0]["actors"]} == {
-                    "human",
                     "twin",
                 }
             content = (
@@ -182,13 +185,13 @@ def test_actual_sdk_twin_add_remove_keeps_human_state_and_replay_does_not_call_m
         try:
             await product.execute_request(request["id"])
             assert product.get_request(request["id"])["status"] == "completed" and len(calls) == 4
-            state = aggregate(product, "owner-alex", "group-team", mid)
+            state = aggregate(product, "owner-alex", "duet-team", mid)
             assert (
                 state[0]["count"] == 1
-                and state[0]["actors"][0]["id"] == "owner-maya"
+                and state[0]["actors"][0]["id"] == "twin-maya"
                 and state[0]["mine"] is False
             )
-            assert aggregate(product, "owner-maya", "group-team", mid)[0]["mine"] is True
+            assert aggregate(product, "owner-maya", "duet-team", mid)[0]["mine"] is False
             await product.execute_request(request["id"])
             assert len(calls) == 4
         finally:
@@ -241,7 +244,7 @@ def test_cross_chat_reaction_requires_actual_message_visibility_and_preserves_so
     assert call("private-alex", private)["actor_id"] == "twin-alex"
     for target, mid, extra in (
         ("private-maya", others_private, {}),
-        ("group-team", private, {}),
+        ("duet-team", private, {}),
         ("private-alex", private, {"actor_id": "owner-maya"}),
     ):
         try:
@@ -256,10 +259,10 @@ def test_cross_chat_reaction_requires_actual_message_visibility_and_preserves_so
         request["id"], "Private-derived output", "s", "r", "e", 1
     )
     assert any(
-        row["id"] == output for row in product.chat_detail("owner-alex", "group-team")["messages"]
+        row["id"] == output for row in product.chat_detail("owner-alex", "duet-team")["messages"]
     )
     assert all(
-        row["id"] != output for row in product.chat_detail("owner-maya", "group-team")["messages"]
+        row["id"] != output for row in product.chat_detail("owner-maya", "duet-team")["messages"]
     )
 
 
@@ -329,12 +332,12 @@ def test_committed_reaction_tool_phase_recovers_without_duplicate_effect(product
                     tools=tools,
                     stream_fn=response,
                 ).prompt("React to this message")
-            assert aggregate(product, "owner-alex", "group-team", mid)[0]["count"] == 1
+            assert aggregate(product, "owner-alex", "duet-team", mid)[0]["count"] == 1
             reopened = await DatabaseSession.open(
                 runtime.store, tenant_id="local", session_id=session_id
             )
             assert reopened.resumable and reopened.snapshot["phase"] == "tools"
-            before = product.chat_detail("owner-alex", "group-team")["revision"]
+            before = product.chat_detail("owner-alex", "duet-team")["revision"]
             await Agent(
                 config=runtime.config,
                 models=runtime.models,
@@ -343,8 +346,8 @@ def test_committed_reaction_tool_phase_recovers_without_duplicate_effect(product
                 stream_fn=final,
             ).resume()
             assert not reopened.resumable and len(calls) == 1
-            assert aggregate(product, "owner-alex", "group-team", mid)[0]["count"] == 1
-            assert product.chat_detail("owner-alex", "group-team")["revision"] == before
+            assert aggregate(product, "owner-alex", "duet-team", mid)[0]["count"] == 1
+            assert product.chat_detail("owner-alex", "duet-team")["revision"] == before
         finally:
             await runtime.close()
 

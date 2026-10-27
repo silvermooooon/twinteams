@@ -1,59 +1,17 @@
-# Owner-attributed sends and reply followups
+# Duet sends and reply followups
 
-From either a group or its owner's private conversation, a Twin may prepare a new statement
-and send it to another existing chat where that owner is currently a member, including its owner's
-private chat for a progress report or decision. Current source and destination access are still
-checked. The published body does not grant recipients access to the originating history; its
-internal request, ContextManifest and ProductOperation retain the audit link. Recipient message
-JSON omits a private originating request reference. Never copy unrelated private details into
-an outward statement. This publication rule does not relax ordinary model-output audience checks.
-The current chat receives normal assistant output; `send_chat_message` rejects that destination
-to avoid a tool send followed by a second ordinary reply. Previously committed operation receipts
-still replay their original result without sending again.
+`send_chat_message` can publish a prepared statement to another active approved Duet conversation or the owner's own private chat. Human conversations cannot receive Duet sends. The current chat receives ordinary assistant output. Source/destination membership, source visibility, active connection consent and operation identity are checked before publication. A prepared outward statement preserves internal audit references without granting recipients its originating history.
 
-`send_chat_message` accepts `reply_to_message_id` and `wait_for_reply` (default `false`). Only an
-explicit `true` from the owner's private Twin to an existing authorized group creates a followup.
-The message and followup are committed together. The deadline is fixed at thirty minutes after
-the initial send; replaying the same tool operation returns the same message and deadline.
-Sending completes immediately. No model, subagent or execution worker remains waiting.
+A `request_duet_conversation` initiated from the owner's own private task automatically starts a followup to its opening when unanimous approval activates the conversation. Its thirty-minute deadline starts at activation, never while approval is pending. The opening retains the initiating request for audit, and the reply/timeout resumes that private task under its existing chain. An explicit peer reply is consumed once without also routing a duplicate response from the initiating Duet. A proposal originating within another Duet thread has no implicit private followup. The proposal response remains `{status,conversation,chat_id}`.
 
-`TwinFollowup` stores the origin private lane/request, owner, destination, sent message, original
-causal chain, deadline, terminal outcome and continuation delivery state. Completed rows remain
-for audit. The authoritative schema is `backend/app/models.py`; the repeatable additive provisioner
-and startup checks are `backend/app/followup_schema.py`. `twin-followups-schema.sql` is generated
-reference DDL; deployments should run the existing `python -m app.init_db` provisioning command.
+An explicit `wait_for_reply:true` from the owner's private task to an active approved Duet conversation creates one followup in the send transaction. The deadline is fixed at thirty minutes after the initial send. Replaying the operation returns the same message and deadline. Sending finishes immediately; no model or subagent waits or polls.
 
-A published message by another owner closes the wait only when it explicitly replies to the
-outbound message in the same target chat. Human messages and explicit Twin send-tool actions
-are checked at commit. An ordinary model run closes a wait only at completed final output;
-intermediate narration does not count. Unrelated group traffic does not affect the deadline.
-Reply and timeout take the same existing chat-scope and followup-row locks; the first terminal
-commit wins. A late reply after timeout does not create a second notification. After a reply
-already completed the followup, a further explicit reply is ordinary group traffic rather than
-another completion of that task. Timed-out late replies suppress the old owner's ordinary route
-to avoid a duplicate wakeup; other eligible group recipients retain their normal routing.
+`TwinFollowup` records the private origin request, owner, destination, outbound message, original causal chain, deadline, terminal outcome and continuation state. Another owner's Duet settles the wait only by explicitly replying to that message in the same approved thread. Normal model output qualifies only at completed final output; committed send-tool replies qualify immediately. Human posts are prohibited and cannot settle the wait. Unrelated thread traffic leaves the deadline unchanged.
 
-The terminal state and one reliable `followup_result` ReplyRequest are committed in the same PG
-transaction. The request enters the original owner's private FIFO, carrying only the outbound
-text, destination and the visible reply/author or timeout result. External text is untrusted data,
-not a new owner instruction. Current source and destination permissions are rechecked and reply
-provenance is included in the private continuation's ContextManifest. Revoked or cancelled
-origins are blocked. A source string alone cannot grant private shell or credential access.
-The continuation inherits the original nonsecret execution configuration; it does not scan or
-replay full session history. Its completed empty final response is silent.
-An explicit retry keeps the `followup_result` source and canonical intent, incrementing the
-request generation. It reuses the reservation and chain, rechecks reply access and retains the
-terminal-only/silent policy; retrying does not start a new wait or reset its deadline or budget.
+Reply and timeout take the existing chat-scope and row locks; the first terminal commit wins. Late replies cannot create another completion. Consumed replies exclude the waiting owner from a duplicate ordinary route. Other eligible peers retain normal routing.
 
-Delivery consumes one AutomaticReservation on the original causal chain. The existing six-reply
-allowance and lifetime spending remain in effect across chats, replies and timeouts. An exhausted
-chain leaves a durable terminal followup with delivery paused; the existing owner Continue API
-adds the explicitly granted allowance and delivers it once. No timeout resets the budget.
-An exhausted chain also pauses response routing before a model router call. Explicit replies
-already consumed by a followup exclude that owner from ordinary group routing for that reply.
+A reply or timeout commits one terminal outcome and one `followup_result` into the original owner's private FIFO. The continuation receives the outbound text, destination, visible peer reply/author or timeout. These are reference data, not new owner instructions. It inherits the original nonsecret execution configuration and source audit. Current source access, connection consent and origin cancellation are checked again. Closure or revocation blocks the continuation rather than reviving the session. An empty completed final response remains silent.
 
-The worker uses the existing Redis change hints and scheduler `deadlines` map. The followup
-index provides the next deadline and bounded due ranges through `process_followups`; there is
-no new recurring per-followup polling job, Redis scheduler or permanent LLM waiter. Startup and
-the existing low-frequency compensation tick recover due or pending delivery rows when hints
-are lost. This existing compensation is distinct from adding a new periodic wait scanner.
+The continuation consumes the original chain's automatic allowance. All six replies are shared across chats, workers, retries and timeouts; a timeout never resets spending. Exhaustion leaves delivery paused until an explicit owner Continue extends that same chain. Action approval cannot add allowance. Retrying a completed followup keeps its canonical intent, outcome, deadline, sources and chain rather than starting another wait.
+
+PostgreSQL is authoritative. Redis change hints and the existing worker deadline map provide prompt delivery; bounded compensation repairs missed hints. There is no recurring per-followup model, private polling agent or extra external notification promise.

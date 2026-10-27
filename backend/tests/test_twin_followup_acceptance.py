@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from duet_test_support import send_message
 from fastapi import HTTPException
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
@@ -18,6 +19,7 @@ from app.models import (
     ChangeOutbox,
     DispatchCommand,
     Message,
+    Reminder,
     ReplyRequest,
     RoutingDecision,
 )
@@ -40,6 +42,8 @@ def product(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_MEMORY_DIR", str(tmp_path / "memory"))
     product = service_module.ProductService()
     product.initialize(create_schema=True)
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)
     product._presence_cache = {owner: {"expires_at": 0, "focused_chats": []}
                                for owner in ("owner-alex", "owner-maya", "owner-jordan")}
     yield product
@@ -50,11 +54,11 @@ def product(tmp_path, monkeypatch):
 
 def send_question(product, *, waiting=True):
     secret = "PRIVATE_HISTORY_ONLY_" + key()
-    product.send_message("owner-maya", "private-maya", secret, key())
-    origin = product.send_message("owner-maya", "private-maya", "Ask AAA whether Friday works", key())
+    send_message(product, "owner-maya", "private-maya", secret, key())
+    origin = send_message(product, "owner-maya", "private-maya", "Ask AAA whether Friday works", key())
     context = product.get_runtime_context(origin["request"]["id"])
     context["operation_id"] = key()
-    arguments = {"chat_id": "group-alex-maya", "body": "AAA, does Friday work?",
+    arguments = {"chat_id": "duet-alex-maya", "body": "AAA, does Friday work?",
                  "source_message_ids": [origin["message"]["id"]], "wait_for_reply": waiting}
     sent = asyncio.run(product.runtime_tool("send_chat_message", arguments, context))
     return origin, context, arguments, sent, secret
@@ -77,8 +81,8 @@ def continuations(product, chain_id):
 def test_private_send_public_body_is_visible_without_private_history(product):
     before = service_module.now()
     origin, context, arguments, sent, secret = send_question(product)
-    assert sent["sent"] and sent["chat_id"] == "group-alex-maya"
-    detail = product.chat_detail("owner-alex", "group-alex-maya")
+    assert sent["sent"] and sent["chat_id"] == "duet-alex-maya"
+    detail = product.chat_detail("owner-alex", "duet-alex-maya")
     visible = next(message for message in detail["messages"] if message["id"] == sent["message_id"])
     assert visible["body"] == arguments["body"] and visible["author_id"] == "twin-maya"
     assert secret not in str(detail)
@@ -100,12 +104,12 @@ def test_private_send_public_body_is_visible_without_private_history(product):
 def test_only_explicit_other_owner_reply_settles_original_chain(product):
     origin, _, _, sent, _ = send_question(product)
     initial = followup(product, sent["message_id"])
-    unrelated = product.send_message("owner-alex", "group-alex-maya", "Unrelated status update", key())
-    product.send_message("owner-alex", "group-alex-maya", "Reply to another topic", key(), reply_to=unrelated["message"]["id"])
-    product.send_message("owner-maya", "group-alex-maya", "My own follow-up", key(), reply_to=sent["message_id"])
+    unrelated = send_message(product, "owner-alex", "duet-alex-maya", "Unrelated status update", key())
+    send_message(product, "owner-alex", "duet-alex-maya", "Reply to another topic", key(), reply_to=unrelated["message"]["id"])
+    send_message(product, "owner-maya", "duet-alex-maya", "My own follow-up", key(), reply_to=sent["message_id"])
     assert followup(product, sent["message_id"])["status"] == "waiting"
-    replied = product.send_message("owner-alex", "group-alex-maya", "Friday works", key(), reply_to=sent["message_id"])
-    product.process_followups({"private-maya", "group-alex-maya"})
+    replied = send_message(product, "owner-alex", "duet-alex-maya", "Friday works", key(), reply_to=sent["message_id"])
+    product.process_followups({"private-maya", "duet-alex-maya"})
     row = followup(product, sent["message_id"])
     assert row["status"] == "replied" and row["reply_message_id"] == replied["message"]["id"]
     assert row["due_at"] == initial["due_at"]
@@ -126,7 +130,7 @@ def test_reply_and_timeout_compete_once_across_pg_transactions(product):
         row = db.scalar(select(TwinFollowup).where(TwinFollowup.sent_message_id == sent["message_id"]))
         row.due_at = service_module.now() - timedelta(milliseconds=1)
     def reply():
-        return product.send_message("owner-alex", "group-alex-maya", "Late reply", key(), reply_to=sent["message_id"])
+        return send_message(product, "owner-alex", "duet-alex-maya", "Late reply", key(), reply_to=sent["message_id"])
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = [executor.submit(product.process_followups), executor.submit(reply),
                    executor.submit(product.process_followups)]
@@ -144,7 +148,7 @@ def test_reply_and_timeout_compete_once_across_pg_transactions(product):
 
 
 def test_exhausted_chain_does_not_call_router_provider(product):
-    message = product.send_message("owner-maya", "group-team", "AAA, question under exhausted budget", key())["message"]
+    message = send_message(product, "owner-maya", "duet-team", "AAA, question under exhausted budget", key())["message"]
     with product.transaction() as db:
         chain = db.get(CausalChain, message["causal_chain_id"])
         chain.spent = chain.allowance
@@ -160,7 +164,7 @@ def test_exhausted_chain_does_not_call_router_provider(product):
 
 def test_reply_already_consumed_by_followup_has_no_duplicate_router_call(product):
     _, _, _, sent, _ = send_question(product)
-    reply = product.send_message("owner-alex", "group-alex-maya", "Friday works", key(), reply_to=sent["message_id"])
+    reply = send_message(product, "owner-alex", "duet-alex-maya", "Friday works", key(), reply_to=sent["message_id"])
     with product.transaction() as db:
         decision_id = db.scalar(select(RoutingDecision.id).where(
             RoutingDecision.message_id == reply["message"]["id"]))
@@ -251,7 +255,8 @@ def test_exhausted_followup_stays_on_original_chain_until_explicit_allowance(pro
 
 def test_intermediate_model_projection_does_not_finish_question_followup(product):
     _, _, _, sent, _ = send_question(product)
-    request = product.manual_request("owner-alex", "group-alex-maya", sent["message_id"], "twin-alex", key())
+    from duet_test_support import request_duet_reply
+    request = request_duet_reply(product, "owner-alex", "duet-alex-maya", sent["message_id"], "twin-alex", key())
     product.get_runtime_context(request["id"])
     session, run = "isolated-reply-session", "isolated-reply-run"
     product.publish_runtime_output(request["id"], "I will check first", session, run, "intermediate", 1)
@@ -274,7 +279,7 @@ def test_cancel_withdrawal_and_revocation_do_not_deliver_followup(product, chang
         if change == "outbound_withdrawn":
             db.get(Message, sent["message_id"]).state = "withdrawn"
         elif change == "target_access_revoked":
-            member = db.scalar(select(Membership).where(Membership.chat_id == "group-alex-maya",
+            member = db.scalar(select(Membership).where(Membership.chat_id == "duet-alex-maya",
                                                       Membership.owner_id == "owner-maya"))
             member.left_at = service_module.now()
         elif change == "private_source_withdrawn":
@@ -290,14 +295,14 @@ def test_cancel_withdrawal_and_revocation_do_not_deliver_followup(product, chang
         # Cancelling outstanding work does not pretend to retract an already
         # committed outward statement.
         assert any(message["id"] == sent["message_id"] for message in
-                   product.chat_detail("owner-alex", "group-alex-maya")["messages"])
+                   product.chat_detail("owner-alex", "duet-alex-maya")["messages"])
 
 
 @pytest.mark.parametrize("generations", [1, 2])
 def test_failed_followup_retry_keeps_followup_policy_and_rechecks_reply_access(product, generations):
     from app.models import Membership
     origin, _, _, sent, _ = send_question(product)
-    product.send_message("owner-alex", "group-alex-maya", "Friday works", key(), reply_to=sent["message_id"])
+    send_message(product, "owner-alex", "duet-alex-maya", "Friday works", key(), reply_to=sent["message_id"])
     original = continuations(product, origin["request"]["causal_chain_id"])[0]
     current_id = original.id
     for _ in range(generations):
@@ -311,13 +316,18 @@ def test_failed_followup_retry_keeps_followup_policy_and_rechecks_reply_access(p
     assert retried["causal_chain_id"] == original.causal_chain_id
     assert retried["automatic_reservation_id"] == original.automatic_reservation_id
     with product.transaction() as db:
-        membership = db.scalar(select(Membership).where(Membership.chat_id == "group-alex-maya",
+        membership = db.scalar(select(Membership).where(Membership.chat_id == "duet-alex-maya",
                                                        Membership.owner_id == "owner-maya"))
         membership.left_at = service_module.now()
+        reminders_before = db.scalar(select(func.count()).select_from(Reminder))
+        requests_before = db.scalar(select(func.count()).select_from(ReplyRequest))
     with pytest.raises(HTTPException) as tool_denied:
         asyncio.run(product.runtime_tool("create_reminder", {"title": "Must not use revoked reply"},
             {**context, "operation_id": key()}))
-    assert tool_denied.value.status_code == 409
+    assert tool_denied.value.status_code == 403
+    with product.transaction() as db:
+        assert db.scalar(select(func.count()).select_from(Reminder)) == reminders_before
+        assert db.scalar(select(func.count()).select_from(ReplyRequest)) == requests_before
     with pytest.raises(HTTPException):
         product.get_runtime_context(retried["id"])
 
@@ -327,7 +337,7 @@ def test_second_followup_retry_is_silent_with_real_sdk_and_offline_model(product
 
     from app.runtime_bridge import RuntimeBridge
     origin, _, _, sent, _ = send_question(product)
-    product.send_message("owner-alex", "group-alex-maya", "Friday works", key(), reply_to=sent["message_id"])
+    send_message(product, "owner-alex", "duet-alex-maya", "Friday works", key(), reply_to=sent["message_id"])
     original = continuations(product, origin["request"]["causal_chain_id"])[0]
     current_id = original.id
     for _ in range(2):

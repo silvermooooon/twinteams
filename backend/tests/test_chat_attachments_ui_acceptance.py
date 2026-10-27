@@ -12,12 +12,12 @@ from dataclasses import replace
 from uuid import uuid4
 
 import pytest
+from agent_runtime import AssistantMessageEventStream, assistant_message
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
-from agent_runtime import AssistantMessageEventStream, assistant_message
 from app import api as api_module
 from app import service as service_module
 from app.models import Message, ReplyRequest, RoutingDecision
@@ -105,7 +105,7 @@ async def run_offline(product, request, history=False):
 
 
 def test_http_image_upload_source_acl_and_published_persistence(attachments):
-    product, client = attachments
+    _product, client = attachments
     raw = png_bytes()
     response = upload(client, data=raw)
     assert response.status_code == 200, response.text
@@ -145,9 +145,8 @@ def test_attachment_limits_and_file_only_reply_for_me(attachments):
     item = upload(client, data=b"unsupported", name="note.txt", mime="text/plain").json()
     before = count(product, ReplyRequest), count(product, Message)
     response = send(client, ids=[item["id"]], reply_for_me=True)
-    assert response.status_code == 200
-    assert response.json()["message"] is None
-    assert (count(product, ReplyRequest), count(product, Message)) == (before[0] + 1, before[1])
+    assert response.status_code == 403
+    assert (count(product, ReplyRequest), count(product, Message)) == before
     assert send(client, ids=[item["id"]] * 5).status_code == 422
     assert send(client).status_code == 400
 
@@ -187,7 +186,7 @@ def test_file_only_messages_are_model_input_in_private_and_group_chats(attachmen
     assert (result["request"] is None) == group_chat
     assert result["message"]["attachments"][0]["kind"] == "file"
     assert count(product, ReplyRequest) == before[0] + (0 if group_chat else 1)
-    assert count(product, RoutingDecision) == before[1] + (1 if group_chat else 0)
+    assert count(product, RoutingDecision) == before[1]
 
 
 def test_text_with_file_supplies_references_without_content_to_sdk(attachments):
@@ -237,21 +236,13 @@ def test_message_idempotency_includes_attachments(attachments):
         assert db.scalar(select(func.count()).select_from(Message).where(Message.client_request_key == key)) == 1
 
 
-def test_reply_for_me_raw_attachment_stays_private_after_generated_output(attachments):
+def test_reply_for_me_cannot_publish_raw_attachments_in_human_chat(attachments):
     product, client = attachments
     group = product.create_chat("owner-alex", ["owner-maya"], "private raw attachment")["id"]
     image = upload(client, chat=group).json()
-    response = send(client, chat=group, body="Privately use this image to write my reply.", ids=[image["id"]], reply_for_me=True)
-    assert response.status_code == 200, response.text
-    result = response.json()
-    assert result["message"] is None
-    calls = asyncio.run(run_offline(product, result["request"]))
-    assert len(calls) == 1
-    own = product.chat_detail("owner-alex", group)
-    other = product.chat_detail("owner-maya", group)
-    generated = next(message for message in own["messages"] if message.get("request_id") == result["request"]["id"])
-    public = next(message for message in other["messages"] if message["id"] == generated["id"])
-    assert image["id"] not in json.dumps(public)
-    assert image["name"] not in json.dumps(public)
+    before = count(product, ReplyRequest), count(product, Message)
+    response = send(client, chat=group, body="Rewrite this image", ids=[image["id"]], reply_for_me=True)
+    assert response.status_code == 403
+    assert (count(product, ReplyRequest), count(product, Message)) == before
     assert client.get(image["url"], headers={"x-test-owner": "owner-maya"}).status_code in (403, 404)
     assert client.get(image["url"]).status_code == 200

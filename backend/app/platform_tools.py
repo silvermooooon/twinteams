@@ -4,9 +4,7 @@ from sqlalchemy import select
 from .direct_chat_schema import pair_key
 from .models import (
     Actor,
-    AllowanceGrant,
     Approval,
-    CausalChain,
     Chat,
     Reminder,
     ReplyRequest,
@@ -17,7 +15,7 @@ PLATFORM_TOOLS = {"set_message_reaction", "list_people", "get_chat", "create_cha
                   "get_twin_status", "get_reply_request", "cancel_reply_request", "retry_reply_request"}
 TRACKING_TOOLS = {"list_tracking", "get_tracking", "create_tracking", "update_tracking", "delete_tracking", "add_tracking_update"}
 SCOPED_TOOLS = {"history", "create_reminder"} | TRACKING_TOOLS
-WRITE_TOOLS = {"set_message_reaction", "send_chat_message", "present_files", "create_chat", "rename_chat", "add_chat_members", "create_reminder",
+WRITE_TOOLS = {"request_duet_conversation", "set_message_reaction", "send_chat_message", "present_files", "create_chat", "rename_chat", "add_chat_members", "create_reminder",
                "update_reminder", "create_tracking", "update_tracking", "delete_tracking",
                "add_tracking_update", "save_summary", "cancel_reply_request", "retry_reply_request"}
 # Exact arguments are frozen by the SDK; no uninstalled action may enter that path.
@@ -72,6 +70,8 @@ def scope_ids(service, db, name, args, context):
         if approval:
             target_id = approval.chat_id
     ids = {origin_id, target_id}
+    if name == "request_duet_conversation" and args.get("origin_chat_id"):
+        ids.add(args["origin_chat_id"])
     request = db.get(ReplyRequest, context.get("request_id")) if context.get("request_id") else None
     source_ids = args.get("source_message_ids", [])
     if name == "set_message_reaction" and args.get("message_id"):
@@ -152,6 +152,10 @@ def dispatch(service, db, name, args, context, chat, member, locked_ids):
     from .service import fail
     owner_id = member.owner_id
     target_id = args.get("chat_id") or chat.id
+    if (name in {"create_chat", "rename_chat", "add_chat_members"}
+            and context.get("request_requester_id", owner_id) != owner_id
+            and not context.get("approved_approval_id")):
+        fail(403, "Another participant cannot manage chats without the owner's exact approval")
     if name == "set_message_reaction":
         exact_action({"tool": name, "arguments": args})
         _request, twin, *_ = service._message_tool_origin(db, context)
@@ -275,16 +279,6 @@ def dispatch(service, db, name, args, context, chat, member, locked_ids):
         if not controller:
             fail(403, "Automatic retry requires a durable controller request")
         chain = service.request_chain(db, controller)
-        approved = context.get("approved_approval_id")
-        if approved and chain.spent >= chain.allowance:
-            grant_key = f"approval:{approved}"
-            grant = db.scalar(select(AllowanceGrant).where(AllowanceGrant.owner_id == owner_id, AllowanceGrant.client_request_key == grant_key))
-            if not grant:
-                chain = db.scalar(select(CausalChain).where(CausalChain.id == chain.id).with_for_update())
-                db.add(AllowanceGrant(owner_id=owner_id, chat_id=chat.id, causal_chain_id=chain.id,
-                    client_request_key=grant_key, amount=1, base_allowance=chain.allowance))
-                chain.allowance += 1
-                db.flush()
         reservation, reason = service.reserve_automatic(db, chain.id, "platform-retry:" + context["operation_id"], owner_id, db.get(Actor, row.target_twin_id).owner_id, None)
         if reason:
             return {"status": "held", "reason": reason, "request_id": row.id, "causal_chain_id": chain.id}

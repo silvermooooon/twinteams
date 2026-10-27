@@ -6,7 +6,7 @@ metadata, never model input or a reason to reload the historical prefix.
 """
 from __future__ import annotations
 
-from sqlalchemy import cast, inspect, or_, select, update
+from sqlalchemy import cast, func, inspect, or_, select, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import load_only
 
@@ -76,7 +76,7 @@ def scope_for(service, db, supplied):
     chat, member = service.membership(db, supplied["owner_id"], supplied["chat_id"])
     if chat.kind == "private" and chat.reset_pending:
         fail(409, "Private conversation reset is pending")
-    scope = {"chat_id": chat.id, "owner_id": member.owner_id,
+    scope = {"chat_id": chat.id, "chat_kind": chat.kind, "owner_id": member.owner_id,
              "history_lower_seq": member.lower_seq, "grant_version": member.grant_version,
              "private_generation": chat.reset_generation if chat.kind == "private" else None,
              "high_water_seq": min(supplied.get("high_water_seq", chat.next_message_seq - 1), chat.next_message_seq - 1),
@@ -93,6 +93,8 @@ def _query(scope, after=None):
     query = select(Message).where(Message.chat_id == scope["chat_id"],
         Message.seq >= scope["history_lower_seq"], Message.seq <= scope["high_water_seq"],
         Message.state == "published")
+    if scope.get("chat_kind") == "group":
+        query = query.where(Message.kind == "human")
     if after is not None:
         query = query.where(Message.seq > after)
     if scope.get("exclude_request_id"):
@@ -109,6 +111,15 @@ def summary_metadata(db, summary_id):
 
 def summary_allowed(service, db, member, summary, seen=None, cache=None):
     if not summary or summary.state != "valid" or summary.chat_id != member.chat_id or summary.coverage_start_seq < member.lower_seq:
+        return False
+    # Legacy mixed-chat checkpoints may contain Duet messages now hidden from
+    # human history. Check the stored cumulative dependency IDs in PostgreSQL,
+    # without loading the historical prefix or those IDs into model context.
+    hidden = db.scalar(select(Message.id).join(Chat, Chat.id == Message.chat_id)
+        .join(Summary, Summary.id == summary.id).where(Chat.kind == "group",
+            Message.kind != "human",
+            cast(Summary.source_message_ids, JSONB).op("@>")(func.jsonb_build_array(Message.id))).limit(1))
+    if hidden:
         return False
     # A checkpoint has already validated each original source; compact grant
     # requirements retain access checks without walking historical IDs again.
@@ -158,7 +169,7 @@ def _authorized_page(service, db, member, query, *, limit, descending=False, cac
     cache = cache if cache is not None else {}
     authorized, cursor = [], None
     metadata = load_only(Message.id, Message.chat_id, Message.seq, Message.author_id,
-        Message.state, Message.source_floor_seq, Message.source_message_ids, Message.source_provenance)
+        Message.kind, Message.state, Message.source_floor_seq, Message.source_message_ids, Message.source_provenance)
     while True:
         page = query
         if cursor is not None:

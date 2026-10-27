@@ -6,6 +6,7 @@ import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from agent_runtime.memory import MemoryConflict
 from agent_runtime.sessions import SessionInfo
+from duet_test_support import seed_collaborations, send_message
 from fastapi import HTTPException
 from sqlalchemy import select
 from test_credentials import product as product  # noqa: PLC0414
@@ -92,7 +93,7 @@ def test_nested_result_resumes_actual_parent_with_shared_git_memory_and_recovery
                 async def retain_only(*args, **kwargs):
                     return
                 monkeypatch.setattr(runtime, "_deliver_child_result", retain_only)
-            request = product.send_message("owner-alex", "private-alex", "ROOT-TASK: delegate and save my stated preference.", uuid4().hex)["request"]
+            request = send_message(product, "owner-alex", "private-alex", "ROOT-TASK: delegate and save my stated preference.", uuid4().hex)["request"]
             await product.execute_request(request["id"])
             original = product.get_request(request["id"])
             with product.transaction() as db:
@@ -186,9 +187,9 @@ def test_group_child_memory_write_checks_current_root_authorization(product, rev
         runtime.models.register_api("offline-regression", offline)
         try:
             with product.transaction() as db:
-                chat, _ = product.membership(db, "owner-alex", "group-alex-maya")
-                source = product.append_message(db, chat, author_id=db.scalar(select(Actor.id).where(Actor.owner_id == "owner-maya", Actor.kind == "human")), kind="human", body="Authorized group task")
-                request = product.accept_request(db, chat, product.twin(db, "owner-alex").id, "owner-maya", "automatic", uuid4().hex, source_message_id=source.id)
+                chat, _ = product.membership(db, "owner-alex", "duet-alex-maya")
+                source = product.append_message(db, chat, author_id=db.scalar(select(Actor.id).where(Actor.owner_id == "owner-maya", Actor.kind == "twin")), kind="twin", body="Authorized group task")
+                request = product.accept_request(db, chat, product.twin(db, "owner-alex").id, "owner-maya", "auto", uuid4().hex, source_message_id=source.id)
                 request_id, source_id = request.id, source.id
             result = await runtime.execute(product.get_request(request_id), product.get_runtime_context(request_id))
             product.complete_request(request_id, result)
@@ -213,3 +214,8 @@ def test_group_child_memory_write_checks_current_root_authorization(product, rev
         finally:
             await runtime.close()
     asyncio.run(run())
+
+
+@pytest.fixture(autouse=True)
+def approved_threads(product):
+    seed_collaborations(product)

@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from uuid import uuid4
 
 import pytest
+from duet_test_support import append_duet, request_duet_reply, seed_collaborations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
@@ -12,7 +13,6 @@ from test_memory_dream import product as product  # noqa: PLC0414
 
 from app import api, websocket
 from app.models import Message, ReplyRequest
-from checks.legacy_requests import legacy_request
 
 
 @pytest.fixture
@@ -75,7 +75,9 @@ def test_http_and_get_expose_key_only_to_sender(send_clients):
     assert next(row for row in own['messages'] if row['id'] == message['id'])['client_request_key'] == key
     assert 'client_request_key' not in next(row for row in other['messages'] if row['id'] == message['id'])
     # An older accepted cross-owner task still keeps its original requester's key private.
-    requested = legacy_request(product, 'owner-alex', 'group-alex-maya', message['id'], 'twin-maya', uuid4().hex)
+    seed_collaborations(product)
+    duet_message = append_duet(product, 'duet-alex-maya', 'owner-alex', 'Approved peer message')
+    requested = request_duet_reply(product, 'owner-alex', 'duet-alex-maya', duet_message['id'], 'twin-maya', uuid4().hex)
     with product.transaction() as db:
         row = db.get(ReplyRequest, requested['id'])
         assert product.request_json(db, row, 'owner-alex')['client_request_key'] == row.client_request_key
@@ -120,25 +122,12 @@ def test_websocket_lost_ack_retry_and_http_fallback_share_one_message(send_clien
             ReplyRequest.source_message_id == saved['id'], ReplyRequest.source == 'private')) == 1
 
 
-def test_reply_for_me_ack_has_request_and_generated_message_keeps_owner_key(send_clients):
-    product, sender, peer = send_clients
+def test_removed_reply_for_me_websocket_returns_error_and_persists_nothing(send_clients):
+    _product, sender, _peer = send_clients
     key = uuid4().hex
     with sender_socket(sender) as socket:
         socket.send_json(command(key, chat='group-alex-maya', reply_for_me=True))
         ack = socket.receive_json()
-    assert ack['result']['message'] is None
-    request = ack['result']['request']
-    assert request['status'] == 'queued' and request['source'] == 'reply_for_me'
-    assert request['client_request_key'] == key
-    assert not any(row.get('client_request_key') == key for row in
-                   sender.get('/api/chats/group-alex-maya').json()['messages'])
-    assert next(row for row in sender.get('/api/chats/group-alex-maya').json()['requests']
-                if row['id'] == request['id'])['client_request_key'] == key
-    # A real model is unnecessary to project a synthetic completed semantic output.
-    product.get_runtime_context(request['id'])
-    message_id = product.publish_runtime_output(request['id'], 'Synthetic prepared reply',
-        'offline-session', 'offline-run', 'offline-event', 1)
-    own = sender.get('/api/chats/group-alex-maya').json()
-    other = peer.get('/api/chats/group-alex-maya').json()
-    assert next(row for row in own['messages'] if row['id'] == message_id)['client_request_key'] == key
-    assert 'client_request_key' not in next(row for row in other['messages'] if row['id'] == message_id)
+    assert ack['type'] == 'error'
+    assert not any(row.get('client_request_key') == key for row in sender.get('/api/chats/group-alex-maya').json()['messages'])
+    assert sender.get('/api/chats/group-alex-maya').json()['requests'] == []

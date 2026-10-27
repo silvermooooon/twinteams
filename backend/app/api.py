@@ -101,7 +101,7 @@ class ChatSettingsInput(Input):
     reply_for_me_enabled: bool | None = None
     prompt_override: str | None = Field(None, max_length=30000)
     sidebar_open: bool | None = None
-    sidebar_tab: Literal["activity", "workspace", "tracking"] | None = None
+    sidebar_tab: Literal["activity", "workspace", "tracking", "duets"] | None = None
 
 
 class OwnerSettingsInput(Input):
@@ -110,6 +110,7 @@ class OwnerSettingsInput(Input):
 
 class Decision(Input):
     decision: Literal["approved", "rejected"]
+    scope: Literal["once", "always"] = "once"
 
 
 class TrackingCreate(Input):
@@ -173,7 +174,7 @@ def config():
     provider = {key: provider.get(key) for key in ("configured", "provider", "model", "database")}
     if runtime and getattr(runtime, "startup_error", None):
         provider["error"] = "Runtime storage could not initialize; inspect the server diagnostic"
-    return {"development_mode": settings.local_identity_enabled, "identity_mode": "local_development_login" if settings.local_identity_enabled else "verified_jwt", "identity_configured": settings.local_identity_enabled or settings.production_identity_configured, "identity_notice": "Local development identities only. Do not expose this instance publicly." if settings.local_identity_enabled else "Verified JWT identity required", "model_configured": service.model_configured, "provider": provider, "presence_ttl_seconds": settings.presence_ttl_seconds, "automatic_response_delay_seconds": settings.response_delay_seconds, "tenant_mode": "single_tenant_database", "reminders_delivery": "in_app_only", "development_usernames": ["DEV-AAA", "DEV-BBB", "DEV-CCC"] if settings.local_identity_enabled else []}
+    return {"development_mode": settings.local_identity_enabled, "identity_mode": "local_development_login" if settings.local_identity_enabled else "verified_jwt", "identity_configured": settings.local_identity_enabled or settings.production_identity_configured, "identity_notice": "Local development identities only. Do not expose this instance publicly." if settings.local_identity_enabled else "Verified JWT identity required", "model_configured": service.model_configured, "provider": provider, "presence_ttl_seconds": settings.presence_ttl_seconds, "tenant_mode": "single_tenant_database", "reminders_delivery": "in_app_only", "development_usernames": ["DEV-AAA", "DEV-BBB", "DEV-CCC"] if settings.local_identity_enabled else []}
 
 
 @router.get("/bootstrap")
@@ -297,7 +298,7 @@ async def activity_detail(chat_id: str, session_id: str, run_id: str, owner: Own
 
 @router.post("/approvals/{approval_id}/decision")
 async def decide(approval_id: str, data: Decision, owner: OwnerIdentity):
-    return await service.decide_approval(owner, approval_id, data.decision)
+    return await service.decide_approval(owner, approval_id, data.decision, data.scope)
 
 
 @router.get("/chats/{chat_id}/workspace")
@@ -417,3 +418,33 @@ def update_reminder(reminder_id: str, data: ReminderPatch, owner: OwnerIdentity)
 async def websocket(socket: WebSocket):
     from .websocket import websocket_endpoint
     await websocket_endpoint(socket)
+
+
+@router.get("/duet-conversations")
+def duet_conversations(owner: OwnerIdentity, origin_chat_id: str | None = None):
+    from .duet_conversations import list_conversations
+    return list_conversations(service, owner, origin_chat_id)
+
+
+@router.get("/duet-conversations/{chat_id}")
+def duet_conversation_detail(chat_id: str, owner: OwnerIdentity, limit: int = Query(100, ge=1, le=200), before_seq: int | None = Query(None, ge=1)):
+    from .duet_conversations import detail
+    return detail(service, owner, chat_id, limit, before_seq)
+
+
+@router.post("/duet-conversations/{chat_id}/close")
+def close_duet_conversation(chat_id: str, owner: OwnerIdentity):
+    from .duet_conversations import close_conversation
+    return close_conversation(service, owner, chat_id)
+
+
+@router.get("/duet-authorizations")
+def duet_authorizations(owner: OwnerIdentity):
+    from .duet_conversations import authorizations
+    return authorizations(service, owner)
+
+
+@router.delete("/duet-authorizations/{peer_owner_id}")
+def revoke_duet_authorization(peer_owner_id: str, owner: OwnerIdentity):
+    from .duet_conversations import revoke
+    return revoke(service, owner, peer_owner_id)

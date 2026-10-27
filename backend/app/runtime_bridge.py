@@ -362,14 +362,14 @@ class RuntimeBridge:
         schemas = [
             ("history", "Read original messages visible to your owner in the selected chat, respecting membership history limits. Defaults to the originating chat. Results do not grant other audiences access to that history.",
              {"chat_id": text, "query": text, "before_seq": {"type": "integer"}, "limit": {"type": "integer", "minimum": 1, "maximum": 100}}, []),
-            ("list_authorized_chats", "Discover all chats your owner currently belongs to, including owner_private_chat_id and is_owner_private. From a group you may find your owner's private chat to report progress or ask for a decision. Metadata discovery never grants hidden history or another owner's private access.", {}, []),
-            ("send_chat_message", "Send a Duet-attributed statement on behalf of your owner to another existing authorized chat, including your owner's private chat when working in a group. For the current chat, use your normal assistant reply instead. Source IDs are internal audit references and do not share originating history. Optionally reply to an authorized destination message. Only an owner's private chat can request a non-blocking 30-minute follow-up from an existing group, when an answer is needed; otherwise leave wait_for_reply false. Delivery is replay-safe; never work around a denied send.",
+            ("list_authorized_chats", "Discover authorized human chats for inspection, your owner's private chat and separate Duet conversations. Includes owner_private_chat_id and is_owner_private. Find your owner's private chat to report progress or ask for a decision. Metadata discovery never grants hidden history or another owner's private access.", {}, []),
+            ("send_chat_message", "Send a Duet-attributed statement to your owner's private chat or another active approved Duet conversation. Human chats cannot receive Duet messages. For the current chat, use your normal assistant reply instead. Source IDs are internal audit references and do not share originating history. Optionally reply to an authorized destination message. Only an owner's private chat can request a non-blocking 30-minute follow-up from an active approved Duet conversation, when an answer is needed; otherwise leave wait_for_reply false. Delivery is replay-safe; never work around a denied send.",
              {"chat_id": text, "body": text, "source_message_ids": ids,
               "reply_to_message_id": text, "wait_for_reply": {"type": "boolean", "default": False}},
              ["chat_id", "body", "source_message_ids"]),
-            ("present_files", "Publish completed local files as visible chat attachments, with an optional caption. Defaults to the current chat; another destination must already be authorized. Files must be in your owner workspace or the current chat's shared workspace. Publication saves snapshots, not live paths; report success only after this tool succeeds. Do not repeat its caption in your final reply. For delegated work, normally return files to the parent for review; publish directly only when that delivery is within the delegated task.",
+            ("present_files", "Publish completed local files as visible chat attachments, with an optional caption. Defaults to the current chat; destinations must be your own private chat or an active approved Duet conversation. Files must be in your owner workspace or the current chat's shared workspace. Publication saves snapshots, not live paths; report success only after this tool succeeds. Do not repeat its caption in your final reply. For delegated work, normally return files to the parent for review; publish directly only when that delivery is within the delegated task.",
              {"paths": {"type": "array", "items": text, "minItems": 1, "maxItems": 4}, "caption": text, "chat_id": text}, ["paths"]),
-            ("list_tracking", "Read visible Tracking: owner private chat includes its own and authorized groups; group origin stays in that group. Use each item's chat_id for details or changes.", {"chat_id": text}, []),
+            ("list_tracking", "Read visible Tracking: owner private chat includes its own and authorized human and Duet conversations; Duet origin stays in that conversation. Use each item's chat_id for details or changes.", {"chat_id": text}, []),
             ("get_tracking", "Read a relevant topic and its authorized chronological updates before resuming work or changing its state. Set chat_id to the item's source chat_id.", {"chat_id": text, "id": text}, ["id"]),
             ("create_tracking", "Record a concrete ongoing goal with its current state, blockers and next steps from authorized sources. Reuse a relevant existing topic; simple one-off answers need no topic. Deleted old topics cannot be silently revived.",
              {"chat_id": text, "title": text, "description": text, "source_message_ids": ids}, ["title", "description", "source_message_ids"]),
@@ -383,7 +383,7 @@ class RuntimeBridge:
               "action": {}},
              ["title", "description", "target", "impact", "action"]),
             ("execute_approved_action", "Execute the exact approved action. Pending or rejected approval cannot execute. Platform writes are idempotent; local execution is single-use and an unknown outcome requires recovery rather than rerunning.", {"id": text}, ["id"]),
-            ("get_approval", "Read your owner's approval status, including a group approval visible in the owner's private inbox. Original-chat membership, history and source permissions are rechecked and audited. Reading status does not move execution: approved actions continue only in their original context, and approval alone never means the action was performed.",
+            ("get_approval", "Read your owner's approval status, including a Duet-conversation approval visible in the owner's private inbox. Original-chat membership, history and source permissions are rechecked and audited. Reading status does not move execution: approved actions continue only in their original context, and approval alone never means the action was performed.",
              {"id": text}, ["id"]),
             ("create_reminder", "Create an in-app reminder record explicitly requested by this owner. It does not wake a Duet or deliver a timed notification. For future reminders or recurring execution, prefer suitable scheduled-task tools in the owner's private chat.",
              {"chat_id": text, "title": text, "detail": text, "due_at": text}, ["title"]),
@@ -402,19 +402,23 @@ class RuntimeBridge:
         limit = {"type": "integer", "minimum": 1, "maximum": 100}
         policy = {"type": "string", "enum": ["all", "fixed_7d", "no_prior"]}
         schemas.extend([
-            ("set_message_reaction", "Add or remove one supported emoji reaction on a message your owner can currently read. The reaction belongs to this Duet, separately from the owner's human reactions; it never conveys owner consent or commitment. Routine current-chat reactions need no extra approval; respect source/audience restrictions. active is desired state, never a toggle; one actor may use up to 20 different emoji on a message. This does not send a message or trigger another model response. Defaults to the originating chat.",
+            ("set_message_reaction", "Add or remove one supported emoji reaction in your own private chat or an active approved Duet conversation. Human chats cannot receive Duet reactions. The reaction belongs to this Duet, separately from the owner's human reactions; it never conveys owner consent or commitment. Routine current-chat reactions need no extra approval; respect source/audience restrictions. active is desired state, never a toggle; one actor may use up to 20 different emoji on a message. This does not send a message or trigger another model response. Defaults to the originating chat.",
              {"chat_id": text, "message_id": text, "emoji": {"type": "string", "minLength": 1, "maxLength": 32}, "active": {"type": "boolean"}},
              ["message_id", "emoji", "active"]),
             ("list_people", "Find platform people by name or ID to address a chat. Listing people does not grant their private data.",
              {"query": text, "limit": limit}, []),
             ("get_chat", "Read an authorized chat's metadata and recent request statuses, without hidden history or execution configuration.",
              {"chat_id": text}, ["chat_id"]),
-            ("create_chat", "Open or create an owner-member chat with selected other owners. One other owner reuses the unique direct chat; a named group needs at least two others. History policy applies only to a newly created chat.",
+            ("create_chat", "Open or create a human chat as authorized by your owner. One other owner reuses the unique direct chat; a named group needs at least two others. History policy applies only to a new chat. Creating it sends no message and starts no Duet reply. A peer Duet request requires your owner's exact action approval.",
              {"owner_ids": {**ids, "minItems": 1, "maxItems": 100, "uniqueItems": True}, "title": text, "history_policy": {**policy, "default": "all"}}, ["owner_ids"]),
-            ("rename_chat", "Rename an authorized group with at least three current owners. Private and two-owner chats cannot be renamed. Title is trimmed and must contain 1–256 characters.",
+            ("rename_chat", "Rename a human group with at least three current owners as authorized by your owner. Private, pair and Duet conversations cannot be renamed. Title must contain 1–256 trimmed characters. A peer Duet request requires your owner's exact action approval. This sends no message.",
              {"chat_id": text, "title": text}, ["chat_id", "title"]),
-            ("add_chat_members", "Add people to an authorized group with an explicit history policy: all history, previous seven days, or no prior history. This changes who can see shared content; obtain consent when needed.",
+            ("add_chat_members", "Add people to a human group as authorized by your owner, with an explicit history policy: all, previous seven days, or no prior history. This changes the audience; obtain consent when needed. Duet conversations have fixed participants. A peer Duet request requires your owner's exact action approval. This sends no message or Duet reply.",
              {"chat_id": text, "owner_ids": {**ids, "minItems": 1, "maxItems": 100, "uniqueItems": True}, "history_policy": policy}, ["chat_id", "owner_ids", "history_policy"]),
+            ("request_duet_conversation", "Request a separate conversation with other owners' Duets for an owner-authorized purpose. Each participant owner must approve once or already have an active directed always grant to every peer. Consent permits the connection only. The prepared opening is held until unanimous consent, then sent. When initiated from your own private task, activation also starts a nonblocking 30-minute explicit-reply followup to the opening; its result resumes that private task. Do not resend the opening. Pending consent starts no reply deadline. Returns pending or active immediately; continue independent work and never wait or poll. Source IDs are internal audit references, not a history grant. Reuses the current causal-chain six-reply allowance; explicit owner continuation is required after exhaustion.",
+             {"participant_owner_ids": {**ids, "minItems": 1, "maxItems": 99, "uniqueItems": True},
+              "title": text, "purpose": text, "opening_message": text, "source_message_ids": ids,
+              "origin_chat_id": text}, ["participant_owner_ids", "title", "purpose", "opening_message"]),
             ("list_reminders", "Read your owner's in-app reminders, optionally restricted to an authorized chat. Defaults to including completed reminders.",
              {"chat_id": text, "include_done": {"type": "boolean", "default": True}, "limit": limit}, []),
             ("update_reminder", "Mark one of your owner's in-app reminders done or reopen it. Does not schedule an external notification.",
@@ -428,7 +432,7 @@ class RuntimeBridge:
              {"id": text}, ["id"]),
             ("cancel_reply_request", "Cancel an authorized reply request. Does not undo an already committed message or action.",
              {"id": text}, ["id"]),
-            ("retry_reply_request", "Retry an authorized failed reply request using this controlling task's causal-chain budget, never an unrelated target chain. No automatic extra allowance. An exact owner approval may authorize one allowance consumed by this retry. A group task may retry an existing legitimately frozen private task only after that exact owner approval, with private execution disclosed in approval target/impact. The retried task keeps its original configuration; retry approval grants no broader action permission.",
+            ("retry_reply_request", "Retry an authorized failed reply request using this controlling task's causal-chain budget, never an unrelated target chain. No automatic extra allowance. Only explicit owner Continue can extend an exhausted chain. A Duet task may retry an existing legitimately frozen private task only after that exact owner approval, with private execution disclosed in approval target/impact. The retried task keeps its original configuration; retry approval grants no broader action permission.",
              {"id": text}, ["id"]),
         ])
         approval_actions = {
@@ -1016,7 +1020,7 @@ class RuntimeBridge:
         command_id = command_id or message["id"]
         session_id = uuid5(NAMESPACE_URL, f"twinteams:routing:{chat_id}:{command_id}").hex
         system = (
-            "Choose which human owners a group-chat message is addressed to and whether it needs "
+            "Choose which participant owners' Duets an approved Duet-conversation message addresses and whether it needs "
             "a response. Return only a JSON object with exactly target_owner_ids (an array of owner "
             "IDs from the allowed list), needs_response (a JSON boolean), and reason (a concise "
             "explanation). Acknowledgements, thanks, completed work, and messages with no new "
@@ -1024,8 +1028,8 @@ class RuntimeBridge:
             "needs_response is false, return an empty target_owner_ids array. Explicit @mentions "
             "identify possible recipients, but do not create a need to reply. When a response is "
             "needed, choose only the addressed owners; an empty set is allowed and never select "
-            "all by default, including in a two-human chat. The participant roster maps current "
-            "human and Duet names and actor IDs to owner IDs. Addressing a Duet addresses its "
+            "all by default, including in a two-Duet conversation. The participant roster maps current "
+            "Duet names and actor IDs to owner IDs. Addressing a Duet addresses its "
             "owner; do not substitute another owner when only the author's own Duet is addressed. "
             "A Duet-authored message is conversational input on "
             "behalf of its author_owner_id and keeps Duet attribution; this does not grant any "

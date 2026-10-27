@@ -102,10 +102,17 @@ def test_actual_sdk_reads_image_only_on_demand_and_generated_file_is_browsable(f
 
 def test_group_router_gets_file_references_without_pixels_or_file_body(files):
     product, client, root = files
-    chat = product.create_chat("owner-alex", ["owner-maya"], "Synthetic shared files")["id"]
-    image = upload(client, chat=chat).json()
-    document = upload(client, chat=chat, name="instructions.bin", mime="application/octet-stream", data=b"DO_NOT_AUTO_INJECT_72").json()
-    result = send(client, chat=chat, ids=[image["id"], document["id"]]).json()
+    from duet_test_support import approved_chat
+    chat = approved_chat(product, "duet-alex-maya")
+    image = upload(client).json()
+    document = upload(client, name="instructions.bin", mime="application/octet-stream", data=b"DO_NOT_AUTO_INJECT_72").json()
+    request = send(client, body="Share these authorized reference files").json()["request"]
+    context = product.get_runtime_context(request["id"])
+    result = product._runtime_tool_transaction("present_files", {
+        "chat_id": chat, "paths": [image["workspace_path"], document["workspace_path"]]},
+        {**context, "operation_id": uuid4().hex})
+    delivered = result["message"]["attachments"]
+    image, document = delivered
     with product.transaction() as db:
         decision = db.scalar(select(RoutingDecision).where(RoutingDecision.message_id == result["message"]["id"]))
         decision_id = decision.id
@@ -143,8 +150,8 @@ def test_reserved_workspace_paths_recheck_draft_private_input_withdrawal_and_his
     assert product.workspace("owner-maya", chat) == []
     with pytest.raises(HTTPException):
         product.workspace_file("owner-maya", chat, file_id(local))
-    private = send(client, chat=chat, ids=[item["id"]], reply_for_me=True).json()["request"]
-    assert private and product.workspace_file("owner-alex", chat, file_id(local)).read_bytes() == b"private draft"
+    assert send(client, chat=chat, ids=[item["id"]], reply_for_me=True).status_code == 403
+    assert product.workspace_file("owner-alex", chat, file_id(local)).read_bytes() == b"private draft"
     with pytest.raises(HTTPException):
         product.workspace("owner-maya", chat, "uploads/" + item["id"])
     shared = upload(client, chat=chat, name="shared.txt", mime="text/plain", data=b"shared source").json()
@@ -167,6 +174,9 @@ def test_http_long_body_has_no_product_truncation_and_keeps_identity(files, repl
     body = '中文"\\\n' * 10000
     key = uuid4().hex
     first = send(client, body=body, key=key, reply_for_me=reply_for_me)
+    if reply_for_me:
+        assert first.status_code == 403
+        return
     assert first.status_code == 200, first.text
     repeated = send(client, body=body, key=key, reply_for_me=reply_for_me)
     assert repeated.status_code == 200
@@ -182,8 +192,8 @@ def test_preview_decoder_failure_is_a_file_and_files_only_rewrite_is_accepted(fi
     _, client, _ = files
     item = upload(client, data=b"not a decoded image", name="unsupported.png", mime="image/png").json()
     assert item["kind"] == "file"
-    response = send(client, ids=[item["id"]], reply_for_me=True)
-    assert response.status_code == 200 and response.json()["request"]["source"] == "reply_for_me"
+    response = send(client, ids=[item["id"]])
+    assert response.status_code == 200 and response.json()["request"]["source"] == "private"
     assert upload(client, data=b"x", name="../escape.bin").status_code == 400
 
 

@@ -44,7 +44,6 @@ class Settings:
     routing_concurrency: int = int(os.getenv("TWINTEAMS_ROUTING_CONCURRENCY", "2"))
     memory_dream_interval_seconds: int = max(60, int(os.getenv("TWINTEAMS_MEMORY_DREAM_INTERVAL_SECONDS", "14400")))
     presence_ttl_seconds: int = int(os.getenv("TWINTEAMS_PRESENCE_TTL_SECONDS", "35"))
-    response_delay_seconds: int = 10
     cors_origins: tuple[str, ...] = tuple(
         os.getenv("TWINTEAMS_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(
             ","

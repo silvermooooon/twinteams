@@ -70,6 +70,14 @@ def set_reaction(service, db, owner_id, chat_id, message_id, actor_id, emoji, ac
     if not actor or actor.owner_id != owner_id or actor.kind not in {"human", "twin"}:
         from .service import fail
         fail(403, "Reaction actor does not belong to this owner")
+    from .service import fail
+    if actor.kind == "human" and chat.kind == "duet":
+        fail(403, "Duet conversations are read-only for their owners")
+    if actor.kind == "twin":
+        from .duet_conversations import require_active
+        require_active(db, chat)
+        if chat.kind == "private" and chat.private_owner_id != owner_id:
+            fail(403, "Duet reactions require your own private conversation")
     key = (message_id, actor_id, emoji)
     existing = db.get(MessageReaction, key)
     changed = active != (existing is not None)

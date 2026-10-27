@@ -74,7 +74,10 @@ def scheduled_policy(context):
         return ""
     policy = (
         "This work belongs to one saved scheduled occurrence. Keep its authorization scope, "
-        "reporting behavior and pending work; do not duplicate operations or create, edit or "
+        "reporting behavior and pending work. Execute in your owner's private chat; coordinate "
+        "with peers through active approved Duet conversations or request_duet_conversation. "
+        "Never wake or publish a Duet in a human chat. Connection approval grants no extra "
+        "task authority, and the shared six-reply chain still applies. Do not duplicate operations or create, edit or "
         "cancel schedules. Only a completed final response is published; an empty response "
         "is silent. Approval and credential forms still request necessary owner action. "
     )

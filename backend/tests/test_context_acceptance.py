@@ -23,7 +23,7 @@ def seed(product, chat_id, count, *, owner="owner-alex", label="Journal fact"):
         chat = db.get(Chat, chat_id)
         start = chat.next_message_seq
         rows = [Message(id=uuid4().hex, chat_id=chat_id, seq=start + index,
-                        author_id=owner, kind="human", body=f"{label} {start + index}")
+                        author_id=(owner.replace("owner-", "twin-") if chat.kind == "duet" else owner), kind="twin" if chat.kind == "duet" else "human", body=f"{label} {start + index}")
                 for index in range(count)]
         db.add_all(rows)
         chat.next_message_seq += count
@@ -32,8 +32,10 @@ def seed(product, chat_id, count, *, owner="owner-alex", label="Journal fact"):
 
 
 def request(product, chat_id, source_id, *, owner="owner-alex"):
-    return product.manual_request(owner, chat_id, source_id,
-                                  owner.replace("owner-", "twin-"), uuid4().hex)["id"]
+    if chat_id.startswith("duet-"):
+        from duet_test_support import request_duet_reply
+        return request_duet_reply(product, owner, chat_id, source_id, owner.replace("owner-", "twin-"))["id"]
+    return product.manual_request(owner, chat_id, source_id, owner.replace("owner-", "twin-"), uuid4().hex)["id"]
 
 
 def summarize(product, request_id, body="Synthetic checkpoint preserving the journal facts."):
@@ -83,7 +85,7 @@ def assert_tail_reads(reads, tail_size):
     assert len(reads) <= 80 + 8 * tail_size, "Summary authorization must not re-expand each covered source"
 
 
-@pytest.mark.parametrize("chat_id", ["private-alex", "group-team"])
+@pytest.mark.parametrize("chat_id", ["private-alex", "duet-team"])
 def test_over_500_sources_keep_journal_and_bound_repeated_context_reads(product, chat_id):
     original = seed(product, chat_id, 540)
     first_id = request(product, chat_id, original[-1]["id"])
@@ -153,11 +155,11 @@ def test_legacy_duet_tail_dependencies_do_not_reexpand_the_summarized_prefix(pro
 
 @pytest.mark.parametrize("mutation", ["edit", "withdraw", "delete"])
 def test_covered_source_changes_revoke_frozen_resume_and_stale_summary(product, mutation):
-    rows = seed(product, "group-team", 60)
-    first_id = request(product, "group-team", rows[-1]["id"])
+    rows = seed(product, "duet-team", 60)
+    first_id = request(product, "duet-team", rows[-1]["id"])
     saved, _ = summarize(product, first_id, "The old fact was verified.")
-    tail = seed(product, "group-team", 1)
-    frozen_id = request(product, "group-team", tail[-1]["id"])
+    tail = seed(product, "duet-team", 1)
+    frozen_id = request(product, "duet-team", tail[-1]["id"])
     assert product.get_runtime_context(frozen_id)["summary"]["id"] == saved["id"]
     with product.transaction() as db:
         source = db.get(Message, rows[0]["id"])
@@ -170,7 +172,7 @@ def test_covered_source_changes_revoke_frozen_resume_and_stale_summary(product, 
     with pytest.raises(HTTPException) as error:
         product.get_runtime_context(frozen_id)
     assert error.value.status_code == 409
-    fresh = product.get_conversation_context({"chat_id": "group-team", "owner_id": "owner-alex"})
+    fresh = product.get_conversation_context({"chat_id": "duet-team", "owner_id": "owner-alex"})
     assert fresh["summary"] is None or fresh["summary"]["id"] != saved["id"]
     if mutation == "edit":
         assert any(row["body"] == "The owner corrected the original fact." for row in fresh["messages"])
@@ -179,16 +181,16 @@ def test_covered_source_changes_revoke_frozen_resume_and_stale_summary(product, 
 
 
 def test_history_lower_bound_does_not_reuse_earlier_summary(product):
-    rows = seed(product, "group-team", 60)
-    saved, _ = summarize(product, request(product, "group-team", rows[-1]["id"]))
+    rows = seed(product, "duet-team", 60)
+    saved, _ = summarize(product, request(product, "duet-team", rows[-1]["id"]))
     with product.transaction() as db:
-        member = db.scalar(select(Membership).where(Membership.chat_id == "group-team",
+        member = db.scalar(select(Membership).where(Membership.chat_id == "duet-team",
                                                     Membership.owner_id == "owner-alex"))
         member.lower_seq = rows[44]["seq"]
         member.history_policy = "no_prior"
         member.joined_at = now()
         member.grant_version += 1
-    context = product.get_conversation_context({"chat_id": "group-team", "owner_id": "owner-alex"})
+    context = product.get_conversation_context({"chat_id": "duet-team", "owner_id": "owner-alex"})
     assert context["summary"] is None or context["summary"]["id"] != saved["id"]
     assert [row["id"] for row in context["messages"]] == [row["id"] for row in rows[44:]]
 
@@ -196,18 +198,18 @@ def test_history_lower_bound_does_not_reuse_earlier_summary(product):
 @pytest.mark.parametrize("revoke", ["withdraw", "private_generation"])
 def test_private_provenance_is_excluded_and_revocation_reaches_summary(product, revoke):
     private = seed(product, "private-alex", 1, label="Owner private context")
-    rows = seed(product, "group-team", 60)
+    rows = seed(product, "duet-team", 60)
     with product.transaction() as db:
         derived = db.get(Message, rows[0]["id"])
         derived.source_provenance = [{"kind": "chat_context", "chat_id": "private-alex",
                                       "private_generation": 0,
                                       "sources": [{"kind": "message", "id": private[0]["id"]}]}]
-    saved, _ = summarize(product, request(product, "group-team", rows[-1]["id"]))
-    maya = product.get_runtime_context(request(product, "group-team", rows[-1]["id"], owner="owner-maya"))
+    saved, _ = summarize(product, request(product, "duet-team", rows[-1]["id"]))
+    maya = product.get_runtime_context(request(product, "duet-team", rows[-1]["id"], owner="owner-maya"))
     assert maya["summary"] is None or maya["summary"]["id"] != saved["id"]
     assert rows[0]["id"] not in {row["id"] for row in maya["messages"]}
-    fresh_source = seed(product, "group-team", 1)
-    frozen_id = request(product, "group-team", fresh_source[-1]["id"])
+    fresh_source = seed(product, "duet-team", 1)
+    frozen_id = request(product, "duet-team", fresh_source[-1]["id"])
     assert product.get_runtime_context(frozen_id)["summary"]["id"] == saved["id"]
     with product.transaction() as db:
         if revoke == "withdraw":
@@ -217,18 +219,18 @@ def test_private_provenance_is_excluded_and_revocation_reaches_summary(product, 
     with pytest.raises(HTTPException) as error:
         product.get_runtime_context(frozen_id)
     assert error.value.status_code == 409
-    fresh = product.get_conversation_context({"chat_id": "group-team", "owner_id": "owner-alex"})
+    fresh = product.get_conversation_context({"chat_id": "duet-team", "owner_id": "owner-alex"})
     assert fresh["summary"] is None or fresh["summary"]["id"] != saved["id"]
     assert rows[0]["id"] not in {row["id"] for row in fresh["messages"]}
 
 
 @pytest.mark.parametrize("revoke", ["leave", "history_floor"])
 def test_summarized_foreign_group_retains_membership_and_history_grants(product, revoke):
-    origin = seed(product, "group-alex-maya", 1, label="Original group evidence")
+    origin = seed(product, "duet-alex-maya", 1, label="Original group evidence")
     rows = seed(product, "private-alex", 60)
     with product.transaction() as db:
         db.get(Message, rows[0]["id"]).source_provenance = [{"kind": "chat_context",
-            "chat_id": "group-alex-maya", "sources": [{"kind": "message", "id": origin[0]["id"]}]}]
+            "chat_id": "duet-alex-maya", "sources": [{"kind": "message", "id": origin[0]["id"]}]}]
     saved, _ = summarize(product, request(product, "private-alex", rows[-1]["id"]))
     latest = seed(product, "private-alex", 1)
     frozen_id = request(product, "private-alex", latest[-1]["id"])
@@ -237,7 +239,7 @@ def test_summarized_foreign_group_retains_membership_and_history_grants(product,
     with product.transaction() as db:
         manifest = db.get(ContextManifest, frozen["context_manifest_id"])
         assert not any(source.get("id") == rows[0]["id"] for source in manifest.sources)
-        member = db.scalar(select(Membership).where(Membership.chat_id == "group-alex-maya",
+        member = db.scalar(select(Membership).where(Membership.chat_id == "duet-alex-maya",
                                                     Membership.owner_id == "owner-alex"))
         if revoke == "leave":
             member.left_at = now()
@@ -267,13 +269,13 @@ def test_pending_question_remains_actionable_after_its_message_is_summarized(pro
 
 def test_denied_prefix_longer_than_a_page_cannot_hide_authorized_later_history(product):
     private = seed(product, "private-maya", 1, owner="owner-maya", label="Foreign private evidence")
-    hidden = seed(product, "group-team", 300, owner="owner-maya", label="Foreign derived message")
+    hidden = seed(product, "duet-team", 300, owner="owner-maya", label="Foreign derived message")
     with product.transaction() as db:
-        for row in db.scalars(select(Message).where(Message.chat_id == "group-team")):
+        for row in db.scalars(select(Message).where(Message.chat_id == "duet-team")):
             row.source_provenance = [{"kind": "chat_context", "chat_id": "private-maya",
                 "private_generation": 0, "sources": [{"kind": "message", "id": private[0]["id"]}]}]
-    visible = seed(product, "group-team", 5, label="Authorized visible fact")
-    scope = {"chat_id": "group-team", "owner_id": "owner-alex"}
+    visible = seed(product, "duet-team", 5, label="Authorized visible fact")
+    scope = {"chat_id": "duet-team", "owner_id": "owner-alex"}
     with sql_reads() as reads:
         context = product.get_conversation_context(scope)
         prepared = product.prepare_conversation_summary(scope)
@@ -289,27 +291,27 @@ def test_denied_prefix_longer_than_a_page_cannot_hide_authorized_later_history(p
 def test_new_origin_membership_reveals_earlier_fact_previously_skipped_by_summary(product):
     origin_chat = product.create_chat("owner-maya", ["owner-jordan"], "Original restricted project")["id"]
     origin = seed(product, origin_chat, 1, owner="owner-maya", label="Newly authorized original fact")
-    rows = seed(product, "group-team", 60)
+    rows = seed(product, "duet-team", 60)
     with product.transaction() as db:
         db.get(Message, rows[0]["id"]).source_provenance = [{"kind": "chat_context",
             "chat_id": origin_chat, "sources": [{"kind": "message", "id": origin[0]["id"]}]}]
-    saved, prepared = summarize(product, request(product, "group-team", rows[-1]["id"]),
+    saved, prepared = summarize(product, request(product, "duet-team", rows[-1]["id"]),
                                  "Checkpoint of facts visible before the new origin membership.")
     assert rows[0]["id"] not in {row["id"] for row in prepared["messages"]}
     assert saved["coverage_end_seq"] > rows[0]["seq"]
     product.add_members("owner-maya", origin_chat, ["owner-alex"], "all")
-    context = product.get_conversation_context({"chat_id": "group-team", "owner_id": "owner-alex"})
+    context = product.get_conversation_context({"chat_id": "duet-team", "owner_id": "owner-alex"})
     assert context["summary"] is None or context["summary"]["id"] != saved["id"]
     assert rows[0]["id"] in {row["id"] for row in context["messages"]}
 
 
 def test_unrelated_membership_retires_cache_without_hiding_published_output_or_looping(product):
-    rows = seed(product, "group-team", 60)
-    first_id = request(product, "group-team", rows[-1]["id"])
+    rows = seed(product, "duet-team", 60)
+    first_id = request(product, "duet-team", rows[-1]["id"])
     saved, _ = summarize(product, first_id)
     old_scope = product.get_runtime_context(first_id)["_summary_scope"]
-    newest = seed(product, "group-team", 1)
-    reply_id = request(product, "group-team", newest[-1]["id"])
+    newest = seed(product, "duet-team", 1)
+    reply_id = request(product, "duet-team", newest[-1]["id"])
     product.get_runtime_context(reply_id)
     product.complete_request(reply_id, body="Previously published verified finding",
                              session_id="acceptance-" + reply_id, run_id="run-" + reply_id)
@@ -317,13 +319,13 @@ def test_unrelated_membership_retires_cache_without_hiding_published_output_or_l
         output_id = db.scalar(select(Message.id).where(Message.request_id == reply_id))
     unrelated = product.create_chat("owner-maya", ["owner-jordan"], "Unrelated new membership")["id"]
     product.add_members("owner-maya", unrelated, ["owner-alex"], "all")
-    assert output_id in {row["id"] for row in product.chat_detail("owner-alex", "group-team")["messages"]}
+    assert output_id in {row["id"] for row in product.chat_detail("owner-alex", "duet-team")["messages"]}
     prepared = product.prepare_conversation_summary(old_scope)
     if prepared:
         revived = product.save_conversation_summary(prepared["scope"], saved["body"])
         assert revived["id"] == saved["id"]
         assert product.prepare_conversation_summary(old_scope) is None
-    assert output_id in {row["id"] for row in product.chat_detail("owner-alex", "group-team")["messages"]}
+    assert output_id in {row["id"] for row in product.chat_detail("owner-alex", "duet-team")["messages"]}
 
 
 def test_history_tool_extends_compact_manifest_without_false_revocation(product):
@@ -364,10 +366,11 @@ def test_router_has_group_summary_tail_without_private_owner_context(product):
     private = seed(product, "private-alex", 45, label="PRIVATE_SENTINEL_ALPHA")
     summarize(product, request(product, "private-alex", private[-1]["id"]),
               "PRIVATE_SUMMARY_SENTINEL_ALPHA")
-    group = seed(product, "group-team", 60, label="Authorized group fact")
-    saved, _ = summarize(product, request(product, "group-team", group[-1]["id"]),
+    group = seed(product, "duet-team", 60, label="Authorized group fact")
+    saved, _ = summarize(product, request(product, "duet-team", group[-1]["id"]),
                          "GROUP_CHECKPOINT_SENTINEL_BETA")
-    sent = product.send_message("owner-alex", "group-team", "BBB, can you answer?", uuid4().hex)
+    from duet_test_support import append_duet
+    sent = {"message": append_duet(product, "duet-team", "owner-alex", "BBB, can you answer?")}
     with product.transaction() as db:
         decision = db.scalar(select(RoutingDecision).where(RoutingDecision.message_id == sent["message"]["id"]))
         decision_id = decision.id
@@ -383,3 +386,9 @@ def test_router_has_group_summary_tail_without_private_owner_context(product):
     assert [row["seq"] for row in route_context["messages"]] == list(
         range(saved["coverage_end_seq"] + 1, sent["message"]["seq"] + 1))
     assert_tail_reads(reads, len(route_context["messages"]))
+
+
+@pytest.fixture(autouse=True)
+def approved_collaboration_fixtures(product):
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)

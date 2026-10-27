@@ -15,7 +15,7 @@ from test_twin_followup_acceptance import product as product  # noqa: PLC0414
 
 from app.models import CausalChain, Membership, Message, ReplyRequest, RoutingDecision, TriggerCandidate
 
-CHAT = "group-alex-maya"
+CHAT = "duet-alex-maya"
 
 
 def key():
@@ -23,7 +23,8 @@ def key():
 
 
 def source(product):
-    sent = product.send_message("owner-alex", CHAT, "@Maya, can you help?", key())["message"]
+    from duet_test_support import append_duet
+    sent = append_duet(product, CHAT, "owner-alex", "@Maya, can you help?")
     with product.transaction() as db:
         route = db.scalar(select(RoutingDecision).where(RoutingDecision.message_id == sent["id"]))
         return sent["id"], route.id
@@ -146,11 +147,13 @@ def test_retry_preserves_read_and_budget_rules(product, restriction):
     product.process_candidates({CHAT})
     assert classify.call_count == (0 if restriction == "budget" else 1)
     with product.transaction() as db:
-        assert not db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == message_id))
+        request = db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == message_id))
         if restriction == "read":
+            assert request is not None
             candidate = db.scalar(select(TriggerCandidate).where(TriggerCandidate.message_id == message_id))
-            assert candidate.state == "suppressed" and candidate.evidence["suppression"] == "owner_read"
+            assert candidate.state == "accepted"
         else:
+            assert request is None
             route = db.get(RoutingDecision, decision_id)
             assert route.status == "paused" and route.reason == "budget_exhausted"
 
@@ -188,3 +191,9 @@ def test_queued_retry_rechecks_source_authorization_before_execution(product, re
     assert classify.call_count == 0
     with product.transaction() as db:
         assert db.get(RoutingDecision, decision_id).status == "failed"
+
+
+@pytest.fixture(autouse=True)
+def approved_collaboration_fixtures(product):
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)

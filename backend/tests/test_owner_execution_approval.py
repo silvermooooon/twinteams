@@ -8,18 +8,20 @@ from agent_runtime import AgentTool, AgentToolResult
 from agent_runtime.execution import ApprovalRequired
 from agent_runtime.sessions import SessionInfo
 from agent_runtime.types import AbortSignal
+from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import seed_collaborations, send_message
 from fastapi import HTTPException
 from test_credentials import product as product  # noqa: PLC0414
 
 from app import personal
 from app.models import Approval, Message, ReplyRequest
 from app.runtime_bridge import RuntimeBridge
-from checks.legacy_requests import legacy_request
 
 
 def test_group_local_approval_exact_owner_origin_single_use_and_frozen_recovery(product):
-    source = product.send_message('owner-maya', 'group-alex-maya', 'Synthetic work', uuid4().hex)['message']
-    request = legacy_request(product, 'owner-maya', 'group-alex-maya', source['id'], 'twin-alex', uuid4().hex)
+    seed_collaborations(product)
+    source = send_message(product, 'owner-maya', 'duet-alex-maya', 'Synthetic work', uuid4().hex)['message']
+    request = legacy_request(product, 'owner-maya', 'duet-alex-maya', source['id'], 'twin-alex', uuid4().hex)
     context = product.get_runtime_context(request['id'])
     config = {'version': 1, 'workspace': '/synthetic/owner-alex', 'skills': [],
               'credentials': [], 'execution_enabled': True, 'profile': {'soul': 'Synthetic owner'}}
@@ -56,12 +58,12 @@ def test_group_local_approval_exact_owner_origin_single_use_and_frozen_recovery(
                     await create.execute(uuid4().hex, {**base, 'action': invalid}, AbortSignal(), None)
             result = await create.execute('create', {**base, 'action': action}, AbortSignal(), None)
             approval_id = result.details['id']
-            stored = product.approval_for_execution('owner-alex', 'group-alex-maya', approval_id)
+            stored = product.approval_for_execution('owner-alex', 'duet-alex-maya', approval_id)
             assert stored['action'] == action and calls == []
             with pytest.raises(ApprovalRequired):
                 await execute.execute('before-decision', {'id': approval_id}, AbortSignal(), None)
             with pytest.raises(HTTPException):
-                product.approval_for_execution('owner-maya', 'group-alex-maya', approval_id)
+                product.approval_for_execution('owner-maya', 'duet-alex-maya', approval_id)
             decision = await runtime.decide_approval(stored, 'approved')
             product.accept_approval_decision(approval_id, decision)
             with product.transaction() as db:
@@ -80,8 +82,8 @@ def test_group_local_approval_exact_owner_origin_single_use_and_frozen_recovery(
             bad = next(tool for tool in runtime._tools(mismatched, session, [execution]) if tool.name == 'execute_approved_action')
             with pytest.raises(HTTPException):
                 await bad.execute('wrong-config', {'id': approval_id}, AbortSignal(), None)
-            other_source = product.send_message('owner-maya', 'group-alex-maya', 'Different synthetic goal', uuid4().hex)['message']
-            other = legacy_request(product, 'owner-maya', 'group-alex-maya', other_source['id'], 'twin-alex', uuid4().hex)
+            other_source = send_message(product, 'owner-maya', 'duet-alex-maya', 'Different synthetic goal', uuid4().hex)['message']
+            other = legacy_request(product, 'owner-maya', 'duet-alex-maya', other_source['id'], 'twin-alex', uuid4().hex)
             personal.freeze_execution_config(other['id'], config)
             unrelated = {**product.get_runtime_context(other['id']), 'execution_config': config}
             bad = next(tool for tool in runtime._tools(unrelated, session, [execution]) if tool.name == 'execute_approved_action')

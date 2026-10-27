@@ -32,10 +32,10 @@ input on acceptance, like a prepared cross-chat statement. Later deleting the
 human message does not cancel accepted work; task cancellation and reset remain
 the stopping controls. Withdrawal before association is rejected. Original task
 source revocation and cancellation are checked at runtime. Reset erases question
-content and hard-stops pending answer carriers, including group-origin carriers,
-without cancelling unrelated group tasks.
+content and hard-stops pending answer carriers, including Duet-thread-origin carriers,
+without cancelling unrelated Duet tasks.
 
-`ChatDetail.questions` supplies owner-only metadata keyed by `message_id`; group
+`ChatDetail.questions` supplies owner-only metadata keyed by `message_id`; Duet-thread
 views receive an empty array. Existing chat revisions and WebSocket hints refresh
 cards without polling. Authenticated owner endpoints
 `POST /api/questions/{id}/answer` (`{answer:string}`) and

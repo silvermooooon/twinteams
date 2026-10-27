@@ -112,9 +112,11 @@ def test_owner_private_origin_scheduled_deny_reset_policy_and_accepted_snapshot(
     with pytest.raises(HTTPException) as denied:
         update(product, {"level": "off"}, scheduled)
     assert denied.value.status_code == 403
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)
     group = context(product)
     with product.transaction() as db:
-        chat, _ = product.membership(db, "owner-alex", "group-alex-maya")
+        chat, _ = product.membership(db, "owner-alex", "duet-alex-maya")
         request = product.accept_request(db, chat, product.twin(db, "owner-alex").id, "owner-alex", "manual", uuid4().hex)
         group_id = request.id
     group = product.get_runtime_context(group_id) | {"operation_id": uuid4().hex}

@@ -18,6 +18,13 @@ from .models import (
 
 
 def create(service, db, origin, owner_id, destination, message, provenance):
+    from .duet_conversations import require_active
+    require_active(db, destination)
+    if destination.kind != "duet":
+        raise HTTPException(403, "Followups require an approved Duet conversation")
+    private = db.get(Chat, origin.chat_id)
+    if not private or private.kind != "private" or private.private_owner_id != owner_id:
+        raise HTTPException(403, "Followups require your own private origin")
     row = TwinFollowup(owner_id=owner_id, chat_id=origin.chat_id,
         origin_request_id=origin.id, target_chat_id=destination.id,
         sent_message_id=message.id, causal_chain_id=origin.causal_chain_id,
@@ -63,7 +70,11 @@ def _authorize(service, db, row):
             or origin.chat_id != chat.id or chat.kind != "private" or chat.private_owner_id != row.owner_id
             or origin.causal_chain_id != row.causal_chain_id):
         raise HTTPException(403, "Followup has no matching owner private origin")
-    _, recipient = service.membership(db, row.owner_id, row.target_chat_id)
+    destination, recipient = service.membership(db, row.owner_id, row.target_chat_id)
+    from .duet_conversations import require_active
+    require_active(db, destination)
+    if destination.kind != "duet":
+        raise HTTPException(403, "Followup target is not a Duet conversation")
     sent = service.visible_message(db, recipient, row.sent_message_id)
     if sent.author_id != twin.id:
         raise HTTPException(403, "Followup message has another author")
@@ -122,7 +133,7 @@ def service_hash(value):
 
 
 def consume_reply(service, db, message):
-    if not message.reply_to_message_id or message.state != "published":
+    if not message.reply_to_message_id or message.state != "published" or message.kind != "twin":
         return
     row = db.scalar(select(TwinFollowup).where(TwinFollowup.sent_message_id == message.reply_to_message_id,
         TwinFollowup.target_chat_id == message.chat_id).with_for_update().execution_options(populate_existing=True))

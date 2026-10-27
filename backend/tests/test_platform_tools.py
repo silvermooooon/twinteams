@@ -6,6 +6,7 @@ from threading import Barrier
 from uuid import uuid4
 
 import pytest
+from duet_test_support import request_duet_reply as legacy_request
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from test_memory_dream import product as product  # noqa: PLC0414
@@ -20,17 +21,18 @@ from app.models import (
     Membership,
     Message,
     ProductOperation,
+    RoutingDecision,
+    TriggerCandidate,
     WorkspaceNode,
 )
 from app.notifications import notifications
-from checks.legacy_requests import legacy_request
 
 
-def origin(product, chat_id="group-alex-maya", requester="owner-alex"):
+def origin(product, chat_id="duet-alex-maya", requester="owner-alex"):
     with product.transaction() as db:
-        message = product.append_message(db, db.get(Chat, chat_id), author_id=requester, kind="human", body="Coordinate this task")
+        message = product.append_message(db, db.get(Chat, chat_id), author_id="twin-maya" if chat_id.startswith("duet-") else requester, kind="twin" if chat_id.startswith("duet-") else "human", body="Coordinate this task " + uuid4().hex)
         message_id = message.id
-    request = legacy_request(product, requester, chat_id, message_id, "twin-alex", uuid4().hex)
+    request = legacy_request(product, requester, chat_id, message_id, "twin-alex", uuid4().hex) if chat_id.startswith("duet-") else product.manual_request(requester, chat_id, message_id, "twin-alex", uuid4().hex)
     context = product.get_runtime_context(request["id"])
     return request, {**context, "runtime_session_id": "offline-session", "runtime_run_id": "offline-run"}
 
@@ -44,14 +46,18 @@ def approval(product, context, action):
         "target": "Platform", "impact": "One change", "action": action})
 
 
-def test_typed_platform_helpers_and_new_membership_notification(product, monkeypatch):
-    _, context = origin(product)
+def test_owner_authorized_duet_manages_human_chats_without_posting_or_routing(product, monkeypatch):
+    _, context = origin(product, "private-alex")
     emitted = []
     monkeypatch.setattr(notifications, "emit_personal", lambda owner, section: emitted.append((owner, section)))
     people = call(product, context, "list_people", {"limit": 2})["people"]
     assert len(people) == 2 and all(row["kind"] == "human" for row in people)
-    pair = call(product, context, "create_chat", {"owner_ids": ["owner-jordan"], "history_policy": "no_prior"}, "new-pair")
-    assert set(emitted) == {(owner, section) for owner in ("owner-alex", "owner-jordan") for section in ("chats", "tracking")}
+    with product.transaction() as db:
+        messages_before = db.scalar(select(func.count()).select_from(Message))
+        routes_before = db.scalar(select(func.count()).select_from(RoutingDecision))
+        candidates_before = db.scalar(select(func.count()).select_from(TriggerCandidate))
+    pair = call(product, context, "create_chat", {"owner_ids": ["owner-jordan"], "history_policy": "no_prior"})
+    assert {owner for owner, section in emitted if section == "chats"} == {"owner-alex", "owner-jordan"}
     emitted.clear()
     assert call(product, context, "create_chat", {"owner_ids": ["owner-jordan"]})["id"] == pair["id"]
     assert not emitted
@@ -59,18 +65,50 @@ def test_typed_platform_helpers_and_new_membership_notification(product, monkeyp
         grant = db.scalar(select(Membership).where(Membership.chat_id == pair["id"], Membership.owner_id == "owner-jordan"))
         assert grant.history_policy == "no_prior"
     call(product, context, "add_chat_members", {"chat_id": pair["id"], "owner_ids": ["owner-maya"], "history_policy": "all"})
-    assert [item for item in emitted if item[1] == "chats"] == [("owner-maya", "chats")]
-    assert {owner for owner, section in emitted if section == "tracking"} == {"owner-alex", "owner-maya", "owner-jordan"}
-    renamed = call(product, context, "rename_chat", {"chat_id": pair["id"], "title": "  Coordinated group  "})
-    assert renamed["title"] == "Coordinated group"
+    assert ("owner-maya", "chats") in emitted
+    renamed = call(product, context, "rename_chat", {"chat_id": pair["id"], "title": "Coordinated human group"})
+    assert renamed["kind"] == "group" and renamed["title"] == "Coordinated human group"
     assert call(product, context, "get_chat", {"chat_id": pair["id"]})["chat"]["title"] == renamed["title"]
-    reminder = call(product, context, "create_reminder", {"chat_id": pair["id"], "title": "Follow through"})
-    assert call(product, context, "list_reminders", {})["reminders"][0]["id"] == reminder["id"]
-    assert call(product, context, "update_reminder", {"id": reminder["id"], "done": True})["done"]
-    assert call(product, context, "list_reminders", {"include_done": False})["reminders"] == []
+    with product.transaction() as db:
+        assert db.scalar(select(func.count()).select_from(Message)) == messages_before
+        assert db.scalar(select(func.count()).select_from(RoutingDecision)) == routes_before
+        assert db.scalar(select(func.count()).select_from(TriggerCandidate)) == candidates_before
+    with pytest.raises(HTTPException) as fixed:
+        call(product, context, "add_chat_members", {"chat_id": "duet-alex-maya", "owner_ids": ["owner-jordan"], "history_policy": "all"})
+    assert fixed.value.status_code == 409
+    foreign = product.create_chat("owner-maya", ["owner-jordan"])["id"]
+    with pytest.raises(HTTPException) as denied:
+        call(product, context, "add_chat_members", {"chat_id": foreign, "owner_ids": ["owner-alex"], "history_policy": "all"})
+    assert denied.value.status_code == 403
     status = call(product, context, "get_twin_status", {})
     assert status["twin"]["id"] == "twin-alex" and "worker" in status["runtime"]
     assert not {"soul", "execution_config", "endpoint", "key_present"} & status.keys()
+
+
+@pytest.mark.parametrize("name,args", [
+    ("create_chat", {"owner_ids": ["owner-jordan"]}),
+    ("rename_chat", {"chat_id": "group-team", "title": "Owner approved name"}),
+    ("add_chat_members", {"chat_id": "group-alex-maya", "owner_ids": ["owner-jordan"], "history_policy": "all"}),
+])
+def test_peer_duet_chat_management_requires_exact_owner_action_approval(product, name, args):
+    _, context = origin(product, requester="owner-maya")
+    with pytest.raises(HTTPException) as denied:
+        call(product, context, name, args)
+    assert denied.value.status_code == 403
+    consent = approval(product, context, {"tool": name, "arguments": args})
+    with product.transaction() as db:
+        # Unit fixture records the owner's exact approved decision; production
+        # decision delivery and SDK single-use recovery have separate real tests.
+        db.get(Approval, consent["id"]).status = "approved"
+        before = [db.scalar(select(func.count()).select_from(model)) for model in (Message, RoutingDecision, TriggerCandidate)]
+    changed = {**args, "title": "Different action"} if name != "add_chat_members" else {**args, "history_policy": "no_prior"}
+    with pytest.raises(HTTPException) as wrong_action:
+        call(product, {**context, "approved_approval_id": consent["id"]}, name, changed)
+    assert wrong_action.value.status_code == 403
+    result = call(product, {**context, "approved_approval_id": consent["id"]}, name, args)
+    assert result["kind"] == "group"
+    with product.transaction() as db:
+        assert [db.scalar(select(func.count()).select_from(model)) for model in (Message, RoutingDecision, TriggerCandidate)] == before
 
 
 def test_cross_chat_tracking_workspace_and_bounded_utf8_reads(product, monkeypatch, tmp_path):
@@ -95,7 +133,7 @@ def test_cross_chat_tracking_workspace_and_bounded_utf8_reads(product, monkeypat
     with product.transaction() as db:
         sources = db.get(ContextManifest, context["context_manifest_id"]).sources
         assert any(s["kind"] == "chat_context" and s["chat_id"] == "private-alex" for s in sources)
-        assert not product.provenance_allowed(db, product.membership(db, "owner-maya", "group-alex-maya")[1], sources)
+        assert not product.provenance_allowed(db, product.membership(db, "owner-maya", "duet-alex-maya")[1], sources)
     path.write_bytes(b"x" * 65537)
     with pytest.raises(HTTPException) as exc:
         call(product, context, "read_workspace_file", {"chat_id": "private-alex", "id": node_id})
@@ -106,7 +144,7 @@ def test_cross_chat_tracking_workspace_and_bounded_utf8_reads(product, monkeypat
 
 def test_pending_approval_has_durable_private_inbox_and_cross_origin_status(product):
     request, context = origin(product, requester="owner-maya")
-    action = {"tool": "create_reminder", "arguments": {"title": "Approved reminder", "chat_id": "group-alex-maya"}}
+    action = {"tool": "create_reminder", "arguments": {"title": "Approved reminder", "chat_id": "duet-alex-maya"}}
     row = approval(product, context, action)
     detail = product.chat_detail("owner-alex", "private-alex")
     assert [item["id"] for item in detail["approvals"]] == [row["id"]]
@@ -118,7 +156,7 @@ def test_pending_approval_has_durable_private_inbox_and_cross_origin_status(prod
         product.approval_for_execution("owner-alex", "private-alex", row["id"])
     with product.transaction() as db:
         stored = db.get(Approval, row["id"])
-        assert stored.chat_id == "group-alex-maya" and stored.sdk_reference["action"] == action
+        assert stored.chat_id == "duet-alex-maya" and stored.sdk_reference["action"] == action
         assert db.scalar(select(func.count()).select_from(Message).where(Message.sdk_output_key == "approval-notice:" + row["id"])) == 1
     with pytest.raises(HTTPException):
         call(product, context, "create_reminder", {"title": "No approval"})
@@ -131,20 +169,18 @@ def test_pending_approval_has_durable_private_inbox_and_cross_origin_status(prod
             approval(product, context, malformed)
 
 
-def test_reverse_cross_chat_mutations_share_sorted_locks(product):
+def test_reverse_cross_chat_sends_share_sorted_locks(product):
     _first, a = origin(product)
-    _second, b = origin(product, "group-team")
-    # Both targets have three owners and can be renamed.
-    product.add_members("owner-alex", "group-alex-maya", ["owner-jordan"], "all")
+    _second, b = origin(product, "duet-team")
     barrier = Barrier(2)
-    def rename(context, target):
+    def send(context, target):
         barrier.wait()
-        return call(product, context, "rename_chat", {"chat_id": target, "title": "Updated " + target})
+        return call(product, context, "send_chat_message", {"chat_id": target, "body": "Prepared update for " + target})
     with ThreadPoolExecutor(max_workers=2) as pool:
-        left = pool.submit(rename, a, "group-team")
-        right = pool.submit(rename, b, "group-alex-maya")
-        assert left.result(timeout=10)["title"] == "Updated group-team"
-        assert right.result(timeout=10)["title"] == "Updated group-alex-maya"
+        left = pool.submit(send, a, "duet-team")
+        right = pool.submit(send, b, "duet-alex-maya")
+        assert left.result(timeout=10)["sent"]
+        assert right.result(timeout=10)["sent"]
 
 
 def test_retry_grant_consumed_once_only_when_full_and_safe_status_projection(product):
@@ -158,14 +194,12 @@ def test_retry_grant_consumed_once_only_when_full_and_safe_status_projection(pro
     with product.transaction() as db:
         db.get(Approval, consent["id"]).status = "approved"
     result = call(product, {**context, "approved_approval_id": consent["id"]}, "retry_reply_request", {"id": old["id"]}, "approved-effect")
-    assert result["source"] == "tool_retry" and result["causal_chain_id"] == controller["causal_chain_id"]
-    assert call(product, context, "get_reply_request", {"id": result["id"]})["id"] == result["id"]
-    assert "execution_config" not in str(call(product, context, "get_reply_request", {"id": result["id"]}))
+    assert result["status"] == "held" and result["reason"] == "budget_exhausted"
     assert call(product, {**context, "approved_approval_id": consent["id"]}, "retry_reply_request", {"id": old["id"]}, "approved-effect") == result
     with product.transaction() as db:
         chain = db.get(CausalChain, controller["causal_chain_id"])
-        assert chain.spent == chain.allowance == 7
-        assert db.scalar(select(func.count()).select_from(AllowanceGrant).where(AllowanceGrant.client_request_key == "approval:" + consent["id"])) == 1
+        assert chain.spent == chain.allowance == 6
+        assert not db.scalar(select(AllowanceGrant.id).where(AllowanceGrant.client_request_key == "approval:" + consent["id"]))
         assert db.scalar(select(func.count()).select_from(ProductOperation).where(ProductOperation.operation_id == "approved-effect")) == 1
     old2, _ = origin(product); product.fail_request(old2["id"], "Offline failure")
     controller2, context2 = origin(product)
@@ -175,7 +209,7 @@ def test_retry_grant_consumed_once_only_when_full_and_safe_status_projection(pro
     call(product, {**context2, "approved_approval_id": consent2["id"]}, "retry_reply_request", {"id": old2["id"]})
     with product.transaction() as db:
         chain = db.get(CausalChain, controller2["causal_chain_id"])
-        assert chain.spent == 1 and chain.allowance == 6
+        assert chain.spent == 2 and chain.allowance == 6
         assert not db.scalar(select(AllowanceGrant.id).where(AllowanceGrant.client_request_key == "approval:" + consent2["id"]))
 
 
@@ -221,7 +255,8 @@ def test_report_cites_actual_authorized_foreign_chat_without_sharing_sources(pro
     _, context = origin(product)
     with product.transaction() as db:
         source_id = product.append_message(db, db.get(Chat, "private-alex"), author_id="owner-alex", kind="human", body="Private reference").id
-    target = product.create_chat("owner-alex", ["owner-jordan"])["id"]
+    from duet_test_support import approved_chat
+    target = approved_chat(product, "duet-alex-jordan", ["owner-alex", "owner-jordan"])
     result = call(product, context, "send_chat_message", {"chat_id": target, "body": "Prepared owner statement", "source_message_ids": [source_id]})
     assert any(row["id"] == result["message_id"] for row in product.chat_detail("owner-jordan", target)["messages"])
     with product.transaction() as db:
@@ -232,3 +267,9 @@ def test_report_cites_actual_authorized_foreign_chat_without_sharing_sources(pro
         db.get(Message, source_id).state = "withdrawn"
     with pytest.raises(HTTPException):
         call(product, context, "send_chat_message", {"chat_id": target, "body": "Late statement", "source_message_ids": [source_id]})
+
+
+@pytest.fixture(autouse=True)
+def approved_collaboration_fixtures(product):
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)

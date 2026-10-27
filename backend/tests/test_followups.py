@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from duet_test_support import send_message
 from fastapi import HTTPException
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
@@ -39,6 +40,8 @@ def product(monkeypatch):
     monkeypatch.setattr(service_module, "settings", replace(service_module.settings, database_url=database.url))
     product = service_module.ProductService()
     product.initialize(create_schema=True)
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)
     product._presence_cache = {owner: {"expires_at": 0, "focused_chats": []}
         for owner in ("owner-alex", "owner-maya", "owner-jordan")}
     yield product
@@ -48,11 +51,11 @@ def product(monkeypatch):
 
 
 def send(product, *, wait=True):
-    request = product.send_message("owner-alex", "private-alex", "Private task and confidential preparation", key())["request"]
+    request = send_message(product, "owner-alex", "private-alex", "Private task and confidential preparation", key())["request"]
     context = product.get_runtime_context(request["id"])
     context["operation_id"] = key()
     with product.transaction() as db:
-        target = db.scalar(select(Chat).where(Chat.kind == "group"))
+        target = db.scalar(select(Chat).where(Chat.kind == "duet"))
         target_id = target.id
     args = {"chat_id": target_id, "body": "Please confirm the public appointment.",
         "source_message_ids": [request["source_message_id"]], "wait_for_reply": wait}
@@ -82,10 +85,10 @@ def test_explicit_reply_is_one_private_continuation_and_excluded_from_group_rout
     replay = product._runtime_tool_transaction("send_chat_message", args, context)
     assert replay["followup"] == result["followup"]
     assert "private-alex" in product.next_deadlines()
-    product.send_message("owner-maya", args["chat_id"], "Unrelated group message", key())
+    send_message(product, "owner-maya", args["chat_id"], "Unrelated group message", key())
     with product.transaction() as db:
         assert db.get(TwinFollowup, result["followup"]["id"]).status == "waiting"
-    reply = product.send_message("owner-maya", args["chat_id"], "Confirmed, thank you.", key(), reply_to=result["message_id"])["message"]
+    reply = send_message(product, "owner-maya", args["chat_id"], "Confirmed, thank you.", key(), reply_to=result["message_id"])["message"]
     product.process_followups()
     with product.transaction() as db:
         row = db.get(TwinFollowup, result["followup"]["id"])
@@ -118,7 +121,7 @@ def test_timeout_restart_and_late_reply_keep_single_terminal_and_chain(product):
         restarted.process_followups()
     finally:
         restarted.db_pool.shutdown()
-    product.send_message("owner-maya", args["chat_id"], "A late explicit answer", key(), reply_to=result["message_id"])
+    send_message(product, "owner-maya", args["chat_id"], "A late explicit answer", key(), reply_to=result["message_id"])
     with product.transaction() as db:
         row = db.get(TwinFollowup, result["followup"]["id"])
         assert row.status == "timed_out" and row.reply_message_id is None
@@ -134,7 +137,7 @@ def test_budget_pause_uses_existing_owner_continue_without_reset(product):
     with product.transaction() as db:
         chain = db.get(CausalChain, request["causal_chain_id"])
         chain.spent = chain.allowance
-    product.send_message("owner-maya", args["chat_id"], "The requested answer", key(), reply_to=result["message_id"])
+    send_message(product, "owner-maya", args["chat_id"], "The requested answer", key(), reply_to=result["message_id"])
     with product.transaction() as db:
         row = db.get(TwinFollowup, result["followup"]["id"])
         assert row.status == "replied" and row.notification_state == "paused"
@@ -156,7 +159,7 @@ def test_revoked_destination_blocks_notification_and_forged_followup_has_no_priv
     with product.transaction() as db:
         member = db.scalar(select(Membership).where(Membership.chat_id == args["chat_id"], Membership.owner_id == "owner-alex"))
         member.left_at = now()
-    product.send_message("owner-maya", args["chat_id"], "Answer after owner left", key(), reply_to=result["message_id"])
+    send_message(product, "owner-maya", args["chat_id"], "Answer after owner left", key(), reply_to=result["message_id"])
     with product.transaction() as db:
         row = db.get(TwinFollowup, result["followup"]["id"])
         assert row.notification_state == "blocked" and row.continuation_request_id is None
@@ -199,13 +202,13 @@ def test_consumed_only_recipient_skips_router_model(product):
     import asyncio
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
-    request = product.send_message("owner-maya", "private-maya", "Ask AAA to confirm", key())["request"]
+    request = send_message(product, "owner-maya", "private-maya", "Ask AAA to confirm", key())["request"]
     context = product.get_runtime_context(request["id"])
     context["operation_id"] = key()
     sent = product._runtime_tool_transaction("send_chat_message", {
-        "chat_id": "group-alex-maya", "body": "Does Friday work?", "source_message_ids": [request["source_message_id"]],
+        "chat_id": "duet-alex-maya", "body": "Does Friday work?", "source_message_ids": [request["source_message_id"]],
         "wait_for_reply": True}, context)
-    reply = product.send_message("owner-alex", sent["chat_id"], "Confirmed.", key(), reply_to=sent["message_id"])["message"]
+    reply = send_message(product, "owner-alex", sent["chat_id"], "Confirmed.", key(), reply_to=sent["message_id"])["message"]
     route = AsyncMock()
     product.runtime = SimpleNamespace(route_targets=route)
     with product.transaction() as db:
@@ -221,7 +224,7 @@ def test_consumed_only_recipient_skips_router_model(product):
 
 def test_followup_retries_keep_source_deadline_and_original_reservation(product):
     _, _, args, sent = send(product)
-    product.send_message("owner-maya", args["chat_id"], "Confirmed for the original task", key(), reply_to=sent["message_id"])
+    send_message(product, "owner-maya", args["chat_id"], "Confirmed for the original task", key(), reply_to=sent["message_id"])
     with product.transaction() as db:
         row = db.get(TwinFollowup, sent["followup"]["id"])
         due, canonical_id = row.due_at, row.continuation_request_id

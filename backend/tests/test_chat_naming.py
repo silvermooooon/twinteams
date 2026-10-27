@@ -1,6 +1,8 @@
 """Viewer-specific peer names and member-authorized group names; no model calls."""
 from uuid import uuid4
 
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from test_memory_dream import product as product  # noqa: PLC0414
 
@@ -31,11 +33,10 @@ def test_pair_titles_are_peer_human_names_across_bootstrap_detail_summary_and_to
     choices = product._runtime_tool_transaction("list_authorized_chats", {}, context)["chats"]
     assert next(row for row in choices if row["id"] == pair["id"])["title"] == "BBB"
     with product.transaction() as db:
-        request = product.accept_request(db, db.get(Chat, pair["id"]), "twin-maya", "owner-alex", "manual", uuid4().hex, raw="Context")
-        request_id = request.id
+        with pytest.raises(HTTPException):
+            product.accept_request(db, db.get(Chat, pair["id"]), "twin-maya", "owner-alex", "manual", uuid4().hex, raw="Context")
         peer = db.get(Actor, "owner-alex")
         peer.name = "Changed human name"
-    assert product.get_runtime_context(request_id)["chat"]["title"] == "Changed human name"
     assert maya.get(f"/api/chats/{pair['id']}/summary").json()["title"] == "Changed human name"
     assert alex.patch("/api/chats/private-alex", json={"title": "Wrong kind"}).status_code == 409
 

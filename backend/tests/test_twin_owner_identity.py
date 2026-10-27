@@ -8,20 +8,23 @@ import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from agent_runtime.memory import MemorySource
 from agent_runtime.sessions import DatabaseSession, SessionInfo
+from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import send_message
 from test_credentials import product as product  # noqa: PLC0414
 
 from app import credentials, personal, twin_execution
 from app import service as service_module
 from app.runtime_bridge import RuntimeBridge
-from checks.legacy_requests import legacy_request
 
 
-@pytest.mark.parametrize('chat_id', ['group-alex-maya', 'group-team'])
+@pytest.mark.parametrize('chat_id', ['private', 'duet-alex-maya', 'duet-team'])
 @pytest.mark.parametrize(('target_owner', 'requester'), [
     ('owner-alex', 'owner-maya'), ('owner-maya', 'owner-alex'),
 ])
 def test_other_participant_uses_target_twin_profile_skills_and_sdk_identity(
         product, tmp_path, monkeypatch, target_owner, requester, chat_id):
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)
     monkeypatch.setenv('AGENT_MEMORY_DIR', str(tmp_path / 'memory'))
     backend_class = twin_execution.TwinExecutionBackend
     monkeypatch.setattr(twin_execution, 'TwinExecutionBackend',
@@ -43,13 +46,18 @@ def test_other_participant_uses_target_twin_profile_skills_and_sdk_identity(
         with product.transaction() as db:
             product.twin(db, owner_id).enabled_skill_names = [skill_name]
 
-    source = product.send_message(requester, chat_id, 'Synthetic participant request', uuid4().hex)['message']
+    is_private = chat_id == 'private'
+    if is_private:
+        chat_id = 'private-' + target_owner.removeprefix('owner-')
+    source_owner = target_owner if is_private else requester
+    sent = send_message(product, source_owner, chat_id, 'Synthetic participant request', uuid4().hex)
+    source = sent['message']
     with product.transaction() as db:
         target_twin = product.twin(db, target_owner).id
-    request = legacy_request(product, requester, chat_id, source['id'], target_twin, uuid4().hex)
+    request = sent['request'] if is_private else legacy_request(product, requester, chat_id, source['id'], target_twin, uuid4().hex)
     context = product.get_runtime_context(request['id'])
-    assert context['owner_id'] == target_owner and context['requester_id'] == requester
-    assert context['source_owner_id'] == requester
+    assert context['owner_id'] == target_owner and context['requester_id'] == source_owner
+    assert context['source_owner_id'] == source_owner
 
     async def run():
         for owner in (target_owner, requester):
@@ -106,10 +114,12 @@ def test_other_participant_uses_target_twin_profile_skills_and_sdk_identity(
             assert stored.session_id == runtime.session_id(chat_id, target_twin)
             system = captured[0]['system']
             assert markers[target_owner] in system and markers[requester] not in system
+            assert f'OWNER_MEMORY_{target_owner}' in system
+            assert f'OWNER_MEMORY_{requester}' not in system
             names = {tool['name'] for tool in stored.snapshot['tools']}
             assert {'load_skill', 'bash', 'request_credential', 'memory_read', 'memory_write'} <= names
-            assert {row['owner_id'] for row in context['chat']['audience']} == ({target_owner, requester} if chat_id == 'group-alex-maya' else {target_owner, requester, 'owner-jordan'})
-            assert requester in system and 'Destination audience' in system
+            assert {row['owner_id'] for row in context['chat']['audience']} == ({target_owner} if is_private else {target_owner, requester} if chat_id == 'duet-alex-maya' else {target_owner, requester, 'owner-jordan'})
+            assert source_owner in system and 'Destination audience' in system
         finally:
             await runtime.close()
 

@@ -1,6 +1,6 @@
 # Duet / 双重奏
 
-Duet connects people and their personal Duets. The checkout, configuration prefixes and storage identifiers retain `twinteams` for compatibility. See [the visual identity](docs/visual-identity.md).
+Duet separates human pair/multi-person chats (`kind=group`), owner-to-own-Duet private chats (`kind=private`) and independent owner-approved Duet threads (`kind=duet`). Humans inspect Duet threads read-only in the sidebar. Approve once permits one connection; Always creates directed owner-to-peer grants, and revocation closes dependent threads. Connection consent grants no arbitrary action authority. Automatic work shares six replies across the original task chain; only explicit human Continue extends it. Human chat messages never trigger Duets through presence, unread state or a ten-second timer. The checkout, configuration prefixes and storage identifiers retain `twinteams` for compatibility. See [the visual identity](docs/visual-identity.md).
 
 React/TypeScript + FastAPI application using the original
 [Agent Runtime](https://github.com/silvermooooon/agent-runtime) SDK.
@@ -76,12 +76,12 @@ loads committed outputs. WebSocket broadcasts contain only scope revisions;
 content is loaded through authorized HTTP. The former SSE/token transport and
 three-second full-chat polling have been removed. Reconciliation deduplicates
 by SDK event ID. SDK lease loss keeps the logical request recoverable. Slow model
-routing is scheduled separately from ready replies. Failed group routing appears on its source message. That message’s owner can explicitly retry; each click creates one fresh durable classifier attempt, retains the original causal-chain allowance and read checks, and never retries itself. Apply [the additive routing retry column](docs/group-routing-retry-schema.sql) before rollout (also applied by `app.init_db`). Approval decisions are durable
+routing is scheduled separately from ready replies. Failed Duet routing appears on its source message. That message’s owner can explicitly retry; each click creates one fresh durable classifier attempt, retains the original causal-chain allowance and read checks, and never retries itself. Apply [the additive routing retry column](docs/group-routing-retry-schema.sql) before rollout (also applied by `app.init_db`). Approval decisions are durable
 SDK facts, then enter the product FIFO as a continuation. Exact installed platform actions
 are frozen and replay-safe; approval does not install extra execution capabilities.
 No email/payment adapters are installed.
 
-Private replies, group replies and group routing use the same server-maintained
+Private replies, approved Duet replies and Duet routing use the same server-maintained
 conversation checkpoint plus a contiguous recent-message tail. Estimated tokens
 trigger checkpointing at 24,000 tokens, retaining about 8,000 recent tokens; a
 40-message trigger also bounds many tiny messages (20 raw messages retained).
@@ -165,6 +165,6 @@ For the tested local two-API/single-worker stack, use the managed launcher from 
 It records only its own PIDs/logs and loads the explicitly configured private
 credential sources. This local deployment convention is not full high availability.
 
-Chat sends appear immediately as sender-local bubbles. Pending sends are kept only in memory: reloading fetches canonical server state, without a durable offline outbox. A retry keeps the same submission key and payload; “Sent” confirms server persistence, not delivery or reading. Reply for me shows the owner a private “Preparing reply…” placeholder until the generated message is published. Acknowledgments confirm each bubble without awaiting bootstrap; chat refreshes coalesce behind one active read and at most one follow-up, while preserving authorization checks for already loaded history.
+Chat sends appear immediately as sender-local bubbles. Pending sends are kept only in memory: reloading fetches canonical server state, without a durable offline outbox. A retry keeps the same submission key and payload; “Sent” confirms server persistence, not delivery or reading. Human chat sends remain human-authored; private sends address only the owner's own Duet. Acknowledgments confirm each bubble without awaiting bootstrap; chat refreshes coalesce behind one active read and at most one follow-up, while preserving authorization checks for already loaded history.
 
 Chat message bodies render CommonMark and GitHub-flavored Markdown with `react-markdown` and `remark-gfm`, including lists, tables and fenced code. Raw HTML stays literal text and unsafe URL schemes are removed. Links open separately with opener/referrer protection; Markdown image URLs appear as explicit links rather than loading external images automatically. Uploaded image attachments retain their authorized preview flow. Original-input disclosures and quoted-source previews remain literal text, and rendering does not change stored message content.

@@ -17,15 +17,23 @@ def call(product, context, name, args):
 
 
 def source(product, chat_id, owner="owner-alex"):
+    if chat_id.startswith("duet-"):
+        from duet_test_support import append_duet
+        return append_duet(product, chat_id, owner, "Isolated project evidence " + uuid4().hex)["id"]
     with product.transaction() as db:
-        row = product.append_message(db, db.get(Chat, chat_id), author_id=owner,
-            kind="human", body="Isolated project evidence " + uuid4().hex)
+        row = product.append_message(db, db.get(Chat, chat_id), author_id=product.twin(db, owner).id if chat_id.startswith("duet-") else owner,
+            kind="twin" if chat_id.startswith("duet-") else "human", body="Isolated project evidence " + uuid4().hex)
         return row.id
 
 
 def topic(product, chat_id, owner="owner-alex", *, sources=True):
     source_id = source(product, chat_id, owner)
-    result = call(product, {"owner_id": owner, "chat": {"id": chat_id}}, "create_tracking", {
+    context = {"owner_id": owner, "chat": {"id": chat_id}}
+    if chat_id.startswith("duet-"):
+        from duet_test_support import request_duet_reply
+        request = request_duet_reply(product, owner, chat_id, source_id, "twin-" + owner.removeprefix("owner-"))
+        context = product.get_runtime_context(request["id"])
+    result = call(product, context, "create_tracking", {
         "title": "Scoped project " + uuid4().hex, "description": "Verified ongoing decision",
         "source_message_ids": [source_id] if sources else [],
     })
@@ -36,7 +44,7 @@ def origin(product, chat_id="private-alex", owner="owner-alex"):
     source_id = source(product, chat_id, owner)
     with product.transaction() as db:
         row = product.accept_request(db, db.get(Chat, chat_id), product.twin(db, owner).id,
-            owner, "manual", uuid4().hex, source_message_id=source_id)
+            owner, "auto" if chat_id.startswith("duet-") else "manual", uuid4().hex, source_message_id=source_id)
         request_id = row.id
     return request_id, product.get_runtime_context(request_id)
 
@@ -78,14 +86,16 @@ def test_private_union_matches_api_runtime_and_tool_without_cross_owner_leaks(se
     assert maya.get("/api/chats/private-alex/tracking").status_code in {403, 404}
 
 
-@pytest.mark.parametrize("other", ["private-alex", "group-team"])
+@pytest.mark.parametrize("other", ["private-alex", "duet-team"])
 def test_group_index_and_explicit_tool_arguments_stay_in_its_own_group(send_clients, other):
     product, alex, _ = send_clients
-    local, _ = topic(product, "group-alex-maya")
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)
+    local, _ = topic(product, "duet-alex-maya")
     foreign, _ = topic(product, other)
-    _, context = origin(product, "group-alex-maya")
+    _, context = origin(product, "duet-alex-maya")
     assert ids(context["tracking"]) == {local["id"]}
-    assert ids(alex.get("/api/chats/group-alex-maya/tracking").json()["tracking"]) == {local["id"]}
+    assert ids(alex.get("/api/chats/duet-alex-maya/tracking").json()["tracking"]) == {local["id"]}
     assert ids(call(product, context, "list_tracking", {})["tracking"]) == {local["id"]}
     for name, args in [
         ("list_tracking", {"chat_id": other}),

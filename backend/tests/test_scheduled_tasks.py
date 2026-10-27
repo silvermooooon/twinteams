@@ -391,8 +391,10 @@ def test_reminder_alone_eligible_and_foreign_chain_request_not_cancellable(produ
     assert context["system_review"]["deadlines"][0]["title"] == "Deadline tomorrow"
     with product.transaction() as db:
         root = db.get(ReplyRequest, request_id)
-        group = db.scalar(select(Chat).where(Chat.kind == "group"))
-        foreign = product.accept_request(db, group, "twin-maya", "owner-alex", "manual", uuid4().hex, causal_chain_id=root.causal_chain_id)
+        from duet_test_support import approved_chat
+        approved_chat(product, "duet-alex-maya")
+        group = db.get(Chat, "duet-alex-maya")
+        foreign = product.accept_request(db, group, "twin-maya", "owner-alex", "auto", uuid4().hex, causal_chain_id=root.causal_chain_id)
         assert foreign.target_twin_id != root.target_twin_id
     product.finish_request(request_id, "completed")
     item = next(item for item in schedules.list_tasks(product, "owner-alex")["items"] if item["id"] == system["id"])

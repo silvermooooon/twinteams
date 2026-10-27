@@ -8,6 +8,8 @@ import pytest
 from agent_runtime.execution import create_execution_tools
 from agent_runtime.sessions import SessionInfo
 from cryptography.fernet import Fernet
+from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import seed_collaborations, send_message
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
@@ -17,7 +19,6 @@ from app import credentials
 from app import service as service_module
 from app.models import ReplyRequest
 from app.twin_execution import TwinExecutionBackend, owner_execution_allowed
-from checks.legacy_requests import legacy_request
 from checks.postgres import TestDatabase
 
 
@@ -44,7 +45,7 @@ def product(tmp_path, monkeypatch):
 
 
 def pending(product, *, name="test-api"):
-    request = product.send_message("owner-alex", "private-alex", "offline credential test", key())["request"]
+    request = send_message(product, "owner-alex", "private-alex", "offline credential test", key())["request"]
     context = product.get_runtime_context(request["id"])
     context["operation_id"] = key()
     result = credentials.create_request(product,
@@ -127,8 +128,9 @@ def test_cancelling_origin_also_cancels_already_queued_continuation(product):
 
 
 def test_group_credential_form_belongs_to_target_owner_and_keeps_requester(product):
-    source = product.send_message("owner-maya", "group-alex-maya", "Synthetic request", key())["message"]
-    request = legacy_request(product, "owner-maya", "group-alex-maya", source["id"], "twin-alex", key())
+    seed_collaborations(product)
+    source = send_message(product, "owner-maya", "duet-alex-maya", "Synthetic request", key())["message"]
+    request = legacy_request(product, "owner-maya", "duet-alex-maya", source["id"], "twin-alex", key())
     context = product.get_runtime_context(request["id"])
     assert owner_execution_allowed(product, "owner-alex", request["id"])
     assert not owner_execution_allowed(product, "owner-maya", request["id"])
@@ -141,7 +143,7 @@ def test_group_credential_form_belongs_to_target_owner_and_keeps_requester(produ
     result = credentials.complete(product, "owner-alex", row["id"], values={"TOKEN": "fake-group-token"})
     with product.transaction() as db:
         continuation = db.get(ReplyRequest, result["continuation_request_id"])
-        assert continuation.chat_id == "group-alex-maya" and continuation.target_twin_id == "twin-alex"
+        assert continuation.chat_id == "duet-alex-maya" and continuation.target_twin_id == "twin-alex"
         assert continuation.requester_id == "owner-maya" and continuation.source_owner_id == "owner-maya"
         assert continuation.source_message_id == source["id"]
         assert continuation.execution_config is None  # fresh credential metadata, not action consent
@@ -221,12 +223,13 @@ def test_unicode_credential_names_are_metadata(product):
 
 
 def test_assembly_freezes_catalog_and_shares_owner_tools_with_children_and_groups(product, tmp_path, monkeypatch):
+    seed_collaborations(product)
     from app import personal, twin_execution
     from app.models import Chat
     original_backend = twin_execution.TwinExecutionBackend
     monkeypatch.setattr(twin_execution, "TwinExecutionBackend", lambda identity, workspace:
         original_backend(identity, workspace, directory=tmp_path / "execution-state"))
-    request = product.send_message("owner-alex", "private-alex", "offline assemble", key())["request"]
+    request = send_message(product, "owner-alex", "private-alex", "offline assemble", key())["request"]
     context = product.get_runtime_context(request["id"])
     skill_root = personal.resolve_twin_workspace("owner-alex") / "skills" / "offline-demo"
     skill_root.mkdir(parents=True, exist_ok=True)
@@ -257,8 +260,8 @@ def test_assembly_freezes_catalog_and_shares_owner_tools_with_children_and_group
         output = await recovered_bash.execute("rotation", {"command": "test \"$ASSEMBLY_TOKEN\" = fake-assembly-new && printf updated", "credentials": ["assembly-ref"]})
         assert "updated" in str(output)
         with product.transaction() as db:
-            group = db.scalar(select(Chat).where(Chat.kind == "group"))
-            group_request = product.accept_request(db, group, product.twin(db, "owner-alex").id, "owner-alex", "manual", key())
+            group = db.get(Chat, "duet-alex-maya")
+            group_request = product.accept_request(db, group, product.twin(db, "owner-alex").id, "owner-alex", "auto", key())
             group_id = group_request.id
         group_context = product.get_runtime_context(group_id)
         group_tools, group_config, _ = await twin_execution.assemble(product, session, group_context)
@@ -274,7 +277,7 @@ def test_legacy_unfinished_run_keeps_original_tools_and_new_prompt_gets_executio
     original_backend = twin_execution.TwinExecutionBackend
     monkeypatch.setattr(twin_execution, "TwinExecutionBackend", lambda identity, workspace:
         original_backend(identity, workspace, directory=tmp_path / "execution-state"))
-    request = product.send_message("owner-alex", "private-alex", "legacy offline", key())["request"]
+    request = send_message(product, "owner-alex", "private-alex", "legacy offline", key())["request"]
     context = product.get_runtime_context(request["id"])
     async def run():
         session = SimpleNamespace(info=SessionInfo("legacy-main", "local", "owner-alex"),
@@ -332,7 +335,7 @@ def test_credential_continuation_receives_committed_shell_result_once(product, t
             return stream
         runtime.models.register_api("offline-regression", offline)
         try:
-            request = product.send_message("owner-alex", "private-alex", "Do the preparation and then the authenticated step.", key())["request"]
+            request = send_message(product, "owner-alex", "private-alex", "Do the preparation and then the authenticated step.", key())["request"]
             await product.execute_request(request["id"])
             assert product.get_request(request["id"])["status"] == "completed"
             pending_row = credentials.list_requests(product, "owner-alex")["requests"][0]

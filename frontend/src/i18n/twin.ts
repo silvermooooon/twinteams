@@ -24,7 +24,7 @@ export const twinEn = {
   'twin.references': 'Reference files', 'twin.loadMore': 'Load more',
   'twin.addField': 'Add field', 'twin.credentialStoreUnavailable': 'The private credential store is not configured.',
   'twin.title': 'My Duet', 'twin.subtitle': 'Your Duet, working alongside you.',
-  'twin.scheduled': 'Scheduled tasks', 'twin.profile': 'Profile', 'twin.runtime': 'Runtime', 'twin.skills': 'Skills', 'twin.memory': 'Memory', 'twin.credentials': 'Credentials',
+  'twin.scheduled': 'Scheduled tasks', 'twin.connections': 'Trusted Duets', 'twin.profile': 'Profile', 'twin.runtime': 'Runtime', 'twin.skills': 'Skills', 'twin.memory': 'Memory', 'twin.credentials': 'Credentials',
   'twin.account': 'Your account', 'twin.identity': 'Duet identity', 'twin.identityHint': 'This changes your Duet’s name and avatar.',
   'twin.name': 'Duet name', 'twin.saved': 'Saved', 'twin.saving': 'Saving…', 'twin.avatar': 'Duet avatar',
   'twin.changeAvatar': 'Choose avatar', 'twin.uploadAvatar': 'Upload image', 'twin.removeAvatar': 'Remove avatar',

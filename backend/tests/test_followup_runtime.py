@@ -90,7 +90,7 @@ def test_proactive_send_schema_preserves_followup_and_reply_reference():
     assert product.tool_calls[0][2]["causal_chain_id"] == "chain"
     assert product.tool_calls[0][2]["operation_id"] == "operation:send"
     system = runtime._system(context)
-    assert "existing authorized chat" in tool.description
+    assert "active approved Duet conversation" in tool.description
     assert "audience restrictions" in system
     assert "courtesy loops" in system
 

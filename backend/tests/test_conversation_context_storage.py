@@ -2,6 +2,7 @@
 from uuid import uuid4
 
 import pytest
+from duet_test_support import request_duet_reply
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from test_memory_dream import product as product  # noqa: PLC0414
@@ -11,9 +12,9 @@ from app.models import Chat, Membership, Message, Summary
 
 def history(product, count=60):
     with product.transaction() as db:
-        chat = db.get(Chat, "group-team")
+        chat = db.get(Chat, "duet-team")
         rows = [Message(id=uuid4().hex, chat_id=chat.id, seq=chat.next_message_seq + index,
-                        author_id="owner-alex", kind="human", body=f"Fact {index}") for index in range(count)]
+                        author_id="twin-maya", kind="twin", body=f"Fact {index}") for index in range(count)]
         db.add_all(rows)
         chat.next_message_seq += count
         db.flush()
@@ -21,7 +22,7 @@ def history(product, count=60):
 
 
 def scope(product):
-    return product.get_conversation_context({"chat_id": "group-team", "owner_id": "owner-alex"})["_summary_scope"]
+    return product.get_conversation_context({"chat_id": "duet-team", "owner_id": "owner-alex"})["_summary_scope"]
 
 
 @pytest.mark.parametrize("field,value", [("coverage_end_seq", 100000), ("batch_digest", "invented"),
@@ -41,13 +42,13 @@ def test_grant_change_while_model_summarizes_leaves_originals_and_no_checkpoint(
     ids = history(product)
     prepared = product.prepare_conversation_summary(scope(product))
     with product.transaction() as db:
-        member = db.scalar(select(Membership).where(Membership.chat_id == "group-team", Membership.owner_id == "owner-alex"))
+        member = db.scalar(select(Membership).where(Membership.chat_id == "duet-team", Membership.owner_id == "owner-alex"))
         member.lower_seq = 25
         member.grant_version += 1
     with pytest.raises(HTTPException) as error:
         product.save_conversation_summary(prepared["scope"], "Old history must not be published")
     assert error.value.status_code == 409
-    fresh = product.get_conversation_context({"chat_id": "group-team", "owner_id": "owner-alex"})
+    fresh = product.get_conversation_context({"chat_id": "duet-team", "owner_id": "owner-alex"})
     assert fresh["summary"] is None
     assert all(row["seq"] >= 25 for row in fresh["messages"])
     with product.transaction() as db:
@@ -67,13 +68,13 @@ def test_source_provenance_change_during_summary_is_not_only_a_body_hash(product
 
 def test_current_request_partial_output_cannot_enter_or_be_crossed_by_checkpoint(product):
     ids = history(product)
-    request = product.manual_request("owner-alex", "group-team", ids[-1], "twin-alex", uuid4().hex)
+    request = request_duet_reply(product, "owner-maya", "duet-team", ids[-1], "twin-alex", uuid4().hex)
     with product.transaction() as db:
-        chat = db.get(Chat, "group-team")
+        chat = db.get(Chat, "duet-team")
         own = product.append_message(db, chat, author_id="twin-alex", kind="twin", body="Partial output",
                                      request_id=request["id"])
         own_seq = own.seq
-        product.append_message(db, chat, author_id="owner-alex", kind="human", body="Later fact")
+        product.append_message(db, chat, author_id="twin-maya", kind="twin", body="Later fact")
     context = product.get_runtime_context(request["id"])
     assert all(row["request_id"] != request["id"] for row in context["messages"])
     prepared = product.prepare_conversation_summary(context["_summary_scope"])
@@ -108,7 +109,7 @@ def test_repeated_context_validates_frozen_tail_after_batched_body_load(product)
     ids = history(product)
     prepared = product.prepare_conversation_summary(scope(product))
     product.save_conversation_summary(prepared["scope"], "Checkpoint facts")
-    request = product.manual_request("owner-alex", "group-team", ids[-1], "twin-alex", uuid4().hex)
+    request = request_duet_reply(product, "owner-maya", "duet-team", ids[-1], "twin-alex", uuid4().hex)
     for _ in range(2):
         with sql_reads() as reads:
             context = product.get_runtime_context(request["id"])
@@ -124,7 +125,7 @@ def test_current_and_legacy_source_hashes_accept_unchanged_then_reject_body_edit
     from app.service import digest
     ids = history(product, 1)
     with product.transaction() as db:
-        member = product.membership(db, "owner-alex", "group-team")[1]
+        member = product.membership(db, "owner-alex", "duet-team")[1]
         message = db.get(Message, ids[0])
         source = ({"kind": "message", "id": message.id, "hash": digest(message.body)}
                   if legacy else message_source(db, message))
@@ -139,7 +140,7 @@ def test_rebuilt_checkpoint_does_not_reauthorize_a_stale_hashed_derived_tail(pro
     with product.transaction() as db:
         source = db.get(Message, ids[0])
         old_hash = digest(source.body)
-        output = product.append_message(db, db.get(Chat, "group-team"), author_id="twin-alex", kind="twin",
+        output = product.append_message(db, db.get(Chat, "duet-team"), author_id="twin-alex", kind="twin",
             body="Finding based on the old fact", source_message_ids=[source.id], source_floor_seq=source.seq,
             source_provenance=[{"kind": "message", "id": source.id, "hash": old_hash}])
         output_id = output.id
@@ -166,3 +167,9 @@ def test_overlapping_preparations_discard_obsolete_result_after_valid_progress(p
     current = product.get_conversation_context(second["scope"])
     assert current["summary"]["id"] == saved["id"]
     assert not current["context_incomplete"]
+
+
+@pytest.fixture(autouse=True)
+def approved_collaboration_fixtures(product):
+    from duet_test_support import seed_collaborations
+    seed_collaborations(product)

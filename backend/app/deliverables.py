@@ -13,6 +13,11 @@ def present_files(service, db, args, context):
     from .service import digest, fail, settings
     request, twin, origin, member, inherited = service._message_tool_origin(db, context)
     target, target_member = service.membership(db, twin.owner_id, args.get("chat_id") or origin.id, True)
+    from .duet_conversations import require_active
+    require_active(db, origin)
+    require_active(db, target)
+    if target.kind == "private" and target.private_owner_id != twin.owner_id:
+        fail(403, "Deliverables require your own private chat or an approved Duet conversation")
     if target.kind == "private" and target.reset_pending:
         fail(409, "Private chat reset is pending")
     paths, caption = args.get("paths"), args.get("caption", "")
@@ -41,7 +46,7 @@ def present_files(service, db, args, context):
         seen.add(path)
         source_attachment = db.scalar(select(ChatAttachment).where(ChatAttachment.relative_path == str(path.relative_to(settings.workspace_root))))
         if source_attachment and source_attachment.private_owner_input and not (target.kind == "private" and target.private_owner_id == twin.owner_id):
-            fail(403, "Private owner-input attachments cannot be published to a group")
+            fail(403, "Private owner-input attachments cannot be published to another audience")
         identifier = uuid5(NAMESPACE_URL, "twinteams:present:" + context["operation_id"] + ":" + str(position)).hex
         destination = settings.workspace_root / target.id / "uploads" / identifier / path.name
         if any(part.is_symlink() for part in [destination, *destination.parents] if part.is_relative_to(settings.workspace_root)):

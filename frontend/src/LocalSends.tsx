@@ -6,7 +6,7 @@ import { Avatar, Icon, time } from './ui';
 import { MessageAttachments } from './Attachments';
 import { t } from './i18n';
 
-type Payload = { body: string; attachment_ids: string[]; client_request_key: string; reply_to_message_id?: string; reply_for_me: boolean };
+type Payload = { body: string; attachment_ids: string[]; client_request_key: string; reply_to_message_id?: string };
 export type LocalSend = {
   key: string; ownerId: string; chatId: string; epoch: number; payload: Payload; message: Message;
   phase: 'sending' | 'sent' | 'failed'; error?: string; uncertain?: boolean; acceptedAt?: number;
@@ -39,8 +39,8 @@ export function useLocalSends(api: ApiClient) {
       const ack = await api.post<SendAcknowledgment>(`/chats/${entry.chatId}/messages`, entry.payload);
       if (!current(entry)) return;
       const result = ack.result || ack;
-      if (result.message?.state === 'withdrawn' || entry.payload.reply_for_me && result.request?.status === 'cancelled') { update(previous => previous.filter(item => item.key !== entry.key)); return; }
-      update(previous => previous.map(item => item.key === entry.key ? { ...item, phase: entry.payload.reply_for_me && result.request?.status === 'failed' ? 'failed' : 'sent', requestFailed: entry.payload.reply_for_me && result.request?.status === 'failed', acceptedAt: performance.now(), messageId: result.message?.id || item.messageId, requestId: result.request?.id || item.requestId } : item));
+      if (result.message?.state === 'withdrawn') { update(previous => previous.filter(item => item.key !== entry.key)); return; }
+      update(previous => previous.map(item => item.key === entry.key ? { ...item, phase: 'sent', acceptedAt: performance.now(), messageId: result.message?.id || item.messageId, requestId: result.request?.id || item.requestId } : item));
       refresh.current(entry.chatId);
     } catch (error) {
       if (!current(entry) || error instanceof DOMException && error.name === 'AbortError') return;
@@ -65,11 +65,6 @@ export function useLocalSends(api: ApiClient) {
       if (quote && !detail.messages.some(item => item.id === quote.id && item.state === 'published')) entry = { ...entry, message: { ...entry.message, reply_to: { ...quote, body: '', unavailable: true } } };
       const message = detail.messages.find(item => item.client_request_key === entry.key || item.id === entry.messageId || !!entry.requestId && item.request_id === entry.requestId);
       if (message) return []; // Never retain a second copy after an authorized canonical observation.
-      const request = detail.requests.find(item => entry.requestId ? item.id === entry.requestId : item.client_request_key === entry.key);
-      if (request && entry.payload.reply_for_me) {
-        if (request.status === 'completed' || request.status === 'cancelled') return [];
-        return [{ ...entry, requestId: request.id, acceptedAt: entry.acceptedAt || performance.now(), phase: request.status === 'failed' ? 'failed' as const : 'sent' as const, requestFailed: request.status === 'failed', uncertain: false, error: request.error }];
-      }
       // Only a read begun after persistence can revoke an accepted echo. Earlier reads
       // cannot erase an in-flight send or a later ACK; partial ACKs never add canonical content.
       if (entry.acceptedAt && entry.acceptedAt <= startedAt) return [];
@@ -81,7 +76,7 @@ export function useLocalSends(api: ApiClient) {
 }
 
 export function LocalSendItem({ entry, actor, onRetry }: { entry: LocalSend; actor?: Actor; onRetry: () => void }) {
-  const message = entry.message; const preparing = entry.payload.reply_for_me;
-  const label = entry.phase === 'failed' ? t(entry.uncertain ? 'chat.sendUnconfirmed' : 'chat.sendFailed') : preparing ? t('chat.preparingReply') : t(entry.phase === 'sending' ? 'chat.sending' : 'chat.sent');
-  return <article className={`message-row own local-send ${entry.phase}`} data-local-send={entry.key} tabIndex={0}><Avatar actor={actor} size={34} /><div className="message-content"><div className="message-meta"><span>{actor?.name}</span><time>{time(message.created_at)}</time>{preparing && <small>{t('chat.replyForMe')}</small>}</div><div className="message-bubble">{message.reply_to && <div className="source-quote"><strong>{message.reply_to.author_name}</strong><span>{message.reply_to.unavailable ? t('chat.quoteUnavailable') : message.reply_to.body}</span></div>}{preparing && <small className="local-input-label">{t('chat.localOriginal')}</small>}{message.body && <MessageMarkdown text={message.body} />}{!!message.attachments?.length && <MessageAttachments attachments={message.attachments} />}</div><div className="local-send-status" role="status" title={entry.error || (!preparing && entry.phase === 'sent' ? t('chat.persistedHint') : undefined)}><Icon name={entry.phase === 'failed' ? 'info' : entry.phase === 'sent' && !preparing ? 'check' : 'clock'} size={12} /><span>{label}</span>{entry.phase === 'failed' && !entry.requestFailed && <button type="button" className="text-button" aria-label={t('chat.retrySend')} onClick={onRetry}>{t('common.retry')}</button>}</div></div></article>;
+  const message = entry.message;
+  const label = entry.phase === 'failed' ? t(entry.uncertain ? 'chat.sendUnconfirmed' : 'chat.sendFailed') : t(entry.phase === 'sending' ? 'chat.sending' : 'chat.sent');
+  return <article className={`message-row own local-send ${entry.phase}`} data-local-send={entry.key} tabIndex={0}><Avatar actor={actor} size={34} /><div className="message-content"><div className="message-meta"><span>{actor?.name}</span><time>{time(message.created_at)}</time></div><div className="message-bubble">{message.reply_to && <div className="source-quote"><strong>{message.reply_to.author_name}</strong><span>{message.reply_to.unavailable ? t('chat.quoteUnavailable') : message.reply_to.body}</span></div>}{message.body && <MessageMarkdown text={message.body} />}{!!message.attachments?.length && <MessageAttachments attachments={message.attachments} />}</div><div className="local-send-status" role="status" title={entry.error || (entry.phase === 'sent' ? t('chat.persistedHint') : undefined)}><Icon name={entry.phase === 'failed' ? 'info' : entry.phase === 'sent' ? 'check' : 'clock'} size={12} /><span>{label}</span>{entry.phase === 'failed' && !entry.requestFailed && <button type="button" className="text-button" aria-label={t('chat.retrySend')} onClick={onRetry}>{t('common.retry')}</button>}</div></div></article>;
 }

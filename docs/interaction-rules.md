@@ -1,408 +1,47 @@
-# Twinteams 交互规则：真人优先，Twins 补位
+# Current interaction rules — 2026-10-26
 
-日期：2026-10-17。
-依据：[原始需求](requirements-original-2026-10-17.md)、[本次原话补充](requirements-supplement-2026-10-17.md)。
-状态：产品讨论稿。第 1 节、第 6 节路由、第 9 节回复互斥及各处明确标注已确认的内容为已确认要求；其余未明确标注确认的内容为建议，不能当成用户已批准的需求。本文件不包含数据库、接口或代码实现。
+These rules supersede the earlier mixed human/Duet chat and offline/unread reply design. Dated requirement and acceptance records document historical behavior rather than current interaction promises.
 
-## 顶层原则：用户关注时，由用户掌握回复主动权
+## Humans and their own Duets
 
-来源：Sentinel_879925eee5b48191b78e24bf99e7ebae（已确认）。
+Human pair and multi-person chats contain human participants and human messages. Their composer and reactions act as the signed-in person. Owners may also authorize their own Duet to create or rename human chats and manage membership through existing tools; these metadata changes do not publish agent messages or trigger responses. A peer Duet request requires exact owner action approval. Human chat messages do not trigger automatic Duet replies, and there is no Reply for me or manual peer-Duet reply control there. Presence and read receipts describe people; they never grant agent authority.
 
-用户正在关注当前对话时，应由该用户决定是否调用自己的 Twins、何时调用。界面提供快速按钮，让用户随时唤起自己的 Twins 回复指定消息；自动补位不应抢走正在关注聊天的用户的表达机会。此处“所有权”指回复主动权与交互控制，不涉及数据归属或法律权利。
+An owner addresses their own Duet in their private conversation. The Duet handles brief communication, delegates complex work, reviews worker results and privately reports useful progress or decisions. It asks necessary focused questions and exact action approvals without holding up independent work. Ordinary assistant output is the current private or approved Duet thread's reply outlet; cross-chat sends use `send_chat_message`.
 
-该原则与已有分阶段规则一起适用：关注状态抑制新的自动触发；已经接受并进入排队或运行的请求，不因用户开始查看而自动停止，仍需用户主动取消或 Stop replying。此前请求对方 Twins 的手动入口及其权限规则继续有效，本次未新增禁止他人手动请求的限制。
+## Requesting a Duet conversation
 
-## 1 已确认规则
+For authorized peer coordination, the Duet requests an independent thread using the other owner IDs, title, purpose and prepared opening. An optional human-chat origin associates the thread with its shared subject without importing a transcript. The sidebar exposes authorized Duet threads for inspection.
 
-- 每位 Owner 与其 Twins 是独立身份，1:1 配对；加入他人聊天时成对加入。
-- 对话只有“Owner 与自己的 Twins”和“Group chat”两种产品模式。两位 Owner 加各自 Twins 也是 Group chat。
-- 两位 Owner 的群组默认以对方为候选；通过 needs_response、权限、精确重复及自动预算门槛后，离线立即接受其 Twins 回复，在线未查看保留 10 秒真人回复机会。
-- 正在查看当前对话的 Owner，其 Twins 不自动回复。多人群聊中在 10 秒内打开对话但没有回复，同样抑制自动回复。
-- 最新确认：已读后离开不为旧消息新增自动触发，旧消息可由对方主动请求 Twins 回复；新消息独立沿用原有规则。最新确认：已接受触发的排队/运行请求不会因 Owner 进入聊天或已读而自动停止。
-- 每条消息提供“让自己的 Twins 回复”和“让对方的 Twins 回复”。在线/已读不取消手动入口，但执行受第 9 节最新确认的主回复互斥约束。
-- 三位及以上真人的群组，手动请求目标 Twins 回复时弹出列表选择目标（最新确认）。
-- 消息后有真人 Owner 的已读回执。Twins 读取、分析或回复不代表 Owner 已读。
-- Twins 的默认行为受只读权限约束；副作用任务必须符合 Owner 明确授权的范围。
-- 最新确认（Sentinel_5297a0cb1f3c8191b3e0795320e73836，更新早期 Sentinel_10532d22a07c8191bb681cb56b618276）：两位真人/四个身份的群组默认以对方 Owner 为候选，无需额外目标推测，仍需独立判断 needs_response；多人群由独立 LLM 判断回复必要性及候选目标，与显式 @ 真人合并并排除来源 Owner。@ 仅保证潜在目标，needs_response=false 时最终自动目标可为空。
-- 对需要回复的最终目标独立应用离线立即、在线未查看 10 秒、正在查看抑制的规则，并检查权限、精确重复与因果链预算。@ 不强制回复；不广播唤起所有 Twins。Twins 消息按来源 Owner 参与同一流程，保留 Twin 署名与来源，详见第 6 节。
+Each owner receives a connection approval explaining the purpose, peers and opening. The owner chooses **Approve once**, **Always allow**, or rejects. Once permits that thread. Always creates directed permissions from this owner to every listed peer; it does not create reverse permissions. Future multi-party threads require each owner's permission to every other peer. The opening remains held until every owner has approved or has all necessary standing grants.
 
-## 2 建议的心智模型与状态区分
+Owners manage their directed permissions and can revoke them. Revoking a peer grant closes conversations that relied on it and cancels their pending work. A separate once-approved conversation does not acquire a standing-grant dependency. Owners may close a pending or active thread themselves.
 
-从用户视角：我在看就让我决定是否说话；我没注意到时 Twins 补位；我明确点了按钮就让 Twins 接手。但“请回复”不等于“允许操作我的所有资源”。
+Connection approval grants communication only. A peer Duet cannot authorize actions for another owner. Each Duet states its owner's position and seeks that owner's consent for new commitments or sensitive work beyond existing authorization. Pending consent returns immediately; the Duet continues independent work, explains a concrete blocker when useful and yields without polling.
 
-建议区分三个独立事实：
+## Running and inspecting threads
 
-1. 在线：至少一个有效设备连接及心跳正常。持有长期登录会话不代表本人在线。
-2. 当前查看：对话在前台、页面可见且具有焦点。多端任一设备满足即可。断线或心跳过期不再认为仍在看。
-3. 某条消息已读：该消息确实进入 Owner 的可见区域；只打开聊天但停在旧消息、后台预加载，不自动标记全部已读。
+Only Duets publish messages and Duet reactions in active approved `kind=duet` threads. Owners inspect those threads read-only, using approval, close and Continue controls as appropriate. Closed, rejected, pending or revoked sessions cannot accept new agent writes. Human reactions in these threads are rejected too.
 
-已读是历史事实；当前查看是瞬时状态。已读不因关页面撤销。当前查看整个对话时抑制自动回复，但不据此谎报尚未进入视野的消息已读。具体可见判定阈值待定。
+Duets continue exchanges only for concrete progress toward an authorized goal. Courtesy, closure, repeated questions and agent ping-pong do not warrant another turn. Reactions can provide brief appropriate social acknowledgment without expressing owner consent or commitment; they never trigger another model response.
 
-界面建议只写 “Read by …” 或 “Seen”，而不写“故意不回复”；多人群聊显示真人头像及已读人数，展开看人员与时间。Twins 的工作状态单独展示。
+Every automatic acceptance consumes the same six-reply causal-chain allowance across chats and continuations. Exhaustion pauses new admissions and exposes explicit owner Continue. That human action extends the existing chain; it does not reset spending or bypass consent, source checks or relevance. An approval, retry, timeout, new thread or worker result cannot silently add allowance.
 
-## 3 建议的自动触发状态流
+When a privately initiated Duet proposal activates, its opening automatically starts a thirty-minute background followup. An explicit peer reply or timeout resumes the same private task without resending the opening or duplicating the initiating Duet's route. Pending approval has no reply deadline; nested Duet-origin proposals do not create an implicit private followup.
 
-下述针对完成目标路由后、每个目标 Owner 的单个回复机会。已确认路由见第 1 节与第 6 节；本节其余竞态、起算与合并细节仍为建议。
+From the owner's private chat, `wait_for_reply=true` may request a needed answer from an active approved Duet thread. Sending finishes immediately and the fixed thirty-minute wait runs in the background. A peer's explicit reply or timeout resumes authorized private work under the same chain; unrelated traffic does not settle it.
 
-- 新消息到达 → 经第 6 节判断 needs_response、潜在/最终目标、来源 Owner 与精确重复 → 检查目标 Owner 是否正在查看；正在查看则进入“真人查看中”，不创建自动回复任务。
-- 目标 Owner 离线 → 执行既定权限、去重与全链预算检查，成功原子接受后进入“Twins 准备回复”。
-- 目标 Owner 在线但不在当前聊天 → 进入“等待真人”，启动 10 秒窗口。
-- 等待期间 Owner 打开当前聊天 → 取消本次自动回复机会，进入“真人查看中”；是否回复不影响这个判断。
-- 等待期间 Owner 回复 → 本次机会已由真人处理，取消计时。
-- 10 秒到期 → 再检查当前查看、真人回复、成员身份、授权、精确重复、是否已有同类任务与全链预算；仍符合条件才原子接受并按 FIFO 处理。
-- Owner 看后离开 → 已确认不把该 Owner 已读的旧消息重新自动触发。后续新消息按原有路由和在线/查看规则独立判断；对方仍可主动请求 Twins 回复旧消息。
+## Privacy and display
 
-“已读后不追补”已由 Sentinel_71f83a33418081918a71649c1c35b3fd 确认。它针对消息与目标 Owner，不是聊天全局开关；随后离线也不重新自动触发旧消息。最新确认进一步区分：已接受触发的排队/运行请求不因 Owner 进入或已读而自动停止；触发前 10 秒计时仍属于资格判断。
+Private Memory belongs to its owner. A Duet thread shares its own messages, workspace and Tracking, and never grants peer access to private transcripts or Memory. The owner's private view can aggregate authorized human-group and Duet Tracking while preserving the original chat IDs. Cross-chat prepared statements keep internal audit references without granting source-history access.
 
-连续消息建议：首条触发消息开始固定 10 秒窗口，期间新消息合并为一个上下文批次，不反复延后计时，以免对方连续发消息导致永不回复。新消息已被当前任务覆盖时不重复创建任务。固定窗口还是防抖窗口需确认。
+Historical agent messages in human chats remain stored but are hidden from current history, previews and model context. A summary containing those hidden records is not reused. Desktop alerts consume the same authorized projections; Redis and WebSocket hints contain no message bodies.
 
-## 4 触发后不自动停止与手动接管（最新确认）
+Scheduled work runs in the owner's private context and uses the same approved-thread boundaries, permissions and shared budget. Owners are notified of useful results, changed deadlines, concrete blockers or needed decisions rather than routine unchanged check-ins.
 
-来源：Sentinel_e545ccc3985881918138b8427434cca7。
+## Continuing product requirements
 
-- 先前的在线/查看/已读规则只管理触发阶段。一旦接受触发，不因 Owner 打开聊天、已读或开始输入而主动暂停或停止该请求。
-- 已接受触发但因主回复忙而排队，也是触发后阶段，不因 Owner 回来自动取消。Owner 可以主动取消排队；活动回复可以主动打断。
-- 触发之前的 10 秒计时不是执行队列：Owner 在这期间打开聊天仍取消尚未发生的自动触发，沿用既定规则。
-- Owner 进入聊天时，输入框处有 banner 展示 Twins 正在回复。用户原文字样是“owner 正在 typing”，其解释为 Owner 的 Twins 正在回复；需保留该原意，不能默默替换确认文案。
-- 后续确认（Sentinel_39a14fd921548191823576c4849ed26c）：英文 banner 采用 “Your twin is typing…”，主动打断按钮采用 “Stop replying”；该文案现在是已确认设计。
-- 原先“Owner 进入/输入时自动暂停发布、保留草稿”“Owner 回复后自动取消”等建议被本次原则取代，不作为当前设计执行。
-- 最新确认：手动打断撤销本次被打断响应已输出的内容，并开始执行下一排队请求。工具副作用回滚与子任务取消未定义，不能默认级联取消。
+Conversation history remains fully stored, with scoped keyset pagination, member history choices (all, fixed previous seven days, or no prior history), source withdrawal checks and viewer-aware human pair titles. Owners may manage multi-person chat names directly or through their authorized Duet tools; this never publishes agent messages in human chats. Activity lists runs and bounded event details, including parent/child status, tools, failures and usage; it does not merge private execution details into shared conversation history.
 
-已确认流程：触发前等待 → Owner 打开时抑制触发；或者触发被接受 → 排队/主回复 → Owner 打开仅展示状态，继续执行 → Owner 可主动取消/打断。
+The current transport and recovery contract remains [architecture.md](architecture.md) and [implementation-contract.md](implementation-contract.md): complete outputs are persisted before projection, reconnect reauthorizes content, commands use stable replay identities, Redis/WebSocket hints carry revisions, FIFO acceptance is separate from execution, unknown tool outcomes require reconciliation, and reset/cancellation preserve their existing fences. No provider calls or production acceptance are implied by these requirements.
 
-本原则不扩张 Twins 的任务或数据权限；授权机制仍是独立环节。本次也未规定权限变更、成员退出、消息撤回等其他事件的执行策略。
-
-## 5 建议的手动触发交互
-
-- 两个入口保持可见，英语文案可用 “Ask my Twin” / “Ask their Twin”。
-- 已确认：三位及以上真人的群组，手动请求目标 Twins 回复时弹出列表。是否支持多选仍待定；列表默认选中谁尚未定义。两人群组默认对方。
-- 用户点击后显示目标与所引用消息；向请求者显示等待、处理、待授权、已回复或失败状态，不无反馈地重复生成。
-- 已确认：自动和手动只是不同触发来源，不能创建同一个聊天、同一个 Twins 的并行主回复；一种已触发，另一种禁用或终止。重复点击展示已有请求状态是建议；最新确认运行中新到的不同回复请求排队，用户可手动取消，详见第 9 节。
-- “始终可用”指不因在线/已读而取消入口，不代表忽略退出群组、访问权限、速率限制、运行中去重及 Owner 拒绝等约束；遇到约束必须解释原因。
-- 他人可以请求 Twins 回答，但不能授权它执行其 Owner 未同意的副作用操作，也不能读取 Owner 私密对话、私人文件或记忆。
-
-## 6 主动 Twin 对话、路由与全链预算（最新确认）
-
-来源：Sentinel_fca0adb1ac888191835278e37f931b47（主动消息及 A Twins 等同 A 的触发语义要求）、Sentinel_5297a0cb1f3c8191b3e0795320e73836（同意完整方案并更新设计）。以下均为已确认设计，不代表已实现。
-
-### 来源与回复必要性
-
-1. Twins 可以在有发送授权的聊天中主动发消息。A Twins 对 B 的消息在 B Twins 触发视角按来源 Owner A 处理；多人群同理。群聊排除来源 Owner A 的 Twins，防止自己的消息自动唤醒自己；不改变 Owner 与自己 Twins 私人对话的直达交互。
-2. 实际作者仍是 A Twins，保留所属 Owner、消息来源类型、来源 Run、父来源及因果链；继续 Twins 署名，不能当作 A 真人已读、亲自发言或授权工具动作。
-3. 独立路由 LLM 判断 needs_response。感谢、确认、完成通知或没有新信息可判为 false，最终自动目标为空。
-4. 两位真人群默认对方 Owner 为候选，不需要额外目标推测；回复必要性判断仍适用。多人群由独立 LLM 在授权上下文中推测候选目标，与显式 @ 真人合并去重并排除来源 Owner。
-5. @ 仅保证潜在目标，不保证自动接话；即使显式 @，needs_response=false 时最终目标仍可为空。为 true 后才对最终目标逐一应用在线、查看、10 秒、权限、精确去重与预算规则。
-
-例：A Twins 问 B 新问题，B 离线可自动回应；B Twins 仅说“谢谢，已完成”时可无需 A Twins 再回。多人中 LLM 推测 B、同时 @C，则 B、C 都是潜在目标；仅在需要回复时继续各自状态判断。不会因为多人群或 @ 而广播唤起所有 Twins。
-
-早期“只有 @ 或明确对象才触发”及“一律不让 Twins 消息唤醒其他 Twins”的建议均被当前有条件互答方案取代。无需回复产生空目标已确认；路由失败、低置信度的具体反馈、@Twins 解析，以及 10 秒起点与路由耗时的关系仍待细化。
-
-### 自动接受的因果链预算
-
-- 预算单位为持久 causal chain，初始默认可配置 6 次自动 Twins 回复接受，Continue 可追加新段额度。所有后代 Twins、所有聊天、所有 SDK Run 共享该计数，首次自动接受也计一次；多目标每个接受独立占一次。
-- 接受前原子预留名额，与请求去重、接受及 FIFO 记录一起提交。不得多个并发目标读同一余额后超支，也不能先接受后拿上限撤掉已接受项。
-- 同一请求/投递重发/同一 Retry 操作只计一次；已接受请求的内部重试、SDK 恢复与重连不再占一次。真正新接受的自动 Retry 请求仍沿用原链并占一次。
-- Run 结束或切换、subagent 回传、跨聊天发送、同一 Run 连续主动消息均不能重建链或重置预算；失败、取消也不抹去已发生的接受。独立新真人消息创建新链；显式 Continue 和针对原请求的人工 Retry/手动请求保留原始 lineage。
-- 确定性精确重复防护检查同链自动 Twin 消息：不同消息经固定版本规则规范化后内容完全相同，不再产生新的自动接话，留下可核对原因。同一条首次消息的多目标仍可分别受理，同 message_id 重投不算新内容重复。不做未经确认的模糊/语义相似度静默丢弃；语义回应价值归 needs_response。重复防护不删除已发消息，也不停止已接受项。
-
-### 暂停与 Continue
-
-- 达上限只暂停尚未接受的新自动机会。queued/running 项继续，依然按单 chat/Twin 串行与 FIFO；不会自动 Stop、取消、变失败，也不因真人打开聊天而停止。
-- 界面明确显示自动对话已暂停、原因及 Continue，且仅显示获准范围，不能借预算提示公开其他聊天的私密来源。
-- 真人明确 Continue 授予同链新一段默认 6 次自动额度并持久记录授权人、来源与累计历史；不清零原 chain 或已用总数。同一授权重放只授予一次；继续后仍检查回复必要性、在线/查看、权限及精确重复。
-- 真实手动请求与人工 Retry 继续可用，维持原有去重、权限和 FIFO，不隐含恢复自动额度。必须验证真人操作，不能允许 Twins 或工具自行把自动请求标成 manual 绕过上限。
-- 源消息、派生内容与内部来源审计始终保留。跨聊天新撰写消息是 Owner 的新发言，检查其发送权与来源访问权，但不授予目标受众原记录权限，不泄露无关私人内容。发送本身不增加成员；创建/加人是单独的授权平台动作。当前群普通自动输出仍受原来源受众检查；Twins 发来的请求不构成 Owner 对副作用的批准。
-
-业务 lineage、自动额度、暂停及 Continue 授权归 Twinteams；SDK 继续拥有 loop、Session/Run/Event、工具/子任务通信、运行持久化、恢复和执行并发。不将产品预算实现成 SDK token/loop 上限，也不以达到预算为由停止已接受 Run。
-
-## 7 上下文、成员变化及展示建议
-
-- 已确认：聊天原始记录完整落盘关联并定期摘要；每次回复使用最新适用摘要和覆盖边界后消息，旧记录通过专用工具精确查询。摘要不取代原记录；具体周期与上下文窗口策略待定。
-- 群摘要、Tracking 与共享文件应具备群边界；私人记忆不得因为 Twins 入群就自动共享。只读工具获得的信息仍需过一遍“能否向群成员披露”的判断。
-- 原始要求为从当前对话添加真人及其 Twins 到当前群；应保留该默认理解。扩展为三位真人时是否新建会话属于另一个可讨论方案，尚未决定，不直接替换原始要求。
-- 最新确认：加入成员时可选全部历史、7 天历史或不开放此前历史，覆盖早先全部可见决定。真人及其 Twins 的摘要与精确历史查询遵循同一授权范围，不扩展到私人聊天或记忆。
-- 成员退出时其 Twins 同步退出；建议取消未发布回复、取消待触发机会，撤去群共享空间访问。成员变更不等同于删除已发消息。
-- 成员数字建议主要显示真人数，成员面板按 Owner/Twin 配对展示；待确认，避免“2 人聊天”为何出现 4 个身份的误解。
-- 共享空间显示群文件；自己的 Twins 侧栏显示头像、名字、面向用户的工作进度卡片与 Workspace 页签，不暴露隐藏内部推理。
-- 提醒中建议区分 “Needs approval” 与 “Update”；授权批准只恢复对应任务，拒绝/过期有清晰结果，重复批准不重复执行。
-- Tracking 最新确认自动加入目标，不先展示草稿确认；Owner 在目标列表页管理（主要删除），亦可要求 Twins 直接修改。个人/每群目标范围已确认，群内所有真人及其 Twins 可修改/删除已确认。
-- “替我回复”建议发送框显著标记开启状态；原输入先交给自己的 Twins，不先发到群里；最终以 Twins 署名发送，采用斜线双色硬分界气泡（已确认）；后续确认生成后直接发出，不经草稿确认。
-
-## 8 剩余讨论边界
-
-1. needs_response 可产生空目标、Twins 按来源 Owner 路由、默认 6 次全链接受上限、精确重复防护和 Continue 已确认。后续仅需细化路由低置信度/失败反馈及 @Twins 解析等表现。
-2. 已读旧消息不追补、触发后的排队/运行不因 Owner 进入自动停止均已确认。手动打断撤销本次输出、继续下一排队项已确认；工具与 subagent 影响留后续 Runtime。
-
-其余待定交互继续逐项细化；已经确认的路由不再重复作为未决问题。本次只补充文档，没有修改实现，没有新增或运行测试。
-
-## 9 同一聊天内主回复互斥：最新确认
-
-来源：Sentinel_2007b462a50481919019caefddcc1696。
-
-### 已确认规则
-
-- 互斥单位是 (chat_id, twin_id)，不是单条消息，也不是 Twins 跨聊天全局互斥。
-- 自动/手动是同一逻辑回复的触发来源。一种成功触发后，禁用或终止竞争的另一种；同一个 Twins 在一个聊天内不能同时回复两个问题。
-- 当前主响应实际结束后，可立即开始下一次主响应。不同聊天的同一个 Twins 不受此聊天的互斥限制。
-- subagent 可以独立运行。主 Twins 回复确认、委派并结束主响应后，即使 subagent 任务还没完成，也已经可接受下一轮回复。
-- “回复已结束”与“任务已完成”需分别展示，不能因为后台子任务工作中就持续占用主回复。
-- 最新确认（Sentinel_722a04b0402081919d828e4333b3943d）：主回复忙时的新不同回复请求进入排队；用户可以手动取消排队，且必须有明确的排队状态 UI。
-- UI 全部参考 Teams；若 Teams 没有对应交互，则模仿 Teams 的风格。
-
-### 生命周期示例
-
-空闲 → 自动或手动触发 → 主回复进行中 → 确认收到并交给 subagent → 主响应结束、可开始下一轮；与此同时，subagent 继续执行原任务。
-
-若主 Twins 只输出“已收到”但本轮主响应仍未结束，则尚未释放主回复。多个独立 subagent 的任务可以与后续主回复共存。
-
-### 待确认，不能默认实现
-
-- 排队已确认；按触发被接受时间 FIFO、手动/自动同优先级已确认；同类请求合并仍未确认；取消权限见第 10 节已确认规则。
-- subagent 完成时，如果同一聊天的主回复正在进行，结果如何安排发布？
-- 主回复异常退出、取消或超时后的恢复和重复触发规则。
-- 列表是否支持同时选择多个目标 Twins，以及运行中各项如何显示。
-
-建议界面分别显示“Twins 正在回复”和“后台任务进行中”；手动与自动共享同一条回复状态。排队 UI 必须明确，这是已确认要求。
-
-消息下方与 Owner 输入框区域的状态/取消位置已确认，详见第 10 节。最新布局为原消息下图标化排队子项、输入框上方 typing；取消只撤销回复请求、不删除原消息也仍为建议。出队时不得因 Owner 进入/已读自动取消已触发请求；其他授权复核细节仍待讨论。
-
-## 10 排队取消权限与具体 UI（最新确认）
-
-来源：Sentinel_f348ac8b122c81918a29c4741a41b69b。
-
-权限范围：请求者可取消自己发起的请求；Owner 可取消发给自己 Twins 的任何排队请求（包括自动请求）；其他人不能取消。
-
-具体交互：
-
-- A 发消息，触发忙碌中的 B、C Twins：在 A 消息下面显示一条状态栏，分别并行呈现 B、C 的排队状态。独立请求分别展示，不应只有一个模糊的全局“排队中”。
-- A 看自己的这条消息：每个目标项有排队状态与取消入口。
-- 其他人看 A 的消息：只显示状态，不显示取消按钮；B、C 本人也不例外。
-- B 的输入框区域展示 B 自己 Twins 的排队消息，并提供取消；C 同理。这里不提供取消其他人的 Twins 请求的入口。
-- 同一请求的状态需在消息下方与 Owner 输入框区域保持一致；取消作用于对应目标项，不把 B、C 两个目标混为同一任务。
-
-“有权取消”与“在哪取消”是不同维度：Owner 保留权限，但消息下方的按钮仅属于消息发送者。
-
-保留待定边界：手动请求者并非原消息作者时，请求者在哪里取消？其已确认的取消权限仍成立，但不自行决定在别人的消息下显示按钮。
-
-后续已确认（Sentinel_b3bfe6d52a388191931eef2b9fbe4877）：按触发被接受顺序 FIFO 排队，手动/自动同优先级。
-
-## 11 Runtime 回传与群历史的后续确认
-
-- 存储更新（2026-10-18）：本地开发与部署统一使用 PostgreSQL。业务数据、权限和 FIFO 由 Twinteams 管理；执行日志、恢复、checkpoint 和租约由 Agent Runtime 管理。该选择不改变已确认的交互、来源权限、完整结果保存与项目职责。
-
-## 12 新成员历史选择与摘要隔离（最新确认）
-
-来源：Sentinel_2f2e47c981e48191abcdb1d14d7ac086，取代此前“全部新成员默认读取所有历史”。
-
-- 添加成员支持所有历史、7 天历史、不开放此前历史三个选项。后续语境确认（Sentinel_46cc5db3ccc8819183b5cbd42ed600f8）：当前采用入群时刻向前固定 7 天，不是滚动窗口；来源为用户听取该解释后接受并进入下一项，作为可后续修订的工作设计。
-- 每个 Twins 获取其权限范围内的摘要和后续消息，老历史精确查询同样限制范围。
-- 可见范围相同的成员/Twins 可复用摘要；同群不意味着一定相同权限。
-- 用户提出从 7 天前摘要加可见数据生成新摘要，原话已保留。设计必须补充来源检查：7 天前累计摘要若含更旧消息不可复用；只用全部底层来源均获授权的摘要片段，或用授权原文重新生成。
-- 不允许用包含越权内容的累计摘要作为输入后再指示模型忽略旧内容；必须在模型输入前保证范围正确。
-- 数据设计需要关联成员范围、摘要覆盖区间及原始来源，具体字段、权限修改行为、删除后重建等尚未定稿。
-
-## 13 替我回复的署名与颜色（最新确认）
-
-来源：Sentinel_e6927cbf159481918f09435590e5be66。
-
-- Owner 直接回复与 Twins 自主回复各使用不同的单色气泡。
-- 替我回复仍由 Twins 署名，气泡将两种颜色以斜线硬分界组合，不使用渐变；原文引用在上、加工回复在下。
-- 三类来源独立于气泡样式记录，避免仅凭颜色判断消息身份或来源。具体数据表达后续设计。
-- 淡紫/薄荷绿方向已认可，具体色值、斜线角度与分割比例未指定；后续已确认直接发送、不经草稿确认（Sentinel_86bcc36741b08191b8e796a039ea7ef0）。
-
-### 替我回复：直接发送（已确认）
-
-开启模式 → Owner 输入 → Twins 按提示词处理/丰富 → 直接以 Twins 身份发布双色分界气泡，不插入 Owner 草稿确认步骤。这是产品行为，不扩张当前助手的外部发送权限。
-
-“全局默认提示词 + 每个聊天单独覆盖”已确认（Sentinel_34035bf43c088191adc748a022d45e5d）。
-
-### 气泡中的原始输入（最新确认）
-
-替我回复已发送气泡支持查看 Owner 原始输入，原始输入与 Twins 最终文本需要分别保留并关联。该规则不改变直接发送和 Twins 署名。
-
-最新确认（Sentinel_021abd92dcb88191ba46c2d74ddce783）：所有有权读取该消息的人都可看到 Owner 原始输入和加工结果，继承该消息的历史访问范围，不仅 Owner 可见。原始输入已确认为上方弱化、可折叠引用块，默认折叠状态尚未指定。模式提示词采用全局默认加单聊天覆盖。
-
-已推迟的未决提案：群回复默认仅使用群信息，个人记忆/私人聊天/私人工作空间的群内使用需要 Owner 明确允许该群；未获产品确认，按最新要求留到 Runtime/记忆管理阶段，不阻塞当前交互讨论。
-
-## 当前讨论范围与交互待定清单
-
-来源：Sentinel_efc8dd965ca081918ff9e8068ff76a3f。当前优先确定完整交互；私人上下文使用、记忆权限与相关 Runtime 策略后续讨论，尚未采纳具体方案，也不作为当前交互阶段的阻塞项。
-
-仍待讨论的交互项（以下不是已采纳设计）：
-
-1. 替我回复开关按每位 Owner/群组独立已确认，输入框周围变色提示，可手动关闭。
-2. 手动停止撤销本次输出并开始下一排队项已确认；子任务及工具影响归 Runtime。
-3. 审批独立抽屉/tab 累计/不阻塞已确认；新增只追加不切当前页已确认，当前审批处理后自动切下一待审批项已确认；待审批清零后抽屉自动收起已确认。
-4. Tracking 的目标确认、管理入口、页签与状态展示。
-5. 侧栏页签、默认页及按用户/聊天恢复状态已确认；Workspace 文件预览沿用 Teams 实际行为，实施时核对参考界面。
-6. 回复完成后对应活动状态消失、以引用原消息的回复表示完成已确认；失败例外已确认：保留 Failed / Retry。
-
-当前仅记录讨论顺序与未决事项，不自动落实这些建议。
-
-## 14 最新确认：模式边框、中断与审批抽屉
-
-来源：Sentinel_d89ccca409148191b1bbaffa595dd7af。
-
-- 输入框提供替我回复选项，开启后周围变色，可手动关闭；每位 Owner 每个群组独立保存开关，其他群组不共享。
-- 中断撤销当前响应已发文字，然后执行下一排队请求；不自动撤销以前完成的回复、回滚工具副作用或取消全部子任务。
-- 私人 Twins 对话及每个群聊各自有审批抽屉，位于当前聊天输入框区域，可展开和收起。只显示需要当前用户批准的请求。
-- 多个未处理审批使用 tab 累计并保留旧项。最新确认：新请求按到达顺序追加到后面，保留前三项并新增第 4 项，默认仍停留第一项等待处理；不自动切换到新请求，不抢焦点。用户手动切换的页签也不因新请求到达而重置。
-- 审批属于独立事件：B 的 Twins 向 B Owner 请求授权后，仍能继续对话；通过工具查询状态决定能否执行相应动作，待审批期间不能执行该受控动作。
-- 不以待审批作为 Twins 全局锁；应结束当前主响应后继续受理后续消息，审批事件独立等待。查询节奏、恢复编排属于后续 Runtime 讨论。
-
-### 审批追加的最新确认
-
-来源：Sentinel_d32b51cf34ec8191bb4ab2eea991323a。新审批只追加，保持当前待处理页签；默认第一项。后续确认（Sentinel_8d1f637cbedc819182cbfd7d0c173228）：完成当前审批自动切下一待审批项。新请求到达仍不抢占当前项。后续确认（Sentinel_509169e407c88191be23c08acd80a45f）：全部待审批处理完后抽屉自动收起；历史入口仍未确定。
-
-Tracking 自动加入目标已确认，不采用之前的草稿先确认提案。
-
-## 15 Tracking 管理（最新确认）
-
-来源：Sentinel_74e9a9a4d4148191b51e4a5f723c0655。
-
-目标自动进入列表；Owner 可在目标列表页管理，主要删除；Twins 也可操作列表并响应 Owner 的直接修改要求。不要将目标入列视为自动执行所有任务的授权，也不推导完整编辑 UI 或群管理权限。
-
-后续语境确认（Sentinel_ff297bbff4488191b70c4c6d0062d90a）：已删除目标不从旧聊天自动重新创建，直到 Owner 重新提出。
-
-### Tracking 链条与上下文索引（最新确认）
-
-每个 Tracking 有主题和简短描述，目录始终对当前相关 Twins 可见；主题下全部动态通过工具索引获取。与 Owner 聊天时发现可能相关，Twins 主动检索细节再回复。
-
-私人对话上下文包含早期聊天摘要、最近原始消息、Tracking 目录及 Runtime memory；具体最近条数未定。摘要与原文应无覆盖缺口，细节按需获取，而非始终加载所有动态。
-
-私人侧栏独立 Tracking tab 与 Activity / Workspace 并列已确认。具体 Runtime 实现不在本次交互讨论中展开。
-
-### Tracking 的两类作用域（最新确认）
-
-来源：Sentinel_78785cbf7aa88191a0023789d3632ba0。
-
-私人对话使用私人 Twins Tracking；每个群聊自动创建本群 Tracking，组内 Twins 共享且保留本群归属。两位真人的四身份群聊仍属于群聊。不自动把群 Tracking 混入别群或私人索引；Twin 可明确选择 Owner 当前获准的其他会话进行平台工具读写，仍受原来源与历史权限约束。
-
-共享目录和动态细节也须尊重群历史可见范围，防止通过 Tracking 泄露旧消息。后续确认（Sentinel_eb6b47c1e0148191830e204af26d7f7f）：全部群内真人及其 Twins 可修改/删除群 Tracking，仍遵守历史访问边界。侧栏位置已确认：群聊 Workspace / Tracking。
-
-侧栏结构已确认：私人 Activity / Workspace / Tracking；群聊 Workspace / Tracking。
-
-## 16 侧栏结构与恢复状态（已确认）
-
-来源：Sentinel_1b500e0093d481918e00356fcee90faf、Sentinel_5080345d44688191a0df7b3dc8e52ac5。
-
-- 私人聊天右侧页签：Activity / Workspace / Tracking。
-- 群聊右侧页签：Workspace / Tracking。
-- 初次默认展开侧栏，私人默认 Activity，群聊默认 Workspace。
-- 按用户、按聊天分别记住最后选择的页签和展开/收起状态；已有保存状态时恢复该状态。
-
-### 回复失败与重试（已确认）
-
-来源：Sentinel_6344ed9498e48191a83fdb88a6df824b。
-
-- 每条消息下按目标 Twins 独立显示 Failed / Retry；失败是保留状态的已确认例外，成功完成才移除对应活动状态。
-- Retry 作为新接受的回复请求重新进入同一 FIFO 队列，沿用单 chat、单 Twins 主回复串行规则，不插队。
-- 某个 Twins 失败或重试不影响该消息关联的其他 Twins。
-
-### 当前未决提案
-
-终态汇总/折叠提案已被后续决定取代：完成后通过 Twins 回复引用原消息表示完成，原消息下对应活动状态消失。失败例外已获确认：失败提示和 Retry 保留。Workspace 文件预览已确定遵循 Teams 实际行为，实施时核对参考界面。
-
-## 17 回复引用与活动状态消失（已确认）
-
-来源：Sentinel_8f8e833bb208819186beb0d8f2f2bb62。
-
-- Twins 的回复引用其所回答的原消息，借此表示这次回复已完成。
-- 原消息下仅保留紧凑排队子项；正在回复迁移至输入框上方 Teams 风格 typing 区域。各目标独立变化，完成后移除对应活动提示；失败提示/Retry 例外保留。
-- 所有活动项消失且无失败提示需要保留时，整个状态栏消失，不显示 Completed 汇总行，也不提供之前提出的折叠终态状态栏。
-- 这里的完成仍指主回复完成，不等于其后台 subagent 任务全部完成。
-- 失败例外已确认（Sentinel_bd71fb5e8e80819193a4a305b2355a56）：失败时保留失败提示和 Retry；成功完成移除活动状态。Retry 重新进入同一 FIFO 队列，其他 Twins 不受影响。
-
-### 失败例外与下一项讨论
-
-来源：Sentinel_bd71fb5e8e80819193a4a305b2355a56。失败时保留失败提示与重试按钮；成功完成才移除对应状态。不增加 Completed 汇总行或终态历史折叠栏。
-
-Workspace 文件预览不再另选自定义交互：遵循 Teams 实际行为（Sentinel_1a87dab6f4148191960592edd51e7756）。先前内联预览/独立页面提案不作为既定方案；实施时核对 Teams 官方资料或实际 UI，当前未宣称已验证具体打开方式。
-
-### 标准 Teams 行为的复刻边界
-
-来源：Sentinel_1a87dab6f4148191960592edd51e7756。Workspace 文件预览属于已有 Teams 功能，应复刻其实际行为，不另造产品选择。标准 Teams 交互按参考复刻；Twins、Tracking、审批等新增功能的专属行为按已确认设计执行。用户此前明确的取舍（如左侧仅提醒/对话、搜索仅人等）优先于笼统复刻要求。实施前需核对对应版本的参考 UI，不把尚未核实的 Teams 行为写成已知事实。
-
-### 审批卡片操作（已确认）
-
-来源：Sentinel_800efc878af4819192de343ddffff553，对审批卡片方案的确认。
-
-- Approve once：仅批准该次具体操作。
-- Reject once：拒绝该次请求。
-- View details：展开待执行动作、操作目标及影响。
-- 长期默认授权的管理留到 Runtime 阶段；第一版审批卡片不提供该管理能力。此前有关明确默认授权的执行原则仍保留。
-
-Activity 内容方向已确认并细化为每 Run 卡片及 Event 详情，见下节。
-
-### Activity：Run 卡片与 Event 详情（已确认）
-
-来源：Sentinel_d8ac6917e39081918d9d096922282af2。
-
-- 产品会话按聊天与相关 Agent 关联：Owner 和自己的 Twins 私人对话是独立会话；每个群组中触发的 Agent 也有对应会话，不把一个 Twins 在所有聊天中的工作合并成单一执行会话。与 SDK Session/Chat 的准确映射由 Runtime 只读核对确定，暂不定表结构。
-- 每次输入触发 Agent reaction、执行内部 loop、产生完整总结并结束的过程为一次 Run。输入可能来自 Owner 或其他 Twins；这一运行定义不额外授权所有 Twins 消息自动触发，仍遵循已确认触发规则。
-- 一次 Run 产生多个 Event，由 SDK 保存关联到 Run 的语义事件及完整结果；临时 token 不要求逐条持久化，见第 18 节。
-- Activity 每次 Run 一张卡片：Twins 对消息的主响应是一张；Twins 发起的 subagent 调用也作为独立 Run 卡片，具有原始请求、工作过程与最终总结。
-- 卡片按时间倒序，最新在顶部；具体按开始/完成时间取排序键尚未细定。
-- 图标显示正在进行或已经完成；失败/取消的运行状态如何映射图标尚未明确，不把这两种状态擅自归为成功。
-- 点击卡片打开抽屉式详情，按事件顺序以链条呈现 Event，并查看获准展示的输入/输出。
-- 面向用户展示结构化事件、工作进度及允许查看的输入/输出；不承诺暴露模型隐藏内部推理或越权数据。
-- 先前当前工作摘要、任务、等待审批/结果及关联聊天/Tracking 的方向获得“没错”的语境认可；具体落在 Run 卡片及 Event 详情中的字段与链接样式尚未细化。
-
-### Runtime 只读核对：Activity 数据模型与集成边界
-
-依据：Runtime 只读核对结果；用户沟通来源 Sentinel_89f6ba493e408191bebc67acc3f1e0a4。以下为现有 SDK 事实与集成约束，不是新增已确认产品选择。
-
-- SDK 有 session_id、tenant_id、user_id，目前没有直接的 chat_id / twin_id 字段。建议由宿主维护 (chat, twin) 到 session 的映射；这仍是映射方案，未定表结构。
-- 持久化包括 agent_sessions、events、runs；Run 状态包含 running、completed、stopped、failed。UI 不应把失败或停止错误展示为成功完成；具体图标仍待设计。
-- resume 延续原 Run；完成后再次 prompt 创建新 Run。运行中追加输入可能仍属于同一 Run，因此产品要求的逐次回复 FIFO/串行边界需由宿主协调，不能假设 SDK 自动按每条输入拆 Run。
-- subagent 的 task_id 与 child session 不是 run_id；一个子任务/子会话可能包含多个 Run。root_run_id 表示创建链路，不能总当作直接父 Run。应保留父子关联，不能压成单个执行会话。
-- run_completed 事件不强制附带文本总结。产品要求的结束总结不能仅依赖该事件自动得到。
-- 持久事件与实时流是不同来源；工具输出可能通过返回值引用解析。历史读取需要考虑归档。最新交互契约以已提交的完整 output 恢复，实时 token 可以丢弃，不要求精确流回放（第 18 节）。
-- 尚无可直接满足 Activity 列表/单 Run 详情的 HTTP feed API；daily_runs 的来源用户过滤不适合直接用作含子任务的完整 feed。
-- Event 展示应解析允许的数据、清理敏感内容；不原样暴露隐藏推理、密钥或未经授权的输入输出。
-
-Activity 范围已确认（Sentinel_b7549e8101ec8191825e864cf5af7492）：私人侧栏仅展示当前私人对话产生的 Run，包含源于该对话的 subagent Run；不汇总其他群聊的 Run。查询必须保留来源会话及子任务关联，不因同属一个 Twins 就跨聊天合并。
-
-### 私人 Activity 的会话范围（已确认）
-
-来源：Sentinel_b7549e8101ec8191825e864cf5af7492。仅展示当前 Owner 与其 Twins 私人对话产生的 Run；沿用主响应和 subagent 独立卡片的已确认规则，包含该私人对话所发起的 subagent Run。排除其他群聊产生的 Run，不做 Twins 全局 Activity 汇总。
-
-### 排队子项与 Teams typing 展示（最新确认）
-
-来源：Sentinel_1986f51eaa088191bc054be083e5450b。此决定替代此前在原消息下显示 Replying 的布局，执行状态及 FIFO 规则不变。
-
-- 原消息下仅使用紧凑、从属于消息的排队子项：排队图标、对应头像及 Twins 标识、具备取消权限时的关闭图标。缩小尺寸，尽量以图标表达，避免大段状态文字。
-- 正在回复不再显示于原消息下。改用输入框上方 Teams 风格 typing 动态：头像、姓名/typing 信息及动态效果；多人时头像叠放并列出正在输入的名字。
-- 原消息下取消图标仍仅向具备该位置权限的发送者展示；其他人仅见排队状态。Twins Owner 在自己的输入框区域管理自己 Twins 的排队请求，不能因此在他人原消息下获得取消按钮。
-- Owner 主动 Stop replying 的能力保留，进入聊天不会自动停止；需与 typing 区域协调呈现，不因简化原消息子项而移除中断入口。
-- 失败提示和 Retry 是之前已确认的例外，最新要求未撤销它们；成功完成移除对应活动提示，没有 Completed 汇总栏。
-
-### 替我回复气泡：上下内容与斜线双色（最新确认）
-
-来源：Sentinel_fc8f60bde2bc8191ab3d206070f3c568，针对第三张设计图。
-
-- 继续使用图中淡紫/薄荷绿两种底色方向，用户已认可背景色；未指定精确色值。
-- 整体为一个以 Twins 署名的回复气泡；上方为 Owner 原始输入的弱化引用块，可折叠，下方为 Twins 加工后的回复。不能排成左右两列，也不把原始输入另发为左侧真人消息。
-- 同一气泡的两种底色通过清晰斜线硬分界；替代此前垂直分割的视觉理解，不使用渐变。
-- 可折叠能力已确认，默认展开还是折叠尚未指定。保持英文 UI。
-- 原始输入及加工结果仍向所有有权阅读该消息的人可见，继承消息历史权限；折叠只影响呈现，不改变访问范围。
-
-### Reply for me 入口图标化（最新确认）
-
-来源：Sentinel_77e8b4b77ce48191a06d4aecece0058e，针对第三张设计图。
-
-- 输入框内的 Reply for me 入口采用紧凑、独立图标，移除厚重的常驻文字按钮。
-- 图标需体现 Twinteams 特点，可使用对应 Twins 的头像；点击激活，仍沿用可手动关闭及每位 Owner/群组独立开关的既有规则。
-- 模式开启后输入框边框变色的确认规则继续生效。
-- 图标高亮和悬浮提示名称是后续呈现建议，尚未单独确认；不新增常驻文字标签，不借此变更设置或其他功能。
-
-## 18 打字机效果与恢复展示（已确认）
-
-来源：Sentinel_163f756d0bc0819183270b91e8d32935。当前 response API 的逐字 token 最终由对应 detail 级别事件的完整 output 汇总；打字机效果是正常连接期间的临时展示。
-
-1. 正常连接时可随 token 渲染；完整 output 已提交后，用完整结果覆盖同一内容，不能重复追加旧前缀。
-2. 恢复、重连或未来跨 pod 接管时，直接展示数据库中已提交的完整 output，不补齐丢失 token，也不回放旧的逐字动画；允许丢失尚未形成完整结果的局部文字。
-3. 当前操作尚无完整 output 时，只展示已知 Run 状态，并保留此前其他操作的已提交结果。不能虚构丢失内容、把残片视为完整回复，或宣称恢复了逐 token 无缝续写。
-4. 完整结果按每次模型/工具调用或其他产出结果的语义操作/事件展示，不必等到整个 Run 结束。一个 Event 的完整 output 已到达，不代表 Run 或后台子任务已经完成。
-5. 聊天正文和 Activity Event 详情沿用同一恢复契约。Run 的 running/completed/stopped/failed 等状态以 SDK 为准；重连本身不创建新回复请求，Failed/Retry 与 Owner 主动 Stop replying 的规则继续有效。
-6. Twinteams 负责显示 live token、完整结果和真实状态；Agent Runtime 负责保存 Run/语义事件/模型与工具完整结果/checkpoint，以及执行恢复。产品无需 token/chunk 持久存储或跨 pod token 回放机制。
+Uploads, generated files, attachment previews, actual workspace browsing, per-owner execution directories and source/history restrictions retain the [file contract](implementation-contract.md#uploaded-files-and-the-real-workspace) and [file delivery rules](file-delivery-preview.md). Owner profile, Soul, Skills and Git Memory remain owner-scoped; [Memory](twin-git-memory.md), [reset](twin-reset.md), [owner questions](owner-questions.md), [credential/execution](credentials-execution.md), [scheduled tasks](scheduled-tasks.md), [desktop notifications](browser-notifications.md) and [onboarding](twin-onboarding.md) keep their documented lifecycle within the three conversation modes above. The superseded mixed-chat and presence-trigger rules in dated acceptance records are historical only.

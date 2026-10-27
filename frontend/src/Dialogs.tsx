@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { Actor, ApiClient, Chat, ChatDetail, ChatSettings, HistoryPolicy, Reminder } from './api/client';
+import type { Actor, ApiClient, Chat, ChatDetail, HistoryPolicy, Reminder } from './api/client';
 import { Avatar, Icon, Modal, dateTime } from './ui';
 import { t } from './i18n';
 import './TeamsOverlays.css';
@@ -9,7 +9,7 @@ type PeoplePickerProps = { api: ApiClient; ownerId: string; chat?: Chat; initial
 export function PeoplePicker({ api, ownerId, chat, initialPerson, onClose, onDone, onError, inline = false, onBusyChange }: PeoplePickerProps) {
   const [query, setQuery] = useState('');
   const [people, setPeople] = useState<Actor[]>([]);
-  const [selected, setSelected] = useState<Actor[]>(initialPerson ? [initialPerson] : []);
+  const [selected, setSelected] = useState<Actor[]>(initialPerson?.kind === 'human' ? [initialPerson] : []);
   const [title, setTitle] = useState('');
   const [policy, setPolicy] = useState<HistoryPolicy>('all');
   const [busy, setBusy] = useState(false);
@@ -35,7 +35,7 @@ export function PeoplePicker({ api, ownerId, chat, initialPerson, onClose, onDon
     document.addEventListener('pointerdown', outside);
     return () => { cancelAnimationFrame(frame); document.removeEventListener('pointerdown', outside); };
   }, [inline]);
-  const available = people.filter(person => person.id !== ownerId && !chat?.member_owner_ids.includes(person.id));
+  const available = people.filter(person => person.kind === 'human' && person.id !== ownerId && !chat?.member_owner_ids.includes(person.id));
   const suggestions = inline ? available.filter(person => !selected.some(item => item.id === person.id)) : available;
   function togglePerson(person: Actor) {
     setSelected(previous => previous.some(item => item.id === person.id) ? previous.filter(item => item.id !== person.id) : [...previous, person]);
@@ -87,11 +87,7 @@ export function RenameChatDialog({ api, chat, onClose, onSaved }: { api: ApiClie
     finally { setBusy(false); }
   }}><label>{t('chat.groupName')}<input aria-label={t('chat.groupName')} required maxLength={256} value={title} disabled={busy} onChange={event => setTitle(event.target.value)} /></label>{error && <p className="twin-inline-error" role="alert">{error}</p>}<div className="modal-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('common.cancel')}</button><button className="primary-button" disabled={busy || !title.trim() || title.trim() === chat.title}>{t(busy ? 'common.loading' : 'common.save')}</button></div></form></Modal>;
 }
-export function SettingsDialog({ api, detail, onClose, onSaved, onError }: { api: ApiClient; detail: ChatDetail; onClose: () => void; onSaved: () => void; onError: (error: unknown) => void }) {
-  const [globalPrompt, setGlobalPrompt] = useState(''); const [chatPrompt, setChatPrompt] = useState(detail.settings.prompt_override || ''); const [override, setOverride] = useState(detail.settings.prompt_override !== null); const [busy, setBusy] = useState(false); const [loaded, setLoaded] = useState(false);
-  useEffect(() => { let active = true; api.get<{ default_reply_prompt: string }>('/settings').then(result => { if (active) { setGlobalPrompt(result.default_reply_prompt); setLoaded(true); } }).catch(onError); return () => { active = false; }; }, [api]);
-  return <Modal closeDisabled={busy} title={t('settings.title')} onClose={onClose} wide><form onSubmit={async e => { e.preventDefault(); setBusy(true); try { await api.patch('/settings', { default_reply_prompt: globalPrompt }); await api.patch<ChatSettings>(`/chats/${detail.chat.id}/settings`, { prompt_override: override ? chatPrompt : null }); onSaved(); onClose(); } catch (error) { onError(error); } finally { setBusy(false); } }}><p className="form-note">{t('settings.promptHint')}</p><label>{t('settings.defaultPrompt')}<textarea rows={4} value={globalPrompt} disabled={!loaded} onChange={e => setGlobalPrompt(e.target.value)} /></label><label className="checkbox-label"><input type="checkbox" checked={override} onChange={e => setOverride(e.target.checked)} />{t('settings.override')}</label>{override ? <label>{t('settings.chatPrompt')}<textarea rows={4} value={chatPrompt} onChange={e => setChatPrompt(e.target.value)} /></label> : <p className="form-note">{t('settings.inherit')}</p>}<div className="modal-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('common.cancel')}</button><button className="primary-button" disabled={busy || !loaded}>{t('common.save')}</button></div></form></Modal>;
-}
+
 export function ReminderDialog({ api, onClose, onDone, onError }: { api: ApiClient; onClose: () => void; onDone: () => void; onError: (error: unknown) => void }) {
   const [title, setTitle] = useState(''); const [detail, setDetail] = useState(''); const [due, setDue] = useState(''); const [busy, setBusy] = useState(false);
   return <Modal closeDisabled={busy} title={t('reminders.new')} onClose={onClose}><form onSubmit={async e => { e.preventDefault(); if (!title.trim()) return; setBusy(true); try { await api.post('/reminders', { title: title.trim(), detail: detail.trim(), due_at: due ? new Date(due).toISOString() : null }); onDone(); onClose(); } catch (error) { onError(error); } finally { setBusy(false); } }}><label>{t('reminders.item')}<input required placeholder={t('reminders.itemPlaceholder')} value={title} onChange={e => setTitle(e.target.value)} /></label><label>{t('reminders.detail')}<textarea rows={3} value={detail} onChange={e => setDetail(e.target.value)} /></label><label>{t('reminders.due')}<input type="datetime-local" value={due} onChange={e => setDue(e.target.value)} /></label><div className="modal-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('common.cancel')}</button><button className="primary-button" disabled={!title.trim() || busy}>{t('reminders.add')}</button></div></form></Modal>;

@@ -31,7 +31,7 @@ def react(product, message_id, emoji="👍", active=True, *, owner="owner-alex",
 
 
 def twin_context(product, message_id):
-    request = product.manual_request("owner-alex", "group-alex-maya", message_id, "twin-alex", uuid4().hex)
+    request = product.send_message("owner-alex", "private-alex", "React within authorized scope", uuid4().hex)["request"]
     return product.get_runtime_context(request["id"])
 
 
@@ -86,20 +86,20 @@ def test_actor_cap_and_concurrent_noop_adds(product):
 
 
 def test_acl_withdrawal_reset_and_tool_twin_identity(product):
-    mid = message(product)
+    mid = message(product, "private-alex")
     context = twin_context(product, mid)
     result = asyncio.run(product.runtime_tool("set_message_reaction",
         {"message_id": mid, "emoji": "👍", "active": True}, {**context, "operation_id": "twin-reaction"}))
     assert result["actor_id"] == "twin-alex" and not result["reactions"][0]["mine"]
-    react(product, mid)
-    projected = product.chat_detail("owner-alex", "group-alex-maya")["messages"][-1]["reactions"][0]
+    react(product, mid, chat="private-alex")
+    projected = next(row for row in product.chat_detail("owner-alex", "private-alex")["messages"] if row["id"] == mid)["reactions"][0]
     assert projected["count"] == 2 and {row["kind"] for row in projected["actors"]} == {"human", "twin"}
     with pytest.raises(HTTPException):
-        react(product, mid, owner="owner-jordan")
+        react(product, mid, owner="owner-jordan", chat="private-alex")
     with product.transaction() as db:
         db.get(Message, mid).state = "withdrawn"
     with pytest.raises(HTTPException):
-        react(product, mid, key="new-after-withdraw")
+        react(product, mid, chat="private-alex", key="new-after-withdraw")
     private = message(product, "private-alex")
     react(product, private, chat="private-alex", key="before-reset")
     product.personal_reset("owner-alex", uuid4().hex, 0)
@@ -124,7 +124,7 @@ def test_batch_projection_has_one_reaction_query_per_message_page(product):
         seen.clear()
         context = twin_context(product, mids[-1])
         seen.clear()
-        history = asyncio.run(product.runtime_tool("history", {}, {**context, "operation_id": "history-batch"}))
+        history = asyncio.run(product.runtime_tool("history", {"chat_id": "group-alex-maya"}, {**context, "operation_id": "history-batch"}))
         assert len(seen) == 1 and len(history["messages"]) == 8
     finally:
         event.remove(service_module.engine, "before_cursor_execute", count)
@@ -168,7 +168,8 @@ def test_nested_message_source_chats_share_the_same_sorted_reaction_lock_scope(p
         ids = scope_ids(product, db, "set_message_reaction", {"message_id": target_id},
             {"owner_id": "owner-alex", "chat": {"id": "group-alex-maya"}})
         assert ids == {"group-alex-maya", "private-alex"}
-    assert react(product, target_id)["reactions"][0]["mine"]
+    with pytest.raises(HTTPException):
+        react(product, target_id)
     with pytest.raises(HTTPException):
         react(product, target_id, owner="owner-maya")
 

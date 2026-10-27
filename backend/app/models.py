@@ -53,7 +53,7 @@ class Actor(Base):
 
 class Chat(Base):
     __tablename__ = "tt_chats"
-    __table_args__ = (CheckConstraint("(kind = 'private' AND private_owner_id IS NOT NULL) OR (kind = 'group' AND private_owner_id IS NULL)", name="tt_chat_kind_owner"), Index("tt_direct_pair_key", "direct_pair_key", unique=True))
+    __table_args__ = (CheckConstraint("(kind = 'private' AND private_owner_id IS NOT NULL) OR (kind IN ('group','duet') AND private_owner_id IS NULL)", name="tt_chat_kind_owner"), Index("tt_direct_pair_key", "direct_pair_key", unique=True))
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
     kind: Mapped[str] = mapped_column(String(16))
     title: Mapped[str] = mapped_column(String(256))
@@ -63,6 +63,31 @@ class Chat(Base):
     next_message_seq: Mapped[int] = mapped_column(Integer, default=1)
     reset_generation: Mapped[int] = mapped_column(Integer, default=0)
     reset_pending: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class DuetConversation(Base):
+    """Consent metadata; messages and execution use ordinary chat machinery."""
+    __tablename__ = "tt_duet_conversations"
+    __table_args__ = (CheckConstraint("status IN ('pending','active','rejected','closed')", name="tt_duet_conversation_status"),)
+    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), primary_key=True)
+    origin_chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), index=True)
+    initiating_request_id: Mapped[str] = mapped_column(ForeignKey("tt_reply_requests.id"))
+    initiating_owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
+    operation_id: Mapped[str] = mapped_column(String(256), unique=True)
+    purpose: Mapped[str] = mapped_column(Text)
+    opening_message: Mapped[str] = mapped_column(Text)
+    source_message_ids: Mapped[list] = mapped_column(JSON, default=list)
+    causal_chain_id: Mapped[str] = mapped_column(ForeignKey("tt_causal_chains.id"))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    close_reason: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class DuetContactGrant(Base):
+    __tablename__ = "tt_duet_contact_grants"
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), primary_key=True)
+    peer_owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

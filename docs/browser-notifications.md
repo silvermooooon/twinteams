@@ -23,15 +23,17 @@ existing page and opens that chat; it does not automatically send a reply.
 
 | Message or refresh | Expected result |
 | --- | --- |
-| Your Twin's normal answer | Notify when the page is in the background. |
-| Someone else's human, Twin or Reply for me message | Notify when the page is in the background. |
-| Your own human message or your own Reply for me rewrite | No notification; a local echo or acknowledgment is not an incoming message. |
+| Your Duet's private answer or a message in an authorized Duet thread | Notify when the page is in the background. |
+| Someone else's human message in a human chat | Notify when the page is in the background. |
+| Your own human message | No notification; a local echo or acknowledgment is not an incoming message. |
 | Focused page, initial history, reaction/read-state change | No desktop alert for the old message. |
 | Reconnect | Do not replay the same last message. A newer reply committed during the gap can notify once after reauthorization. |
 | New conversation | A new incoming first message can notify; newly authorized old history is not a new message. |
 | Attachment without text | Show the attachment fallback rather than an empty preview. |
 | Multiple same-origin tabs | A short Web Locks claim and bounded local metadata coordinate duplicate delivery. Without the browser capabilities needed for coordination, deduplication is best effort. |
 | Logout or account switch | Close this account's alerts and stop its observer. Preferences and claims are scoped by owner. |
+
+Historical agent and Reply for me messages in human chats are hidden from current notification metadata, history and previews. Presence and read receipts never trigger Duet participation. The dated verification records below describe the former model of mixed chats.
 
 Alerts consume already-authorized chat bootstrap/detail/summary responses. No
 message bodies are added to WebSocket hints, no extra message polling is added,
