@@ -54,8 +54,8 @@ def test_worker_role_is_explicit_and_does_not_inherit_front_desk_or_parent_writi
     assert "You are a background worker for the owner's Duet." not in main
     assert ("You are your owner's front-facing Duet." in main) == (raw is None)
     assert ("Reply-for-me instructions:" in main) == (raw is not None)
-    assert "Use set_message_reaction naturally" not in worker
-    assert ("Use set_message_reaction naturally" in main) == (raw is None)
+    assert "Express warmth naturally with set_message_reaction" not in worker
+    assert ("Express warmth naturally with set_message_reaction" in main) == (raw is None)
     assert ("Routine current-chat reactions attributed to your Duet" in main) == (raw is None)
     assert "Routine current-chat reactions attributed to your Duet" not in worker
 
@@ -75,6 +75,16 @@ def test_protocol_uses_separate_owner_approved_duet_conversations(kind):
     assert "never clear sources or use another destination to bypass a denied send" in protocol
     assert "Automatic reply trigger" not in protocol
     assert "owner was observed" not in protocol
+
+
+def test_worker_reports_to_parent_and_direct_delivery_needs_the_assigned_authorization():
+    main = runtime_protocol({"chat": {"kind": "private"}})
+    worker = runtime_protocol({"chat": {"kind": "private"}}, worker=True)
+    assert "Report useful outcomes and necessary decisions to your owner privately" in main
+    assert "Report results and necessary decisions to your parent" in worker
+    assert "the assigned task requires it and the owner has authorized that delivery" in worker
+    assert "Report useful outcomes and necessary decisions to your owner privately" not in worker
+    assert "Main and child capabilities match" in main and "Main and child capabilities match" in worker
 
 
 def test_duet_context_has_own_audience_and_tracking_scope():
@@ -180,17 +190,13 @@ def test_new_soul_balances_clarification_and_preserves_existing_files(tmp_path):
 
 def test_main_delegates_substantial_execution_without_doing_the_handoff_work_first():
     main = platform_prompt({})
+    assert "Stay available and keep your owner informed" in main
     assert "quick replies, brief lookups and small bounded actions directly" in main
     assert "Judge the whole owner's goal, not each small step in isolation" in main
-    assert "make spawn_agent your first choice after brief scope discovery" in main
-    assert "Multi-source analysis or research, implementation or debugging" in main
-    assert "creating and validating nontrivial deliverables belong to a worker" in main
-    assert "relevant paths, authorization limits and acceptance criteria" in main
-    assert "leave full analysis and execution to the worker" in main
-    assert "do not repeat the worker's task" in main
-    assert "normal final response to yield this turn" in main
-    assert "Completion notifications resume this task automatically" in main
-    assert "Yielding is not completing the owner's goal" in main
+    assert "for sustained or substantial execution choose spawn_agent first, before heavy work" in main
+    assert "review worker results and deliver verified outcomes" in main
+    assert "yielding is not completing the owner's goal" in main
+    assert "Multi-source analysis" not in main and "acceptance criteria" not in main
     assert "substantial steps personally" in main
     worker = platform_prompt({}, worker=True)
     assert "Execute it, verify results" in worker
@@ -203,12 +209,15 @@ def test_reaction_can_be_the_entire_social_response_and_keeps_substantive_care()
     main = platform_prompt({})
     reaction = next(tool for tool in runtime._tools({}, SimpleNamespace(snapshot={}, resumable=False))
                     if tool.name == "set_message_reaction")
-    for description in (main, reaction.description):
-        assert "acknowledgment, thanks, shared joy or appreciation of effort" in description
-        assert "never announce it" in description
-        assert "every message" in description
-        assert "Serious feelings" in description
-    assert "reaction alone can suffice" in main and "reaction alone can suffice" in reaction.description
+    assert "Express warmth naturally with set_message_reaction, alongside words when useful" in main
+    assert "real questions and serious feelings substantive care" in main
+    assert "when acknowledgment is enough" not in main
+    assert "shared joy" not in main and "courtesy loops" not in main
+    assert "acknowledgment, thanks, shared joy or appreciation of effort" in reaction.description
+    assert "never announce it" in reaction.description
+    assert "every message or start courtesy loops" in reaction.description
+    assert "Serious feelings" in reaction.description
+    assert "reaction alone can suffice" in reaction.description
     assert "No message or model response is triggered" in reaction.description
 
 
@@ -229,10 +238,20 @@ def test_product_subagent_guidance_preserves_sdk_capabilities_and_main_worker_pa
     assert "durable acceptance/status immediately" in main["spawn_agent"].description
     assert "queued does not mean execution has started" in main["spawn_agent"].description
     assert "normal final response to yield this turn" in main["spawn_agent"].description
+    assert "multi-source analysis or research, implementation or debugging" in main["spawn_agent"].description
+    assert "creating and validating nontrivial deliverables" in main["spawn_agent"].description
+    assert "goal, known facts, relevant paths, authorization limits and acceptance criteria" in main["spawn_agent"].description
+    assert "transcript is not automatically copied" in main["spawn_agent"].description
+    assert "inherit authorized owner resources and task scope" in main["spawn_agent"].description
+    assert "read authorized history when needed" in main["spawn_agent"].description
+    assert "Dispatch independent assignments together" in main["spawn_agent"].description
+    assert "leave full analysis and execution to the worker" in main["spawn_agent"].description
+    assert "Completion automatically notifies and resumes this task after the current turn ends" in main["spawn_agent"].description
+    assert "tell the owner" not in main["spawn_agent"].description
     assert "Completion is notified automatically" in main["get_agent"].description
-    assert "Omitted timeout can wait indefinitely" in main["wait_agent"].description
+    assert "omitted timeout can wait indefinitely" in main["wait_agent"].description
     assert "holds the current execution slot" in main["wait_agent"].description
-    assert "Normal" in main["wait_agent"].description
+    assert "Normally" in main["wait_agent"].description
     assert main["send_agent_message"].description == sdk["send_agent_message"].description
 
 

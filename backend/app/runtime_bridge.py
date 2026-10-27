@@ -428,7 +428,7 @@ class RuntimeBridge:
         limit = {"type": "integer", "minimum": 1, "maximum": 100}
         policy = {"type": "string", "enum": ["all", "fixed_7d", "no_prior"]}
         schemas.extend([
-            ("set_message_reaction", "Add or remove a supported emoji in your own private chat or an active approved Duet conversation; never in human chats. Use naturally for acknowledgment, thanks, shared joy or appreciation of effort. A reaction alone can suffice when text adds nothing; never announce it or react mechanically to every message. Serious feelings need substantive care. This Duet's reaction is separate from the owner's and conveys no owner consent or commitment. Routine current-chat reactions need no extra approval; respect source/audience restrictions. active is desired state, not a toggle; up to 20 emoji per actor/message. No message or model response is triggered. Defaults to the originating chat.",
+            ("set_message_reaction", "Add or remove a supported emoji in your own private chat or an active approved Duet conversation; never in human chats. Use naturally for acknowledgment, thanks, shared joy or appreciation of effort. A reaction alone can suffice when text adds nothing; never announce it, react mechanically to every message or start courtesy loops. Serious feelings need substantive care. This Duet's reaction is separate from the owner's and conveys no owner consent or commitment. Routine current-chat reactions need no extra approval; respect source/audience restrictions. active is desired state, not a toggle; up to 20 emoji per actor/message. No message or model response is triggered. Defaults to the originating chat.",
              {"chat_id": text, "message_id": text, "emoji": {"type": "string", "minLength": 1, "maxLength": 32}, "active": {"type": "boolean"}},
              ["message_id", "emoji", "active"]),
             ("list_people", "Find platform people by name or ID to address a chat. Listing people does not grant their private data.",
@@ -874,24 +874,28 @@ class RuntimeBridge:
                 for row in saved if row.get("name") in current]
         descriptions = {
             "spawn_agent": (
-                "Delegate substantial work to a background worker with the goal, known facts, "
-                "relevant paths, authorization limits and acceptance criteria. Do not do the heavy "
-                "work first to prepare this handoff. Returns durable acceptance/status immediately; "
-                "queued does not mean execution has started. Completion automatically notifies and "
-                "resumes this task, including after the current turn ends. Do not repeat assigned "
-                "work or poll/wait for it. Finish independent coordination, then use a normal final "
-                "response to yield this turn; the owner's goal remains pending until reviewed. "
+                "Delegate multi-source analysis or research, implementation or debugging, and "
+                "creating and validating nontrivial deliverables after brief scope discovery. "
+                "Supply the goal, known facts, relevant paths, authorization limits and acceptance "
+                "criteria; leave full analysis and execution to the worker. The parent's chat "
+                "transcript is not automatically copied: children have independent conversation "
+                "histories and inherit authorized owner resources and task scope. Include needed "
+                "materials explicitly; they can read authorized history when needed. Dispatch "
+                "independent assignments together. Returns durable acceptance/status immediately; "
+                "queued does not mean execution has started. Completion automatically notifies "
+                "and resumes this task after the current turn ends. Do not duplicate assigned "
+                "work or poll/wait for it. Finish "
+                "independent coordination, then use a normal final response to yield this turn. "
                 "Configurations: " + ", ".join(manager.agent_factories)),
             "get_agent": (
-                "Inspect this task's child status or completed result when needed for coordination; "
-                "omit task_id to list children. Completion is notified automatically. Do not poll "
-                "to keep a turn alive or repeat a worker's work."),
+                "Inspect this task's child status or completed result for coordination; omit "
+                "task_id to list children. Completion is notified automatically; do not poll "
+                "to keep a turn alive."),
             "wait_agent": (
-                "Explicitly wait for a child result; this holds the current execution slot and "
-                "does not yield the turn. Omitted timeout can wait indefinitely; timeout does not "
-                "stop the child. Normally use automatic completion notifications and end the turn "
-                "with a normal final response instead. Use only when the assigned task specifically "
-                "requires a bounded synchronous wait."),
+                "Wait synchronously only when the assigned task requires a bounded wait. This "
+                "holds the current execution slot; omitted timeout can wait indefinitely, and "
+                "timeout does not stop the child. Normally end the turn and use automatic "
+                "completion notifications instead."),
         }
         for tool in tools:
             if tool.name in descriptions:

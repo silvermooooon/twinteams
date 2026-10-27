@@ -1,0 +1,255 @@
+{
+  "date": "2026-10-28",
+  "model": "gpt-6-luna",
+  "api": "openai-responses",
+  "budget": {
+    "aggregate_limit": 24,
+    "used": 23,
+    "http200": 23,
+    "provider_failures": 0,
+    "retries": 0,
+    "remaining": 1
+  },
+  "status": "Completed with retained Round1 summary-accuracy and good-news reaction failures; separate Round2 good-news validation passed. Not six fully passing cases.",
+  "round1": {
+    "frozen_product_hashes": {
+      "backend/app/twin_prompts.py": "0e2840408ab64bc90d5ed21a9ee78b8dc0d3166b4164b6ebe12e1d42e4b48de6",
+      "backend/app/runtime_bridge.py": "aca82f24d6f9fd7ab14dc5d915f73fa9bd86f39d7a62cb2c3e9ac063873ceb00",
+      "backend/app/soul_file.py": "fa77b3cbab8cfd91b95357aa889bee61ce346aa0f46298cf53e406857282b0c0"
+    },
+    "source_hash_delta": [],
+    "cases": [
+      {
+        "name": "complex_local_reconciliation",
+        "http_attempts": 14,
+        "delegation_and_automatic_return": "PASS",
+        "data_files": "PASS",
+        "owner_summary_accuracy": "FAIL",
+        "accuracy_evidence": "9 月 450（应为 370，少报差额 **80**）",
+        "correct_direction": "The draft overstates the verified amount by 80, not underreports it. The actual review file correctly states recalculated-minus-draft -80.",
+        "real_chain": {
+          "main_early_spawn": true,
+          "child_output_writes": 2,
+          "main_output_writes": 0,
+          "durable_child_result_accepted": true,
+          "main_automatic_continuation": true,
+          "requests_terminal": 2,
+          "sdk_runs_terminal": 3
+        },
+        "review_boundary": "Main reread all three inputs and both child outputs; no claim of zero duplicate internal analysis."
+      },
+      {
+        "name": "natural_gratitude",
+        "http_attempts": 2,
+        "status": "PASS",
+        "reaction": {
+          "actor_id": "twin-alex",
+          "emoji": "❤️",
+          "persisted": true
+        }
+      },
+      {
+        "name": "tiny_file",
+        "http_attempts": 2,
+        "status": "PASS",
+        "actual_main_writes": 1,
+        "spawn": false,
+        "actual_content": "明天出门带钥匙和水杯。"
+      },
+      {
+        "name": "tiny_fact",
+        "http_attempts": 1,
+        "status": "PASS",
+        "tools": 0,
+        "answer": "一小时是60分钟。"
+      },
+      {
+        "name": "natural_good_news",
+        "http_attempts": 1,
+        "warm_prose": "PASS",
+        "persisted_reaction": "FAIL",
+        "reaction_tool_calls": 0,
+        "database_reaction_on_message": false
+      },
+      {
+        "name": "distress",
+        "http_attempts": 1,
+        "status": "PASS",
+        "substantive_care": true,
+        "tools": 0
+      }
+    ],
+    "cleanup": {
+      "method": "Graceful launcher SIGINT",
+      "owned_schema_removed": true,
+      "owned_redis_keys_removed": 5,
+      "temporary_root_removed": true,
+      "owned_processes_gone": {
+        "58117": true,
+        "58124": true,
+        "58125": true
+      },
+      "fixture_port_closed": true,
+      "browser_tab_closed": true
+    },
+    "evidence": {
+      "directory": "/tmp/duet-prompt-layering-live-20261028",
+      "canonical": "first-campaign-final.json",
+      "source_boundary": "first-campaign-freeze-boundary.json",
+      "all_attempts": "first-campaign-live-budget.json",
+      "complex_assessment": "complex-assessment.json",
+      "good_news_assessment": "good-news-assessment.json"
+    }
+  },
+  "round2": {
+    "status": "PASS for one explicitly authorized good-news sample on revised prompt",
+    "http_attempts": 2,
+    "http200": 2,
+    "provider_failures": 0,
+    "retries": 0,
+    "frozen_product_hashes": {
+      "backend/app/twin_prompts.py": "21561cc83e90af3c66e0bd58a410750fb2beb9196c38ad40264c5b9a6141f187",
+      "backend/app/runtime_bridge.py": "aca82f24d6f9fd7ab14dc5d915f73fa9bd86f39d7a62cb2c3e9ac063873ceb00",
+      "backend/app/soul_file.py": "fa77b3cbab8cfd91b95357aa889bee61ce346aa0f46298cf53e406857282b0c0"
+    },
+    "source_hash_delta": [],
+    "reaction": {
+      "message_id": "520f251b-cd54-4c9d-b44c-9df3415c5081",
+      "actor_id": "twin-alex",
+      "emoji": "🎉"
+    },
+    "request_completed": true,
+    "sdk_run_completed": true,
+    "natural_text": true,
+    "scope": "Same unchanged natural input in a fresh independent fixture; no complex-task or other controls rerun on this revision. Not evidence of deterministic behavior or causality.",
+    "cleanup": {
+      "method": "Graceful launcher SIGINT",
+      "owned_schema_removed": true,
+      "owned_redis_keys_removed": 5,
+      "temporary_root_removed": true,
+      "owned_processes_gone": {
+        "59196": true,
+        "59220": true,
+        "59221": true
+      },
+      "fixture_port_closed": true,
+      "browser_tab_closed": true
+    },
+    "evidence": {
+      "directory": "/tmp/duet-prompt-layering-warmth-live-20261028",
+      "canonical": "good-news-final.json",
+      "source_boundary": "final-freeze-boundary.json",
+      "all_attempts": "live-budget.json",
+      "screenshot": "good-news-persisted-reaction.jpg"
+    }
+  },
+  "prompt_metrics": {
+    "definition": "English whitespace word count; same synthetic empty-history private context, no Soul/Skills payload. Related tools=spawn/get/wait/reaction descriptions; unchanged schemas and remaining tools excluded from both sides.",
+    "baseline": {
+      "platform_main": {
+        "characters": 2117,
+        "words": 294
+      },
+      "assembled_plus_related_tools": {
+        "characters": 8612,
+        "words": 1245
+      }
+    },
+    "round1": {
+      "platform_main": {
+        "characters": 1444,
+        "words": 200
+      },
+      "assembled_plus_related_tools": {
+        "characters": 8155,
+        "words": 1166
+      }
+    },
+    "final_warmth": {
+      "platform_main": {
+        "characters": 1466,
+        "words": 202
+      },
+      "assembled_plus_related_tools": {
+        "characters": 8177,
+        "words": 1168
+      }
+    },
+    "final_platform_character_reduction_percent": 30.75,
+    "final_assembled_plus_four_descriptions_character_reduction_percent": 5.05,
+    "not_token_counts": true,
+    "evidence": "/tmp/duet-prompt-layering-warmth-size-comparison.json",
+    "limitations": "Same synthetic empty-history context without SOUL/Skills payload; unchanged schemas and other tool descriptions excluded. No whole-system token reduction claim."
+  },
+  "boundaries": {
+    "tools": "Actual tool names/descriptions/schemas retained; file execution restricted to owned disposable workspaces.",
+    "bash": "Child command denied explicitly; no shell command executed. Real file reads verified outputs.",
+    "native_web_search": "Omitted because remote execution bypasses local executor. No network/shell E2E claim.",
+    "history": "Previous V1/V2 behavior report remains unchanged; this is a separate campaign.",
+    "choice": "Unscripted actual model choices for particular samples; no frequency estimate or deterministic guarantee.",
+    "attribution": "Material-review and original-goal instructions remained present, and actual main review rereads occurred. No evidence establishes layering caused the summary wording defect.",
+    "production": "The isolated acceptance made no production change. The later authorized backend deployment and strictly read-only browser smoke are recorded separately in release."
+  },
+  "final_frozen_product_hashes": {
+    "backend/app/twin_prompts.py": "21561cc83e90af3c66e0bd58a410750fb2beb9196c38ad40264c5b9a6141f187",
+    "backend/app/runtime_bridge.py": "aca82f24d6f9fd7ab14dc5d915f73fa9bd86f39d7a62cb2c3e9ac063873ceb00",
+    "backend/app/soul_file.py": "fa77b3cbab8cfd91b95357aa889bee61ce346aa0f46298cf53e406857282b0c0"
+  },
+  "provider_calls_stopped": true,
+  "offline_checks": {
+    "distinct_targeted_tests": 42,
+    "initial_focused": 35,
+    "independent_integration": 7,
+    "final_warmth_prompt_rerun": 24,
+    "final_rerun_is_subset_not_additional_tests": true,
+    "failed": 0,
+    "skipped": 0,
+    "evidence": [
+      "/tmp/duet-prompt-layering-focused.xml",
+      "/tmp/duet-prompt-layering-independent.xml",
+      "/tmp/duet-prompt-layering-warmth-focused.xml"
+    ]
+  },
+  "release": {
+    "status": "deployed by runtime after Root authorization",
+    "finished_at": "2026-10-27T18:21:20.976756+00:00",
+    "evidence": "/tmp/duet-prompt-layering-rollout.json",
+    "backend_only": true,
+    "preserved": {
+      "exact_data_preserved": true,
+      "soul_files_preserved": true,
+      "environment_preserved": true,
+      "sdk_git_preserved": true,
+      "frontend_preserved": true,
+      "frpc_preserved": true
+    },
+    "http200_checks": 12,
+    "public_tls_and_exact_assets_verified": true,
+    "new_product_requests": 0,
+    "new_sdk_commands": 0,
+    "browser_smoke": {
+      "status": "completed; local/public sign-in page rendered",
+      "local_url": "http://127.0.0.1:8000/",
+      "public_url": "https://154.217.234.218/",
+      "observed_title": "Duet",
+      "observed_heading": "Welcome to Duet",
+      "authenticated_behavior_tested": false,
+      "reason": "Both entries required sign-in; no production login or account switch authorized.",
+      "production_messages_sent": 0,
+      "provider_calls": 0,
+      "tabs_closed": true,
+      "screenshots": [
+        "/tmp/duet-prompt-layering-local-smoke.jpg",
+        "/tmp/duet-prompt-layering-public-smoke.jpg"
+      ]
+    },
+    "no_model_tests_after_acceptance": true
+  },
+  "design_reference": {
+    "commit": "bfbe5edf67e2804802faccfdaad7c85c49694a79",
+    "preset_url": "https://github.com/nano-muse/nanoMuse/blob/bfbe5edf67e2804802faccfdaad7c85c49694a79/harness/dsh-nanomuse/presets/nanomuse.patch.yml",
+    "tool_package_version": "0.2.0-rc.2",
+    "evidence": "/tmp/nanomuse-prompt-audit-20261028",
+    "scope": "Borrowed persona/protocol layering structure; no claim of equivalent front-desk mission or emotional meaning for typing/status emoji."
+  }
+}
