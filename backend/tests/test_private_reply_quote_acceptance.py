@@ -69,7 +69,7 @@ def test_automatic_output_only_suppresses_private_display_quote_and_preserves_au
     output = product.publish_runtime_output(
         request["id"],
         "Answer without redundant private quote",
-        "quote-session",
+        request["session_id"],
         "quote-run",
         "answer-event",
         1,
@@ -84,7 +84,7 @@ def test_automatic_output_only_suppresses_private_display_quote_and_preserves_au
         product.publish_runtime_output(
             request["id"],
             "Answer without redundant private quote",
-            "quote-session",
+            request["session_id"],
             "quote-run",
             "answer-event",
             1,
@@ -124,7 +124,7 @@ def test_cross_chat_private_tool_quote_remains_available_and_source_withdrawal_s
     automatic = product.publish_runtime_output(
         request["id"],
         "Ordinary group response",
-        "quote-session",
+        request["session_id"],
         "quote-run",
         "ordinary-event",
         2,
@@ -137,7 +137,7 @@ def test_cross_chat_private_tool_quote_remains_available_and_source_withdrawal_s
         product.publish_runtime_output(
             request["id"],
             "Late response must be withheld",
-            "quote-session",
+            request["session_id"],
             "quote-run",
             "late-event",
             3,

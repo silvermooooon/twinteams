@@ -36,8 +36,9 @@ def test_group_local_approval_exact_owner_origin_single_use_and_frozen_recovery(
     execution = AgentTool('bash', 'Synthetic installed tool', {
         'type': 'object', 'properties': {'command': {'type': 'string'}},
         'required': ['command'], 'additionalProperties': False}, local, replay='never')
-    session = SimpleNamespace(info=SessionInfo('synthetic-approval', 'local', 'owner-alex'),
-        session_id='synthetic-approval', snapshot={'run_id': 'synthetic-run'}, resumable=False,
+    session_id = product.get_request(request['id'])['session_id']
+    session = SimpleNamespace(info=SessionInfo(session_id, 'local', 'owner-alex'),
+        session_id=session_id, snapshot={'run_id': 'synthetic-run'}, resumable=False,
         tool_operation_id=lambda call_id: f'synthetic-run:{call_id}')
     runtime = RuntimeBridge(product)
 

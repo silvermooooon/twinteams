@@ -215,7 +215,7 @@ def test_owner_admission_precedes_global_candidate_limit(product):
     assert other_id in ready
     with product.transaction() as db:
         owners = [db.get(Actor, db.get(ReplyRequest, request_id).target_twin_id).owner_id for request_id in ready]
-    assert owners.count("owner-alex") == 2
+    assert owners.count("owner-alex") == 1
     assert owners.count("owner-maya") == 1
 
 
@@ -245,7 +245,7 @@ def test_acknowledged_historical_stops_do_not_hide_new_stop(product):
             command.kind, command.state = "cancel", "stop_signalled"
         current = product.accept_request(db, chat, "twin-alex", "owner-alex", "manual", key(), input_body="Current request")
         request_id = current.id
-    product.bind_runtime_run(request_id, "current-stop-session", "current-stop-run")
+    product.bind_runtime_run(request_id, product.get_request(request_id)["session_id"], "current-stop-run")
     product._cancel_intent("owner-alex", request_id)
     assert [row["id"] for row in product.pending_stops()] == [request_id]
     product.acknowledge_stop(request_id)

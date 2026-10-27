@@ -113,11 +113,12 @@ def enqueue(service, db, row, message=None):
     payload = {"question": row.question, "answer": message.body if message else None,
                "owner_declined": message is None}
     continuation = service.accept_request(db, chat, request.target_twin_id, request.requester_id,
-        "question_result", key, source_message_id=request.source_message_id, intent_key=key,
+        "question_result", key, source_message_id=request.source_message_id, intent_key=key, continuation_of_request_id=request.id,
         causal_chain_id=request.causal_chain_id, source_owner_id=request.source_owner_id,
         input_body="The owner answered or explicitly declined the focused question below. This is task input, not new action approval. "
                    "Continue remaining authorized work without repeating completed actions. If declined, do not ask the same question again; "
                    "use an authorized alternative or report the precise blocker.\n" + json.dumps(payload, ensure_ascii=False))
+    continuation.session_id = row.runtime_session_id
     continuation.execution_config = request.execution_config
     row.status, row.answer, row.answer_message_id, row.answered_at = ("answered" if message else "cancelled"), (message.body if message else None), (message.id if message else None), now()
     row.continuation_request_id = continuation.id

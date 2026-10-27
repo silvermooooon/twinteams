@@ -1,0 +1,7 @@
+.private-task-statuses{flex-shrink:1;min-height:0;max-height:160px;overflow-y:auto;scrollbar-width:thin;margin-bottom:7px}
+.private-task-status{display:flex;align-items:center;gap:8px;color:#616161;min-height:38px;font-size:12px;margin:0;padding:3px 0}
+.private-task-copy{display:flex;flex-direction:column;min-width:0;flex:1;gap:2px}
+.private-task-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#424242}
+.private-task-phase{font-size:11px}
+.private-task-status .stop-button{flex-shrink:0;margin-left:0}
+.private-task-status.background-task{border-left:2px solid #e0e0e0;padding-left:7px}

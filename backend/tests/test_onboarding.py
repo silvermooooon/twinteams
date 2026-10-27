@@ -42,8 +42,9 @@ def send(product, owner="alex", body="Please draft a short release checklist"):
 
 def tool_context(product, request_id):
     context = product.get_runtime_context(request_id)
+    session_id = product.get_request(request_id)["session_id"]
     return {**context, "request_source": "private", "request_requester_id": "owner-alex",
-            "runtime_session_id": "first-meeting-session", "main_session_id": "first-meeting-session",
+            "runtime_session_id": session_id, "main_session_id": session_id,
             "operation_id": "first-meeting-tool-" + uuid4().hex}
 
 

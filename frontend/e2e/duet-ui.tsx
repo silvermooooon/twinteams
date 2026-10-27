@@ -5,7 +5,8 @@ import { ApiClient } from '../src/api/client';
 import { AskUserCard } from '../src/AskUserCard';
 import { resolveChatDestination } from '../src/api/chatDestination';
 import type { DuetNavigationTarget } from '../src/api/chatDestination';
-import type { Actor, ChatDetail } from '../src/api/client';
+import { PrivateTaskStatuses } from '../src/PrivateTaskStatuses';
+import type { Actor, ChatDetail, ReplyRequest, Message } from '../src/api/client';
 import { DetailSidebar } from '../src/DetailSidebar';
 import { DuetApprovalActions, TrustedDuets } from '../src/DuetConversations';
 import '../src/styles.css';
@@ -30,11 +31,25 @@ function OriginLinkHarness() {
   const detail: ChatDetail = { revision: 1, chat, messages: [], members: actors, requests: [], approvals: [], tracking: [], settings };
   return <div className="workspace"><main className="chat-main" data-main-chat-kind={chat.kind}><h1>{chat.title}</h1><button onClick={() => { void navigate('pair'); }}>Open human chat</button><AskUserCard api={api} question={{ id: 'origin-question', message_id: 'question-message', origin_chat_id: 'duet-1', origin_chat_title: 'Launch planning collaboration', question: 'Confirm the meeting?', options: [], status: 'answered', answer: 'Yes', answer_message_id: 'answer', created_at: '2026-10-26T08:00:00Z', answered_at: '2026-10-26T08:01:00Z' }} onChanged={async () => {}} onOrigin={id => { void navigate(id); }} /></main>{settings.sidebar_open && <DetailSidebar api={api} actors={actors} detail={detail} duetTarget={target} version={1} ownerId="owner-0" onSettings={patch => setSettings(previous => ({ ...previous, ...patch }))} onError={error => { throw error; }} onChange={() => {}} onClearCreate={() => {}} />}</div>;
 }
+function PrivateTaskHarness() {
+  const message = (id: string, body: string): Message => ({ id, body, chat_id: 'private-owner', seq: 1, author_id: 'owner-0', kind: 'human', created_at: '2026-10-27T08:00:00Z', read_by: [], state: 'published' });
+  const messages = [message('old-message', 'Prepare the report'), message('new-message', 'What is two plus two?'), message('waiting-message', 'Summarize the notes')];
+  const make = (id: string, source: string, source_message_id: string | null, status: ReplyRequest['status'], quiet_background = false): ReplyRequest => ({ id, source, source_message_id, status, quiet_background, chat_id: 'private-owner', target_twin_id: 'twin-0', requester_id: 'owner-0', accepted_at: '2026-10-27T08:00:00Z', can_cancel: true, can_retry: false });
+  const [requests, setRequests] = React.useState(() => [make('new-task', 'private', 'new-message', 'running'), make('old-task', 'private', 'old-message', 'running'), make('waiting-task', 'private', 'waiting-message', 'queued'), { ...make('background-continuation', 'approval', 'new-message', 'running'), background: true }, make('dream-task', 'memory_dream', null, 'running'), ...['scheduled_task', 'system_review', 'memory_dream'].map(source => make(source, source, null, 'running', true))]);
+  const [busy, setBusy] = React.useState(new Set<string>());
+  async function cancel(request: ReplyRequest) {
+    setBusy(previous => new Set(previous).add(request.id));
+    try { await api.post(`/reply-requests/${request.id}/cancel`); setRequests(previous => previous.map(item => item.id === request.id ? { ...item, status: 'cancelled' } : item)); }
+    finally { setBusy(previous => { const next = new Set(previous); next.delete(request.id); return next; }); }
+  }
+  return <main className="chat-main"><PrivateTaskStatuses requests={requests} messages={messages} actor={actors[1]} busy={busy} onCancel={request => { void cancel(request); }} /><textarea aria-label="Message" /><button onClick={() => setRequests(previous => [...previous].reverse())}>Reorder tasks</button></main>;
+}
 function Harness() {
   const [version, refresh] = React.useState(0);
   const [settings, setSettings] = React.useState<ChatDetail['settings']>({ reply_for_me_enabled: false, prompt_override: null, sidebar_open: true, sidebar_tab: 'workspace' });
   const params = new URLSearchParams(location.search); const kind = params.get('kind') === 'private' ? 'private' : 'group';
   const detail: ChatDetail = { revision: version, chat: { id: params.get('origin') || 'pair', kind, title: kind === 'private' ? 'Alex Duet' : 'Planning', member_owner_ids: params.get('origin') === 'multi' ? ['owner-0', 'owner-1', 'owner-2'] : ['owner-0', 'owner-1'], unread_count: 0 }, messages: [], members: actors, requests: [], approvals: [], tracking: [], settings };
+  if (params.has('tasks')) return <PrivateTaskHarness />;
   if (params.has('originlink')) return <OriginLinkHarness />;
   if (params.has('approval')) return <main className="chat-main"><DuetApprovalActions api={api} actors={actors} ownerIds={['owner-0','owner-1']} approval={{ id: 'private-approval', chat_id: 'duet-1', type: 'duet_conversation', approver_id: 'owner-0', title: 'Private inbox collaboration', description: 'Coordinate a meeting.', target: 'Blair Duet', impact: 'Prepared **opening** for recipients.', status: 'pending', peer_owner_ids: ['owner-1'], created_at: '2026-10-26T08:00:00Z' }} onChange={async () => {}} /></main>;
   return params.has('trusted') ? <main className="my-twin-page"><section className="twin-panel"><TrustedDuets api={api} revision={version} /></section></main> : <div className="workspace" style={{ minHeight: '100vh', justifyContent: 'flex-end' }}><DetailSidebar api={api} actors={actors} detail={detail} version={version} ownerId="owner-0" onSettings={patch => setSettings(previous => ({ ...previous, ...patch }))} onError={error => { throw error; }} onChange={() => refresh(value => value + 1)} onClearCreate={() => {}} /></div>;

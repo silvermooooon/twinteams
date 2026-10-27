@@ -120,7 +120,7 @@ def test_over_500_sources_keep_journal_and_bound_repeated_context_reads(product,
                                               {"owner_id": "owner-alex", "chat": {"id": chat_id}}))
     assert [row["seq"] for row in history["messages"]] == list(range(1, 101))
     product.complete_request(next_id, body="Synthetic verified modern Duet output",
-                             session_id="acceptance-" + next_id, run_id="run-" + next_id)
+                             session_id=product.get_request(next_id)["session_id"], run_id="run-" + next_id)
     with product.transaction() as db:
         output = db.scalar(select(Message).where(Message.request_id == next_id))
         assert output and any(source.get("kind") == "summary" for source in output.source_provenance)
@@ -314,7 +314,7 @@ def test_unrelated_membership_retires_cache_without_hiding_published_output_or_l
     reply_id = request(product, "duet-team", newest[-1]["id"])
     product.get_runtime_context(reply_id)
     product.complete_request(reply_id, body="Previously published verified finding",
-                             session_id="acceptance-" + reply_id, run_id="run-" + reply_id)
+                             session_id=product.get_request(reply_id)["session_id"], run_id="run-" + reply_id)
     with product.transaction() as db:
         output_id = db.scalar(select(Message.id).where(Message.request_id == reply_id))
     unrelated = product.create_chat("owner-maya", ["owner-jordan"], "Unrelated new membership")["id"]

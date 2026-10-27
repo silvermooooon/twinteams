@@ -16,7 +16,7 @@ in SDK records; product tables own presentation, business scheduling and access.
 3. Concurrent routing that finds SDK work busy leaves the decision pending.
    Only an actual terminal routing result finalizes it.
 4. SDK approval request, decision and exact-action binding reuse immutable commands.
-   The product reconciles a durable decision into one new FIFO continuation. The
+   The product reconciles a durable decision into one new originating-task continuation. The
    original reply can finish while consent is pending. `execute_approved_action`
    checks the current audience/source access and original request cancellation,
    then executes the frozen action with a stable product-operation ID. Installed

@@ -257,8 +257,8 @@ def test_frozen_config_and_quiet_continuation_keep_owner_tools(product, monkeypa
 def test_review_includes_twin_progress_cutoff_and_deduplicates_notice(product):
     human = product.send_message("owner-alex", "private-alex", "Watch the delivery deadline", uuid4().hex)["request"]
     product.get_runtime_context(human["id"])
-    product.bind_runtime_run(human["id"], "private-session", "ordinary-run")
-    product.publish_runtime_output(human["id"], "Delivery work made progress", "private-session", "ordinary-run", "ordinary-event")
+    product.bind_runtime_run(human["id"], human["session_id"], "ordinary-run")
+    product.publish_runtime_output(human["id"], "Delivery work made progress", human["session_id"], "ordinary-run", "ordinary-event")
     product.finish_request(human["id"], "completed")
     system = schedules.list_tasks(product, "owner-alex")["items"][0]
     due(product, system["id"])
@@ -266,10 +266,12 @@ def test_review_includes_twin_progress_cutoff_and_deduplicates_notice(product):
     context = product.get_runtime_context(request_id)
     assert any(item["kind"] == "twin" for item in context["system_review"]["changes"])
     cutoff = context["system_review"]["as_of"]
-    product.bind_runtime_run(request_id, "private-session", "review-run")
-    message_id = product.publish_runtime_output(request_id, "Delivery deadline is now tomorrow", "private-session", "review-run", "review-event")
+    review_session = product.get_request(request_id)["session_id"]
+    assert review_session != human["session_id"]
+    product.bind_runtime_run(request_id, review_session, "review-run")
+    message_id = product.publish_runtime_output(request_id, "Delivery deadline is now tomorrow", review_session, "review-run", "review-event")
     assert message_id
-    assert product.publish_runtime_output(request_id, "Delivery deadline is now tomorrow", "private-session", "review-run", "duplicate-content-event") is None
+    assert product.publish_runtime_output(request_id, "Delivery deadline is now tomorrow", review_session, "review-run", "duplicate-content-event") is None
     product.send_message("owner-alex", "private-alex", "A new delivery update arrived", uuid4().hex)
     product.finish_request(request_id, "completed")
     with product.transaction() as db:

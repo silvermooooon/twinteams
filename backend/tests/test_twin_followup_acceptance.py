@@ -176,7 +176,7 @@ def test_reply_already_consumed_by_followup_has_no_duplicate_router_call(product
         assert db.get(RoutingDecision, decision_id).status == "completed"
 
 
-def test_restart_keeps_deadline_and_event_waits_behind_busy_private_lane(product):
+def test_restart_keeps_deadline_and_event_waits_only_for_its_origin_task(product):
     from app.models import TwinFollowup
     origin, _, _, sent, _ = send_question(product)
     saved = followup(product, sent["message_id"])
@@ -185,7 +185,7 @@ def test_restart_keeps_deadline_and_event_waits_behind_busy_private_lane(product
                          .order_by(ReplyRequest.accepted_seq))
         head_id = head.id
     product.get_runtime_context(head_id)
-    product.bind_runtime_run(head_id, "isolated-busy-session", "isolated-busy-run")
+    product.bind_runtime_run(head_id, product.get_request(head_id)["session_id"], "isolated-busy-run")
     restarted = service_module.ProductService()
     try:
         assert restarted.next_deadlines()["private-maya"] == saved["due_at"]
@@ -206,11 +206,10 @@ def test_restart_keeps_deadline_and_event_waits_behind_busy_private_lane(product
         with product.transaction() as db:
             assert db.scalar(select(ChangeOutbox.id).where(
                 ChangeOutbox.chat_id == "private-maya", ChangeOutbox.kind == "work"))
-        # Settling the earlier accepted work releases the same FIFO; it does not
-        # require a waiting follow-up Agent or a second private session.
-        restarted.finish_request(head_id, "completed")
+        # Only the actual origin must settle; unrelated older work stays running.
         restarted.finish_request(origin["request"]["id"], "completed")
         assert event.id in restarted.claim_dispatches()
+        assert restarted.get_request(head_id)["status"] == "running"
         restarted.process_followups()
         assert followup(product, sent["message_id"])["due_at"] == persisted_deadline
         assert len(continuations(product, origin["request"]["causal_chain_id"])) == 1
@@ -258,7 +257,7 @@ def test_intermediate_model_projection_does_not_finish_question_followup(product
     from duet_test_support import request_duet_reply
     request = request_duet_reply(product, "owner-alex", "duet-alex-maya", sent["message_id"], "twin-alex", key())
     product.get_runtime_context(request["id"])
-    session, run = "isolated-reply-session", "isolated-reply-run"
+    session, run = request["session_id"], "isolated-reply-run"
     product.publish_runtime_output(request["id"], "I will check first", session, run, "intermediate", 1)
     assert followup(product, sent["message_id"])["status"] == "waiting"
     final_id = product.publish_runtime_output(request["id"], "Friday works", session, run, "final", 2)
@@ -363,8 +362,16 @@ def test_second_followup_retry_is_silent_with_real_sdk_and_offline_model(product
         await runtime.start()
         product.bind_runtime(runtime)
         try:
+            def settle_origin(model, context, options):
+                stream = AssistantMessageEventStream()
+                stream.push({"type": "done", "message": assistant_message(model, content=[], stopReason="stop")})
+                return stream
+            runtime.models.register_api("offline-regression", settle_origin)
+            await product.execute_request(origin["request"]["id"])
+            assert product.get_request(origin["request"]["id"])["status"] == "completed"
+            runtime.models.register_api("offline-regression", offline)
             await product.execute_request(current_id)
-            assert product.get_request(current_id)["status"] == "completed"
+            assert product.get_request(current_id)["status"] == "completed", product.get_request(current_id)
             assert len(calls) == 2
             assert "Friday works" in str(calls[0]) and "untrusted data" in str(calls[0])
             assert not any(event.get("type") == "token" for event in events)

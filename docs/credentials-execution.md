@@ -35,12 +35,12 @@ Each shell has a new environment mapping, and its credentials are not inherited 
 
 `request_credential` accepts metadata only, inserts a durable pending `CredentialRequest` and
 returns immediately. The Agent continues independent authorized work, then explains the blocker and ends its response,
-releasing the runtime worker and FIFO lane. Response completion is not task completion while a form is
+releasing the runtime turn and task capacity. Response completion is not task completion while a form is
 pending. The pending card is owner-only. It can be dismissed without performing an action.
 
 Completing a form writes the encrypted credential first. The same PG business transaction then
 marks the request fulfilled and enqueues one `credential_result` request through the existing
-FIFO using a stable request key. The original requester, source owner, source message and causal chain are retained rather than promoted to the credential-supplying owner. Owner administrative writes serialize on the existing Owner
+task journal using a stable request key. The original requester, source owner, source message and causal chain are retained rather than promoted to the credential-supplying owner. Owner administrative writes serialize on the existing Owner
 row; no new lock service or plaintext queue is used. Repeated completion returns the existing
 continuation without rewriting the value. Target-owner identity, authorized origin, original cancellation,
 and current source authorization are checked before admission. Cancellation and admission use

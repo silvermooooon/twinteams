@@ -74,7 +74,7 @@ uses the common backend data directory and production leaves Memory disabled.
 Personal Memory pages support Git-backed editing and deletion with optimistic
 commit versions. Owner-only Soul configuration reads the canonical workspace SOUL.md with a content hash; explicit provisioning migrates old DB Soul values before removing those obsolete columns.
 New private human experiences schedule incremental Dream work through the
-existing FIFO and scoped deadlines; only confirmed Git publication advances the
+task admission and scoped deadlines; only confirmed Git publication advances the
 durable cursor. Listing pages have an opaque-to-the-UI key cursor and no total
 count. Source references expose recorded session/event IDs, including real owner
 configuration audit events; rendering a page never scans session journals to

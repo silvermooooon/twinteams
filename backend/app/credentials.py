@@ -23,7 +23,6 @@ from .models import (
     Owner,
     PendingChildResult,
     ProductOperation,
-    ReplyLane,
     ReplyRequest,
 )
 
@@ -243,13 +242,11 @@ def complete(service, owner_id, request_id, *, existing_name=None, name=None, va
         # File and PG are intentionally not atomic. A crash here leaves pending;
         # the owner explicitly retries or chooses the existing saved credential.
         # Lock the origin after writing to serialize cancellation before queue admission.
-        db.scalar(select(ReplyLane).where(ReplyLane.chat_id == origin.chat_id,
-            ReplyLane.twin_id == origin.target_twin_id).with_for_update())
         db.refresh(origin, with_for_update=True)
         runtime_origin(service, db, owner_id, origin.id)
         key = f"credential-request:{row.id}:fulfilled"
         continuation = service.accept_request(db, chat, origin.target_twin_id, origin.requester_id,
-            "credential_result", key, source_message_id=origin.source_message_id,
+            "credential_result", key, source_message_id=origin.source_message_id, continuation_of_request_id=origin.id,
             intent_key=key, causal_chain_id=origin.causal_chain_id, source_owner_id=origin.source_owner_id,
             input_body=f"The owner completed credential request {row.id}. Credential {row.ref} is now available with environment variables {', '.join(row.keynames)}. "
                        "Continue only the remaining work from the original task and existing history. "

@@ -49,7 +49,7 @@ def candidates(product, message_id):
 
 def publish(product, request_id, text):
     product.get_runtime_context(request_id)
-    product.complete_request(request_id, body=text, session_id='matrix-' + request_id,
+    product.complete_request(request_id, body=text, session_id=product.get_request(request_id)['session_id'],
         run_id='matrix-run-' + request_id, event_id='matrix-final-' + request_id, event_seq=1)
     with product.transaction() as db:
         request = db.get(ReplyRequest, request_id)

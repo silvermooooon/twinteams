@@ -18,8 +18,8 @@ def request_for(product, chat_id):
 @pytest.mark.parametrize("chat_id,quoted", [("private-alex", False), ("duet-alex-maya", True)])
 def test_auto_publication_quote_policy_preserves_source_audit_and_replay(product, chat_id, quoted):
     source, request, _context = request_for(product, chat_id)
-    output = product.publish_runtime_output(request["id"], "Answer", "offline-session", "offline-run", "offline-event", 1)
-    assert product.publish_runtime_output(request["id"], "Answer", "offline-session", "offline-run", "offline-event", 1) == output
+    output = product.publish_runtime_output(request["id"], "Answer", request["session_id"], "offline-run", "offline-event", 1)
+    assert product.publish_runtime_output(request["id"], "Answer", request["session_id"], "offline-run", "offline-event", 1) == output
     with product.transaction() as db:
         row = db.get(Message, output)
         assert row.reply_to_message_id == (source["id"] if quoted else None)
@@ -53,7 +53,7 @@ def test_child_continuation_does_not_reintroduce_automatic_private_quote(product
         assert request.reply_to_message_id == (source["id"] if quoted else None)
         assert request.causal_chain_id == parent["causal_chain_id"]
     product.get_runtime_context(child["id"])
-    output = product.publish_runtime_output(child["id"], "Child result report", "child-session", "child-run", "child-final", 1)
+    output = product.publish_runtime_output(child["id"], "Child result report", child["session_id"], "child-run", "child-final", 1)
     message = next(row for row in product.chat_detail("owner-alex", chat_id)["messages"] if row["id"] == output)
     assert ("reply_to" in message) is quoted
     with product.transaction() as db:
@@ -70,7 +70,7 @@ def test_private_child_of_explicit_human_quote_keeps_lineage_without_default_quo
         row = db.get(ReplyRequest, child["id"])
         assert row.source_message_id == parent["source_message_id"] and row.reply_to_message_id is None
     product.get_runtime_context(child["id"])
-    output = product.publish_runtime_output(child["id"], "Explicit child answer", "explicit-child-session", "explicit-child-run", "explicit-child-event", 1)
+    output = product.publish_runtime_output(child["id"], "Explicit child answer", child["session_id"], "explicit-child-run", "explicit-child-event", 1)
     message = next(row for row in product.chat_detail("owner-alex", "private-alex")["messages"] if row["id"] == output)
     assert "reply_to" not in message
 

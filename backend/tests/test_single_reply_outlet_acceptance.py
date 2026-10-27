@@ -42,7 +42,7 @@ def outputs(product, request_id, chat_id):
 
 
 def complete(product, request_id, body):
-    product.complete_request(request_id, {"body": body, "session_id": "synthetic-" + request_id,
+    product.complete_request(request_id, {"body": body, "session_id": product.get_request(request_id)["session_id"],
         "run_id": "synthetic-run-" + request_id, "event_id": "synthetic-final-" + request_id, "event_seq": 2})
 
 

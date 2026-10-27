@@ -239,12 +239,29 @@ class RuntimeBridge:
 
     @staticmethod
     def session_id(chat_id: str, twin_id: str, private_generation: int | None = None):
-        # Generation zero retains the pre-reset journal identity. New private
-        # generations never reopen that journal or its frozen summary/context.
-        identity = f"twinteams:chat:{chat_id}:twin:{twin_id}"
-        if private_generation:
-            identity += f":private-generation:{private_generation}"
-        return uuid5(NAMESPACE_URL, identity).hex
+        """Legacy journal identity, retained for accepted pre-task-session work."""
+        from .request_sessions import legacy_session_id
+        return legacy_session_id(chat_id, twin_id, private_generation)
+
+    async def _continuation_ready(self, request):
+        """Wait only for the named origin; unrelated chat tasks are independent."""
+        origin_id = request.get("continuation_of_request_id")
+        if not origin_id:
+            return
+        origin = await self.service.db_call("get_request", origin_id)
+        if origin.get("cancel_requested") or origin["status"] == "cancelled":
+            raise PermissionError("The originating task was stopped")
+        if origin["status"] in {"queued", "running"}:
+            raise RuntimeBusy("The originating task is still settling")
+        command = await self.store.get_command(self.tenant_id, origin_id)
+        if command and command["state"] in {"accepted", "applied"}:
+            raise RuntimeBusy("The originating task's SDK command is still settling")
+        if command is None and origin["status"] == "failed":
+            # Failure before SDK acceptance cannot have committed a runtime tool
+            # effect. Explicit retry can enter the same task's guarded journal.
+            return
+        if not command or (origin["status"] == "completed" and command["state"] != "completed"):
+            raise RuntimeError("The originating task has no settled SDK command; reconcile it before continuing")
 
     async def _check_generation(self, context):
         if context.get("request_id") or context.get("private_generation") is not None:
@@ -340,7 +357,16 @@ class RuntimeBridge:
             # A failure leaves prior checkpoints and original rows intact, but
             # blocks model admission: the initial bounded tail may have an older
             # prefix that has not yet been checkpointed.
-            body = await self._summarize_conversation(prepared)
+            try:
+                body = await self._summarize_conversation(prepared)
+            except RuntimeBusy:
+                # Another task may be checkpointing the same authorized prefix.
+                # A complete bounded snapshot is already usable; compression is
+                # maintenance, not a reason to queue an unrelated human request.
+                current = await self.service.db_call("get_conversation_context", scope)
+                if not current.get("context_incomplete"):
+                    return {**context, **current}
+                raise
             await self._check_generation(context)
             await self.service.db_call("save_conversation_summary", prepared["scope"], body)
         current = await self.service.db_call("get_conversation_context", scope)
@@ -557,6 +583,7 @@ class RuntimeBridge:
     async def execute(self, request: dict, context: dict):
         self._require()
         await self._check_generation(context)
+        await self._continuation_ready(request)
         if request.get("source") == "memory_dream":
             from .runtime_memory_dream import execute_dream
             return await execute_dream(self, request, context)
@@ -578,7 +605,12 @@ class RuntimeBridge:
         owner_id = context["owner_id"]
         from .runtime_scheduled import scheduled_context, terminal_output_only
         terminal_only = terminal_output_only(request, context)
-        session_id = request.get("session_id") or self.session_id(chat_id, twin_id, context.get("private_generation"))
+        # An accepted SDK command is the authoritative recovery identity, including
+        # commands accepted before request-scoped sessions were introduced.
+        session_id = (accepted or {}).get("session_id") or request.get("session_id") or self.session_id(
+            chat_id, twin_id, context.get("private_generation"))
+        if request.get("session_id") and request["session_id"] != session_id:
+            raise RuntimeError("Accepted reply command conflicts with its task session")
         context = {
             **context, "tenant_id": tenant_id,
             "current_time": datetime.now(UTC).isoformat(),
@@ -618,7 +650,8 @@ class RuntimeBridge:
             # New runs use the currently authorized context; old journal remains intact.
             # Resumptions keep the SDK-frozen request and re-injected tool contract.
             if not session.resumable:
-                retained = [message for message in agent.state.messages if message.get("role") != "system"] if request.get("source") == "question_result" else []
+                continuation = request.get("continuation_of_request_id") or request.get("source") == "question_result"
+                retained = [message for message in agent.state.messages if message.get("role") != "system"] if continuation else []
                 agent.state.messages = [{"role": "system", "content": system, "timestamp": 0}, *retained]
             self.active[request_id] = agent
             if session.resumable:
@@ -687,7 +720,7 @@ class RuntimeBridge:
                 result = vars(result)
             status = result.get("status")
             if status in ("busy", "accepted", "queued"):
-                raise RuntimeBusy("This Duet is still finishing a previous reply. The request remains queued.")
+                raise RuntimeBusy("This task is still finishing its previous turn. The request remains queued.")
             if status in ("recovery_required", "waiting_recovery"):
                 raise RuntimeError("A tool's earlier outcome is uncertain. Manual reconciliation is required before this reply can continue.")
             if status == "rejected":
@@ -706,7 +739,7 @@ class RuntimeBridge:
             if status in ("failed", "stopped", "cancelled") or snapshot.get("status") in ("failed", "stopped"):
                 if snapshot.get("status") != "waiting_recovery":
                     await executor.abandon(tenant_id, session_id, user_id=owner_id, command_id=request_id,
-                                           reason="Owner stopped this reply" if request_id in self.cancelled else "Failed reply ended; a retry is a new FIFO request")
+                                           reason="Owner stopped this reply" if request_id in self.cancelled else "Failed reply ended; retry requires a new task turn")
                 raise RuntimeError(safe_text(result.get("error") or snapshot.get("error") or "The reply was interrupted."))
             if status != "completed":
                 raise RuntimeError("The SDK reply has not reached durable completion.")
@@ -768,7 +801,9 @@ class RuntimeBridge:
         from .twin_execution import assemble
         execution_tools, context, memory_index = await assemble(self.service, session, context)
         tools = [*self._tools(context, session, execution_tools), *execution_tools]
-        system = self._system({**context, "messages": [], "summary": None}, worker=True)
+        # Activity across independent roots helps the front desk coordinate; a
+        # worker receives only its assigned task, not other roots' task material.
+        system = self._system({**context, "messages": [], "summary": None, "active_requests": []}, worker=True)
         if not session.resumable:
             system += await self._credential_continuation_history(context)
         if memory_index:
@@ -922,6 +957,12 @@ class RuntimeBridge:
             await self.store.ack_notification(self.tenant_id, payload["parent_session_id"], notification["command_id"])
             return
         from .runtime_scheduled import has_unresolved_children
+        if await self.service.db_call("owner_question_handoff_for_run", payload["child_session_id"], payload["run_id"]):
+            # A durable answer carrier supersedes the question-asking turn. Its
+            # original interim notification may survive a crash until after the
+            # answer completed; do not deliver both turns as independent results.
+            await self.store.ack_notification(self.tenant_id, payload["parent_session_id"], notification["command_id"])
+            return
         if await has_unresolved_children(self, {"session_id": payload["child_session_id"], "run_id": payload["run_id"]}):
             # Descendants will resume this worker; do not deliver its interim
             # turn to the root as a reviewed final result.

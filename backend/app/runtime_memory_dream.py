@@ -163,7 +163,7 @@ class DreamAttempt:
 
 
 async def execute_dream(runtime, request, context):
-    """Execute or reconcile one private FIFO attempt without emitting a chat event."""
+    """Execute or reconcile one independent private task without a chat event."""
     from agent_runtime.sessions import SessionInfo
 
     from . import personal

@@ -14,6 +14,7 @@ from test_credentials import product as product  # noqa: PLC0414
 
 from app import credentials, personal, twin_execution
 from app import service as service_module
+from app.request_sessions import request_session_id
 from app.runtime_bridge import RuntimeBridge
 
 
@@ -111,7 +112,7 @@ def test_other_participant_uses_target_twin_profile_skills_and_sdk_identity(
             result = await runtime.execute(product.get_request(request['id']), context)
             stored = await DatabaseSession.open(runtime.store, tenant_id='local', session_id=result['session_id'])
             assert stored.info.user_id == target_owner
-            assert stored.session_id == runtime.session_id(chat_id, target_twin)
+            assert stored.session_id == request_session_id(request['id'])
             system = captured[0]['system']
             assert markers[target_owner] in system and markers[requester] not in system
             assert f'OWNER_MEMORY_{target_owner}' in system

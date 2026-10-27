@@ -1,4 +1,4 @@
-"""Persisted product permissions, trigger decisions and FIFO scheduling intent.
+"""Persisted product permissions, trigger decisions and bounded task scheduling intent.
 
 The bound runtime owns model/tool execution, journal, fencing and recovery. This
 module only keeps business requests, durable dispatch intent and safe projections.
@@ -19,7 +19,7 @@ import unicodedata
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import event as sa_event, cast, func, inspect as sa_inspect, or_, select, text, update
+from sqlalchemy import event as sa_event, and_, cast, func, inspect as sa_inspect, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 
 from .notifications import notifications
@@ -191,6 +191,8 @@ class ProductService:
             upgrade_duet_conversation_schema(engine)
             from .attachments import upgrade_attachment_schema
             upgrade_attachment_schema(engine)
+            from .request_concurrency_schema import upgrade_request_concurrency_schema
+            upgrade_request_concurrency_schema(engine)
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE tt_chats ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 1"))
                 connection.execute(text("ALTER TABLE tt_change_outbox ADD COLUMN IF NOT EXISTS kind VARCHAR(16) NOT NULL DEFAULT 'changed'"))
@@ -268,6 +270,8 @@ class ProductService:
         check_duet_conversation_schema(inspector)
         from .reaction_schema import check_reaction_schema
         check_reaction_schema(inspector)
+        from .request_concurrency_schema import check_request_concurrency_schema
+        check_request_concurrency_schema(inspector)
         if not inspector.has_table("tt_change_outbox") or not inspector.has_table("tt_chat_attachments") or "revision" not in {col["name"] for col in inspector.get_columns("tt_chats")} or "attachment_ids" not in {col["name"] for col in inspector.get_columns("tt_messages")}:
             raise RuntimeError("Run python -m app.init_db before starting API or worker")
         if "command_id" not in {column["name"] for column in inspector.get_columns("tt_routing_decisions")}:
@@ -734,7 +738,7 @@ class ProductService:
     def request_json(self, db, request, owner_id):
         target = db.get(Actor, request.target_twin_id)
         owns = target is not None and target.owner_id == owner_id
-        result = {**{k: getattr(request, k) for k in ("id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "error", "session_id", "run_id", "causal_chain_id", "source_owner_id", "automatic_reservation_id")}, "accepted_at": iso(request.accepted_at), "cancel_requested": request.cancel_requested, "can_cancel": not request.cancel_requested and ( (request.status == "queued" and (owns or request.requester_id == owner_id)) or (request.status == "running" and owns)), "can_retry": request.source != "memory_dream" and request.status == "failed" and owns}
+        result = {**{k: getattr(request, k) for k in ("id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "error", "session_id", "run_id", "causal_chain_id", "source_owner_id", "automatic_reservation_id", "continuation_of_request_id", "background")}, "accepted_at": iso(request.accepted_at), "cancel_requested": request.cancel_requested, "can_cancel": not request.cancel_requested and ( (request.status == "queued" and (owns or request.requester_id == owner_id)) or (request.status == "running" and owns)), "can_retry": request.source != "memory_dream" and request.status == "failed" and owns}
         from .scheduled_tasks import snapshot as scheduled_snapshot
         result["quiet_background"] = bool(scheduled_snapshot(request))
         if request.requester_id == owner_id:
@@ -1155,7 +1159,7 @@ class ProductService:
             consume_reply(self, db, msg)
         return msg
 
-    def accept_request(self, db, chat, target_twin_id, requester_id, source, key, source_message_id=None, raw=None, prompt=None, reply_to=None, generation=0, intent_key=None, input_body=None, causal_chain_id=None, automatic_reservation_id=None, source_owner_id=None, input_attachment_ids=None, command_fingerprint=None):
+    def accept_request(self, db, chat, target_twin_id, requester_id, source, key, source_message_id=None, raw=None, prompt=None, reply_to=None, generation=0, intent_key=None, input_body=None, causal_chain_id=None, automatic_reservation_id=None, source_owner_id=None, input_attachment_ids=None, command_fingerprint=None, continuation_of_request_id=None):
         from .duet_conversations import require_active
         require_active(db, chat)
         if chat.kind == "private" and chat.reset_pending:
@@ -1198,6 +1202,9 @@ class ProductService:
                     candidate.evidence = {**(candidate.evidence or {}), "pause_reason": pause_reason, "paused_at": iso(now())}
                     db.flush()
                 return None
+        origin = db.get(ReplyRequest, continuation_of_request_id) if continuation_of_request_id else None
+        if continuation_of_request_id and (not origin or origin.chat_id != chat.id or origin.target_twin_id != target_twin_id):
+            fail(409, "Task continuation must retain its original chat and Duet")
         lane = db.scalar(select(ReplyLane).where(ReplyLane.chat_id == chat.id, ReplyLane.twin_id == target_twin_id).with_for_update())
         if not lane:
             lane = ReplyLane(chat_id=chat.id, twin_id=target_twin_id, next_accept_seq=1)
@@ -1207,6 +1214,10 @@ class ProductService:
         lane.next_accept_seq += 1
         db.add(request)
         db.flush()
+        from .request_sessions import legacy_session_id, request_session_id
+        request.continuation_of_request_id = continuation_of_request_id
+        request.background = origin.background if origin else source in {"auto", "scheduled_task", "system_review", "memory_dream"}
+        request.session_id = (origin.session_id or legacy_session_id(origin.chat_id, origin.target_twin_id, origin.private_generation)) if origin else request_session_id(request.id)
         if reservation and not reservation.accepted_request_id:
             reservation.accepted_request_id = request.id
         db.add(DispatchCommand(request_id=request.id))
@@ -1665,7 +1676,6 @@ class ProductService:
         if not request:
             fail(404, "Reply request not found")
         self.membership(db, owner_id, request.chat_id, True)
-        db.scalar(select(ReplyLane).where(ReplyLane.chat_id == request.chat_id, ReplyLane.twin_id == request.target_twin_id).with_for_update())
         db.refresh(request, with_for_update=True)
         target = db.get(Actor, request.target_twin_id)
         if owner_id not in {request.requester_id, target.owner_id}:
@@ -1729,7 +1739,6 @@ class ProductService:
             fail(404, "Reply request not found")
         chat, member = self.membership(db, owner_id, old.chat_id, True)
         chain = self.request_chain(db, old)
-        db.scalar(select(ReplyLane).where(ReplyLane.chat_id == old.chat_id, ReplyLane.twin_id == old.target_twin_id).with_for_update())
         db.refresh(old, with_for_update=True)
         target = db.get(Actor, old.target_twin_id)
         if (not automatic and owner_id != target.owner_id) or (automatic and owner_id not in {old.requester_id, target.owner_id}):
@@ -1750,7 +1759,7 @@ class ProductService:
         # Retry is a new generation of this delivery, retaining its private
         # authorization checks and terminal-only/silent output policy.
         source = old.source if old.source in {"question_result", "followup_result", "scheduled_task", "system_review"} else "tool_retry" if automatic else "retry"
-        request = self.accept_request(db, chat, old.target_twin_id, owner_id, source, key, source_message_id=old.source_message_id, raw=old.raw_owner_input, prompt=old.frozen_prompt, reply_to=old.reply_to_message_id, generation=generation, intent_key=old.intent_key, input_body=old.input_body, causal_chain_id=causal_chain_id or chain.id, automatic_reservation_id=automatic_reservation_id or old.automatic_reservation_id, source_owner_id=old.source_owner_id, input_attachment_ids=old.input_attachment_ids, command_fingerprint=old.command_fingerprint)
+        request = self.accept_request(db, chat, old.target_twin_id, owner_id, source, key, source_message_id=old.source_message_id, raw=old.raw_owner_input, prompt=old.frozen_prompt, reply_to=old.reply_to_message_id, generation=generation, intent_key=old.intent_key, input_body=old.input_body, causal_chain_id=causal_chain_id or chain.id, automatic_reservation_id=automatic_reservation_id or old.automatic_reservation_id, source_owner_id=old.source_owner_id, input_attachment_ids=old.input_attachment_ids, command_fingerprint=old.command_fingerprint, continuation_of_request_id=old.id)
         from .scheduled_tasks import snapshot as scheduled_snapshot
         if automatic or scheduled_snapshot(old):
             from copy import deepcopy
@@ -1767,7 +1776,7 @@ class ProductService:
         return result
 
     def request_payload(self, request):
-        return {k: getattr(request, k) for k in ("id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "session_id", "run_id", "raw_owner_input", "frozen_prompt", "input_body", "input_attachment_ids", "cancel_requested", "causal_chain_id", "automatic_reservation_id", "source_owner_id", "execution_config", "private_generation")}
+        return {k: getattr(request, k) for k in ("id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "session_id", "run_id", "raw_owner_input", "frozen_prompt", "input_body", "input_attachment_ids", "cancel_requested", "causal_chain_id", "automatic_reservation_id", "source_owner_id", "execution_config", "private_generation", "continuation_of_request_id", "background")}
 
     def _check_private_request(self, db, request):
         from .twin_reset import check_request
@@ -1888,8 +1897,64 @@ class ProductService:
             source_message = self.visible_message(db, member, request.source_message_id, cache=checked) if request.source_message_id else None
             file_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
             files = self.attachment_references(db, file_ids, member, private_request=request if request.raw_owner_input is not None else None)
+            active_requests = self._concurrent_task_context(db, request, chat, member)
+            origin = db.get(ReplyRequest, request.continuation_of_request_id) if request.continuation_of_request_id else None
+            continuation_origin = ({"request_id": origin.id, "session_id": origin.session_id,
+                "run_id": origin.run_id, "status": origin.status, "cancel_requested": origin.cancel_requested} if origin else None)
             from .onboarding import context_for_request
-            return {"pending_questions": pending, "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": conversation["messages"], "_summary_scope": summary_scope, "context_incomplete": conversation["context_incomplete"], "source_message": self.message_json(db, source_message, member, cache=checked) if source_message else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+            return {"active_requests": active_requests, "continuation_of_request_id": request.continuation_of_request_id, "continuation_origin": continuation_origin, "pending_questions": pending, "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": conversation["messages"], "_summary_scope": summary_scope, "context_incomplete": conversation["context_incomplete"], "source_message": self.message_json(db, source_message, member, cache=checked) if source_message else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+
+    def _concurrent_task_context(self, db, request, chat, member):
+        """Authorized task hints, including children whose foreground turn finished."""
+        active = list(db.scalars(select(ReplyRequest).where(ReplyRequest.chat_id == chat.id,
+            ReplyRequest.target_twin_id == request.target_twin_id, ReplyRequest.id != request.id,
+            ReplyRequest.status.in_(["queued", "running"]), ReplyRequest.cancel_requested.is_(False))
+            .order_by(ReplyRequest.accepted_at).limit(20)))
+        children = list(db.scalars(select(ActivityProjection).where(ActivityProjection.chat_id == chat.id,
+            ActivityProjection.owner_id == member.owner_id, ActivityProjection.private_generation == chat.reset_generation,
+            ActivityProjection.source == "subagent", ActivityProjection.status == "running")
+            .order_by(ActivityProjection.started_at).limit(20))) if chat.kind == "private" else []
+        parents = {child.parent_run_id for child in children if child.parent_run_id}
+        ancestry = {}
+        # Child nesting is bounded to three levels by the runtime. Only this
+        # owner's current private activity may contribute ancestry metadata.
+        frontier = set(parents)
+        for _ in range(3):
+            if not frontier:
+                break
+            rows = list(db.scalars(select(ActivityProjection).where(ActivityProjection.chat_id == chat.id,
+                ActivityProjection.owner_id == member.owner_id, ActivityProjection.private_generation == chat.reset_generation,
+                ActivityProjection.run_id.in_(frontier))))
+            ancestry.update({row.run_id: row.parent_run_id for row in rows if row.parent_run_id})
+            frontier = {row.parent_run_id for row in rows if row.parent_run_id} - parents
+            parents.update(frontier)
+        roots = list(db.scalars(select(ReplyRequest).where(ReplyRequest.chat_id == chat.id,
+            ReplyRequest.target_twin_id == request.target_twin_id, ReplyRequest.run_id.in_(parents),
+            ReplyRequest.cancel_requested.is_(False)))) if parents else []
+        by_run = {root.run_id: root for root in roots}
+        work = {}
+        for child in children:
+            parent_run = child.parent_run_id
+            for _ in range(3):
+                if parent_run in by_run or parent_run not in ancestry:
+                    break
+                parent_run = ancestry[parent_run]
+            root = by_run.get(parent_run)
+            if root and root.id != request.id:
+                work.setdefault(root.id, []).append({"session_id": child.session_id, "run_id": child.run_id, "status": child.status})
+        rows = {row.id: row for row in [*active, *roots] if row.id != request.id}
+        result = []
+        for row in rows.values():
+            if row.id not in work and row.status not in {"queued", "running"}:
+                continue
+            if row.source_message_id and not self.sources_allowed(db, member, [row.source_message_id]):
+                continue
+            source = db.get(Message, row.source_message_id) if row.source_message_id and not row.background else None
+            result.append({"id": row.id, "source": row.source, "status": row.status,
+                "source_message_id": row.source_message_id, "background": row.background,
+                "input": source.body[:240] if source and source.kind == "human" else None,
+                "children": work.get(row.id, [])})
+        return result
 
     def get_conversation_context(self, scope):
         from .conversation_context import get_context
@@ -1909,7 +1974,6 @@ class ProductService:
             if not request:
                 fail(404, "Reply request not found")
             self.membership(db, db.get(Actor, request.target_twin_id).owner_id, request.chat_id, True)
-            db.scalar(select(ReplyLane).where(ReplyLane.chat_id == request.chat_id, ReplyLane.twin_id == request.target_twin_id).with_for_update())
             db.refresh(request, with_for_update=True)
             self._check_private_request(db, request)
             if request.session_id and request.session_id != session_id:
@@ -1924,9 +1988,6 @@ class ProductService:
                 state = db.get(MemoryDreamState, request.requester_id)
                 if state and state.queued_request_id == request.id:
                     state.last_status = "running"
-            lane = db.get(ReplyLane, (request.chat_id, request.target_twin_id))
-            if request.source not in {"memory_dream", "question_result"}:
-                lane.session_id = session_id
         self.publish_event(request.chat_id, {"type": "changed", "request_id": request_id})
 
     def publish_runtime_output(self, request_id, body, session_id, run_id, event_id=None, event_seq=None):
@@ -1942,7 +2003,6 @@ class ProductService:
             from .duet_conversations import require_active
             require_active(db, chat)
             self.request_chain(db, request)
-            db.scalar(select(ReplyLane).where(ReplyLane.chat_id == request.chat_id, ReplyLane.twin_id == request.target_twin_id).with_for_update())
             db.refresh(request, with_for_update=True)
             if request.cancel_requested or request.status in {"cancelled", "failed"}:
                 return None
@@ -1956,8 +2016,6 @@ class ProductService:
             if request.context_grant_version is not None and request.context_grant_version != member.grant_version:
                 fail(409, "History grant changed during generation; output withheld")
             request.session_id, request.run_id = session_id, run_id
-            lane = db.get(ReplyLane, (chat.id, twin.id))
-            lane.session_id = session_id
             is_reply_for_me = request.raw_owner_input is not None
             projection = db.get(ReplyProjection, request.id) if is_reply_for_me else None
             if is_reply_for_me:
@@ -2030,7 +2088,6 @@ class ProductService:
                 if final_message:
                     lock_reply_scopes(self, db, request.chat_id, final_message.reply_to_message_id)
             db.scalar(select(Chat).where(Chat.id == request.chat_id).with_for_update())
-            db.scalar(select(ReplyLane).where(ReplyLane.chat_id == request.chat_id, ReplyLane.twin_id == request.target_twin_id).with_for_update())
             db.refresh(request, with_for_update=True)
             if request.status in {"completed", "failed", "cancelled"}:
                 return  # A late observer cannot rewrite a committed terminal fact.
@@ -2058,9 +2115,6 @@ class ProductService:
                 experience_completed(self, db, request)
             from .scheduled_tasks import finish as scheduled_finish
             scheduled_finish(db, request, status)
-            lane = db.get(ReplyLane, (request.chat_id, request.target_twin_id))
-            if lane and lane.active_request_id == request.id:
-                lane.active_request_id = None
             command = db.get(DispatchCommand, request.id)
             if command:
                 command.state, command.updated_at = "delivered", now()
@@ -2078,45 +2132,69 @@ class ProductService:
         self.finish_request(request_id, "failed", str(error))
 
     def claim_dispatches(self, scopes=None):
-        """Select FIFO heads with owner admission before LIMIT; SDK alone claims execution."""
+        """Admit independent tasks concurrently; serialize only their own SDK session."""
         from sqlalchemy.orm import aliased
-        earlier = aliased(ReplyRequest)
-        counts, result = {}, []
+        earlier, origin = aliased(ReplyRequest), aliased(ReplyRequest)
+        counts, background_counts, result = {}, {}, []
+        background_total = 0
+        background_limit = max(1, settings.max_running - 1)
+        owner_background_limit = max(1, settings.max_per_owner - 1)
         with self.transaction() as db:
             if scopes is not None:
                 pending_scopes = set(db.scalars(select(ReplyRequest.chat_id).where(ReplyRequest.chat_id.in_(scopes), ReplyRequest.status.in_(["queued", "running"])).distinct().limit(1000)))
                 self.ready_scopes.difference_update(set(scopes) - pending_scopes)
-            for request_id in tuple(self.tasks):
-                owner = db.scalar(select(Actor.owner_id).join(ReplyRequest, ReplyRequest.target_twin_id == Actor.id).where(ReplyRequest.id == request_id))
-                if owner:
-                    counts[owner] = counts.get(owner, 0) + 1
+            active = list(db.execute(select(ReplyRequest.background, Actor.owner_id).join(Actor,
+                ReplyRequest.target_twin_id == Actor.id).where(ReplyRequest.id.in_(tuple(self.tasks)))))
+            for background, owner in active:
+                counts[owner] = counts.get(owner, 0) + 1
+                if background:
+                    background_counts[owner] = background_counts.get(owner, 0) + 1
+                    background_total += 1
             for _ in range(settings.max_running):
                 capacity = settings.max_running - len(self.tasks) - len(result)
                 if capacity <= 0:
                     break
                 exhausted = [owner for owner, count in counts.items() if count >= settings.max_per_owner]
-                query = select(ReplyRequest, Actor.owner_id).join(Actor, Actor.id == ReplyRequest.target_twin_id).join(Chat, Chat.id == ReplyRequest.chat_id).where(
-                    Chat.kind != "group",
-                    ReplyRequest.status.in_(["queued", "running"]),
-                    ~select(earlier.id).where(earlier.chat_id == ReplyRequest.chat_id,
-                        earlier.target_twin_id == ReplyRequest.target_twin_id,
+                background_exhausted = [owner for owner, count in background_counts.items() if count >= owner_background_limit]
+                # NULL sessions are legacy accepted commands. Their historical lane
+                # mapping keeps recovery ordered, without making new roots share it.
+                same_session = or_(
+                    and_(ReplyRequest.session_id.is_not(None), earlier.session_id == ReplyRequest.session_id),
+                    and_(earlier.chat_id == ReplyRequest.chat_id, earlier.target_twin_id == ReplyRequest.target_twin_id,
+                        or_(and_(ReplyRequest.session_id.is_(None),
+                            or_(earlier.session_id.is_(None), earlier.session_id == ReplyLane.session_id)),
+                            and_(earlier.session_id.is_(None), ReplyRequest.session_id == ReplyLane.session_id))))
+                query = select(ReplyRequest, Actor.owner_id).join(Actor, Actor.id == ReplyRequest.target_twin_id).join(Chat, Chat.id == ReplyRequest.chat_id).outerjoin(ReplyLane,
+                    and_(ReplyLane.chat_id == ReplyRequest.chat_id, ReplyLane.twin_id == ReplyRequest.target_twin_id)).where(
+                    Chat.kind != "group", ReplyRequest.status.in_(["queued", "running"]),
+                    ~select(earlier.id).where(same_session,
                         earlier.status.in_(["queued", "running"]),
                         earlier.accepted_seq < ReplyRequest.accepted_seq).exists(),
-                )
+                    ~select(origin.id).where(origin.id == ReplyRequest.continuation_of_request_id,
+                        origin.status.in_(["queued", "running"])).exists())
                 if scopes is not None:
                     query = query.where(ReplyRequest.chat_id.in_(scopes))
                 if exhausted:
                     query = query.where(Actor.owner_id.not_in(exhausted))
+                if background_total >= background_limit:
+                    query = query.where(ReplyRequest.background.is_(False))
+                elif background_exhausted:
+                    query = query.where(or_(ReplyRequest.background.is_(False), Actor.owner_id.not_in(background_exhausted)))
                 omitted = set(self.tasks) | set(result) | {key for key, until in tuple(self.deferred.items()) if until > (self.loop.time() if self.loop else 0)}
                 if omitted:
                     query = query.where(ReplyRequest.id.not_in(omitted))
-                rows = list(db.execute(query.order_by(ReplyRequest.accepted_at, ReplyRequest.accepted_seq).limit(100)))
+                rows = list(db.execute(query.order_by(ReplyRequest.background, ReplyRequest.accepted_at, ReplyRequest.accepted_seq).limit(100)))
                 if not rows:
                     break
                 before = len(result)
                 for request, owner in rows:
+                    if request.background and (background_total >= background_limit or background_counts.get(owner, 0) >= owner_background_limit):
+                        continue
                     if counts.get(owner, 0) < settings.max_per_owner and len(result) < capacity + before:
                         counts[owner] = counts.get(owner, 0) + 1
+                        if request.background:
+                            background_counts[owner] = background_counts.get(owner, 0) + 1
+                            background_total += 1
                         result.append(request.id)
                         self.ready_scopes.add(request.chat_id)
                 if len(result) == before:
@@ -2450,6 +2528,15 @@ class ProductService:
         from .questions import pending_for_run
         return pending_for_run(self, session_id, run_id)
 
+    def owner_question_handoff_for_run(self, session_id, run_id):
+        """An answered question supersedes only its old worker turn's interim result."""
+        from .question_models import QuestionRequest
+        with self.transaction() as db:
+            return db.scalar(select(QuestionRequest.id).where(
+                QuestionRequest.runtime_session_id == session_id,
+                QuestionRequest.runtime_run_id == run_id,
+                QuestionRequest.continuation_request_id.is_not(None)).limit(1)) is not None
+
     def _accept_pending_child(self, db, pending):
         if pending.accepted_request_id:
             request = db.get(ReplyRequest, pending.accepted_request_id)
@@ -2468,7 +2555,7 @@ class ProductService:
                                       source_message_id=pending.source_message_id,
                                       reply_to=original.reply_to_message_id if chat.kind == "private" else pending.source_message_id,
                                       intent_key=key, input_body=pending.body, causal_chain_id=pending.causal_chain_id,
-                                      source_owner_id=pending.owner_id)
+                                      source_owner_id=pending.owner_id, continuation_of_request_id=original.id)
         if request is None:
             # No second reservation attempt: derive the same deterministic reason.
             repeated = db.scalar(select(AutomaticReservation.id).where(AutomaticReservation.causal_chain_id == pending.causal_chain_id, AutomaticReservation.source_owner_id == pending.owner_id, AutomaticReservation.target_owner_id == pending.owner_id, AutomaticReservation.content_hash == self.normalized_content_hash(pending.body)))
@@ -3299,7 +3386,7 @@ class ProductService:
                 return
             key = decision["decision_id"]
             request = self.accept_request(db, chat, origin.target_twin_id, origin.requester_id,
-                "approval_result", key, source_message_id=origin.source_message_id,
+                "approval_result", key, source_message_id=origin.source_message_id, continuation_of_request_id=origin.id,
                 intent_key=key, causal_chain_id=origin.causal_chain_id, source_owner_id=origin.source_owner_id,
                 input_body=f"Owner decision for approval {row.id}: {row.status}. "
                 "If approved, use execute_approved_action with that ID to perform the frozen action. "

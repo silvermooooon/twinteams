@@ -1,4 +1,4 @@
-"""Incremental owner memory maintenance on the existing private FIFO and deadlines."""
+"""Incremental owner memory maintenance on the bounded task admission and deadlines."""
 import json
 import os
 from datetime import timedelta
@@ -299,7 +299,7 @@ def confirm(service, request_id, version):
 
 
 def manual_request(service, owner_id, entries, generation):
-    """An explicit owner action; deduplicate against the existing private FIFO intent."""
+    """An explicit owner action; deduplicate against the existing task intent."""
     with service.transaction() as db:
         chat = db.scalar(select(Chat).where(Chat.private_owner_id == owner_id).with_for_update())
         if chat.reset_pending or chat.reset_generation != generation:

@@ -114,7 +114,7 @@ def notify(service, db, row):
     continuation = service.accept_request(db, chat, twin.id, row.owner_id, "followup_result", key,
         source_message_id=origin.source_message_id, intent_key=key, input_body=body,
         causal_chain_id=row.causal_chain_id, automatic_reservation_id=reservation.id,
-        source_owner_id=source_owner)
+        source_owner_id=source_owner, continuation_of_request_id=origin.id)
     continuation.execution_config = json.loads(json.dumps(origin.execution_config)) if origin.execution_config is not None else None
     if reply:
         sources = [*sources, {"kind": "chat_context", "chat_id": row.target_chat_id,

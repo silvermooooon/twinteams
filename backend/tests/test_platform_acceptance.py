@@ -144,7 +144,7 @@ def test_private_read_is_audited_and_normal_group_output_stays_conservative(prod
     output_id = product.publish_runtime_output(
         request["id"],
         "Output after private reference read.",
-        "sdk-session",
+        request["session_id"],
         "sdk-run",
         "sdk-event",
         7,
@@ -379,6 +379,10 @@ def test_old_platform_tool_contract_resumes_on_real_sdk_then_new_run_gets_capabi
         await runtime.start()
         product.bind_runtime(runtime)
         _request, context = origin(product)
+        # Model the pre-upgrade handoff window: SDK journal exists before the
+        # product has bound its legacy session. New task identities stay strict.
+        with product.transaction() as db:
+            db.get(ReplyRequest, _request["id"]).session_id = None
         session_id = "legacy-contract-" + uuid4().hex
         session = DatabaseSession(
             runtime.store, tenant_id="local", user_id="owner-alex", session_id=session_id
@@ -641,10 +645,18 @@ def test_group_approval_private_inbox_then_actual_sdk_executes_frozen_action_onc
         await runtime.start()
         product.bind_runtime(runtime)
         request, context = origin(product)
+        def settle_origin(model, ctx, options):
+            stream = AssistantMessageEventStream()
+            stream.push({"type": "done", "message": assistant_message(model, content=[], stopReason="stop")})
+            return stream
+        runtime.models.register_api("offline-regression", settle_origin)
+        await product.execute_request(request["id"])
+        settled = product.get_request(request["id"])
+        assert settled["status"] == "completed"
         context.update(
             operation_id="approval-exact-platform",
-            runtime_session_id="approval-origin-group",
-            runtime_run_id="approval-origin-run",
+            runtime_session_id=settled["session_id"],
+            runtime_run_id=settled["run_id"],
         )
         action = {
             "tool": "create_reminder",

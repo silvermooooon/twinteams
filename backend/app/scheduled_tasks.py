@@ -1,4 +1,4 @@
-"""Owner schedules: PostgreSQL intent, disposable Redis due index, existing FIFO execution."""
+"""Owner schedules: PostgreSQL intent, disposable Redis due index, task-scoped execution."""
 import asyncio
 import hashlib
 import json

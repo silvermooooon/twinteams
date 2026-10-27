@@ -1,6 +1,7 @@
 /** English product copy. User-authored content is displayed as supplied. */
 import { twinEn } from './twin';
 export const en = {
+  'chat.activeTasks': 'Active tasks', 'chat.taskRunning': 'Running…', 'chat.reviewTask': 'Background review', 'chat.scheduledTask': 'Scheduled task', 'chat.memoryTask': 'Memory review', 'chat.backgroundTask': 'Background task', 'chat.replyTask': 'Reply · {message}', 'chat.privateTask': 'Private task',
   'notifications.title': 'Notifications and activity',
   'notifications.prompt': 'Turn on desktop notifications',
   'notifications.promptDetail': 'Know when your Duet replies or someone sends you a message while you are away.',

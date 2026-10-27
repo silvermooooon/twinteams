@@ -288,14 +288,15 @@ def test_mutable_reply_projection_cannot_be_consumed_before_its_final_state(prod
         request = product.accept_request(db, db.get(Chat, "private-alex"), "twin-alex", "owner-alex",
             "reply_for_me", uuid4().hex, raw="Original private owner input")
         request_id = request.id
-    provisional = product.publish_runtime_output(request_id, "Provisional draft", "projection-session",
+    session_id = product.get_request(request_id)["session_id"]
+    provisional = product.publish_runtime_output(request_id, "Provisional draft", session_id,
         "projection-run", "provisional-event", 0)
     later = append(product, "Independent published report after the mutable projection")
     assert next_due(product) is None
     with product.transaction() as db:
         assert db.get(MemoryDreamState, "owner-alex").message_cursor_seq == 0
     if terminal == "completed":
-        product.publish_runtime_output(request_id, "Stable final projection", "projection-session",
+        product.publish_runtime_output(request_id, "Stable final projection", session_id,
             "projection-run", "final-event", 1)
         product.complete_request(request_id)
     else:

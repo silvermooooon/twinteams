@@ -77,12 +77,51 @@ def install_offline(root):
                     source = db.get(Message, request.source_message_id) if request.source_message_id else None
                     return {'request_id': request.id, 'source': request.source, 'chat_id': request.chat_id,
                             'owner_id': db.get(Actor, request.target_twin_id).owner_id,
+                            'session_id': request.session_id, 'continuation_of_request_id': getattr(request, 'continuation_of_request_id', None),
+                            'background': getattr(request, 'background', False),
                             'body': request.input_body if request.source == 'followup_result' else source.body if source else request.input_body or ''}
             info = await asyncio.to_thread(details)
             body = info.get('body', text)
+            if info.get('source') in {'scheduled_task', 'system_review'}:
+                try: body = json.loads(body).get('instructions', body)
+                except (ValueError, TypeError): pass
+            if (root / ('hold-provider-source-' + info.get('source', 'unknown'))).exists():
+                body = 'CONCURRENCY HOLD ' + info['source']
             phase = 'reply'
+            if info.get('request_id'):
+                marker = root / ('provider-start-' + info['request_id'] + '.json')
+                if not marker.exists(): marker.write_text(json.dumps(info))
             final = 'Acceptance private reply.'
-            if 'ACCEPTANCE PROPOSE ' in body:
+            if info.get('source') == 'question_result' and body.startswith('CONCURRENCY QUESTION'):
+                final = 'Completed question continuation: Blue'
+            elif body.startswith('CONCURRENCY HOLD'):
+                release = root / ('release-slow-provider-' + info['request_id'])
+                (root / ('slow-provider-' + info['request_id'])).write_text('explicit offline concurrency barrier')
+                deadline = asyncio.get_running_loop().time() + 300
+                while not release.exists():
+                    if asyncio.get_running_loop().time() > deadline: raise RuntimeError('Controlled concurrency barrier timed out')
+                    await asyncio.sleep(.1)
+                final = 'Completed held task: ' + body.removeprefix('CONCURRENCY HOLD').strip()
+            elif body.startswith('CONCURRENCY QUESTION'):
+                if 'ask_question' not in tool_names:
+                    name, args = 'ask_question', {'question': 'Choose the fixture color for this task.', 'options': ['Blue', 'Green']}
+                else:
+                    (root / ('slow-provider-' + info['request_id'])).write_text('question published; origin still running')
+                    release = root / ('release-slow-provider-' + info['request_id'])
+                    deadline = asyncio.get_running_loop().time() + 300
+                    while not release.exists():
+                        if asyncio.get_running_loop().time() > deadline: raise RuntimeError('Question origin barrier timed out')
+                        await asyncio.sleep(.1)
+                final = ''
+            elif body.startswith('CONCURRENCY FAIL_ONCE'):
+                marker = root / ('failed-once-' + (info.get('continuation_of_request_id') or info['request_id']))
+                if not marker.exists():
+                    marker.write_text('isolated intentional failure')
+                    raise RuntimeError('Controlled concurrency task failure')
+                final = 'Recovered fixture task.'
+            elif body.startswith('CONCURRENCY COMPLETE'):
+                final = 'Completed independent task: ' + body.removeprefix('CONCURRENCY COMPLETE').strip()
+            elif 'ACCEPTANCE PROPOSE ' in body:
                 payload = json.loads(body.split('ACCEPTANCE PROPOSE ', 1)[1])
                 if 'request_duet_conversation' not in tool_names:
                     name, args = 'request_duet_conversation', payload
@@ -118,7 +157,7 @@ def install_offline(root):
                 raise RuntimeError('Acceptance tool failed: ' + str(results[-1].get('toolName')))
         content = [{'type': 'toolCall', 'id': f'acceptance-{len(results)}-{name}', 'name': name, 'arguments': args}] if name else [{'type': 'text', 'text': final}]
         with (root / 'provider-calls.jsonl').open('a') as target:
-            target.write(json.dumps({'phase': phase, 'tool': name, **{key: info.get(key) for key in ('request_id', 'source', 'chat_id', 'owner_id')}}) + '\n')
+            target.write(json.dumps({'phase': phase, 'tool': name, **{key: info.get(key) for key in ('request_id', 'source', 'chat_id', 'owner_id', 'session_id', 'continuation_of_request_id', 'background')}}) + '\n')
         stream = AssistantMessageEventStream()
         stream.push({'type': 'done', 'message': assistant_message(model, content=content, stopReason='toolUse' if name else 'stop')})
         return stream
@@ -151,18 +190,81 @@ def snapshot(root):
             'chats': [fields(item, 'id kind title') for item in db.scalars(select(Chat))],
             'conversations': [fields(item, 'chat_id origin_chat_id status close_reason') for item in db.scalars(select(DuetConversation))],
             'memberships': [fields(item, 'chat_id owner_id') for item in db.scalars(select(Membership))],
-            'messages': [fields(item, 'id chat_id seq author_id kind body') for item in db.scalars(select(Message).order_by(Message.created_at))],
-            'requests': [fields(item, 'id chat_id target_twin_id source status cancel_requested') for item in db.scalars(select(ReplyRequest))],
+            'messages': [fields(item, 'id chat_id seq author_id kind body request_id reply_to_message_id') for item in db.scalars(select(Message).order_by(Message.created_at))],
+            'requests': [fields(item, 'id chat_id target_twin_id source status cancel_requested session_id run_id source_message_id accepted_at error background continuation_of_request_id') for item in db.scalars(select(ReplyRequest))],
             'routes': [fields(item, 'id message_id status needs_response') for item in db.scalars(select(RoutingDecision))],
             'approvals': [fields(item, 'id chat_id approver_id status sdk_reference') for item in db.scalars(select(Approval))],
             'followups': [fields(item, 'id owner_id chat_id target_chat_id status notification_state continuation_request_id due_at') for item in db.scalars(select(TwinFollowup))],
             'grants': [fields(item, 'owner_id peer_owner_id') for item in db.scalars(select(DuetContactGrant))],
             'chains': [fields(item, 'id spent allowance') for item in db.scalars(select(CausalChain))],
+            'provider_starts': [json.loads(path.read_text()) for path in root.glob('provider-start-*.json')],
             'provider_calls': [json.loads(line) for line in (root / 'provider-calls.jsonl').read_text().splitlines()] if (root / 'provider-calls.jsonl').exists() else [],
         }
 
 
+def verify_concurrency_stage(value, stage):
+    requests = {row['id']: row for row in value['requests']}
+    messages = {row['id']: row for row in value['messages']}
+    def by_body(body):
+        source = next(row for row in messages.values() if row['kind'] == 'human' and row['body'] == body)
+        return next(row for row in requests.values() if row['source_message_id'] == source['id'] and not row['continuation_of_request_id'])
+    def output(request):
+        return [row for row in messages.values() if row.get('request_id') == request['id'] and row['kind'] == 'twin']
+    if stage == 'concurrent':
+        first, fast = by_body('CONCURRENCY HOLD first'), by_body('CONCURRENCY COMPLETE fast')
+        assert first['status'] == 'running' and fast['status'] == 'completed'
+        assert first['session_id'] and fast['session_id'] and first['session_id'] != fast['session_id']
+        assert first['chat_id'] == fast['chat_id'] and not output(first) and len(output(fast)) == 1
+    elif stage == 'cancel-isolation':
+        survivor, stopped = by_body('CONCURRENCY HOLD survivor'), by_body('CONCURRENCY HOLD cancel-me')
+        assert survivor['status'] == 'running' and not survivor['cancel_requested']
+        assert stopped['status'] == 'cancelled' or stopped['cancel_requested']
+        assert not output(stopped) and survivor['session_id'] != stopped['session_id']
+    elif stage == 'cancel-finished':
+        survivor, stopped = by_body('CONCURRENCY HOLD survivor'), by_body('CONCURRENCY HOLD cancel-me')
+        assert survivor['status'] == 'completed' and len(output(survivor)) == 1
+        assert stopped['status'] == 'cancelled' and not output(stopped)
+    elif stage == 'background-overlap':
+        background = next(row for row in reversed(list(requests.values())) if row['background'] and row['status'] == 'running')
+        fast = by_body('CONCURRENCY COMPLETE during-background')
+        assert fast['status'] == 'completed' and len(output(fast)) == 1
+        assert background['chat_id'] == fast['chat_id'] and background['session_id'] != fast['session_id']
+        assert not fast['background'] and not output(background)
+    elif stage == 'retry-isolation':
+        failed = by_body('CONCURRENCY FAIL_ONCE retry-task')
+        retry = next(row for row in requests.values() if row['continuation_of_request_id'] == failed['id'])
+        held = by_body('CONCURRENCY HOLD beside-retry')
+        assert failed['status'] == 'failed' and retry['status'] == 'completed'
+        assert retry['session_id'] == failed['session_id'] and len(output(retry)) == 1
+        assert held['status'] == 'running' and not held['cancel_requested']
+        assert held['session_id'] != retry['session_id']
+    elif stage == 'parallel-results':
+        private = by_body('CONCURRENCY HOLD simultaneous-private')
+        background = next(row for row in requests.values() if row['source'] == 'system_review' and row['status'] == 'completed')
+        assert private['status'] == 'completed' and len(output(private)) == len(output(background)) == 1
+        assert output(private)[0]['body'] == 'Completed held task: simultaneous-private'
+        assert output(background)[0]['body'] == 'Completed held task: system_review'
+        assert output(private)[0]['seq'] != output(background)[0]['seq']
+    elif stage == 'question-wait':
+        root = by_body('CONCURRENCY QUESTION color-task')
+        children = [row for row in requests.values() if row['continuation_of_request_id'] == root['id']]
+        fast = by_body('CONCURRENCY COMPLETE beside-question-fast')
+        assert root['status'] == 'running' and fast['status'] == 'completed'
+        assert children and all(row['status'] == 'queued' and row['session_id'] == root['session_id'] for row in children)
+        assert not any(row['request_id'] in {child['id'] for child in children} for row in value['provider_starts'])
+    elif stage == 'continuation':
+        root = by_body('CONCURRENCY QUESTION color-task')
+        children = [row for row in requests.values() if row['continuation_of_request_id'] == root['id']]
+        assert children and any(row['source'] == 'question_result' and row['status'] == 'completed' for row in children)
+        assert all(row['session_id'] == root['session_id'] for row in children)
+        unrelated = by_body('CONCURRENCY HOLD beside-question')
+        assert unrelated['status'] == 'running' and unrelated['session_id'] != root['session_id']
+    return {'stage': stage, 'verified': True, 'snapshot': value}
+
+
 def verify_stage(value, stage):
+    if stage in {'concurrent', 'cancel-isolation', 'background-overlap', 'continuation', 'cancel-finished', 'question-wait', 'parallel-results', 'retry-isolation'}:
+        return verify_concurrency_stage(value, stage)
     groups = {chat['id'] for chat in value['chats'] if chat['kind'] == 'group'}
     group_messages = [message for message in value['messages'] if message['chat_id'] in groups]
     assert len(group_messages) >= 2 and all(message['kind'] == 'human' for message in group_messages)
@@ -209,6 +311,23 @@ def child(args):
             raise RuntimeError('Acceptance state must be a private fixture file')
         saved = json.loads(args.state.read_text()); os.environ.clear(); os.environ.update(saved['env'])
     root = guard()
+    if args.role == 'seed-background':
+        from sqlalchemy import select
+
+        from app.models import ScheduledTask, now
+        from app.scheduled_tasks import enqueue, ensure_system, mutate
+        from app.service import service
+        (root / ('hold-provider-source-' + args.task_source)).write_text('explicit offline fixture barrier')
+        with service.transaction() as db:
+            if args.task_source == 'system_review':
+                ensure_system(service, db, args.owner_id)
+                row = db.scalar(select(ScheduledTask).where(ScheduledTask.owner_id == args.owner_id, ScheduledTask.kind == 'system_review'))
+            else:
+                result = mutate(service, db, args.owner_id, values={'title': 'Concurrency fixture schedule', 'instructions': 'CONCURRENCY HOLD scheduled_task', 'timezone': 'UTC', 'schedule': {'kind': 'interval', 'seconds': 86400}, 'enabled': False})
+                row = db.get(ScheduledTask, result['id'])
+            request = enqueue(service, db, row, now(), now(), manual_key='offline-concurrency-' + uuid4().hex)
+            identifier = request.id
+        print(json.dumps({'request_id': identifier, 'source': args.task_source, 'fixture_only': True})); return
     if args.role == 'release-provider':
         if os.environ.get('TWINTEAMS_E2E_MODEL_MODE') == 'live-gpt-6-luna': raise RuntimeError('Release controls are offline-only')
         from sqlalchemy import select
@@ -216,7 +335,7 @@ def child(args):
         from app.models import ReplyRequest
         from app.service import service
         with service.transaction() as db:
-            ids = list(db.scalars(select(ReplyRequest.id).where(ReplyRequest.chat_id == args.chat_id)))
+            ids = list(db.scalars(select(ReplyRequest.id).where(ReplyRequest.id.in_(args.request_id.split(',')) if args.request_id else ReplyRequest.chat_id == args.chat_id)))
         released = 0
         for identifier in ids:
             if (root / ('slow-provider-' + identifier)).exists():
@@ -277,7 +396,7 @@ async def launch(args):
     nonce = uuid4().hex; prefix = 'browser-e2e-' + nonce
     root = Path(tempfile.mkdtemp(prefix='twinteams-browser-e2e-')); root.chmod(0o700)
     artifacts = args.artifact_dir.resolve(); artifacts.mkdir(parents=True, exist_ok=True); artifacts.chmod(0o700)
-    sources = [*BACKEND.joinpath('app').glob('*.py'), *BACKEND.parent.joinpath('frontend/src').glob('*.ts*'), *BACKEND.parent.joinpath('frontend/src').glob('*.css')]
+    sources = [*BACKEND.joinpath('app').rglob('*.py'), *BACKEND.parent.joinpath('frontend/src').rglob('*.ts*'), *BACKEND.parent.joinpath('frontend/src').rglob('*.css')]
     (artifacts / 'start-source-hashes.json').write_text(json.dumps({str(path.relative_to(BACKEND.parent)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}, indent=2))
     (root / '.fixture').write_text(nonce); (root / 'gitconfig').write_text('')
     for folder in ('tmp', 'workspaces', 'memory', 'secrets'): (root / folder).mkdir(mode=0o700)
@@ -320,7 +439,7 @@ async def launch(args):
                 except (httpx.HTTPError, ValueError): pass
                 await asyncio.sleep(.15)
             else: raise RuntimeError('Acceptance readiness timed out')
-        public = {'url': url, 'instance_id': nonce, 'namespace': prefix, 'state': str(state), 'artifacts': str(artifacts), 'mode': env['TWINTEAMS_E2E_MODEL_MODE'], 'max_http_attempts': args.max_attempts if args.live else 0}
+        public = {'url': url, 'instance_id': nonce, 'namespace': prefix, 'state': str(state), 'artifacts': str(artifacts), 'mode': env['TWINTEAMS_E2E_MODEL_MODE'], 'max_http_attempts': args.max_attempts if args.live else 0, 'launcher_pid': os.getpid(), 'child_pids': [process.pid for process in processes if process.poll() is None]}
         (artifacts / 'instance.json').write_text(json.dumps(public, indent=2)); print(json.dumps({'status': 'ready', **public}), flush=True)
         if args.serve:
             task = asyncio.current_task(); loop = asyncio.get_running_loop()
@@ -347,8 +466,9 @@ async def launch(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--role', choices=['launch', 'init', 'api', 'worker', 'inspect', 'expire-followup', 'release-provider'], default='launch')
-    parser.add_argument('--verify-stage', choices=['human', 'pending', 'directional', 'expanded', 'final'])
+    parser.add_argument('--role', choices=['launch', 'init', 'api', 'worker', 'inspect', 'expire-followup', 'release-provider', 'seed-background'], default='launch')
+    parser.add_argument('--verify-stage', choices=['human', 'pending', 'directional', 'expanded', 'final', 'concurrent', 'cancel-isolation', 'background-overlap', 'continuation', 'cancel-finished', 'question-wait', 'parallel-results', 'retry-isolation'])
+    parser.add_argument('--task-source', choices=['scheduled_task', 'system_review'], default='scheduled_task'); parser.add_argument('--owner-id', default='owner-alex'); parser.add_argument('--request-id')
     parser.add_argument('--chat-id'); parser.add_argument('--port', type=int); parser.add_argument('--state', type=Path)
     parser.add_argument('--serve', action='store_true'); parser.add_argument('--live', action='store_true'); parser.add_argument('--live-approved', action='store_true')
     parser.add_argument('--max-attempts', type=int, default=30); parser.add_argument('--dist', type=Path, default=Path('/tmp/duet-collab-dist'))

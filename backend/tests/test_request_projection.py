@@ -24,7 +24,7 @@ def test_retry_lifecycle_never_revives_an_older_failure(product, terminal):
     retry = product.retry_request("owner-alex", old, uuid4().hex)["id"]
     rows = visible_requests(product)
     assert set(rows) == {retry, unrelated} and rows[retry]["status"] == "queued"
-    product.bind_runtime_run(retry, "synthetic-session", "synthetic-run")
+    product.bind_runtime_run(retry, product.get_request(retry)["session_id"], "synthetic-run")
     rows = visible_requests(product)
     assert set(rows) == {retry, unrelated} and rows[retry]["status"] == "running"
 

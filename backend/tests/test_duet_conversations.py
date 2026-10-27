@@ -209,7 +209,7 @@ def test_close_signals_running_sdk_stop_and_blocks_late_output(product):
     with product.transaction() as db:
         assert db.get(DispatchCommand, request_id).kind == 'cancel'
     with pytest.raises(HTTPException):
-        product.publish_runtime_output(request_id, 'Late output', 'synthetic-session', 'synthetic-run')
+        product.publish_runtime_output(request_id, 'Late output', product.get_request(request_id)['session_id'], 'synthetic-run')
     assert len(duet.detail(product, 'owner-alex', row['chat_id'])['messages']) == 1
 
 
@@ -269,7 +269,7 @@ def test_six_shared_replies_new_conversation_inherits_budget_fresh_human_intent_
             request_id = request.id
         last_context = product.get_runtime_context(request_id)
         output = product.publish_runtime_output(request_id, f'Useful next question {turn}?',
-            f'offline-session-{turn}', f'offline-run-{turn}')
+            product.get_request(request_id)['session_id'], f'offline-run-{turn}')
         product.finish_request(request_id, 'completed', route_message_id=output)
     with product.transaction() as db:
         chain = db.get(CausalChain, initial['causal_chain_id'])
@@ -392,7 +392,7 @@ def test_private_proposal_starts_followup_only_after_consent_and_peer_answer_rep
         peer = db.scalar(select(ReplyRequest).where(ReplyRequest.chat_id == row['chat_id']))
         peer_id = peer.id
     product.get_runtime_context(peer_id)
-    answer_id = product.publish_runtime_output(peer_id, 'Friday at 15:00 is confirmed.', 'peer-session', 'peer-run')
+    answer_id = product.publish_runtime_output(peer_id, 'Friday at 15:00 is confirmed.', product.get_request(peer_id)['session_id'], 'peer-run')
     product.finish_request(peer_id, 'completed', route_message_id=answer_id)
     with product.transaction() as db:
         followup = db.scalar(select(TwinFollowup).where(TwinFollowup.target_chat_id == row['chat_id']))
@@ -406,10 +406,10 @@ def test_private_proposal_starts_followup_only_after_consent_and_peer_answer_rep
         assert product._prepare_route(decision) is None
     report_context = product.get_runtime_context(report_id)
     assert report_context['followup_result']['reply_body'] == 'Friday at 15:00 is confirmed.'
-    product.publish_runtime_output(report_id, 'Your Duet confirmed Friday at 15:00.', 'report-session', 'report-run')
+    product.publish_runtime_output(report_id, 'Your Duet confirmed Friday at 15:00.', product.get_request(report_id)['session_id'], 'report-run')
     assert any(message['body'] == 'Your Duet confirmed Friday at 15:00.' for message in product.chat_detail('owner-alex', 'private-alex')['messages'])
     duet.close_conversation(product, 'owner-maya', row['chat_id'])
-    assert product.publish_runtime_output(report_id, 'Late report after closed authorization', 'report-session', 'report-run', 'late') is None
+    assert product.publish_runtime_output(report_id, 'Late report after closed authorization', product.get_request(report_id)['session_id'], 'report-run', 'late') is None
     with pytest.raises(HTTPException):
         product.authorize_runtime_generation(report_context)
 

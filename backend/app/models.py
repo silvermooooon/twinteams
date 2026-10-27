@@ -240,6 +240,7 @@ class TriggerCandidate(Base):
 
 
 class ReplyLane(Base):
+    """Short-lived acceptance numbering; legacy session columns are not execution locks."""
     __tablename__ = "tt_reply_lanes"
     chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), primary_key=True)
     twin_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id"), primary_key=True)
@@ -260,6 +261,8 @@ class ReplyRequest(Base):
     target_twin_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id"))
     requester_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
     source: Mapped[str] = mapped_column(String(24))
+    continuation_of_request_id: Mapped[str | None] = mapped_column(ForeignKey("tt_reply_requests.id"), index=True)
+    background: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     intent_key: Mapped[str] = mapped_column(String(256))
     generation: Mapped[int] = mapped_column(Integer, default=0)
     client_request_key: Mapped[str] = mapped_column(String(160))
@@ -311,7 +314,7 @@ class DispatchCommand(Base):
 
 
 class TwinFollowup(Base):
-    """One durable reply/deadline outcome and its existing-FIFO delivery intent."""
+    """One durable reply/deadline outcome and its task-continuation delivery intent."""
     __tablename__ = "tt_twin_followups"
     __table_args__ = (Index("tt_followup_due", "status", "due_at"),
                       Index("tt_followup_delivery", "notification_state", "chat_id"))
@@ -373,7 +376,7 @@ class MemoryEditAudit(Base):
 
 
 class MemoryDreamState(Base):
-    """Incremental consolidation cursor and ordinary FIFO scheduling intent."""
+    """Incremental consolidation cursor and bounded task scheduling intent."""
     __tablename__ = "tt_memory_dream_state"
     __table_args__ = (Index("tt_memory_dream_due", "due_at", "queued_request_id"),)
     owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), primary_key=True)

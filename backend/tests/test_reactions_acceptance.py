@@ -256,7 +256,7 @@ def test_cross_chat_reaction_requires_actual_message_visibility_and_preserves_so
     # Reading a private reaction target adds the existing private source envelope.
     # It must not make an ordinary group automatic output readable to others.
     output = product.publish_runtime_output(
-        request["id"], "Private-derived output", "s", "r", "e", 1
+        request["id"], "Private-derived output", product.get_request(request["id"])["session_id"], "r", "e", 1
     )
     assert any(
         row["id"] == output for row in product.chat_detail("owner-alex", "duet-team")["messages"]
@@ -278,7 +278,7 @@ def test_committed_reaction_tool_phase_recovers_without_duplicate_effect(product
     async def run():
         runtime = RuntimeBridge(product)
         await runtime.start()
-        session_id = "reaction-recovery-" + uuid4().hex
+        session_id = product.get_request(_request["id"])["session_id"]
         session = DatabaseSession(
             runtime.store, tenant_id="local", user_id="owner-alex", session_id=session_id
         )

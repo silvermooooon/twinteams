@@ -65,7 +65,7 @@ journal. Redis holds a disposable due-time index. Worker reconciliation repairs
 missed index hints from PostgreSQL in bounded batches (100 by default), with a
 default 300-second compensation interval. This interval is a reconciliation
 setting, not an execution deadline during worker outages or backlog. Accepted
-occurrences reuse the existing private-chat FIFO and SDK execution path. Missed
+occurrences use independent task sessions through the existing SDK execution path. Foreground messages do not wait for an unrelated occurrence; background admission leaves foreground capacity. Missed
 recurring times coalesce into one occurrence; the same task cannot start another
 occurrence while its current request or delegated/pending work is unresolved.
 Durable occurrence keys prevent duplicate acceptance, but do not promise

@@ -10,7 +10,7 @@ from test_credentials import product as product  # noqa: PLC0414
 from test_nested_worker_parity import call, response, text
 
 from app import questions
-from app.models import ActivityProjection, Message, ReplyLane, ReplyRequest
+from app.models import ActivityProjection, Message, ReplyRequest
 from app.question_models import QuestionRequest
 from app.runtime_bridge import RuntimeBridge
 
@@ -26,9 +26,10 @@ def pending(product, chat_id="private-alex"):
             chat, _ = product.membership(db, "owner-alex", chat_id)
             request = product.request_payload(product.accept_request(db, chat, product.twin(db, "owner-alex").id,
                 "owner-maya", "auto", uuid4().hex, source_message_id=sent["message"]["id"]))
-    product.bind_runtime_run(request["id"], "session-" + request["id"], "run-" + request["id"])
+    session_id = product.get_request(request["id"])["session_id"]
+    product.bind_runtime_run(request["id"], session_id, "run-" + request["id"])
     context = product.get_runtime_context(request["id"])
-    context.update(operation_id=uuid4().hex, runtime_session_id="session-" + request["id"],
+    context.update(operation_id=uuid4().hex, runtime_session_id=session_id,
         runtime_run_id="run-" + request["id"], runtime_command_id=request["id"])
     args = {"question": "Which format should I use?", "options": ["Short", "Detailed"]}
     row = questions.create(product, args, context)
@@ -134,6 +135,8 @@ def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actu
             position = max(i for i, message in enumerate(context.messages) if message["role"] == "user")
             results = [message for message in context.messages[position + 1:] if message["role"] == "toolResult"]
             calls.append((user, context))
+            if user == "UNRELATED-NEW-TASK":
+                return response(model, [{"type": "text", "text": "UNRELATED-TASK-COMPLETED"}])
             if user.startswith("The owner answered"):
                 assert any(text(message) == ("WORKER-ORIGINAL-TASK" if worker else "ROOT-ORIGINAL-TASK") for message in context.messages)
                 if worker:
@@ -182,12 +185,21 @@ def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actu
                 await runtime.close(); runtime = RuntimeBridge(product)
                 runtime.models.register_api("offline-regression", offline)
                 await runtime.start();product.bind_runtime(runtime)
+            unrelated = send_message(product, "owner-alex", "private-alex", "UNRELATED-NEW-TASK", uuid4().hex)["request"]
+            await product.execute_request(unrelated["id"])
+            assert product.get_request(unrelated["id"])["session_id"] != old_session
             (questions.dismiss(product, "owner-alex", question_id) if dismiss else questions.answer(product, "owner-alex", question_id, "Detailed"))
             with product.transaction() as db:
                 continuation_id = db.get(QuestionRequest, question_id).continuation_request_id
             await product.execute_request(continuation_id)
             resumed = product.get_request(continuation_id)
-            assert resumed["status"] == "completed", resumed
+            with product.transaction() as db:
+                error = db.get(ReplyRequest, continuation_id).error
+            if resumed["status"] != "completed":
+                from agent_runtime.sessions import DatabaseSession
+                failed_session = await DatabaseSession.open(runtime.store, tenant_id=runtime.tenant_id, session_id=old_session)
+                error = (error, failed_session.snapshot.get("error"))
+            assert resumed["status"] == "completed", error
             assert resumed["session_id"] == old_session and resumed["run_id"] != old_run
             if worker:
                 for _ in range(300):
@@ -200,9 +212,8 @@ def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actu
                 assert len(parent_ids) == 1
                 await product.execute_request(parent_ids[0])
                 expected = "ROOT-REVIEWED-ANSWER"
-                with product.transaction() as db:
-                    lane_session = db.get(ReplyLane, ("private-alex", product.twin(db, "owner-alex").id)).session_id
-                assert lane_session != old_session
+                assert product.get_request(parent_ids[0])["session_id"] == product.get_request(original["id"])["session_id"]
+                assert product.get_request(parent_ids[0])["session_id"] != old_session
             else:
                 expected = "MAIN-ANSWER-RESUMED"
                 with product.transaction() as db:

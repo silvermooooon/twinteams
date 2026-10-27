@@ -35,6 +35,9 @@ def test_followup_projection_requires_actual_final_text_and_completed_run():
 
 
 class ProductStub:
+    def owner_question_handoff_for_run(self, session_id, run_id):
+        return False
+
     def pending_owner_question_for_run(self, session_id, run_id):
         return False
     model_configured = True

@@ -67,7 +67,7 @@ retains the original provider output. The SDK library itself remains opt-in.
 
 One dedicated database belongs to one `TWINTEAMS_TENANT_ID`. The product checks
 that database identity on startup. Product tables own identities, memberships,
-chat messages, source grants, FIFO requests, routing, Tracking and reminders.
+chat messages, source grants, task requests, routing, Tracking and reminders.
 The SDK owns its journal, runs, usage/audit, checkpoints, commands and leases.
 No second Runtime event log is maintained by the product.
 
@@ -77,7 +77,7 @@ content is loaded through authorized HTTP. The former SSE/token transport and
 three-second full-chat polling have been removed. Reconciliation deduplicates
 by SDK event ID. SDK lease loss keeps the logical request recoverable. Slow model
 routing is scheduled separately from ready replies. Failed Duet routing appears on its source message. That message’s owner can explicitly retry; each click creates one fresh durable classifier attempt, retains the original causal-chain allowance and read checks, and never retries itself. Apply [the additive routing retry column](docs/group-routing-retry-schema.sql) before rollout (also applied by `app.init_db`). Approval decisions are durable
-SDK facts, then enter the product FIFO as a continuation. Exact installed platform actions
+SDK facts, then resume their originating task as a continuation. Exact installed platform actions
 are frozen and replay-safe; approval does not install extra execution capabilities.
 No email/payment adapters are installed.
 
