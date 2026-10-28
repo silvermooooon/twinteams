@@ -562,6 +562,7 @@ class ProductService:
         return all(self.visible_message(db, member, source_id, False) for source_id in source_ids)
 
     def provenance_allowed(self, db, member, sources, seen=None, cache=None):
+        cache = {} if cache is None else cache
         for source in sources or []:
             if source.get("kind") == "summary":
                 from .conversation_context import summary_allowed, summary_metadata
@@ -595,6 +596,10 @@ class ProductService:
                     return False
                 if source.get("hash"):
                     from .conversation_context import message_source
+                    # Fetch hash inputs together, preserving already loaded or edited values.
+                    missing = sa_inspect(message).unloaded.intersection({"body", "raw_owner_input", "attachment_ids"})
+                    if missing:
+                        db.refresh(message, attribute_names=sorted(missing))
                     current_hash = message_source(db, message)["hash"]
                     # Frozen pre-checkpoint tool manifests used a body-only
                     # digest; new sources explicitly version the full snapshot.

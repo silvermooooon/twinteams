@@ -95,7 +95,8 @@ def test_proactive_send_schema_preserves_followup_and_reply_reference():
     system = runtime._system(context)
     assert "active approved Duet conversation" in tool.description
     assert "audience restrictions" in system
-    assert "courtesy loops" in system
+    reaction = next(tool for tool in runtime._tools(context, session) if tool.name == "set_message_reaction")
+    assert "courtesy loops" in reaction.description
 
 
 @pytest.mark.parametrize("final_body,failed", [("", False), ("Useful completed result.", False), ("", True)])
