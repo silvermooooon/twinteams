@@ -102,7 +102,7 @@ def test_nested_result_resumes_actual_parent_with_shared_git_memory_and_recovery
             if restart:
                 if restart == "stop":
                     await asyncio.wait_for(worker_blocked.wait(), 10)
-                    manager = runtime.managers[original["session_id"]]
+                    manager = runtime.managers[original["session_id"], bool(original["background"])]
                     children = await manager.aget()
                     await asyncio.wait_for(manager.stop(children[0]["task_id"]), 5)
                     release_grandchild.set()

@@ -193,6 +193,8 @@ class ProductService:
             upgrade_attachment_schema(engine)
             from .request_concurrency_schema import upgrade_request_concurrency_schema
             upgrade_request_concurrency_schema(engine)
+            from .activity_visibility_schema import upgrade_activity_visibility_schema
+            upgrade_activity_visibility_schema(engine)
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE tt_chats ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 1"))
                 connection.execute(text("ALTER TABLE tt_change_outbox ADD COLUMN IF NOT EXISTS kind VARCHAR(16) NOT NULL DEFAULT 'changed'"))
@@ -272,6 +274,8 @@ class ProductService:
         check_reaction_schema(inspector)
         from .request_concurrency_schema import check_request_concurrency_schema
         check_request_concurrency_schema(inspector)
+        from .activity_visibility_schema import check_activity_visibility_schema
+        check_activity_visibility_schema(inspector)
         if not inspector.has_table("tt_change_outbox") or not inspector.has_table("tt_chat_attachments") or "revision" not in {col["name"] for col in inspector.get_columns("tt_chats")} or "attachment_ids" not in {col["name"] for col in inspector.get_columns("tt_messages")}:
             raise RuntimeError("Run python -m app.init_db before starting API or worker")
         if "command_id" not in {column["name"] for column in inspector.get_columns("tt_routing_decisions")}:
@@ -1862,7 +1866,7 @@ class ProductService:
             self.request_chain(db, request)
             if request.source == "memory_dream":
                 from .memory_dream import context
-                return context(self, db, request)
+                return {**context(self, db, request), "activity_user_visible": False, "background": request.background}
             twin = db.get(Actor, request.target_twin_id)
             chat, member = self.membership(db, twin.owner_id, request.chat_id)
             from .conversation_context import latest_summary, read_context, scope_for
@@ -1907,7 +1911,7 @@ class ProductService:
             continuation_origin = ({"request_id": origin.id, "session_id": origin.session_id,
                 "run_id": origin.run_id, "status": origin.status, "cancel_requested": origin.cancel_requested} if origin else None)
             from .onboarding import context_for_request
-            return {"active_requests": active_requests, "continuation_of_request_id": request.continuation_of_request_id, "continuation_origin": continuation_origin, "pending_questions": pending, "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": conversation["messages"], "_summary_scope": summary_scope, "context_incomplete": conversation["context_incomplete"], "source_message": self.message_json(db, source_message, member, cache=checked) if source_message else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+            return {"background": request.background, "activity_user_visible": self._activity_request_user_visible(db, request), "active_requests": active_requests, "continuation_of_request_id": request.continuation_of_request_id, "continuation_origin": continuation_origin, "pending_questions": pending, "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "followup_result": followup_payload, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": conversation["messages"], "_summary_scope": summary_scope, "context_incomplete": conversation["context_incomplete"], "source_message": self.message_json(db, source_message, member, cache=checked) if source_message else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
 
     def _concurrent_task_context(self, db, request, chat, member):
         """Authorized task hints, including children whose foreground turn finished."""
@@ -2137,73 +2141,60 @@ class ProductService:
         self.finish_request(request_id, "failed", str(error))
 
     def claim_dispatches(self, scopes=None):
-        """Admit independent tasks concurrently; serialize only their own SDK session."""
+        """Independent foreground/background quotas; only each task session is ordered."""
         from sqlalchemy.orm import aliased
         earlier, origin = aliased(ReplyRequest), aliased(ReplyRequest)
-        counts, background_counts, result = {}, {}, []
-        background_total = 0
-        background_limit = max(1, settings.max_running - 1)
-        owner_background_limit = max(1, settings.max_per_owner - 1)
+        counts, totals, result = {}, {False: 0, True: 0}, []
         with self.transaction() as db:
             if scopes is not None:
                 pending_scopes = set(db.scalars(select(ReplyRequest.chat_id).where(ReplyRequest.chat_id.in_(scopes), ReplyRequest.status.in_(["queued", "running"])).distinct().limit(1000)))
                 self.ready_scopes.difference_update(set(scopes) - pending_scopes)
-            active = list(db.execute(select(ReplyRequest.background, Actor.owner_id).join(Actor,
-                ReplyRequest.target_twin_id == Actor.id).where(ReplyRequest.id.in_(tuple(self.tasks)))))
+            active = db.execute(select(ReplyRequest.background, Actor.owner_id).join(Actor,
+                ReplyRequest.target_twin_id == Actor.id).where(ReplyRequest.id.in_(tuple(self.tasks))))
             for background, owner in active:
-                counts[owner] = counts.get(owner, 0) + 1
-                if background:
-                    background_counts[owner] = background_counts.get(owner, 0) + 1
-                    background_total += 1
-            for _ in range(settings.max_running):
-                capacity = settings.max_running - len(self.tasks) - len(result)
-                if capacity <= 0:
-                    break
-                exhausted = [owner for owner, count in counts.items() if count >= settings.max_per_owner]
-                background_exhausted = [owner for owner, count in background_counts.items() if count >= owner_background_limit]
-                # NULL sessions are legacy accepted commands. Their historical lane
-                # mapping keeps recovery ordered, without making new roots share it.
-                same_session = or_(
-                    and_(ReplyRequest.session_id.is_not(None), earlier.session_id == ReplyRequest.session_id),
-                    and_(earlier.chat_id == ReplyRequest.chat_id, earlier.target_twin_id == ReplyRequest.target_twin_id,
-                        or_(and_(ReplyRequest.session_id.is_(None),
-                            or_(earlier.session_id.is_(None), earlier.session_id == ReplyLane.session_id)),
-                            and_(earlier.session_id.is_(None), ReplyRequest.session_id == ReplyLane.session_id))))
-                query = select(ReplyRequest, Actor.owner_id).join(Actor, Actor.id == ReplyRequest.target_twin_id).join(Chat, Chat.id == ReplyRequest.chat_id).outerjoin(ReplyLane,
-                    and_(ReplyLane.chat_id == ReplyRequest.chat_id, ReplyLane.twin_id == ReplyRequest.target_twin_id)).where(
-                    Chat.kind != "group", ReplyRequest.status.in_(["queued", "running"]),
-                    ~select(earlier.id).where(same_session,
-                        earlier.status.in_(["queued", "running"]),
-                        earlier.accepted_seq < ReplyRequest.accepted_seq).exists(),
-                    ~select(origin.id).where(origin.id == ReplyRequest.continuation_of_request_id,
-                        origin.status.in_(["queued", "running"])).exists())
-                if scopes is not None:
-                    query = query.where(ReplyRequest.chat_id.in_(scopes))
-                if exhausted:
-                    query = query.where(Actor.owner_id.not_in(exhausted))
-                if background_total >= background_limit:
-                    query = query.where(ReplyRequest.background.is_(False))
-                elif background_exhausted:
-                    query = query.where(or_(ReplyRequest.background.is_(False), Actor.owner_id.not_in(background_exhausted)))
-                omitted = set(self.tasks) | set(result) | {key for key, until in tuple(self.deferred.items()) if until > (self.loop.time() if self.loop else 0)}
-                if omitted:
-                    query = query.where(ReplyRequest.id.not_in(omitted))
-                rows = list(db.execute(query.order_by(ReplyRequest.background, ReplyRequest.accepted_at, ReplyRequest.accepted_seq).limit(100)))
-                if not rows:
-                    break
-                before = len(result)
-                for request, owner in rows:
-                    if request.background and (background_total >= background_limit or background_counts.get(owner, 0) >= owner_background_limit):
-                        continue
-                    if counts.get(owner, 0) < settings.max_per_owner and len(result) < capacity + before:
-                        counts[owner] = counts.get(owner, 0) + 1
-                        if request.background:
-                            background_counts[owner] = background_counts.get(owner, 0) + 1
-                            background_total += 1
-                        result.append(request.id)
-                        self.ready_scopes.add(request.chat_id)
-                if len(result) == before:
-                    break
+                counts[background, owner] = counts.get((background, owner), 0) + 1
+                totals[background] += 1
+            # NULL sessions retain their legacy journal ordering on recovery.
+            same_session = or_(
+                and_(ReplyRequest.session_id.is_not(None), earlier.session_id == ReplyRequest.session_id),
+                and_(earlier.chat_id == ReplyRequest.chat_id, earlier.target_twin_id == ReplyRequest.target_twin_id,
+                    or_(and_(ReplyRequest.session_id.is_(None),
+                        or_(earlier.session_id.is_(None), earlier.session_id == ReplyLane.session_id)),
+                        and_(earlier.session_id.is_(None), ReplyRequest.session_id == ReplyLane.session_id))))
+            base = select(ReplyRequest, Actor.owner_id).join(Actor, Actor.id == ReplyRequest.target_twin_id).join(Chat, Chat.id == ReplyRequest.chat_id).outerjoin(ReplyLane,
+                and_(ReplyLane.chat_id == ReplyRequest.chat_id, ReplyLane.twin_id == ReplyRequest.target_twin_id)).where(
+                Chat.kind != "group", ReplyRequest.status.in_(["queued", "running"]),
+                ~select(earlier.id).where(same_session, earlier.status.in_(["queued", "running"]),
+                    earlier.accepted_seq < ReplyRequest.accepted_seq).exists(),
+                ~select(origin.id).where(origin.id == ReplyRequest.continuation_of_request_id,
+                    origin.status.in_(["queued", "running"])).exists())
+            if scopes is not None:
+                base = base.where(ReplyRequest.chat_id.in_(scopes))
+            for background, limit, owner_limit in (
+                    (False, settings.max_running, settings.max_per_owner),
+                    (True, settings.max_background_running, settings.max_background_per_owner)):
+                for _ in range(max(0, limit - totals[background])):
+                    capacity = limit - totals[background]
+                    if capacity <= 0:
+                        break
+                    query = base.where(ReplyRequest.background == background)
+                    exhausted = [owner for (kind, owner), count in counts.items() if kind == background and count >= owner_limit]
+                    if exhausted:
+                        query = query.where(Actor.owner_id.not_in(exhausted))
+                    omitted = set(self.tasks) | set(result) | {key for key, until in tuple(self.deferred.items()) if until > (self.loop.time() if self.loop else 0)}
+                    if omitted:
+                        query = query.where(ReplyRequest.id.not_in(omitted))
+                    rows = list(db.execute(query.order_by(ReplyRequest.accepted_at, ReplyRequest.accepted_seq).limit(100)))
+                    before = len(result)
+                    for request, owner in rows:
+                        if counts.get((background, owner), 0) < owner_limit and capacity > 0:
+                            counts[background, owner] = counts.get((background, owner), 0) + 1
+                            totals[background] += 1
+                            capacity -= 1
+                            result.append(request.id)
+                            self.ready_scopes.add(request.chat_id)
+                    if len(result) == before:
+                        break
         return result
 
     def pending_stops(self, scopes=None):
@@ -2505,16 +2496,22 @@ class ProductService:
         notifications.emit(chat_id)
 
 
-    def is_retired_private_run(self, parent_session_id, parent_run_id, owner_id):
+    def runtime_origin_state(self, parent_session_id, parent_run_id, owner_id):
         with self.transaction() as db:
             request = db.scalar(select(ReplyRequest).where(ReplyRequest.session_id == parent_session_id,
                 ReplyRequest.run_id == parent_run_id).order_by(ReplyRequest.accepted_at.desc()).limit(1))
             if not request:
-                return False
+                return None
             chat, twin = db.get(Chat, request.chat_id), db.get(Actor, request.target_twin_id)
-            return bool(chat.kind == "private" and chat.private_owner_id == owner_id
-                and twin.owner_id == owner_id and request.private_generation is not None
-                and request.private_generation < chat.reset_generation)
+            if not chat or not twin or twin.owner_id != owner_id:
+                return None
+            return {"background": request.background, "retired": bool(chat.kind == "private"
+                and chat.private_owner_id == owner_id and request.private_generation is not None
+                and request.private_generation < chat.reset_generation)}
+
+    def is_retired_private_run(self, parent_session_id, parent_run_id, owner_id):
+        origin = self.runtime_origin_state(parent_session_id, parent_run_id, owner_id)
+        return bool(origin and origin["retired"])
 
     def get_background_context(self, parent_session_id, parent_run_id):
         with self.transaction() as db:
@@ -3505,6 +3502,19 @@ class ProductService:
                             "path": str(local), "workspace_path": str(path), "size": None if path.is_dir() else path.stat().st_size})
         return entries
 
+    def _activity_request_user_visible(self, db, request):
+        from .activity_visibility_schema import HIDDEN_ACTIVITY_SOURCES
+        current, seen = request, set()
+        while current and current.id not in seen:
+            if (current.chat_id, current.target_twin_id, current.private_generation or 0) != (
+                    request.chat_id, request.target_twin_id, request.private_generation or 0):
+                break
+            if current.source in HIDDEN_ACTIVITY_SOURCES or (current.execution_config or {}).get("scheduled_task"):
+                return False
+            seen.add(current.id)
+            current = db.get(ReplyRequest, current.continuation_of_request_id) if current.continuation_of_request_id else None
+        return True
+
     def record_activity(self, chat_id, owner_id, session_id, run_id, values):
         with self.transaction() as db:
             chat = db.scalar(select(Chat).where(Chat.id == chat_id).with_for_update())
@@ -3513,44 +3523,46 @@ class ProductService:
                 return
             row = db.get(ActivityProjection, (session_id, run_id))
             if not row:
-                row = ActivityProjection(session_id=session_id, run_id=run_id, chat_id=chat_id, owner_id=owner_id, private_generation=generation)
+                row = ActivityProjection(session_id=session_id, run_id=run_id, chat_id=chat_id, owner_id=owner_id, private_generation=generation, user_visible=values.get("user_visible", True))
                 db.add(row)
             for name in ("parent_run_id", "source", "status", "title", "summary", "started_at", "finished_at"):
                 if values.get(name) is not None:
                     setattr(row, name, values[name])
 
-    def _activity_scope(self, owner_id, chat_id, session_id=None, run_id=None):
+    def _activity_scope(self, owner_id, chat_id, session_id=None, run_id=None, user_visible_only=True):
         with self.transaction() as db:
             chat, _ = self.membership(db, owner_id, chat_id)
             if chat.kind != "private" or chat.private_owner_id != owner_id:
                 fail(403, "Activity is limited to your current private chat and its child runs")
             if session_id and run_id:
                 row = db.get(ActivityProjection, (session_id, run_id))
-                if not row or row.chat_id != chat_id or row.owner_id != owner_id or row.private_generation != chat.reset_generation:
+                if not row or row.chat_id != chat_id or row.owner_id != owner_id or row.private_generation != chat.reset_generation or (user_visible_only and not row.user_visible):
                     fail(404, "Activity run not found")
                 return self._activity_json(row)
 
     def _activity_json(self, row):
         return {name: iso(getattr(row, name)) if name in ("started_at", "finished_at") else getattr(row, name) for name in ("session_id", "run_id", "parent_run_id", "source", "status", "title", "summary", "started_at", "finished_at")}
 
-    def activity_page(self, owner_id, chat_id, limit=50, before=None):
+    def activity_page(self, owner_id, chat_id, limit=50, before=None, user_visible_only=True):
         self._activity_scope(owner_id, chat_id)
         with self.transaction() as db:
             query = select(ActivityProjection).join(Chat, Chat.id == ActivityProjection.chat_id).where(ActivityProjection.chat_id == chat_id, ActivityProjection.owner_id == owner_id, ActivityProjection.private_generation == Chat.reset_generation)
+            if user_visible_only:
+                query = query.where(ActivityProjection.user_visible)
             if before:
                 from sqlalchemy import tuple_
                 query = query.where(tuple_(ActivityProjection.started_at, ActivityProjection.session_id, ActivityProjection.run_id) < tuple(before))
             rows = list(db.scalars(query.order_by(ActivityProjection.started_at.desc(), ActivityProjection.session_id.desc(), ActivityProjection.run_id.desc()).limit(limit + 1)))
             return {"items": [self._activity_json(row) for row in rows[:limit]], "has_more": len(rows) > limit, "next_cursor": [iso(rows[limit-1].started_at), rows[limit-1].session_id, rows[limit-1].run_id] if len(rows) > limit else None}
 
-    async def activity(self, owner_id, chat_id, session_id=None, run_id=None, limit=100, after_seq=-1):
-        run = await self.db_call("_activity_scope", owner_id, chat_id, session_id, run_id)
+    async def activity(self, owner_id, chat_id, session_id=None, run_id=None, limit=100, after_seq=-1, user_visible_only=True):
+        run = await self.db_call("_activity_scope", owner_id, chat_id, session_id, run_id, user_visible_only)
         if session_id and run_id:
             if not self.runtime or not self.runtime.store:
                 fail(503, "Runtime journal unavailable")
             records = await self.runtime.store.read_run_records(settings.tenant_id, session_id, run_id, after_seq=after_seq, limit=limit + 1)
             return {"run": run, "events": [event for record in records[:limit] if (event := self.runtime._event_view(record)) is not None], "has_more": len(records) > limit, "next_seq": records[limit-1]["seq"] if len(records) > limit else None}
-        return (await self.db_call("activity_page", owner_id, chat_id, limit))["items"]
+        return (await self.db_call("activity_page", owner_id, chat_id, limit, user_visible_only=user_visible_only))["items"]
 
 
 service = ProductService()

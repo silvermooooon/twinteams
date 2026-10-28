@@ -105,7 +105,7 @@ def test_real_spawn_payload_matches_worker_and_completion_returns_only_to_origin
             await product.execute_request(unrelated["id"])
             main = {tool["name"]: tool for tool in current_tools(payloads["ORIGINAL-TASK"].messages)}
             worker = {tool["name"]: tool for tool in current_tools(payloads["WORKER-ASSIGNMENT"].messages)}
-            manager = runtime.managers[original["session_id"]]
+            manager = runtime.managers[original["session_id"], bool(original["background"])]
             sdk_tools = {tool.name: tool for tool in create_subagent_tools(manager)}
             for name in ("spawn_agent", "get_agent", "wait_agent"):
                 assert main[name] == worker[name]

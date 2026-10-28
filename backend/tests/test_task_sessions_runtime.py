@@ -48,7 +48,7 @@ def test_same_private_tasks_run_independently_and_stop_is_request_scoped(product
             first = product.get_request(first["id"])
             assert second["status"] == "completed" and first["status"] == "running"
             assert first["session_id"] != second["session_id"]
-            assert set(runtime.managers) >= {first["session_id"], second["session_id"]}
+            assert set(runtime.managers) >= {(first["session_id"], False), (second["session_id"], False)}
             assert "Other active tasks and workers" in str(contexts["NEW-TASK"])
             assert first["id"] in str(contexts["NEW-TASK"])
             second_records = await runtime._run_records(runtime.tenant_id, second["session_id"], second["run_id"])

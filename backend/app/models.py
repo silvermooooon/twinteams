@@ -1,7 +1,7 @@
 """PostgreSQL Twinteams business schema; no SDK execution-event duplicates."""
 from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import Boolean, CheckConstraint, cast, DateTime, ForeignKey, Index, Integer, BigInteger, JSON, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, cast, DateTime, ForeignKey, Index, Integer, BigInteger, JSON, LargeBinary, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
@@ -578,12 +578,14 @@ class ChangeOutbox(Base):
 
 class ActivityProjection(Base):
     __tablename__ = "tt_activity_runs"
-    __table_args__ = (Index("tt_activity_chat_order", "chat_id", "started_at", "session_id", "run_id"),)
+    __table_args__ = (Index("tt_activity_chat_order", "chat_id", "started_at", "session_id", "run_id"),
+                     Index("tt_activity_user_visible_order", "chat_id", "private_generation", "started_at", "session_id", "run_id", postgresql_where=text("user_visible")))
     session_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     run_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"))
     owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
     private_generation: Mapped[int] = mapped_column(Integer, default=0)
+    user_visible: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
     parent_run_id: Mapped[str | None] = mapped_column(String(128))
     source: Mapped[str] = mapped_column(String(32), default="user")
     status: Mapped[str] = mapped_column(String(32), default="running")

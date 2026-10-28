@@ -212,7 +212,7 @@ async def execute_dream(runtime, request, context):
         runtime.active[request_id] = agent
         return agent
 
-    executor = DurableExecutor(runtime.store, factory, host=runtime.host)
+    executor = DurableExecutor(runtime.store, factory, host=runtime._host_for(request))
     runtime.executors[request_id] = executor
     error, result = None, None
     try:

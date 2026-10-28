@@ -28,7 +28,7 @@ async def execute_child_answer(runtime, request, context):
         await runtime.store.accept_command(runtime.tenant_id, source["session_id"], user_id=context["owner_id"],
             command_id=request["id"], kind="prompt", payload={"message": request["input_body"],
                 "subagent": creation, "question_result": request["id"]})
-    executor = DurableExecutor(runtime.store, runtime._child_factory, host=runtime.host)
+    executor = DurableExecutor(runtime.store, runtime._child_factory, host=runtime._host_for(request))
     runtime.executors[request["id"]] = executor
     try:
         result = await executor.execute_command(runtime.tenant_id, source["session_id"],

@@ -166,10 +166,11 @@ class RuntimeBridge:
         self.startup_error: str | None = None
         self.active: dict[str, Agent] = {}
         self.executors: dict[str, Any] = {}
-        self.managers: dict[str, Any] = {}
+        self.managers: dict[tuple[str, bool], Any] = {}
         self.cancelled: set[str] = set()
         self._closing = False
         self.host = None
+        self.background_host = None
         self.recovery_tasks = {}
         self.recovery_cursor = None
         self.notification_cursor = None
@@ -210,14 +211,20 @@ class RuntimeBridge:
         await self.store.check_schema()
         from agent_runtime.execution import ExecutionHost
         self.host = ExecutionHost(self.store, max_active=settings.max_running + settings.routing_concurrency, max_active_children=8, publish=self._publish_runtime_change)
+        self.background_host = ExecutionHost(self.store, max_active=settings.max_background_running, max_active_children=settings.max_background_children, publish=self._publish_runtime_change)
 
     async def _publish_runtime_change(self, tenant_id, session_id):
         from .notifications import notifications
         await notifications.publish({"tenant_id": tenant_id, "session_id": session_id})
 
+    def _host_for(self, context):
+        return self.background_host if context.get("background") else self.host
+
     def notify(self, event):
-        if self.host and event.get("session_id"):
-            self.host.notify(event.get("tenant_id", self.tenant_id), event["session_id"])
+        if event.get("session_id"):
+            for host in (self.host, self.background_host):
+                if host:
+                    host.notify(event.get("tenant_id", self.tenant_id), event["session_id"])
 
     async def close(self):
         self._closing = True
@@ -232,8 +239,9 @@ class RuntimeBridge:
                                  return_exceptions=True)
         for manager in tuple(self.managers.values()):
             await manager.close()
-        if self.host:
-            await self.host.close()
+        for host in (self.host, self.background_host):
+            if host:
+                await host.close()
         if self.store:
             await self.store.close()
 
@@ -322,7 +330,7 @@ class RuntimeBridge:
             agent.stream_function = checked_stream
             return agent
 
-        executor = DurableExecutor(self.store, factory, host=self.host)
+        executor = DurableExecutor(self.store, factory, host=self._host_for(prepared))
         accepted = await self.store.get_command(self.tenant_id, command_id)
         if accepted and accepted["state"] in {"failed", "stopped"}:
             # A new product attempt may resume a failed/stopped tool-free checkpoint.
@@ -358,7 +366,7 @@ class RuntimeBridge:
             # blocks model admission: the initial bounded tail may have an older
             # prefix that has not yet been checkpointed.
             try:
-                body = await self._summarize_conversation(prepared)
+                body = await self._summarize_conversation({**prepared, "background": bool(context.get("background"))})
             except RuntimeBusy:
                 # Another task may be checkpointing the same authorized prefix.
                 # A complete bounded snapshot is already usable; compression is
@@ -582,6 +590,7 @@ class RuntimeBridge:
 
     async def execute(self, request: dict, context: dict):
         self._require()
+        context = {**context, "background": bool(request.get("background"))}
         await self._check_generation(context)
         await self._continuation_ready(request)
         if request.get("source") == "memory_dream":
@@ -676,7 +685,7 @@ class RuntimeBridge:
                         signal.abort()
                         await self.store.request_cancel(tenant_id, request_id)
                     await self.service.db_call("bind_runtime_run", request_id, session_id, session.snapshot["run_id"])
-                    await self.service.db_call("record_activity", chat_id, owner_id, session_id, session.snapshot["run_id"], {"title": activity_title, "source": request.get("source") if terminal_only else "user", "status": "running", "private_generation": agent_context.get("private_generation") or 0})
+                    await self.service.db_call("record_activity", chat_id, owner_id, session_id, session.snapshot["run_id"], {"user_visible": agent_context.get("activity_user_visible", True), "title": activity_title, "source": request.get("source") if terminal_only else "user", "status": "running", "private_generation": agent_context.get("private_generation") or 0})
                     await self.emit(chat_id, type="changed", request_id=request_id)
                 elif (kind == "message_start" and not terminal_only
                       and event.get("message", {}).get("role") == "assistant"):
@@ -693,7 +702,7 @@ class RuntimeBridge:
                             await self.service.db_call("publish_runtime_output",
                                 request_id, body, session_id, record.get("run_id"), record["id"], record["seq"]
                             )
-                        await self.service.db_call("record_activity", chat_id, owner_id, session_id, record.get("run_id"), {"summary": safe_text(body) if body else None, "private_generation": agent_context.get("private_generation") or 0})
+                        await self.service.db_call("record_activity", chat_id, owner_id, session_id, record.get("run_id"), {"user_visible": agent_context.get("activity_user_visible", True), "summary": safe_text(body) if body else None, "private_generation": agent_context.get("private_generation") or 0})
                         if not terminal_only:
                             await self.emit(chat_id, type="output_committed", request_id=request_id, event_id=record["id"])
                     if records:
@@ -703,7 +712,7 @@ class RuntimeBridge:
             await self._attach_subagents(agent, agent_context)
             return agent
 
-        executor = DurableExecutor(self.store, factory, host=self.host)
+        executor = DurableExecutor(self.store, factory, host=self._host_for(context))
         self.executors[request_id] = executor
         try:
             accepted = await self.store.get_command(tenant_id, request_id)
@@ -731,7 +740,7 @@ class RuntimeBridge:
             run_id = result.get("run_id") or snapshot.get("run_id")
             if not run_id:
                 raise RuntimeError("The SDK command has no durable run identity.")
-            await self.service.db_call("record_activity", chat_id, owner_id, session_id, run_id, {"title": activity_title, "status": status, "private_generation": context.get("private_generation") or 0, "finished_at": datetime.now(UTC) if status in ("completed", "failed", "stopped", "cancelled") else None})
+            await self.service.db_call("record_activity", chat_id, owner_id, session_id, run_id, {"user_visible": context.get("activity_user_visible", True), "title": activity_title, "status": status, "private_generation": context.get("private_generation") or 0, "finished_at": datetime.now(UTC) if status in ("completed", "failed", "stopped", "cancelled") else None})
             records = await self._run_records(tenant_id, session_id, run_id)
             if not terminal_only:
                 await self._project_outputs(request_id, tenant_id, session_id, run_id, records, terminal_only=False)
@@ -829,7 +838,7 @@ class RuntimeBridge:
                     if question_request and event.get("type") == "agent_start":
                         await self.service.db_call("bind_runtime_run", question_request, session.session_id, run_id)
                     await self.service.db_call("record_activity", context["chat"]["id"], context["owner_id"], session.session_id, run_id,
-                        {"private_generation": context.get("private_generation") or 0, "parent_run_id": origin.get("parent_run_id") or origin.get("root_run_id"), "source": "subagent", "title": safe_text(origin.get("task", "Background task"))[:180], "status": snapshot.get("status", "running"), "finished_at": datetime.now(UTC) if event.get("type") == "agent_end" else None})
+                        {"user_visible": context.get("activity_user_visible", True), "private_generation": context.get("private_generation") or 0, "parent_run_id": origin.get("parent_run_id") or origin.get("root_run_id"), "source": "subagent", "title": safe_text(origin.get("task", "Background task"))[:180], "status": snapshot.get("status", "running"), "finished_at": datetime.now(UTC) if event.get("type") == "agent_end" else None})
         agent.subscribe(child_activity)
         await self._attach_subagents(agent, context)
         return agent
@@ -837,10 +846,11 @@ class RuntimeBridge:
     async def _attach_subagents(self, agent, context):
         from agent_runtime.subagents import DurableSubagentManager
         sid = agent.session.session_id
-        manager = self.managers.get(sid)
+        key = (sid, bool(context.get("background")))
+        manager = self.managers.get(key)
         if manager is None:
-            manager = DurableSubagentManager(agent, agent_factories={"worker": self._child_factory}, host=self.host, max_active_children=8, max_children=32)
-            self.managers[sid] = manager
+            manager = DurableSubagentManager(agent, agent_factories={"worker": self._child_factory}, host=self._host_for(context), max_active_children=settings.max_background_children if context.get("background") else 8, max_children=32)
+            self.managers[key] = manager
 
             async def completed(notification):
                 await self._deliver_child_result(notification, owner_id=manager.parent.session.info.user_id)
@@ -921,20 +931,25 @@ class RuntimeBridge:
             if not origin or row["session_id"] in self.recovery_tasks:
                 continue
             root_session, root_run = self._root_origin(origin)
-            retired = await self.service.db_call("is_retired_private_run", root_session, root_run, row["user_id"])
-            if retired:
+            origin_state = await self.service.db_call("runtime_origin_state", root_session, root_run, row["user_id"])
+            if origin_state is None:
+                import logging
+                logging.getLogger(__name__).warning("Child recovery paused: original product task is unavailable")
+                continue
+            host = self._host_for(origin_state)
+            if origin_state["retired"]:
                 from agent_runtime.execution import DurableExecutor
-                await self.host.request_cancel(self.tenant_id, row["command_id"])
-                await DurableExecutor(self.store, lambda session: None, host=self.host, child=True).abandon(
+                await host.request_cancel(self.tenant_id, row["command_id"])
+                await DurableExecutor(self.store, lambda session: None, host=host, child=True).abandon(
                     self.tenant_id, row["session_id"], user_id=row["user_id"],
                     command_id=row["command_id"], reason="Original private conversation was reset")
                 continue
-            async def recover(command=row, creation=origin):
+            async def recover(command=row, creation=origin, execution_host=host):
                 async def factory(session):
                     if session.subagent_creation is None:
                         await session.commit("subagent_created", **creation)
                     return await self._child_factory(session)
-                return await self.host.execute_command(self.tenant_id, command["session_id"], user_id=command["user_id"], command_id=command["command_id"], agent_factory=factory, child=True)
+                return await execution_host.execute_command(self.tenant_id, command["session_id"], user_id=command["user_id"], command_id=command["command_id"], agent_factory=factory, child=True)
             task = asyncio.create_task(recover())
             self.recovery_tasks[row["session_id"]] = task
             def done(task, sid=row["session_id"]):
@@ -949,7 +964,7 @@ class RuntimeBridge:
         # Global SDK inbox pages join the actual session owner. A focused page
         # may use an already bound manager; otherwise leave it to the global page.
         owner_id = notification.get("user_id") or owner_id
-        manager = self.managers.get(payload["parent_session_id"])
+        manager = self.managers.get((payload["parent_session_id"], False)) or self.managers.get((payload["parent_session_id"], True))
         if not owner_id and manager:
             owner_id = manager.parent.session.info.user_id
         if not owner_id:
@@ -1045,7 +1060,7 @@ class RuntimeBridge:
             await self.store.accept_command(self.tenant_id, payload["parent_session_id"],
                 user_id=original["owner_id"], command_id=uuid5(NAMESPACE_URL, "twinteams:child-result:" + notification["command_id"]).hex,
                 kind="prompt", payload={"message": message, "subagent": creation})
-            self.host.notify(self.tenant_id, payload["parent_session_id"])
+            self.notify({"session_id": payload["parent_session_id"]})
         await self.store.ack_notification(self.tenant_id, payload["parent_session_id"], notification["command_id"])
         await self._wake_credential_continuations(payload["child_session_id"], payload["run_id"])
         await self.emit(original["chat"]["id"], type="changed")
@@ -1055,8 +1070,8 @@ class RuntimeBridge:
         agent = self.active.get(request["id"])
         if agent:
             agent.abort()
-        if command and self.host:
-            self.host.notify(self.tenant_id, command["session_id"])
+        if command:
+            self.notify({"session_id": command["session_id"]})
 
     async def cancel(self, request: dict):
         """Persist stop intent and confirm settlement before product releases its lane."""
@@ -1083,7 +1098,7 @@ class RuntimeBridge:
         if not user_id:
             session = await DatabaseSession.open(self.store, tenant_id=self.tenant_id, session_id=session_id)
             user_id = session.info.user_id
-        executor = self.executors.get(request_id) or DurableExecutor(self.store, lambda session: None, host=self.host)
+        executor = self.executors.get(request_id) or DurableExecutor(self.store, lambda session: None, host=self._host_for(request))
         if command["state"] == "accepted":
             result = await executor.execute_command(self.tenant_id, session_id, user_id=user_id, command_id=request_id)
         else:
@@ -1235,10 +1250,10 @@ class RuntimeBridge:
             after = page[-1]["seq"]
 
     async def activity(self, chat_id, owner_id):
-        return await self.service.activity(owner_id, chat_id)
+        return await self.service.activity(owner_id, chat_id, user_visible_only=False)
 
     async def get_activity(self, chat_id, owner_id, session_id, run_id):
-        return await self.service.activity(owner_id, chat_id, session_id, run_id)
+        return await self.service.activity(owner_id, chat_id, session_id, run_id, user_visible_only=False)
 
     def _event_view(self, record):
         kind, data = record["type"], record.get("data", {})

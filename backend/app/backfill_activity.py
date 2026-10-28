@@ -19,6 +19,7 @@ def backfill_activity():
             LEFT JOIN tt_messages message ON message.id=request.source_message_id
             ON CONFLICT (session_id,run_id) DO NOTHING
         """), {"tenant": settings.tenant_id})
+
         connection.execute(text("""
             INSERT INTO tt_activity_runs
                 (session_id,run_id,chat_id,owner_id,parent_run_id,source,status,title,summary,started_at,finished_at)
@@ -29,3 +30,6 @@ def backfill_activity():
             WHERE parent.parent_run_id IS NULL AND child.user_id=parent.owner_id
             ON CONFLICT (session_id,run_id) DO NOTHING
         """), {"tenant": settings.tenant_id})
+
+        from .activity_visibility_schema import backfill_activity_visibility
+        backfill_activity_visibility(connection)

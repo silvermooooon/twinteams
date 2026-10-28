@@ -110,7 +110,7 @@ export function DetailSidebar({ api, detail, duetTarget, actors, version, tracki
   useEffect(() => {
     if (!runKey) return;
     let alive = true; setRunLoading(true);
-    api.get<{ run: ActivityRun; events: ActivityEvent[] }>(`/chats/${chatId}/activity/${encodeURIComponent(runKey.session_id)}/${encodeURIComponent(runKey.run_id)}`).then(result => { if (alive) setRunDetail(result); }).catch(error => { if (alive) onError(error); }).finally(() => { if (alive) setRunLoading(false); });
+    api.get<{ run: ActivityRun; events: ActivityEvent[] }>(`/chats/${chatId}/activity/${encodeURIComponent(runKey.session_id)}/${encodeURIComponent(runKey.run_id)}`).then(result => { if (alive) setRunDetail(result); }).catch(error => { if (alive) { if (error instanceof ApiError && error.status === 404) { setRunKey(null); setRunDetail(null); } onError(error); } }).finally(() => { if (alive) setRunLoading(false); });
     return () => { alive = false; };
   }, [api, chatId, runKey, version]);
   useEffect(() => {

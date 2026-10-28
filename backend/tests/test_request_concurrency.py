@@ -132,8 +132,8 @@ def test_peer_duet_work_keeps_a_slot_for_its_owners_new_private_message(product)
         product.tasks.clear()
 
 
-def test_background_global_reserve_and_single_slot_degradation(product, monkeypatch):
-    monkeypatch.setattr(service_module, "settings", replace(service_module.settings, max_running=3, max_per_owner=2))
+def test_background_quota_is_independent_of_foreground_single_slot(product, monkeypatch):
+    monkeypatch.setattr(service_module, "settings", replace(service_module.settings, max_running=3, max_per_owner=2, max_background_running=2, max_background_per_owner=1))
     backgrounds = [accept(product, "system_review", owner) for owner in ("alex", "maya", "jordan")]
     selected = product.claim_dispatches()
     assert len(selected) == 2 and set(selected).issubset(backgrounds)
@@ -145,7 +145,7 @@ def test_background_global_reserve_and_single_slot_degradation(product, monkeypa
         product.tasks.clear()
     monkeypatch.setattr(service_module, "settings", replace(service_module.settings, max_running=1, max_per_owner=1))
     product.finish_request(human, "completed")
-    assert len(product.claim_dispatches()) == 1
+    assert len(product.claim_dispatches()) == 2
 
 
 def test_cancel_one_parallel_root_preserves_other_request_and_output(product):
