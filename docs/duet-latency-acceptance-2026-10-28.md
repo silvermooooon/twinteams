@@ -1,5 +1,7 @@
 # Runtime authorization latency acceptance — 2026-10-28
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 The deployed change reuses visibility results within one authorization check and fetches missing message hash fields together only when a hash is required. Metadata-only reads remain deferred; already loaded or edited values are preserved. Each subsequent authorization still checks current permissions and content. The SDK and private configuration were unchanged.
 
 The actual implementation's read-only replay of the earlier fifth request used **71 SQL reads**, with a three-run median of **49.081 ms**. This is the shipped implementation, not the earlier 43-query experiment.

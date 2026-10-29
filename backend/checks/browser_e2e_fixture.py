@@ -80,7 +80,6 @@ def install_fixture(root):
         position = users[-1] if users else 0
         user = context.messages[position]
         text = text_content(user)
-        system = text_content(context.messages[0])
         from agent_runtime.transcript import current_tools
         catalog = current_tools(context.messages)
         tools = {tool['name'] for tool in catalog}
@@ -118,222 +117,202 @@ def install_fixture(root):
                         return {'id': state.queued_request_id, 'source': 'memory_dream', 'owner_id': state.owner_id}
                     return {}
             info = await asyncio.to_thread(dream_details)
-        if system.startswith('Choose which human owners'):
-            payload = json.loads(text)
-            message = payload['message']
-            body = message.get('body', '')
-            if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'group-route-recovery' and 'E2E ROUTE_FAIL_ONCE ' in body:
-                marker = root / ('route-fail-once-' + message['id'])
-                if not marker.exists():
-                    marker.write_text('deterministic offline classifier failure attempted')
-                    raise RuntimeError('E2E intentional offline classifier failure')
-            needs = bool(re.search(r'\bE2E (?:ECHO|MARKDOWN|SLOW|FAIL_ONCE|ROUTE_FAIL_ONCE|FILE|FILE_PREVIEW|FILE_PREVIEW_OVERWRITE|IDENTITY|OWNER_DM|CHAIN|QUESTION|CHILD_QUESTION|ANSWER)\b', body))
-            if message.get('kind') in {'twin', 'reply_for_me'} and not body.startswith('E2E CHAIN '):
-                needs = False
-            allowed = json.loads(system.rsplit('Allowed owners: ', 1)[1])
-            author = message.get('author_owner_id') or message.get('source_owner_id') or message.get('author_id')
-            allowed = [owner for owner in allowed if owner != author]
-            if len(allowed) > 1:
-                allowed = [owner for owner in allowed if owner != 'owner-alex'] or allowed
-            content = [{'type': 'text', 'text': json.dumps({'target_owner_ids': allowed[:1], 'needs_response': needs, 'reason': 'Explicit deterministic browser E2E routing'})}]
-            stop = 'stop'
-        else:
-            match = re.search(r'\bE2E ([A-Z_]+)(?: ([A-Za-z0-9_-]+))?', info.get('body') or text)
-            command, label = match.groups() if match else ('ECHO', 'message')
-            label = label or 'fixture'
-            question_resume = None
-            if text.startswith('The owner answered or explicitly declined the focused question below.'):
-                question_resume = json.loads(text.split('\n', 1)[1])
-                resumed_label = re.search(r'for ([A-Za-z0-9_-]+)\?', question_resume['question'])
-                if not resumed_label:
-                    raise RuntimeError('The isolated continuation must retain its question label')
-                command, label = 'QUESTION_RESUME', resumed_label.group(1)
-            name, arguments = None, None
-            final = 'E2E echo: ' + label
-            if 'memory_publish' in tools:
-                command, label = 'DREAM', 'private-evidence'
-                if 'memory_publish' in names:
-                    final = 'E2E Dream published private evidence.'
-                elif not results:
-                    refs = re.findall(r'"session_id":\s*"([^"]+)"\s*,\s*"event_id":\s*"([^"]+)"', text)
-                    if refs:
-                        name, arguments = 'read_source', {'session_id': refs[0][0], 'event_id': refs[0][1]}
-                    else:
-                        name, arguments = 'memory_read', {'key': 'e2e-dream-' + info.get('id', 'source')[:12]}
-                elif 'memory_read' not in names:
+        match = re.search(r'\bE2E ([A-Z_]+)(?: ([A-Za-z0-9_-]+))?', info.get('body') or text)
+        command, label = match.groups() if match else ('ECHO', 'message')
+        label = label or 'fixture'
+        question_resume = None
+        if text.startswith('The owner answered or explicitly declined the focused question below.'):
+            question_resume = json.loads(text.split('\n', 1)[1])
+            resumed_label = re.search(r'for ([A-Za-z0-9_-]+)\?', question_resume['question'])
+            if not resumed_label:
+                raise RuntimeError('The isolated continuation must retain its question label')
+            command, label = 'QUESTION_RESUME', resumed_label.group(1)
+        name, arguments = None, None
+        final = 'E2E echo: ' + label
+        if 'memory_publish' in tools:
+            command, label = 'DREAM', 'private-evidence'
+            if 'memory_publish' in names:
+                final = 'E2E Dream published private evidence.'
+            elif not results:
+                refs = re.findall(r'"session_id":\s*"([^"]+)"\s*,\s*"event_id":\s*"([^"]+)"', text)
+                if refs:
+                    name, arguments = 'read_source', {'session_id': refs[0][0], 'event_id': refs[0][1]}
+                else:
                     name, arguments = 'memory_read', {'key': 'e2e-dream-' + info.get('id', 'source')[:12]}
-                elif 'memory_write' not in names:
-                    read = next(row for row in results if row.get('toolName') == 'memory_read')
-                    value = json.loads(text_content(read))
-                    entry = value.get('entry') or {}
-                    content = entry.get('content', '')
-                    name, arguments = 'memory_write', {'key': 'e2e-dream-' + info.get('id', 'source')[:12], 'content': content + '\nE2E Dream consolidated authorized private evidence.', 'expected_version': entry.get('version')}
-                else:
-                    name, arguments = 'memory_publish', {}
-            elif question_resume is not None or info.get('source') == 'question_result':
-                final = ('E2E question declined: ' if question_resume and question_resume.get('owner_declined') else 'E2E question resumed: ') + label
-            elif info.get('source') == 'system_review' and os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'proactivity':
-                final = ''  # Offline decision: this explicit manual review has no useful update.
-            elif info.get('reply_for_me') and command not in {'QUESTION', 'CHILD_QUESTION'}:
-                final = 'E2E echo: ' + label
-            elif info.get('source') == 'credential_result':
-                if 'bash' not in names:
-                    credential_tool = next(tool for tool in catalog if tool['name'] == 'bash')
-                    refs = credential_tool['parameters']['properties']['credentials']['items']['enum']
-                    name, arguments = 'bash', {'command': '[ -n "$E2E_TOKEN" ] && printf E2E_CREDENTIAL_AVAILABLE', 'credentials': [next(ref for ref in refs if ref.endswith('e2e-' + label))]}
-                final = 'E2E credential resumed: ' + label
-            elif info.get('source') == 'approval_result':
-                if 'execute_approved_action' not in names:
-                    from sqlalchemy import select
-
-                    from app.models import Approval
-                    from app.service import service
-                    def approval_id():
-                        with service.transaction() as db:
-                            row = db.scalar(select(Approval).where(Approval.continuation_request_id == info['id']))
-                            return (row.id, row.status) if row else (None, None)
-                    identifier, status = await asyncio.to_thread(approval_id)
-                    if status == 'approved':
-                        name, arguments = 'execute_approved_action', {'id': identifier}
-                    else:
-                        final = 'E2E approval rejected: ' + label
-                if name or 'execute_approved_action' in names:
-                    final = 'E2E approval executed: ' + label
-            elif info.get('source') == 'subagent_result':
-                final = ('E2E child question reviewed: ' if command == 'CHILD_QUESTION' else 'E2E delegation reviewed: ') + label
-            elif command == 'QUESTION':
-                if 'ask_question' not in names:
-                    name, arguments = 'ask_question', {'question': 'Which delivery date should I use for ' + label + '?',
-                        'options': ['Earlier date ' + label, 'Later date ' + label]}
-                final = 'E2E question pending: ' + label
-            elif command == 'CHILD_QUESTION':
-                if 'spawn_agent' not in names:
-                    name, arguments = 'spawn_agent', {'name': 'worker', 'task': 'E2E QUESTION ' + label}
-                final = 'E2E question delegated: ' + label
-            elif command == 'ANSWER':
-                if 'answer_question' not in names:
-                    from sqlalchemy import select
-
-                    from app.question_models import QuestionRequest
-                    from app.service import service
-
-                    def focused_question():
-                        with service.transaction() as db:
-                            rows = list(db.scalars(select(QuestionRequest).where(QuestionRequest.owner_id == info['owner_id'],
-                                QuestionRequest.status == 'pending', QuestionRequest.question.contains(label))))
-                            if len(rows) != 1:
-                                raise RuntimeError('The isolated answer must match one pending question')
-                            return rows[0].id
-                    name, arguments = 'answer_question', {'question_id': await asyncio.to_thread(focused_question),
-                        'message_id': info['source_message_id']}
-                final = 'E2E question associated: ' + label
-            elif command.startswith('PROACTIVITY_') or command in {'QUIET', 'QUIET_NOW', 'QUIET_CLEAR'}:
-                levels = {'PROACTIVITY_OFF': 'off', 'PROACTIVITY_LOW': 'low', 'PROACTIVITY_NORMAL': 'normal', 'PROACTIVITY_HIGH': 'high'}
-                if command != 'PROACTIVITY_GET' and 'update_proactivity' not in names:
-                    if command in levels:
-                        arguments = {'level': levels[command]}
-                    elif command == 'QUIET':
-                        arguments = {'quiet_hours': {'start': '22:00', 'end': '08:00', 'timezone': 'Asia/Shanghai'}}
-                    elif command == 'QUIET_NOW':
-                        from datetime import UTC, datetime, timedelta
-                        actual = datetime.now(UTC)
-                        arguments = {'quiet_hours': {'start': (actual - timedelta(hours=1)).strftime('%H:%M'),
-                            'end': (actual + timedelta(hours=1)).strftime('%H:%M'), 'timezone': 'UTC'}}
-                    elif command == 'QUIET_CLEAR':
-                        arguments = {'quiet_hours': None}
-                    else:
-                        raise RuntimeError('Unknown isolated proactivity command')
-                    name = 'update_proactivity'
-                elif 'get_proactivity' not in names:
-                    name, arguments = 'get_proactivity', {}
-                else:
-                    returned = json.loads(text_content(next(row for row in reversed(results) if row.get('toolName') == 'get_proactivity')))
-                    final = 'E2E proactivity readback ' + label + ': ' + json.dumps(returned, sort_keys=True)
-            elif command == 'SLOW':
-                await options['signal'].run(asyncio.sleep(8))
-                final = 'E2E slow completed: ' + label
-            elif command == 'FAIL_ONCE':
-                if info.get('generation', 0) == 0:
-                    raise RuntimeError('E2E intentional first-attempt failure')
-                final = 'E2E retry succeeded: ' + label
-            elif command == 'ROUTE_FAIL_ONCE':
-                final = 'E2E route recovered: ' + label
-            elif command == 'MARKDOWN':
-                final = '# E2E Markdown ' + label + '\n\n**Bold** and `inline code`.\n\n- First item\n- Second item\n\n```python\nprint("E2E")\n```\n\n| Column | Value |\n| --- | --- |\n| E2E | passed |'
-            elif command == 'FILE_PREVIEW':
-                documents = preview_documents(label)
-                written = names.count('write')
-                if written < len(documents):
-                    extension, content = documents[written]
-                    name, arguments = 'write', {'path': info['workspace'] + '/generated/' + label + '.' + extension, 'content': content}
-                elif 'present_files' not in names:
-                    name, arguments = 'present_files', {'paths': [info['workspace'] + '/generated/' + label + '.' + ext for ext, _ in documents], 'caption': 'E2E delivered files: ' + label}
-                final = 'E2E file preview delivered: ' + label
-            elif command == 'FILE_PREVIEW_OVERWRITE':
-                if 'write' not in names:
-                    name, arguments = 'write', {'path': info['workspace'] + '/generated/' + label + '.md', 'content': 'Changed source: ' + label}
-                final = 'E2E file preview source overwritten: ' + label
-            elif command == 'FILE':
-                if 'write' not in names:
-                    name, arguments = 'write', {'path': info['workspace'] + '/e2e-' + label + '.txt', 'content': 'E2E generated workspace artifact: ' + label + '\n'}
-                final = 'E2E file ready: e2e-' + label + '.txt'
-            elif command == 'IDENTITY':
-                if 'bash' not in names:
-                    name, arguments = 'bash', {'command': 'printf "owner-cwd=%s\\n" "$PWD"; printf "owner-home=%s\\n" "$HOME"'}
-                elif 'memory_read' not in names:
-                    name, arguments = 'memory_read', {'key': 'e2e-' + label}
-                final = 'E2E owner identity: ' + info.get('owner_id', 'worker')
-                bash_result = next((row for row in results if row.get('toolName') == 'bash'), None)
-                if bash_result:
-                    final += '\n' + text_content(bash_result)
-                memory_result = next((row for row in results if row.get('toolName') == 'memory_read'), None)
-                if memory_result:
-                    final += '\nactual-memory-present=' + str(json.loads(text_content(memory_result)).get('status') == 'found').lower()
-            elif command == 'CREDENTIAL':
-                if 'request_credential' not in names:
-                    name, arguments = 'request_credential', {'name': 'e2e-' + label, 'description': 'Synthetic browser E2E credential', 'keynames': ['E2E_TOKEN'], 'reason': 'Continue the isolated E2E request'}
-                final = 'E2E credential pending: ' + label
-            elif command == 'APPROVAL':
-                if 'create_approval' not in names:
-                    name, arguments = 'create_approval', {'title': 'E2E approval ' + label, 'description': 'Create exactly one isolated test reminder', 'target': 'Your reminders', 'impact': 'One in-app reminder, no external effect', 'action': {'tool': 'create_reminder', 'arguments': {'title': 'E2E approved ' + label}}}
-                final = 'E2E approval pending: ' + label
-            elif command == 'SKILL':
-                if 'load_skill' not in names:
-                    name, arguments = 'load_skill', {'name': 'e2e-verification'}
-                final = 'E2E skill loaded: ' + label
-            elif command == 'MEMORY':
-                if 'memory_write' not in names:
-                    name, arguments = 'memory_write', {'key': 'e2e-' + label, 'content': 'E2E memory ' + label, 'expected_version': None}
-                final = 'E2E memory saved: ' + label
-            elif command == 'DELEGATE':
-                if 'spawn_agent' not in names:
-                    name, arguments = 'spawn_agent', {'name': 'worker', 'task': 'E2E CHILD ' + label}
-                final = 'E2E delegated: ' + label
-            elif command == 'CHILD':
-                await options['signal'].run(asyncio.sleep(2))
-                final = 'E2E child completed: ' + label
-            elif command == 'OWNER_DM':
-                if 'list_authorized_chats' not in names:
-                    name, arguments = 'list_authorized_chats', {}
-                elif 'send_chat_message' not in names:
-                    owner = info['owner_id'].removeprefix('owner-')
-                    name, arguments = 'send_chat_message', {'chat_id': 'private-' + owner, 'body': 'E2E owner report: ' + label, 'source_message_ids': []}
-                final = 'E2E owner report sent: ' + label
-            elif command == 'CHAIN':
-                number = re.search(r'E2E CHAIN [A-Za-z0-9_-]+ (\d+)', info.get('body') or text)
-                step = int(number.group(1)) + 1 if number else 1
-                final = f'E2E CHAIN {label} {step}' if step <= 12 else 'E2E chain complete: ' + label
-            if results and results[-1].get('isError'):
-                name, arguments, final = None, None, 'E2E tool failed: ' + str(results[-1].get('toolName'))
-            if name:
-                if name not in tools:
-                    raise RuntimeError('E2E command requires installed tool: ' + name)
-                content = [{'type': 'toolCall', 'id': f'e2e-{len(results)}-{name}', 'name': name, 'arguments': arguments}]
-                stop = 'toolUse'
+            elif 'memory_read' not in names:
+                name, arguments = 'memory_read', {'key': 'e2e-dream-' + info.get('id', 'source')[:12]}
+            elif 'memory_write' not in names:
+                read = next(row for row in results if row.get('toolName') == 'memory_read')
+                value = json.loads(text_content(read))
+                entry = value.get('entry') or {}
+                content = entry.get('content', '')
+                name, arguments = 'memory_write', {'key': 'e2e-dream-' + info.get('id', 'source')[:12], 'content': content + '\nE2E Dream consolidated authorized private evidence.', 'expected_version': entry.get('version')}
             else:
-                content, stop = [{'type': 'text', 'text': final}], 'stop'
-            with (root / 'provider-calls.jsonl').open('a') as target:
-                target.write(json.dumps({'command': command, 'tool': name, 'request_id': info.get('id'), 'source': info.get('source'), 'owner_id': info.get('owner_id')}) + '\n')
+                name, arguments = 'memory_publish', {}
+        elif question_resume is not None or info.get('source') == 'question_result':
+            final = ('E2E question declined: ' if question_resume and question_resume.get('owner_declined') else 'E2E question resumed: ') + label
+        elif info.get('source') == 'system_review' and os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'proactivity':
+            final = ''  # Offline decision: this explicit manual review has no useful update.
+        elif info.get('reply_for_me') and command not in {'QUESTION', 'CHILD_QUESTION'}:
+            final = 'E2E echo: ' + label
+        elif info.get('source') == 'credential_result':
+            if 'bash' not in names:
+                credential_tool = next(tool for tool in catalog if tool['name'] == 'bash')
+                refs = credential_tool['parameters']['properties']['credentials']['items']['enum']
+                name, arguments = 'bash', {'command': '[ -n "$E2E_TOKEN" ] && printf E2E_CREDENTIAL_AVAILABLE', 'credentials': [next(ref for ref in refs if ref.endswith('e2e-' + label))]}
+            final = 'E2E credential resumed: ' + label
+        elif info.get('source') == 'approval_result':
+            if 'execute_approved_action' not in names:
+                from sqlalchemy import select
+
+                from app.models import Approval
+                from app.service import service
+                def approval_id():
+                    with service.transaction() as db:
+                        row = db.scalar(select(Approval).where(Approval.continuation_request_id == info['id']))
+                        return (row.id, row.status) if row else (None, None)
+                identifier, status = await asyncio.to_thread(approval_id)
+                if status == 'approved':
+                    name, arguments = 'execute_approved_action', {'id': identifier}
+                else:
+                    final = 'E2E approval rejected: ' + label
+            if name or 'execute_approved_action' in names:
+                final = 'E2E approval executed: ' + label
+        elif info.get('source') == 'subagent_result':
+            final = ('E2E child question reviewed: ' if command == 'CHILD_QUESTION' else 'E2E delegation reviewed: ') + label
+        elif command == 'QUESTION':
+            if 'ask_question' not in names:
+                name, arguments = 'ask_question', {'question': 'Which delivery date should I use for ' + label + '?',
+                    'options': ['Earlier date ' + label, 'Later date ' + label]}
+            final = 'E2E question pending: ' + label
+        elif command == 'CHILD_QUESTION':
+            if 'spawn_agent' not in names:
+                name, arguments = 'spawn_agent', {'name': 'worker', 'task': 'E2E QUESTION ' + label}
+            final = 'E2E question delegated: ' + label
+        elif command == 'ANSWER':
+            if 'answer_question' not in names:
+                from sqlalchemy import select
+
+                from app.question_models import QuestionRequest
+                from app.service import service
+
+                def focused_question():
+                    with service.transaction() as db:
+                        rows = list(db.scalars(select(QuestionRequest).where(QuestionRequest.owner_id == info['owner_id'],
+                            QuestionRequest.status == 'pending', QuestionRequest.question.contains(label))))
+                        if len(rows) != 1:
+                            raise RuntimeError('The isolated answer must match one pending question')
+                        return rows[0].id
+                name, arguments = 'answer_question', {'question_id': await asyncio.to_thread(focused_question),
+                    'message_id': info['source_message_id']}
+            final = 'E2E question associated: ' + label
+        elif command.startswith('PROACTIVITY_') or command in {'QUIET', 'QUIET_NOW', 'QUIET_CLEAR'}:
+            levels = {'PROACTIVITY_OFF': 'off', 'PROACTIVITY_LOW': 'low', 'PROACTIVITY_NORMAL': 'normal', 'PROACTIVITY_HIGH': 'high'}
+            if command != 'PROACTIVITY_GET' and 'update_proactivity' not in names:
+                if command in levels:
+                    arguments = {'level': levels[command]}
+                elif command == 'QUIET':
+                    arguments = {'quiet_hours': {'start': '22:00', 'end': '08:00', 'timezone': 'Asia/Shanghai'}}
+                elif command == 'QUIET_NOW':
+                    from datetime import UTC, datetime, timedelta
+                    actual = datetime.now(UTC)
+                    arguments = {'quiet_hours': {'start': (actual - timedelta(hours=1)).strftime('%H:%M'),
+                        'end': (actual + timedelta(hours=1)).strftime('%H:%M'), 'timezone': 'UTC'}}
+                elif command == 'QUIET_CLEAR':
+                    arguments = {'quiet_hours': None}
+                else:
+                    raise RuntimeError('Unknown isolated proactivity command')
+                name = 'update_proactivity'
+            elif 'get_proactivity' not in names:
+                name, arguments = 'get_proactivity', {}
+            else:
+                returned = json.loads(text_content(next(row for row in reversed(results) if row.get('toolName') == 'get_proactivity')))
+                final = 'E2E proactivity readback ' + label + ': ' + json.dumps(returned, sort_keys=True)
+        elif command == 'SLOW':
+            await options['signal'].run(asyncio.sleep(8))
+            final = 'E2E slow completed: ' + label
+        elif command == 'FAIL_ONCE':
+            if info.get('generation', 0) == 0:
+                raise RuntimeError('E2E intentional first-attempt failure')
+            final = 'E2E retry succeeded: ' + label
+        elif command == 'ROUTE_FAIL_ONCE':
+            final = 'E2E route recovered: ' + label
+        elif command == 'MARKDOWN':
+            final = '# E2E Markdown ' + label + '\n\n**Bold** and `inline code`.\n\n- First item\n- Second item\n\n```python\nprint("E2E")\n```\n\n| Column | Value |\n| --- | --- |\n| E2E | passed |'
+        elif command == 'FILE_PREVIEW':
+            documents = preview_documents(label)
+            written = names.count('write')
+            if written < len(documents):
+                extension, content = documents[written]
+                name, arguments = 'write', {'path': info['workspace'] + '/generated/' + label + '.' + extension, 'content': content}
+            elif 'present_files' not in names:
+                name, arguments = 'present_files', {'paths': [info['workspace'] + '/generated/' + label + '.' + ext for ext, _ in documents], 'caption': 'E2E delivered files: ' + label}
+            final = 'E2E file preview delivered: ' + label
+        elif command == 'FILE_PREVIEW_OVERWRITE':
+            if 'write' not in names:
+                name, arguments = 'write', {'path': info['workspace'] + '/generated/' + label + '.md', 'content': 'Changed source: ' + label}
+            final = 'E2E file preview source overwritten: ' + label
+        elif command == 'FILE':
+            if 'write' not in names:
+                name, arguments = 'write', {'path': info['workspace'] + '/e2e-' + label + '.txt', 'content': 'E2E generated workspace artifact: ' + label + '\n'}
+            final = 'E2E file ready: e2e-' + label + '.txt'
+        elif command == 'IDENTITY':
+            if 'bash' not in names:
+                name, arguments = 'bash', {'command': 'printf "owner-cwd=%s\\n" "$PWD"; printf "owner-home=%s\\n" "$HOME"'}
+            elif 'memory_read' not in names:
+                name, arguments = 'memory_read', {'key': 'e2e-' + label}
+            final = 'E2E owner identity: ' + info.get('owner_id', 'worker')
+            bash_result = next((row for row in results if row.get('toolName') == 'bash'), None)
+            if bash_result:
+                final += '\n' + text_content(bash_result)
+            memory_result = next((row for row in results if row.get('toolName') == 'memory_read'), None)
+            if memory_result:
+                final += '\nactual-memory-present=' + str(json.loads(text_content(memory_result)).get('status') == 'found').lower()
+        elif command == 'CREDENTIAL':
+            if 'request_credential' not in names:
+                name, arguments = 'request_credential', {'name': 'e2e-' + label, 'description': 'Synthetic browser E2E credential', 'keynames': ['E2E_TOKEN'], 'reason': 'Continue the isolated E2E request'}
+            final = 'E2E credential pending: ' + label
+        elif command == 'APPROVAL':
+            if 'create_approval' not in names:
+                name, arguments = 'create_approval', {'title': 'E2E approval ' + label, 'description': 'Create exactly one isolated test reminder', 'target': 'Your reminders', 'impact': 'One in-app reminder, no external effect', 'action': {'tool': 'create_reminder', 'arguments': {'title': 'E2E approved ' + label}}}
+            final = 'E2E approval pending: ' + label
+        elif command == 'SKILL':
+            if 'load_skill' not in names:
+                name, arguments = 'load_skill', {'name': 'e2e-verification'}
+            final = 'E2E skill loaded: ' + label
+        elif command == 'MEMORY':
+            if 'memory_write' not in names:
+                name, arguments = 'memory_write', {'key': 'e2e-' + label, 'content': 'E2E memory ' + label, 'expected_version': None}
+            final = 'E2E memory saved: ' + label
+        elif command == 'DELEGATE':
+            if 'spawn_agent' not in names:
+                name, arguments = 'spawn_agent', {'name': 'worker', 'task': 'E2E CHILD ' + label}
+            final = 'E2E delegated: ' + label
+        elif command == 'CHILD':
+            await options['signal'].run(asyncio.sleep(2))
+            final = 'E2E child completed: ' + label
+        elif command == 'OWNER_DM':
+            if 'list_authorized_chats' not in names:
+                name, arguments = 'list_authorized_chats', {}
+            elif 'send_chat_message' not in names:
+                owner = info['owner_id'].removeprefix('owner-')
+                name, arguments = 'send_chat_message', {'chat_id': 'private-' + owner, 'body': 'E2E owner report: ' + label, 'source_message_ids': []}
+            final = 'E2E owner report sent: ' + label
+        elif command == 'CHAIN':
+            number = re.search(r'E2E CHAIN [A-Za-z0-9_-]+ (\d+)', info.get('body') or text)
+            step = int(number.group(1)) + 1 if number else 1
+            final = f'E2E CHAIN {label} {step}' if step <= 12 else 'E2E chain complete: ' + label
+        if results and results[-1].get('isError'):
+            name, arguments, final = None, None, 'E2E tool failed: ' + str(results[-1].get('toolName'))
+        if name:
+            if name not in tools:
+                raise RuntimeError('E2E command requires installed tool: ' + name)
+            content = [{'type': 'toolCall', 'id': f'e2e-{len(results)}-{name}', 'name': name, 'arguments': arguments}]
+            stop = 'toolUse'
+        else:
+            content, stop = [{'type': 'text', 'text': final}], 'stop'
+        with (root / 'provider-calls.jsonl').open('a') as target:
+            target.write(json.dumps({'command': command, 'tool': name, 'request_id': info.get('id'), 'source': info.get('source'), 'owner_id': info.get('owner_id')}) + '\n')
         stream = AssistantMessageEventStream()
         stream.push({'type': 'done', 'message': assistant_message(model, content=content, stopReason=stop)})
         return stream
@@ -436,54 +415,20 @@ def inspect_fixture(root):
     from app.credential_models import CredentialRequest
     from app.models import (
         Approval,
-        Actor,
-        AutomaticReservation,
-        CausalChain,
         Chat,
         ChatAttachment,
         ContextManifest,
         Message,
-        Receipt,
         ReplyRequest,
-        RoutingDecision,
         ScheduledTask,
         TrackingRevision,
         TrackingTopic,
-        TriggerCandidate,
-        TwinFollowup,
     )
     from app.question_models import QuestionRequest
     from app.service import service
     with service.transaction() as db:
-        requests = [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'requester_id', 'target_twin_id', 'source', 'status', 'generation', 'private_generation', 'source_message_id', 'causal_chain_id', 'session_id', 'run_id')},
+        requests = [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'requester_id', 'target_twin_id', 'source', 'status', 'generation', 'private_generation', 'source_message_id', 'causal_chain_id', 'session_id', 'run_id', 'background', 'continuation_of_request_id')},
                      'accepted_at': row.accepted_at.isoformat()} for row in db.scalars(select(ReplyRequest))]
-        automatic_reply_evidence = None
-        if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'read-unread-live', 'group-routing-live', 'group-routing-follow-on', 'group-route-recovery'}:
-            automatic_reply_evidence = {
-                'messages': [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'seq', 'author_id', 'kind', 'state', 'request_id', 'causal_chain_id', 'reply_to_message_id')},
-                              'created_at': row.created_at.isoformat()} for row in db.scalars(select(Message).order_by(Message.created_at))],
-                'receipts': [{'message_id': row.message_id, 'owner_id': row.owner_id, 'seen_at': row.seen_at.isoformat()}
-                             for row in db.scalars(select(Receipt))],
-                'candidates': [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'message_id', 'target_twin_id', 'state', 'evidence', 'accepted_request_id')},
-                                'due_at': row.due_at.isoformat()} for row in db.scalars(select(TriggerCandidate))],
-                'routes': [{**{key: getattr(row, key) for key in ('id', 'message_id', 'status', 'needs_response', 'inferred_owner_ids', 'mentioned_owner_ids', 'reason')},
-                            'command_id': getattr(row, 'command_id', None),
-                            'created_at': row.created_at.isoformat(), 'has_error': row.error is not None}
-                           for row in db.scalars(select(RoutingDecision))],
-                'requests': [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'target_twin_id', 'source_message_id', 'source', 'status', 'cancel_requested')},
-                              'accepted_at': row.accepted_at.isoformat(), 'has_error': row.error is not None}
-                             for row in db.scalars(select(ReplyRequest))],
-                'sdk_commands': [{key: value.isoformat() if hasattr(value, 'isoformat') else value for key, value in row.items()}
-                                 for row in db.execute(text('SELECT command_id,session_id,run_id,state,accepted_at,updated_at FROM agent_commands')).mappings()],
-                'sdk_runs': [{key: value.isoformat() if hasattr(value, 'isoformat') else value for key, value in row.items()}
-                             for row in db.execute(text('SELECT session_id,run_id,status,started_at,finished_at FROM agent_runs')).mappings()],
-                'actors': [{key: getattr(row, key) for key in ('id', 'kind', 'owner_id', 'name')}
-                           for row in db.scalars(select(Actor))],
-                'chains': [{key: getattr(row, key) for key in ('id', 'root_owner_id', 'root_message_id', 'spent', 'allowance')}
-                           for row in db.scalars(select(CausalChain))],
-                'reservations': [{key: getattr(row, key) for key in ('id', 'causal_chain_id', 'intent_key', 'source_owner_id', 'target_owner_id', 'accepted_request_id')}
-                                 for row in db.scalars(select(AutomaticReservation))],
-            }
         tasks = [{**{key: getattr(row, key) for key in ('id', 'owner_id', 'kind', 'revision', 'enabled', 'index_dirty')},
                   'next_run_at': row.next_run_at.isoformat() if row.next_run_at else None,
                   'active_request_id': (row.details or {}).get('active_request_id'),
@@ -516,7 +461,6 @@ def inspect_fixture(root):
                               'tracking_refs': refs})
         tracking = [{'id': row.id, 'chat_id': row.chat_id, 'source_message_ids': row.source_message_ids, 'revision': row.revision, 'status': row.status, 'deleted': row.deleted_at is not None} for row in db.scalars(select(TrackingTopic))]
         revisions = [{key: getattr(row, key) for key in ('topic_id', 'revision', 'status', 'source_message_ids', 'changed_by', 'deleted')} for row in db.scalars(select(TrackingRevision))]
-        followups = [{**{key: getattr(row, key) for key in ('id', 'owner_id', 'chat_id', 'origin_request_id', 'target_chat_id', 'sent_message_id', 'causal_chain_id', 'status', 'reply_message_id', 'notification_state', 'continuation_request_id')}, 'created_at': row.created_at.isoformat(), 'due_at': row.due_at.isoformat(), 'settled_at': row.settled_at.isoformat() if row.settled_at else None} for row in db.scalars(select(TwinFollowup))]
         runs = [dict(row._mapping) for row in db.execute(text('SELECT session_id,run_id,user_id,root_run_id,source,status FROM agent_runs'))]
         approvals = [{'id': row.id, 'status': row.status, 'owner_id': row.approver_id, 'continuation_request_id': row.continuation_request_id} for row in db.scalars(select(Approval))]
         credentials = [{'id': row.id, 'status': row.status, 'owner_id': row.owner_id, 'continuation_request_id': row.continuation_request_id} for row in db.scalars(select(CredentialRequest))]
@@ -524,19 +468,12 @@ def inspect_fixture(root):
         private_chats = {row.private_owner_id: row.id for row in db.scalars(select(Chat).where(Chat.kind == "private"))}
         attachments = [{key: getattr(row, key) for key in ('id', 'chat_id', 'relative_path')} for row in db.scalars(select(ChatAttachment))]
         records = list(db.execute(text('SELECT session_id, record FROM agent_session_events ORDER BY session_id, seq')))
-    current, arguments, returned, tools, files, model_calls, routing_outputs = {}, {}, {}, [], [], [], []
+    current, arguments, returned, tools, files, model_calls = {}, {}, {}, [], [], []
     request_ids = {(row['session_id'], row['run_id']): row['id'] for row in requests}
     run_owners = {(row['session_id'], row['run_id']): row['user_id'] for row in runs}
     for session_id, record in records:
         data, kind, run_id = record.get('data', {}), record.get('type'), record.get('run_id')
         if kind == 'model_completed':
-            if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'group-routing-live', 'group-routing-follow-on'}:
-                try:
-                    routed = json.loads(text_content(data.get('message', {})).strip().removeprefix('```json').removesuffix('```').strip())
-                except (ValueError, TypeError):
-                    routed = None
-                if isinstance(routed, dict) and set(routed) == {'target_owner_ids', 'needs_response', 'reason'}:
-                    routing_outputs.append({'session_id': session_id, 'run_id': run_id, 'decision': routed})
             usage = data.get('message', {}).get('usage', {})
             model_calls.append({'session_id': session_id, 'run_id': run_id,
                 'request_id': request_ids.get((session_id, run_id)),
@@ -605,8 +542,8 @@ def inspect_fixture(root):
     budget = json.loads((root / 'live-budget.json').read_text()) if (root / 'live-budget.json').exists() else None
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
             'live_budget': budget,
-            'requests': requests, 'scheduled_tasks': tasks, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'followups': followups, 'files': files, 'approvals': approvals, 'credentials': credentials,
-            'questions': questions, 'automatic_reply_evidence': automatic_reply_evidence, 'routing_outputs': routing_outputs,
+            'requests': requests, 'scheduled_tasks': tasks, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'files': files, 'approvals': approvals, 'credentials': credentials,
+            'questions': questions,
             'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}
 
 

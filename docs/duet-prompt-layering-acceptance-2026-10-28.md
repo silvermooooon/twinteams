@@ -1,5 +1,7 @@
 # Prompt layering acceptance — 2026-10-28
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 This separate campaign evaluates the condensed role/tool instructions with the previous six unchanged natural inputs. It does not replace the [previous behavior history](duet-delegation-behavior-acceptance-2026-10-28.md). Only GPT-6 Luna / OpenAI Responses and the existing authorized provider/proxy configuration were used. The hard aggregate limit was **24 actual HTTP attempts**, including any failures/retries. Round 1 used 21 and the separately revised Round 2 used 2: **23/24 total, all HTTP 200, no provider failures or retries**. No further model testing is planned.
 
 ## Design reference

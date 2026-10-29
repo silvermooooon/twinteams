@@ -9,12 +9,12 @@ function dismissedIds(key: string) {
   } catch { return new Set<string>(); }
 }
 
-type Failure = { id: string; chat_id: string; error?: string; can_retry: boolean; command_id?: string };
+type Failure = { id: string; chat_id: string; error?: string; can_retry: boolean };
 
 /** Dismissal only hides this notice in this browser session; the failure stays unchanged. */
 export function FailureNotice<T extends Failure>({ ownerId, request, name, busy, onRetry, composer = false, label }: { ownerId: string; request: T; name?: string; busy: boolean; onRetry: (request: T) => void; composer?: boolean; label?: string }) {
   const storageKey = `twinteams.dismissedFailures:${JSON.stringify([ownerId, request.chat_id])}`;
-  const failureId = request.command_id ? JSON.stringify([request.id, request.command_id]) : request.id;
+  const failureId = request.id;
   const [dismissed, setDismissed] = useState(() => dismissedIds(storageKey).has(failureId));
   if (dismissed) return null;
   const dismiss = () => {

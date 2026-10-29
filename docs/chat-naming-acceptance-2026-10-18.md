@@ -1,5 +1,7 @@
 # 聊天命名与替我回复验收（2026-10-18）
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 已部署并通过独立验收。命名规则首轮无需迁移；追加一对一去重仅应用 pair 专用迁移，未运行 `init_db`，业务 `kind` 不变。
 
 ## 行为边界

@@ -178,26 +178,6 @@ async function noNew(probe, before, label) {
   await settled();
   assert.equal(probe.notices().length, before, label);
 }
-async function toggleRewrite(page) {
-  const button = page.getByRole("button", {
-    name: "Reply for me",
-    exact: true,
-  });
-  if ((await button.getAttribute("aria-pressed")) !== "true")
-    await button.click();
-}
-async function sendRewrite(page, chat, label) {
-  await toggleRewrite(page);
-  const body = `E2E ECHO ${label}`;
-  await page.locator(".composer textarea").fill(body);
-  await page.locator(".composer textarea").press("Enter");
-  return waitMessage(
-    page,
-    chat,
-    (message) =>
-      message.kind === "reply_for_me" && message.raw_owner_input === body,
-  );
-}
 async function recipientPair(t) {
   const recipient = await probeSession(t);
   await enabled(recipient.page);
@@ -370,99 +350,6 @@ const cases = [
       t.record(
         "notification_boundary",
         "controlled focus/visibility and Notification click; not native OS click",
-      );
-    },
-  },
-  {
-    name: "notifications platform stub / incoming human, other Duet and other Reply for me alert; own rewrite is silent",
-    run: async (t) => {
-      const { recipient: a, peer: b, chat } = await recipientPair(t);
-      await mode(a.page, "hidden");
-      const human = t.unique("human");
-      await sendMessage(b.page, `Human notification ${human}`);
-      const observed = await notification(a, human);
-      assert.equal(observed[0].visibility, "hidden");
-      assert.equal(observed[0].focused, false);
-      t.record("controlled_browser_background", {
-        visibility: observed[0].visibility,
-        focused: observed[0].focused,
-        actual_document_blur_verified: false,
-      });
-      const own = t.unique("own-rewrite");
-      const humanSource = await waitMessage(
-        b.page,
-        chat,
-        (message) => message.body === `Human notification ${human}`,
-      );
-      // Earlier workflows may have renamed or expanded another similarly named
-      // chat. Select the real incoming message's unique preview, not chat.title.
-      await a.page
-        .locator(".conversation-list .chat-item")
-        .filter({
-          has: a.page.locator(".chat-preview").filter({ hasText: human }),
-        })
-        .click();
-      await a.page
-        .locator(`article[data-message-id="${humanSource.id}"]`)
-        .waitFor();
-      const rewritten = await sendRewrite(a.page, chat, own);
-      assert.equal(rewritten.chat_id, chat.id);
-      t.record("own_rewrite_message", {
-        id: rewritten.id,
-        chat_id: rewritten.chat_id,
-        kind: rewritten.kind,
-      });
-      await mode(a.page, "hidden");
-      await settled();
-      assert.equal(
-        a.notices().filter((notice) => JSON.stringify(notice).includes(own))
-          .length,
-        0,
-        "this own reply_for_me is silent even if another legitimate incoming alert arrives",
-      );
-      const incoming = t.unique("peer-rewrite");
-      await sendRewrite(b.page, chat, incoming);
-      await notification(a, incoming);
-      const button = b.page.getByRole("button", {
-        name: "Reply for me",
-        exact: true,
-      });
-      if ((await button.getAttribute("aria-pressed")) === "true")
-        await button.click();
-      // A human command causes B's real isolated SDK automatic response. Its
-      // text is not injected into a mocked event or snapshot.
-      const ownToggle = a.page.getByRole("button", {
-        name: "Reply for me",
-        exact: true,
-      });
-      if ((await ownToggle.getAttribute("aria-pressed")) === "true")
-        await ownToggle.click();
-      const otherTwin = t.unique("other-twin");
-      await sendMessage(a.page, `E2E ECHO ${otherTwin}`);
-      await mode(a.page, "hidden");
-      await waitMessage(
-        b.page,
-        chat,
-        (message) =>
-          message.kind === "twin" && message.body.includes(otherTwin),
-      );
-      await notification(a, otherTwin);
-      const kinds = (await detail(a.page, chat)).messages
-        .filter((message) =>
-          [human, incoming, otherTwin].some((label) =>
-            message.body.includes(label),
-          ),
-        )
-        .map((message) => message.kind);
-      assert.ok(
-        kinds.includes("human") &&
-          kinds.includes("reply_for_me") &&
-          kinds.includes("twin"),
-      );
-      t.record("persisted_kinds", kinds);
-      t.record(
-        "notification_boundary",
-        "controlled Notification constructor; real incoming message kinds",
       );
     },
   },

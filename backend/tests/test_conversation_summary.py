@@ -279,8 +279,7 @@ def test_dedicated_checkpoint_rejects_truncation_then_resumes_original_input(pro
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("path", ["main", "router"])
-def test_incomplete_history_blocks_main_and_router_before_model_admission(path):
+def test_incomplete_history_blocks_main_before_model_admission():
     async def run():
         runtime = RuntimeBridge.__new__(RuntimeBridge)
         runtime.tenant_id = "local"
@@ -290,12 +289,7 @@ def test_incomplete_history_blocks_main_and_router_before_model_admission(path):
         runtime.service = SimpleNamespace(db_call=AsyncMock(side_effect=[None, {"context_incomplete": True}]))
         context = {"_summary_scope": {"chat_id": "group"}, "context_incomplete": True}
         with pytest.raises(RuntimeError, match="incomplete"):
-            if path == "main":
-                await runtime.execute({"id": "request", "source": "manual"}, context)
-            else:
-                # Executor construction does not access storage until admission.
-                runtime.config = runtime.models = runtime.host = None
-                await runtime.route_targets("group", {"id": "message", "author_id": "owner"}, context, ["owner"], [])
+            await runtime.execute({"id": "request", "source": "manual"}, context)
         assert runtime.store.get_command.await_count == 1
         assert [call.args[0] for call in runtime.service.db_call.call_args_list] == [
             "prepare_conversation_summary", "get_conversation_context"]

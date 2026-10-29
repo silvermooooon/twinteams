@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import credentials, personal
 from app import service as service_module
-from app.models import Actor, Chat, Message, ReplyRequest, TwinFollowup
+from app.models import Actor, Message, ReplyRequest
 from checks.postgres import TestDatabase
 
 
@@ -76,10 +76,10 @@ def test_reset_preserves_groups_other_owner_configuration_and_idempotent_new_wor
     request = send_message(product, "owner-alex", "private-alex", "Old private text", key())["request"]
     context = product.get_runtime_context(request["id"])
     sent = product._runtime_tool_transaction("send_chat_message", {"chat_id": "duet-team", "body": "Public group text remains",
-        "source_message_ids": [request["source_message_id"]], "wait_for_reply": True}, {**context, "operation_id": key()})
-    with product.transaction() as db:
-        group_request = product.accept_request(db, db.get(Chat, "duet-team"), "twin-alex", "owner-alex", "auto", key(), input_body="Existing group work")
-        group_request_id = group_request.id
+        "source_message_ids": [request["source_message_id"]]}, {**context, "operation_id": key()})
+    from duet_test_support import append_duet, request_duet_reply
+    incoming = append_duet(product, "duet-team", "owner-maya", "Independent existing peer work")
+    group_request_id = request_duet_reply(product, "owner-maya", "duet-team", incoming["id"], "twin-alex")["id"]
     before_group = group_hash(product)
     reset_key = key()
     result = product.personal_reset("owner-alex", reset_key, 0)
@@ -92,7 +92,6 @@ def test_reset_preserves_groups_other_owner_configuration_and_idempotent_new_wor
         assert db.get(ReplyRequest, group_request_id).status == "queued"
         actor = db.get(Actor, "twin-alex")
         assert (actor.name, actor.avatar_preset, actor.enabled_skill_names) == ("Keep this Twin", "orbit", ["keep-skill"])
-        assert db.get(TwinFollowup, sent["followup"]["id"]).status == "cancelled"
         message = db.get(Message, sent["message_id"])
         assert message.body == "Public group text remains" and message.state == "published"
     assert (workspace / "keep.txt").read_text() == "User workspace must survive"
@@ -137,12 +136,12 @@ def test_old_dream_draft_cannot_publish_or_resurrect_old_repo_after_reset(produc
 
 def test_group_sdk_work_completes_after_owner_private_reset_with_generation_zero_activity(product):
     from agent_runtime import AssistantMessageEventStream, assistant_message
+    from duet_test_support import append_duet, request_duet_reply
 
     from app.models import ActivityProjection
     from app.runtime_bridge import RuntimeBridge
-    with product.transaction() as db:
-        request = product.accept_request(db, db.get(Chat, "duet-team"), "twin-alex", "owner-alex", "auto", key(), input_body="An unrelated group task")
-        request_id = request.id
+    incoming = append_duet(product, "duet-team", "owner-maya", "An unrelated peer task")
+    request_id = request_duet_reply(product, "owner-maya", "duet-team", incoming["id"], "twin-alex")["id"]
     assert product.personal_reset("owner-alex", key(), 0)["status"] == "completed"
     async def run():
         runtime = RuntimeBridge(product)

@@ -6,16 +6,16 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
-from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import request_duet_reply as receiver_request
 from duet_test_support import seed_collaborations
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import event, select
+from sqlalchemy import event, func, select
 from test_memory_dream import product as product  # noqa: PLC0414
 
 from app import service as service_module
 from app.main import app
-from app.models import Chat, Membership, Message, now
+from app.models import Chat, ContextManifest, Membership, Message, ReplyRequest, now
 from app.runtime_bridge import RuntimeBridge
 
 
@@ -32,7 +32,7 @@ def context_for(product, chat_id="duet-team"):
     seed_collaborations(product)
     from duet_test_support import append_duet
     mid = append_duet(product, chat_id, "owner-maya", "Synthetic reaction target")["id"]
-    request = legacy_request(product, "owner-maya", chat_id, mid, "twin-alex", uuid4().hex)
+    request = receiver_request(product, "owner-maya", chat_id, mid, "twin-alex", uuid4().hex)
     return request, product.get_runtime_context(request["id"]), mid
 
 
@@ -253,17 +253,20 @@ def test_cross_chat_reaction_requires_actual_message_visibility_and_preserves_so
             pass
         else:
             raise AssertionError(f"Unauthorized reaction accepted: target={target} extra={extra}")
-    # Reading a private reaction target adds the existing private source envelope.
-    # It must not make an ordinary group automatic output readable to others.
+    # Prepared channel text is shareable; the original private read remains audited.
     output = product.publish_runtime_output(
-        request["id"], "Private-derived output", product.get_request(request["id"])["session_id"], "r", "e", 1
+        request["id"], "Prepared output after private reaction", product.get_request(request["id"])["session_id"], "r", "e", 1
     )
-    assert any(
-        row["id"] == output for row in product.chat_detail("owner-alex", "duet-team")["messages"]
-    )
-    assert all(
-        row["id"] != output for row in product.chat_detail("owner-maya", "duet-team")["messages"]
-    )
+    for owner in ("owner-alex", "owner-maya"):
+        assert any(row["id"] == output for row in product.chat_detail(owner, "duet-team")["messages"])
+    with product.transaction() as db:
+        assert any(source.get("chat_id") == "private-alex" for source in
+                   db.get(ContextManifest, context["context_manifest_id"]).sources)
+        assert db.get(Message, output).request_id == request["id"]
+        assert db.scalar(select(func.count()).select_from(ReplyRequest).where(ReplyRequest.source_message_id == output)) == 2
+    with pytest.raises(HTTPException) as denied:
+        product.chat_detail("owner-maya", "private-alex")
+    assert denied.value.status_code == 403
 
 
 def test_committed_reaction_tool_phase_recovers_without_duplicate_effect(product):

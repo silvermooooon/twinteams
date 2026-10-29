@@ -295,24 +295,6 @@ const cases = [
             pending_request_ids: pending.map((request) => request.id),
             sdk_work_settled: settled,
           });
-          const blocked = evidence.followups?.find(
-            (followup) =>
-              followup.origin_request_id === originRequest?.id &&
-              followup.notification_state === "blocked",
-          );
-          if (blocked && settled && (!peerAnswer || !aReport)) {
-            t.record("phase_one", {
-              status: "failed",
-              reason:
-                "A real peer reply settled but its follow-up is explicitly blocked",
-              followup_id: blocked.id,
-              notification_state: blocked.notification_state,
-              reply_message_id: blocked.reply_message_id,
-            });
-            throw new Error(
-              `Live workflow blocked after settled peer reply: follow-up ${blocked.id}`,
-            );
-          }
           if (
             !topics.length ||
             !file ||

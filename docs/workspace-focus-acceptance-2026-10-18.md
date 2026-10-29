@@ -1,5 +1,7 @@
 # 工作区刷新与焦点验收（2026-10-18）
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 本轮前端修复已构建并由现有 API 静态服务提供，无后端迁移或 Worker 重启。
 
 ## 原因与修复边界

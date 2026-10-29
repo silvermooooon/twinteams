@@ -41,7 +41,7 @@ def test_prompt_composes_soul_and_server_hook_without_private_memory(monkeypatch
     assert "server-only policy" in prompt
     assert "must never appear" not in prompt
     assert "Main and child capabilities match" in prompt
-    assert "create_approval" in prompt and "wait_for_reply=true" in prompt
+    assert "create_approval" in prompt and "send_chat_message" in prompt
 
 
 class Product:

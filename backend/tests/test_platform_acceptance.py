@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
-from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import request_duet_reply as receiver_request
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from test_memory_dream import product as product  # noqa: PLC0414
@@ -36,7 +36,7 @@ def origin(product):
     source = append(
         product, "duet-alex-maya", "owner-maya", "Please coordinate this independent task " + uuid4().hex
     )
-    request = legacy_request(product,
+    request = receiver_request(product,
         "owner-maya", "duet-alex-maya", source, "twin-alex", uuid4().hex
     )
     return request, product.get_runtime_context(request["id"])
@@ -142,24 +142,19 @@ def test_private_read_is_audited_and_normal_group_output_stays_conservative(prod
             for row in sources
         )
     output_id = product.publish_runtime_output(
-        request["id"],
-        "Output after private reference read.",
-        request["session_id"],
-        "sdk-run",
-        "sdk-event",
-        7,
+        request["id"], "Prepared output after private reference read.",
+        request["session_id"], "sdk-run", "sdk-event", 7,
     )
-    assert any(
-        row["id"] == output_id
-        for row in product.chat_detail("owner-alex", "duet-alex-maya")["messages"]
-    )
-    assert all(
-        row["id"] != output_id
-        for row in product.chat_detail("owner-maya", "duet-alex-maya")["messages"]
-    )
-    assert "PRIVATE_READ_REFERENCE_MARKER" not in str(
-        product.chat_detail("owner-maya", "duet-alex-maya")
-    )
+    for owner in ("owner-alex", "owner-maya"):
+        assert any(row["id"] == output_id for row in product.chat_detail(owner, "duet-alex-maya")["messages"])
+    with product.transaction() as db:
+        assert any(row.get("chat_id") == "private-alex" for row in db.get(ContextManifest, context["context_manifest_id"]).sources)
+        assert db.get(Message, output_id).request_id == request["id"]
+        assert db.scalar(select(func.count()).select_from(ReplyRequest).where(ReplyRequest.source_message_id == output_id)) == 1
+    with pytest.raises(HTTPException) as denied:
+        product.chat_detail("owner-maya", "private-alex")
+    assert denied.value.status_code == 403
+    assert "PRIVATE_READ_REFERENCE_MARKER" not in str(product.chat_detail("owner-maya", "duet-alex-maya"))
 
 
 @pytest.mark.parametrize(
@@ -302,9 +297,12 @@ def test_group_actual_sdk_discovers_private_reads_and_reports_without_private_ex
                 and reports[0]["author_id"] == "twin-alex"
                 and reports[0]["causal_chain_id"] == request["causal_chain_id"]
             )
-            assert "Conservative group output after private read." not in str(
-                product.chat_detail("owner-maya", "duet-alex-maya")
-            )
+            public = [row for row in product.chat_detail("owner-maya", "duet-alex-maya")["messages"]
+                      if row["body"] == "Conservative group output after private read."]
+            assert len(public) == 1 and public[0]["request_id"] == request["id"]
+            with pytest.raises(HTTPException) as denied:
+                product.chat_detail("owner-maya", "private-alex")
+            assert denied.value.status_code == 403
             with product.transaction() as db:
                 assert (
                     db.scalar(
@@ -314,51 +312,44 @@ def test_group_actual_sdk_discovers_private_reads_and_reports_without_private_ex
                     )
                     == before
                 )
-                assert db.get(CausalChain, request["causal_chain_id"]).spent == spent
+                assert db.get(CausalChain, request["causal_chain_id"]).spent == spent + 1
+                assert any(source.get("chat_id") == "private-alex" for source in
+                           product.manifest_provenance(db, request["id"]))
         finally:
             await runtime.close()
 
     asyncio.run(run())
 
 
-def test_automatic_retries_across_old_targets_share_controller_budget(product):
+def test_receiver_retries_preserve_original_chains_without_spending_send_budget(product):
     old = []
     for _ in range(7):
-        request, _context = origin(product)
+        request, _ = origin(product)
         product.fail_request(request["id"], "Offline old failure")
         old.append(request)
-    controller, context = origin(product)
+    _, context = origin(product)
     with product.transaction() as db:
+        spent = {row["causal_chain_id"]: db.get(CausalChain, row["causal_chain_id"]).spent for row in old}
         before = db.scalar(select(func.count()).select_from(ReplyRequest))
     accepted = []
     for index, previous in enumerate(old):
         operation = f"retry-platform-{index}"
         result = call(product, context, "retry_reply_request", {"id": previous["id"]}, operation)
-        assert (
-            call(product, context, "retry_reply_request", {"id": previous["id"]}, operation)
-            == result
-        )
-        if index >= 5:
-            assert result["status"] == "held" and result["reason"] == "budget_exhausted"
-        else:
-            accepted.append(result["id"])
-            assert result["causal_chain_id"] == controller["causal_chain_id"]
+        assert call(product, context, "retry_reply_request", {"id": previous["id"]}, operation) == result
+        assert result["causal_chain_id"] == previous["causal_chain_id"]
+        with product.transaction() as db:
+            assert db.get(ReplyRequest, result["id"]).generation == 1
+        accepted.append(result["id"])
     with product.transaction() as db:
-        chain = db.get(CausalChain, controller["causal_chain_id"])
-        assert chain.spent == chain.allowance == 6
-        assert db.scalar(select(func.count()).select_from(ReplyRequest)) == before + 5
-        assert all(db.get(ReplyRequest, ident).automatic_reservation_id for ident in accepted)
-        assert all(
-            db.get(ReplyRequest, row["id"]).causal_chain_id == row["causal_chain_id"] for row in old
-        )
+        assert db.scalar(select(func.count()).select_from(ReplyRequest)) == before + 7
+        assert all(db.get(CausalChain, chain).spent == count for chain, count in spent.items())
+        assert len(set(accepted)) == 7
         from sqlalchemy import text
-
         assert db.execute(text("SELECT count(*) FROM agent_model_usage")).scalar() == 0
     with pytest.raises(HTTPException) as denied:
-        product.retry_request("owner-maya", old[-1]["id"], uuid4().hex)
+        product.retry_request("owner-jordan", old[-1]["id"], uuid4().hex)
     assert denied.value.status_code == 403
-    human = product.retry_request("owner-alex", old[-1]["id"], uuid4().hex)
-    assert human["causal_chain_id"] == old[-1]["causal_chain_id"]
+
 
 
 @pytest.mark.parametrize("phase", ["model", "tools"])
@@ -813,6 +804,8 @@ def test_exact_owner_approval_private_retry_grants_one_atomically_and_respects_r
     )
     product.fail_request(private["id"], "Offline private failure")
     controller, context = origin(product)
+    with product.transaction() as db:
+        db.get(CausalChain, controller["causal_chain_id"]).spent = 6
     for index, row in enumerate(old_group):
         call(
             product,
@@ -896,12 +889,15 @@ def test_exact_owner_approval_private_retry_grants_one_atomically_and_respects_r
                 assert result == await product.runtime_tool(
                     "execute_approved_action", {"id": approval["id"]}, continued_context
                 )
-                assert result["status"] == "held" and result["reason"] == "budget_exhausted"
+                assert result["status"] == "queued"
+                assert result["causal_chain_id"] == private["causal_chain_id"]
                 with product.transaction() as db:
                     chain = db.get(CausalChain, controller["causal_chain_id"])
                     assert chain.spent == chain.allowance == 6
                     assert db.get(ReplyRequest, private["id"]).execution_config == frozen_config
-                    assert db.scalar(select(func.count()).select_from(ReplyRequest)) == before
+                    retried = db.get(ReplyRequest, result["id"])
+                    assert retried.generation == 1 and retried.execution_config == frozen_config
+                    assert db.scalar(select(func.count()).select_from(ReplyRequest)) == before + 1
                     assert not db.scalar(select(AllowanceGrant.id).where(AllowanceGrant.client_request_key == "approval:" + approval["id"]))
         finally:
             await runtime.close()

@@ -20,7 +20,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import api as api_module
 from app import service as service_module
-from app.models import Message, ReplyRequest, RoutingDecision
+from app.models import Message, ReplyRequest
 from app.runtime_bridge import RuntimeBridge
 from checks.postgres import TestDatabase
 
@@ -179,14 +179,13 @@ def test_file_only_messages_are_model_input_in_private_and_group_chats(attachmen
     chat = product.create_chat("owner-alex", ["owner-maya"], "unsupported only")["id"] if group_chat else "private-alex"
     item = upload(client, chat=chat, data=b"FILE_CONTENT_MUST_NEVER_REACH_MODEL", name="DO_NOT_PROMPT_THIS_FILE.txt", mime="text/plain").json()
     assert item["kind"] == "file"
-    before = count(product, ReplyRequest), count(product, RoutingDecision)
+    before = count(product, ReplyRequest)
     response = send(client, chat=chat, ids=[item["id"]])
     assert response.status_code == 200, response.text
     result = response.json()
     assert (result["request"] is None) == group_chat
     assert result["message"]["attachments"][0]["kind"] == "file"
-    assert count(product, ReplyRequest) == before[0] + (0 if group_chat else 1)
-    assert count(product, RoutingDecision) == before[1]
+    assert count(product, ReplyRequest) == before + (0 if group_chat else 1)
 
 
 def test_text_with_file_supplies_references_without_content_to_sdk(attachments):

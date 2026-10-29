@@ -45,7 +45,7 @@ def start(service, owner_id):
         owner = db.get(Actor, owner_id)
         row = OnboardingState(owner_id=owner_id, chat_id=chat.id, status="active")
         db.add(row)
-        welcome = service.append_message(db, chat, consume_followup=False,
+        welcome = service.append_message(db, chat,
             author_id=twin.id, kind="system", body=(
                 f"Hi {owner.name}, I'm {twin.name}, your Duet. I can help you think things through, "
                 "draft messages, work with shared files, and coordinate work with people here. "

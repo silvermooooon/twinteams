@@ -1,5 +1,7 @@
 # Activity visibility and background capacity acceptance — 2026-10-28
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 The combined change was deployed and verified. Activity excludes scheduled-task, system-review and Memory Dream runs and their derived continuations/children. User work remains eligible, including user-rooted followups and automatic conversation activity. The stored `user_visible` flag and partial index filter before pagination; historical classification runs once during explicit upgrade. Journals, messages, scheduled-task configuration and internal execution remain intact.
 
 Foreground and background requests now use independent per-worker admission and SDK ExecutionHost pools. Actual settings from the existing private environment are foreground **8 total / 2 per owner**, background **2 total / 1 per owner**, and **2 background children**. These are logical limits within each worker; database, provider, process and machine resources remain shared. The SDK checkout and actual private environment files were unchanged.

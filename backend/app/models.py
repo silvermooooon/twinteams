@@ -1,9 +1,26 @@
 """PostgreSQL Twinteams business schema; no SDK execution-event duplicates."""
 from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import Boolean, CheckConstraint, cast, DateTime, ForeignKey, Index, Integer, BigInteger, JSON, LargeBinary, String, Text, UniqueConstraint, text
+
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
+    cast,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+
 from .db import Base
 
 
@@ -105,7 +122,7 @@ class Membership(Base):
 
 
 class CausalChain(Base):
-    """Product automation allowance, shared by every chat/run in one causal lineage."""
+    """Duet-channel send allowance shared across a causal lineage."""
     __tablename__ = "tt_causal_chains"
     __table_args__ = (CheckConstraint("spent >= 0 AND allowance >= 0 AND spent <= allowance", name="tt_chain_budget"),)
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
@@ -129,27 +146,14 @@ class AllowanceGrant(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
-class AutomaticReservation(Base):
-    __tablename__ = "tt_automatic_reservations"
-    __table_args__ = (UniqueConstraint("causal_chain_id", "intent_key"), UniqueConstraint("causal_chain_id", "source_owner_id", "target_owner_id", "content_hash"))
-    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
-    causal_chain_id: Mapped[str] = mapped_column(ForeignKey("tt_causal_chains.id"), index=True)
-    intent_key: Mapped[str] = mapped_column(String(256))
-    source_owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
-    target_owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
-    content_hash: Mapped[str | None] = mapped_column(String(64))
-    accepted_request_id: Mapped[str | None] = mapped_column(String(80))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-
-
 class Message(Base):
     __tablename__ = "tt_messages"
     source_provenance: Mapped[list] = mapped_column(JSON, default=list)
-    __table_args__ = (UniqueConstraint("chat_id", "seq"), UniqueConstraint("command_owner_id", "client_request_key"), CheckConstraint("kind IN ('human','twin','reply_for_me','system')", name="tt_message_kind"), CheckConstraint("state IN ('published','withdrawn')", name="tt_message_state"))
+    __table_args__ = (UniqueConstraint("chat_id", "seq"), UniqueConstraint("command_owner_id", "client_request_key"), CheckConstraint("kind IN ('human','twin','reply_for_me','system')", name="tt_message_kind"), CheckConstraint("state IN ('pending','published','withdrawn') AND (state != 'published' OR seq IS NOT NULL) AND (state != 'pending' OR seq IS NULL)", name="tt_message_state"))
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
     causal_chain_id: Mapped[str | None] = mapped_column(ForeignKey("tt_causal_chains.id"), index=True)
     chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), index=True)
-    seq: Mapped[int] = mapped_column(Integer)
+    seq: Mapped[int | None] = mapped_column(Integer)
     author_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id"))
     kind: Mapped[str] = mapped_column(String(20), default="human")
     body: Mapped[str] = mapped_column(Text)
@@ -210,35 +214,6 @@ class Presence(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
-class RoutingDecision(Base):
-    __tablename__ = "tt_routing_decisions"
-    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
-    message_id: Mapped[str] = mapped_column(ForeignKey("tt_messages.id"), unique=True)
-    strategy: Mapped[str] = mapped_column(String(16))
-    command_id: Mapped[str | None] = mapped_column(String(80))
-    status: Mapped[str] = mapped_column(String(16), default="pending")
-    inferred_owner_ids: Mapped[list] = mapped_column(JSON, default=list)
-    mentioned_owner_ids: Mapped[list] = mapped_column(JSON, default=list)
-    needs_response: Mapped[bool | None] = mapped_column(Boolean)
-    reason: Mapped[str | None] = mapped_column(Text)
-    error: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-
-
-class TriggerCandidate(Base):
-    __tablename__ = "tt_trigger_candidates"
-    __table_args__ = (UniqueConstraint("message_id", "target_twin_id"),)
-    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
-    causal_chain_id: Mapped[str | None] = mapped_column(ForeignKey("tt_causal_chains.id"), index=True)
-    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), index=True)
-    message_id: Mapped[str] = mapped_column(ForeignKey("tt_messages.id"))
-    target_twin_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id"))
-    state: Mapped[str] = mapped_column(String(16), default="waiting", index=True)
-    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
-    accepted_request_id: Mapped[str | None] = mapped_column(String(80))
-
-
 class ReplyLane(Base):
     """Short-lived acceptance numbering; legacy session columns are not execution locks."""
     __tablename__ = "tt_reply_lanes"
@@ -254,7 +229,6 @@ class ReplyRequest(Base):
     __table_args__ = (UniqueConstraint("intent_key", "generation"), UniqueConstraint("requester_id", "client_request_key"), UniqueConstraint("chat_id", "target_twin_id", "accepted_seq"), CheckConstraint("status IN ('queued','running','completed','failed','cancelled')", name="tt_request_status"), Index("tt_queue_order", "chat_id", "target_twin_id", "status", "accepted_seq"))
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
     causal_chain_id: Mapped[str | None] = mapped_column(ForeignKey("tt_causal_chains.id"), index=True)
-    automatic_reservation_id: Mapped[str | None] = mapped_column(ForeignKey("tt_automatic_reservations.id"))
     source_owner_id: Mapped[str | None] = mapped_column(ForeignKey("tt_owners.id"))
     chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), index=True)
     source_message_id: Mapped[str | None] = mapped_column(ForeignKey("tt_messages.id"))
@@ -311,29 +285,6 @@ class DispatchCommand(Base):
     state: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-
-
-class TwinFollowup(Base):
-    """One durable reply/deadline outcome and its task-continuation delivery intent."""
-    __tablename__ = "tt_twin_followups"
-    __table_args__ = (Index("tt_followup_due", "status", "due_at"),
-                      Index("tt_followup_delivery", "notification_state", "chat_id"))
-    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
-    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
-    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), index=True)
-    origin_request_id: Mapped[str] = mapped_column(ForeignKey("tt_reply_requests.id"), index=True)
-    target_chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), index=True)
-    sent_message_id: Mapped[str] = mapped_column(ForeignKey("tt_messages.id"), unique=True)
-    causal_chain_id: Mapped[str] = mapped_column(ForeignKey("tt_causal_chains.id"), index=True)
-    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    status: Mapped[str] = mapped_column(String(16), default="waiting")
-    reply_message_id: Mapped[str | None] = mapped_column(ForeignKey("tt_messages.id"), index=True)
-    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    notification_state: Mapped[str] = mapped_column(String(16), default="waiting")
-    pause_reason: Mapped[str | None] = mapped_column(String(40))
-    continuation_request_id: Mapped[str | None] = mapped_column(ForeignKey("tt_reply_requests.id"))
-    source_provenance: Mapped[list] = mapped_column(JSON, default=list)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class ScheduledTask(Base):

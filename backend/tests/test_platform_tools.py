@@ -6,7 +6,7 @@ from threading import Barrier
 from uuid import uuid4
 
 import pytest
-from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import request_duet_reply as receiver_request
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from test_memory_dream import product as product  # noqa: PLC0414
@@ -21,8 +21,7 @@ from app.models import (
     Membership,
     Message,
     ProductOperation,
-    RoutingDecision,
-    TriggerCandidate,
+    ReplyRequest,
     WorkspaceNode,
 )
 from app.notifications import notifications
@@ -32,7 +31,7 @@ def origin(product, chat_id="duet-alex-maya", requester="owner-alex"):
     with product.transaction() as db:
         message = product.append_message(db, db.get(Chat, chat_id), author_id="twin-maya" if chat_id.startswith("duet-") else requester, kind="twin" if chat_id.startswith("duet-") else "human", body="Coordinate this task " + uuid4().hex)
         message_id = message.id
-    request = legacy_request(product, requester, chat_id, message_id, "twin-alex", uuid4().hex) if chat_id.startswith("duet-") else product.manual_request(requester, chat_id, message_id, "twin-alex", uuid4().hex)
+    request = receiver_request(product, requester, chat_id, message_id, "twin-alex", uuid4().hex) if chat_id.startswith("duet-") else product.manual_request(requester, chat_id, message_id, "twin-alex", uuid4().hex)
     context = product.get_runtime_context(request["id"])
     return request, {**context, "runtime_session_id": "offline-session", "runtime_run_id": "offline-run"}
 
@@ -54,8 +53,7 @@ def test_owner_authorized_duet_manages_human_chats_without_posting_or_routing(pr
     assert len(people) == 2 and all(row["kind"] == "human" for row in people)
     with product.transaction() as db:
         messages_before = db.scalar(select(func.count()).select_from(Message))
-        routes_before = db.scalar(select(func.count()).select_from(RoutingDecision))
-        candidates_before = db.scalar(select(func.count()).select_from(TriggerCandidate))
+        requests_before = db.scalar(select(func.count()).select_from(ReplyRequest))
     pair = call(product, context, "create_chat", {"owner_ids": ["owner-jordan"], "history_policy": "no_prior"})
     assert {owner for owner, section in emitted if section == "chats"} == {"owner-alex", "owner-jordan"}
     emitted.clear()
@@ -71,8 +69,7 @@ def test_owner_authorized_duet_manages_human_chats_without_posting_or_routing(pr
     assert call(product, context, "get_chat", {"chat_id": pair["id"]})["chat"]["title"] == renamed["title"]
     with product.transaction() as db:
         assert db.scalar(select(func.count()).select_from(Message)) == messages_before
-        assert db.scalar(select(func.count()).select_from(RoutingDecision)) == routes_before
-        assert db.scalar(select(func.count()).select_from(TriggerCandidate)) == candidates_before
+        assert db.scalar(select(func.count()).select_from(ReplyRequest)) == requests_before
     with pytest.raises(HTTPException) as fixed:
         call(product, context, "add_chat_members", {"chat_id": "duet-alex-maya", "owner_ids": ["owner-jordan"], "history_policy": "all"})
     assert fixed.value.status_code == 409
@@ -100,7 +97,7 @@ def test_peer_duet_chat_management_requires_exact_owner_action_approval(product,
         # Unit fixture records the owner's exact approved decision; production
         # decision delivery and SDK single-use recovery have separate real tests.
         db.get(Approval, consent["id"]).status = "approved"
-        before = [db.scalar(select(func.count()).select_from(model)) for model in (Message, RoutingDecision, TriggerCandidate)]
+        before = [db.scalar(select(func.count()).select_from(model)) for model in (Message, ReplyRequest)]
     changed = {**args, "title": "Different action"} if name != "add_chat_members" else {**args, "history_policy": "no_prior"}
     with pytest.raises(HTTPException) as wrong_action:
         call(product, {**context, "approved_approval_id": consent["id"]}, name, changed)
@@ -108,7 +105,7 @@ def test_peer_duet_chat_management_requires_exact_owner_action_approval(product,
     result = call(product, {**context, "approved_approval_id": consent["id"]}, name, args)
     assert result["kind"] == "group"
     with product.transaction() as db:
-        assert [db.scalar(select(func.count()).select_from(model)) for model in (Message, RoutingDecision, TriggerCandidate)] == before
+        assert [db.scalar(select(func.count()).select_from(model)) for model in (Message, ReplyRequest)] == before
 
 
 def test_cross_chat_tracking_workspace_and_bounded_utf8_reads(product, monkeypatch, tmp_path):
@@ -183,7 +180,7 @@ def test_reverse_cross_chat_sends_share_sorted_locks(product):
         assert right.result(timeout=10)["sent"]
 
 
-def test_retry_grant_consumed_once_only_when_full_and_safe_status_projection(product):
+def test_approved_receiver_retry_does_not_grant_or_consume_send_allowance(product):
     old, _ = origin(product)
     product.fail_request(old["id"], "Offline failure")
     controller, context = origin(product)
@@ -194,7 +191,9 @@ def test_retry_grant_consumed_once_only_when_full_and_safe_status_projection(pro
     with product.transaction() as db:
         db.get(Approval, consent["id"]).status = "approved"
     result = call(product, {**context, "approved_approval_id": consent["id"]}, "retry_reply_request", {"id": old["id"]}, "approved-effect")
-    assert result["status"] == "held" and result["reason"] == "budget_exhausted"
+    assert result["status"] == "queued"
+    with product.transaction() as db:
+        assert db.get(ReplyRequest, result["id"]).generation == 1
     assert call(product, {**context, "approved_approval_id": consent["id"]}, "retry_reply_request", {"id": old["id"]}, "approved-effect") == result
     with product.transaction() as db:
         chain = db.get(CausalChain, controller["causal_chain_id"])
@@ -209,7 +208,7 @@ def test_retry_grant_consumed_once_only_when_full_and_safe_status_projection(pro
     call(product, {**context2, "approved_approval_id": consent2["id"]}, "retry_reply_request", {"id": old2["id"]})
     with product.transaction() as db:
         chain = db.get(CausalChain, controller2["causal_chain_id"])
-        assert chain.spent == 2 and chain.allowance == 6
+        assert chain.spent == 1 and chain.allowance == 6
         assert not db.scalar(select(AllowanceGrant.id).where(AllowanceGrant.client_request_key == "approval:" + consent2["id"]))
 
 

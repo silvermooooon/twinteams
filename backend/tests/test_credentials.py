@@ -8,7 +8,7 @@ import pytest
 from agent_runtime.execution import create_execution_tools
 from agent_runtime.sessions import SessionInfo
 from cryptography.fernet import Fernet
-from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import request_duet_reply as receiver_request
 from duet_test_support import seed_collaborations, send_message
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
@@ -130,7 +130,7 @@ def test_cancelling_origin_also_cancels_already_queued_continuation(product):
 def test_group_credential_form_belongs_to_target_owner_and_keeps_requester(product):
     seed_collaborations(product)
     source = send_message(product, "owner-maya", "duet-alex-maya", "Synthetic request", key())["message"]
-    request = legacy_request(product, "owner-maya", "duet-alex-maya", source["id"], "twin-alex", key())
+    request = receiver_request(product, "owner-maya", "duet-alex-maya", source["id"], "twin-alex", key())
     context = product.get_runtime_context(request["id"])
     assert owner_execution_allowed(product, "owner-alex", request["id"])
     assert not owner_execution_allowed(product, "owner-maya", request["id"])
@@ -225,7 +225,6 @@ def test_unicode_credential_names_are_metadata(product):
 def test_assembly_freezes_catalog_and_shares_owner_tools_with_children_and_groups(product, tmp_path, monkeypatch):
     seed_collaborations(product)
     from app import personal, twin_execution
-    from app.models import Chat
     original_backend = twin_execution.TwinExecutionBackend
     monkeypatch.setattr(twin_execution, "TwinExecutionBackend", lambda identity, workspace:
         original_backend(identity, workspace, directory=tmp_path / "execution-state"))
@@ -259,10 +258,9 @@ def test_assembly_freezes_catalog_and_shares_owner_tools_with_children_and_group
         assert "New credential metadata" not in recovered_bash.description
         output = await recovered_bash.execute("rotation", {"command": "test \"$ASSEMBLY_TOKEN\" = fake-assembly-new && printf updated", "credentials": ["assembly-ref"]})
         assert "updated" in str(output)
-        with product.transaction() as db:
-            group = db.get(Chat, "duet-alex-maya")
-            group_request = product.accept_request(db, group, product.twin(db, "owner-alex").id, "owner-alex", "auto", key())
-            group_id = group_request.id
+        from duet_test_support import append_duet, request_duet_reply
+        peer = append_duet(product, "duet-alex-maya", "owner-maya", "Authorized configuration inspection")
+        group_id = request_duet_reply(product, "owner-maya", "duet-alex-maya", peer["id"], "twin-alex")["id"]
         group_context = product.get_runtime_context(group_id)
         group_tools, group_config, _ = await twin_execution.assemble(product, session, group_context)
         assert group_config["execution_enabled"]

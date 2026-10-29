@@ -102,12 +102,6 @@ def runtime_origin(service, db, owner_id, request_id, *, executable=True, lock=T
         if not child:
             fail(409, "Worker continuation has no retained owner request")
         runtime_origin(service, db, owner_id, child.parent_request_id, executable=executable, lock=lock)
-    elif request.source == "followup_result":
-        from .followups import context as followup_context
-        from .followups import continuation
-        followup_context(service, db, request, owner_id)
-        followup = continuation(db, request, owner_id)
-        runtime_origin(service, db, owner_id, followup.origin_request_id, executable=executable, lock=lock)
     return request, chat, member
 
 

@@ -15,7 +15,6 @@ from app.models import (
     Message,
     MessageReaction,
     ReplyRequest,
-    RoutingDecision,
 )
 from app.reactions import REACTION_EMOJIS
 
@@ -39,14 +38,14 @@ def test_desired_state_actor_multiemoji_revision_and_no_model_triggers(product):
     mid = message(product)
     with product.transaction() as db:
         revision = db.get(Chat, "group-alex-maya").revision
-        before = [db.scalar(select(func.count()).select_from(model)) for model in (ReplyRequest, RoutingDecision)]
+        before = [db.scalar(select(func.count()).select_from(model)) for model in (ReplyRequest,)]
     first = react(product, mid, key="add")
     assert first["reactions"] == [{"emoji": "👍", "count": 1, "actors": [{"id": "owner-alex", "owner_id": "owner-alex", "name": "AAA", "kind": "human"}], "mine": True}]
     react(product, mid, key="different-key-same-state")
     react(product, mid, key="add")
     with product.transaction() as db:
         assert db.get(Chat, "group-alex-maya").revision == revision + 1
-        assert [db.scalar(select(func.count()).select_from(model)) for model in (ReplyRequest, RoutingDecision)] == before
+        assert [db.scalar(select(func.count()).select_from(model)) for model in (ReplyRequest,)] == before
     react(product, mid, "❤️")
     both = react(product, mid, owner="owner-maya")
     assert next(row for row in both["reactions"] if row["emoji"] == "👍")["count"] == 2

@@ -22,10 +22,8 @@ def pending(product, chat_id="private-alex"):
         from duet_test_support import seed_collaborations
         seed_collaborations(product)
         sent = send_message(product, "owner-maya", chat_id, "Prepare a useful report", uuid4().hex)
-        with product.transaction() as db:
-            chat, _ = product.membership(db, "owner-alex", chat_id)
-            request = product.request_payload(product.accept_request(db, chat, product.twin(db, "owner-alex").id,
-                "owner-maya", "auto", uuid4().hex, source_message_id=sent["message"]["id"]))
+        from duet_test_support import request_duet_reply
+        request = request_duet_reply(product, "owner-maya", chat_id, sent["message"]["id"], "twin-alex")
     session_id = product.get_request(request["id"])["session_id"]
     product.bind_runtime_run(request["id"], session_id, "run-" + request["id"])
     context = product.get_runtime_context(request["id"])
@@ -309,7 +307,7 @@ def test_private_prompt_projection_does_not_reverse_group_answer_lock_order(prod
     fresh = send_message(product, "owner-alex", "private-alex", "Another ordinary task", uuid4().hex)["request"]
     private_locked, group_locked = threading.Event(), threading.Event()
     original = questions.pending_questions
-    errors = []
+    errors, answer_chat_locks = [], []
     def delayed(*args):
         if threading.current_thread().name == "question-projection":
             private_locked.set()
@@ -318,8 +316,12 @@ def test_private_prompt_projection_does_not_reverse_group_answer_lock_order(prod
     monkeypatch.setattr(questions, "pending_questions", delayed)
     def observed(connection, cursor, statement, parameters, context, many):
         if (threading.current_thread().name == "question-answer" and "FOR UPDATE" in statement
-                and "tt_chats" in statement and "duet-alex-maya" in str(parameters)):
-            group_locked.set()
+                and "tt_chats" in statement):
+            for chat_id in ("duet-alex-maya", "private-alex"):
+                if chat_id in str(parameters):
+                    answer_chat_locks.append(chat_id)
+            if "duet-alex-maya" in str(parameters):
+                group_locked.set()
     event.listen(module.engine, "after_cursor_execute", observed)
     def execute(action):
         try:
@@ -335,6 +337,7 @@ def test_private_prompt_projection_does_not_reverse_group_answer_lock_order(prod
         answering.start(); projection.join(10); answering.join(10)
         assert not projection.is_alive() and not answering.is_alive()
         assert not errors, errors
+        assert answer_chat_locks.index("duet-alex-maya") < answer_chat_locks.index("private-alex")
         with product.transaction() as db:
             assert db.get(QuestionRequest, row["id"]).status == "answered"
     finally:

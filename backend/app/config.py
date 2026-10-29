@@ -44,7 +44,6 @@ class Settings:
     max_background_running: int = max(1, int(os.getenv("TWINTEAMS_MAX_BACKGROUND_RUNNING", "2")))
     max_background_per_owner: int = max(1, int(os.getenv("TWINTEAMS_MAX_BACKGROUND_PER_OWNER", "1")))
     max_background_children: int = max(1, int(os.getenv("TWINTEAMS_MAX_BACKGROUND_CHILDREN", "2")))
-    routing_concurrency: int = int(os.getenv("TWINTEAMS_ROUTING_CONCURRENCY", "2"))
     memory_dream_interval_seconds: int = max(60, int(os.getenv("TWINTEAMS_MEMORY_DREAM_INTERVAL_SECONDS", "14400")))
     presence_ttl_seconds: int = int(os.getenv("TWINTEAMS_PRESENCE_TTL_SECONDS", "35"))
     cors_origins: tuple[str, ...] = tuple(

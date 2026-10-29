@@ -1,6 +1,6 @@
 """Independent context acceptance on disposable PostgreSQL; no provider calls.
 
-The journal, summary publication, membership checks, manifests and routing input
+The journal, summary publication, membership checks, manifests and receiver input
 are production paths. Summary prose is a deliberate synthetic acceptance input.
 """
 import asyncio
@@ -14,7 +14,7 @@ from sqlalchemy import event, select
 from test_memory_dream import product as product  # noqa: PLC0414
 
 from app import service as service_module
-from app.models import Chat, ContextManifest, Membership, Message, RoutingDecision, now
+from app.models import Chat, ContextManifest, Membership, Message, now
 
 
 def seed(product, chat_id, count, *, owner="owner-alex", label="Journal fact"):
@@ -23,7 +23,7 @@ def seed(product, chat_id, count, *, owner="owner-alex", label="Journal fact"):
         chat = db.get(Chat, chat_id)
         start = chat.next_message_seq
         rows = [Message(id=uuid4().hex, chat_id=chat_id, seq=start + index,
-                        author_id=(owner.replace("owner-", "twin-") if chat.kind == "duet" else owner), kind="twin" if chat.kind == "duet" else "human", body=f"{label} {start + index}")
+                        author_id=(("twin-jordan" if chat_id == "duet-team" else "twin-maya" if owner == "owner-alex" else "twin-alex") if chat.kind == "duet" else owner), kind="twin" if chat.kind == "duet" else "human", body=f"{label} {start + index}")
                 for index in range(count)]
         db.add_all(rows)
         chat.next_message_seq += count
@@ -362,7 +362,7 @@ def test_legacy_body_hash_manifest_can_resume_until_its_source_changes(product):
     assert error.value.status_code == 409
 
 
-def test_router_has_group_summary_tail_without_private_owner_context(product):
+def test_receiver_has_duet_summary_tail_without_private_owner_context(product):
     private = seed(product, "private-alex", 45, label="PRIVATE_SENTINEL_ALPHA")
     summarize(product, request(product, "private-alex", private[-1]["id"]),
               "PRIVATE_SUMMARY_SENTINEL_ALPHA")
@@ -370,14 +370,13 @@ def test_router_has_group_summary_tail_without_private_owner_context(product):
     saved, _ = summarize(product, request(product, "duet-team", group[-1]["id"]),
                          "GROUP_CHECKPOINT_SENTINEL_BETA")
     from duet_test_support import append_duet
-    sent = {"message": append_duet(product, "duet-team", "owner-alex", "BBB, can you answer?")}
-    with product.transaction() as db:
-        decision = db.scalar(select(RoutingDecision).where(RoutingDecision.message_id == sent["message"]["id"]))
-        decision_id = decision.id
+    sent = {"message": append_duet(product, "duet-team", "owner-maya", "AAA, can you answer?")}
+    from duet_test_support import request_duet_reply
+    receiver = request_duet_reply(product, "owner-maya", "duet-team", sent["message"]["id"], "twin-alex")
     with sql_reads() as reads:
-        prepared = product._prepare_route(decision_id)
+        prepared = product.get_runtime_context(receiver["id"])
     assert prepared
-    route_context = prepared[2]
+    route_context = prepared
     encoded = json.dumps(route_context)
     assert "GROUP_CHECKPOINT_SENTINEL_BETA" in encoded
     assert "PRIVATE_SENTINEL_ALPHA" not in encoded and "PRIVATE_SUMMARY_SENTINEL_ALPHA" not in encoded

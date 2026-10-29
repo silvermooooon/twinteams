@@ -7,7 +7,7 @@ on `127.0.0.1:5432`, database `appdb`. Redis carries disposable notifications an
 Both `DATABASE_URL` and `AGENT_DB_URL` point to this database. Product tables use
 `tt_*`; canonical Runtime tables use `agent_*`. Credentials live in ignored mode-600
 project environment files and must not be committed. `app.init_db` creates product
-metadata tables and upgrades SDK migrations 001–005 explicitly and repeatably. API/worker startup verifies
+metadata tables and upgrades SDK migrations 001–005 explicitly. The current product includes a breaking communication upgrade, detailed in [architecture](architecture.md#provision-and-launch); stop the idle old stack before explicit provisioning. API/worker startup verifies
 schema without changing it. The SQL files belong to the SDK package.
 
 Local DEV login requires an explicit local environment, development opt-in and a

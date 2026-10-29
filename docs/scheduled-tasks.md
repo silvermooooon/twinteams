@@ -54,7 +54,7 @@ has settled. System tasks cannot be deleted.
 
 Tasks execute in your private Duet context and retain normal tool permissions,
 source visibility and approval requirements. A schedule does not grant access to
-another person's private data. Peer coordination uses a separate active approved Duet conversation; a task may request one and return pending without polling. Approval once or directed always grants permit the connection only. Revocation closes dependent sessions; automatic work shares the original six-reply chain and only human Continue extends it. Scheduled work never wakes or publishes a Duet in human chats. In-app **Reminders** remain a separate list of
+another person's private data. Peer coordination uses a separate active approved Duet conversation; a task may request one and return pending without polling. Approval once or directed always grants permit the connection only. Revocation closes dependent sessions; actual peer messages share the original six-send chain and only human Continue extends it. Scheduled work never wakes or publishes a Duet in human chats. In-app **Reminders** remain a separate list of
 human-facing reminders. Resetting Twin content pauses personal scheduled tasks;
 review the retained instructions before explicitly resuming them.
 

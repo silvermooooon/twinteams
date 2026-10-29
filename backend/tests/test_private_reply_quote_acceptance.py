@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
-from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import request_duet_reply as receiver_request
 from fastapi import HTTPException
 from sqlalchemy import select
 from test_memory_dream import product as product  # noqa: PLC0414
@@ -30,7 +30,7 @@ def accepted(product, kind):
                 kind="twin",
                 body="Synthetic original question",
             ).id
-        request = legacy_request(product,
+        request = receiver_request(product,
             "owner-maya", chat_id, message_id, "twin-alex", uuid4().hex
         )
     return request, product.get_runtime_context(request["id"]), message_id, chat_id
@@ -53,14 +53,19 @@ def assert_lineage(product, request, question_id, output_id):
             == original.causal_chain_id
             == db.get(Message, question_id).causal_chain_id
         )
-        assert question_id in output.source_message_ids
+        prepared = db.get(Chat, output.chat_id).kind == "duet"
+        if prepared:
+            assert output.source_message_ids == [] and output.source_provenance == []
+        else:
+            assert question_id in output.source_message_ids
         manifests = list(
             db.scalars(select(ContextManifest).where(ContextManifest.request_id == original.id))
         )
         assert manifests and any(
             source.get("id") == question_id for row in manifests for source in row.sources
         )
-        assert output.source_provenance == product.manifest_provenance(db, original.id)
+        if not prepared:
+            assert output.source_provenance == product.manifest_provenance(db, original.id)
 
 
 @pytest.mark.parametrize("kind", ["private", "group"])
@@ -143,10 +148,10 @@ def test_cross_chat_private_tool_quote_remains_available_and_source_withdrawal_s
             3,
         )
     assert error.value.status_code == 409
-    assert all(
-        row["id"] != automatic
-        for row in product.chat_detail("owner-alex", chat_id)["messages"]
-    )
+    # Withdrawing the original does not retract an already published prepared reply.
+    # It removes the quote text and prevents any subsequent publication from that task.
+    published = message_json(product, chat_id, automatic)
+    assert published["reply_to"]["id"] == question_id and published["reply_to"]["unavailable"]
     assert any(row["id"] == result["message_id"]
         for row in product.chat_detail("owner-alex", target_id)["messages"])
 

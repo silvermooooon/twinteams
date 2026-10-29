@@ -8,7 +8,7 @@ import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from agent_runtime.memory import MemorySource
 from agent_runtime.sessions import DatabaseSession, SessionInfo
-from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import request_duet_reply as receiver_request
 from duet_test_support import send_message
 from test_credentials import product as product  # noqa: PLC0414
 
@@ -55,7 +55,7 @@ def test_other_participant_uses_target_twin_profile_skills_and_sdk_identity(
     source = sent['message']
     with product.transaction() as db:
         target_twin = product.twin(db, target_owner).id
-    request = sent['request'] if is_private else legacy_request(product, requester, chat_id, source['id'], target_twin, uuid4().hex)
+    request = sent['request'] if is_private else receiver_request(product, requester, chat_id, source['id'], target_twin, uuid4().hex)
     context = product.get_runtime_context(request['id'])
     assert context['owner_id'] == target_owner and context['requester_id'] == source_owner
     assert context['source_owner_id'] == source_owner

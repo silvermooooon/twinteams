@@ -199,19 +199,19 @@
 .detail-sidebar .loading-row { padding: 20px 12px; font-size: 13px; color: #616161; }
 .modal .file-preview { color: #616161; padding: 24px 12px; }
 .modal .text-file-preview { max-height: 48dvh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 16px; border: 1px solid #e0e0e0; border-radius: 4px; background: #fafafa; color: #242424; font: 13px/20px ui-monospace, SFMono-Regular, Consolas, monospace; }
-.automatic-conversations.automatic-conversations { margin-bottom: 12px; gap: 8px; max-height: 240px; }
-.automatic-conversations .automatic-paused { padding: 12px; gap: 10px; border: 1px solid #d1d1d1; border-radius: 4px; background: #fafafa; color: #424242; }
-.automatic-conversations .automatic-paused>svg { color: #616161; margin-top: 2px; }
-.automatic-conversations .automatic-paused-heading>strong { font-size: 14px; line-height: 20px; color: #242424; font-weight: 600; }
-.automatic-conversations .automatic-paused-heading>span { font-size: 12px; color: #616161; }
-.automatic-conversations .automatic-paused-copy>p { font-size: 13px; line-height: 20px; color: #424242; }
-.automatic-conversations .automatic-paused-copy>.automatic-paused-hint { font-size: 12px; color: #616161; }
-.automatic-conversations .automatic-continue-actions { margin-top: 12px; gap: 12px; }
-.automatic-conversations .automatic-continue-actions>.secondary-button { min-height: 32px; border: 1px solid #d1d1d1; border-radius: 4px; padding: 5px 12px; background: #fff; color: #242424; font-size: 13px; font-weight: 600; line-height: 20px; }
-.automatic-conversations .automatic-continue-actions>.secondary-button:hover:not(:disabled) { background: #f0f0f0; }
-.automatic-conversations .automatic-continue-actions>small { color: #616161; font-size: 11px; line-height: 16px; }
-.automatic-conversations .automatic-paused-copy>.automatic-continue-error { color: #c4314b; font-size: 12px; }
-.automatic-conversations .automatic-continue-error>span { color: #616161; }
+.duet-send-budgets.duet-send-budgets { margin-bottom: 12px; gap: 8px; max-height: 240px; }
+.duet-send-budgets .duet-send-budget { padding: 12px; gap: 10px; border: 1px solid #d1d1d1; border-radius: 4px; background: #fafafa; color: #424242; }
+.duet-send-budgets .duet-send-budget>svg { color: #616161; margin-top: 2px; }
+.duet-send-budgets .duet-send-budget-heading>strong { font-size: 14px; line-height: 20px; color: #242424; font-weight: 600; }
+.duet-send-budgets .duet-send-budget-heading>span { font-size: 12px; color: #616161; }
+.duet-send-budgets .duet-send-budget-copy>p { font-size: 13px; line-height: 20px; color: #424242; }
+.duet-send-budgets .duet-send-budget-copy>.duet-send-budget-hint { font-size: 12px; color: #616161; }
+.duet-send-budgets .duet-send-continue-actions { margin-top: 12px; gap: 12px; }
+.duet-send-budgets .duet-send-continue-actions>.secondary-button { min-height: 32px; border: 1px solid #d1d1d1; border-radius: 4px; padding: 5px 12px; background: #fff; color: #242424; font-size: 13px; font-weight: 600; line-height: 20px; }
+.duet-send-budgets .duet-send-continue-actions>.secondary-button:hover:not(:disabled) { background: #f0f0f0; }
+.duet-send-budgets .duet-send-continue-actions>small { color: #616161; font-size: 11px; line-height: 16px; }
+.duet-send-budgets .duet-send-budget-copy>.duet-send-continue-error { color: #c4314b; font-size: 12px; }
+.duet-send-budgets .duet-send-continue-error>span { color: #616161; }
 /* Approval eligibility and consent stay under their existing controllers. */
 .approvals-drawer.approvals-drawer { border: 1px solid #d1d1d1; border-radius: 4px; background: #fff; }
 .approvals-drawer .approval-toggle { padding: 10px 12px; min-height: 40px; color: #424242; font-size: 13px; }
@@ -269,14 +269,14 @@
 @media (min-width: 1600px) { .detail-sidebar.detail-sidebar { width: 360px; } }
 @media (max-width: 1050px) { .detail-sidebar.detail-sidebar { position: absolute; top: 0; right: 8px; bottom: 8px; width: 340px; z-index: 12; box-shadow: -4px 0 16px rgb(0 0 0 / 12%); border-radius: 0 8px 8px 0; } .app-shell.acceptance-fixture .detail-sidebar.detail-sidebar { top: 0; } }
 @media (max-width: 760px) { .people-picker-inline .people-recipient-field { padding-left: 16px; padding-right: 16px; } .people-picker-inline .people-suggestions { left: 16px; width: calc(100% - 32px); } .people-picker-inline .people-picker-details { margin: 24px 16px 0; padding: 16px; } .reminders-main .reminders-content { padding: 24px 20px; } }
-@media (max-width: 550px) { .detail-sidebar.detail-sidebar { width: min(340px, calc(100vw - 68px)); min-width: 0; } .twins-modal-backdrop { padding: 16px; } .twins-modal-backdrop .modal { padding: 20px; max-height: calc(100dvh - 32px); } .login-page .login-main { padding: 28px; } .automatic-conversations .automatic-continue-actions>small { flex-basis: 100%; } }
+@media (max-width: 550px) { .detail-sidebar.detail-sidebar { width: min(340px, calc(100vw - 68px)); min-width: 0; } .twins-modal-backdrop { padding: 16px; } .twins-modal-backdrop .modal { padding: 20px; max-height: calc(100dvh - 32px); } .login-page .login-main { padding: 28px; } .duet-send-budgets .duet-send-continue-actions>small { flex-basis: 100%; } }
 @media (prefers-reduced-motion: reduce) { .detail-sidebar.detail-sidebar, .detail-sidebar .side-drawer, .detail-sidebar .side-drawer.is-closing, .people-picker-inline .people-suggestions { animation: none; } .detail-sidebar .tree-chevron { transition: none; } }
 
-.modal button, .people-picker button, .detail-sidebar button, .automatic-conversations button, .approvals-drawer button { transition: background-color 100ms ease, border-color 100ms ease, color 100ms ease; }
+.modal button, .people-picker button, .detail-sidebar button, .duet-send-budgets button, .approvals-drawer button { transition: background-color 100ms ease, border-color 100ms ease, color 100ms ease; }
 .people-picker .person-option { transition-duration: 50ms; }
 .detail-sidebar .tree-chevron { transition: transform 200ms ease; }
 .new-chat-main:has(.people-picker-details) .new-conversation-empty { display: none; }
-@media (prefers-reduced-motion: reduce) { .modal button, .people-picker button, .detail-sidebar button, .automatic-conversations button, .approvals-drawer button, .detail-sidebar .tree-chevron { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .modal button, .people-picker button, .detail-sidebar button, .duet-send-budgets button, .approvals-drawer button, .detail-sidebar .tree-chevron { transition: none; } }
 
 .tracking-source { color: #616161; font-size: 11px; line-height: 17px; overflow-wrap: anywhere; }
 .tracking-card .tracking-source { display: block; margin: 3px 0; }

@@ -1,5 +1,7 @@
 # Teams UI acceptance — 2026-10-18
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 > 2026-10-21 update: the image-only model-input and unsupported-file rules recorded below are historical. Current uploads accept all types and supply file paths for on-demand tool reads; see the [current file contract](implementation-contract.md#uploaded-files-and-the-real-workspace).
 
 This is an independent frontend review record. It distinguishes observed reference behavior, Twins feature preservation, and checks still pending. A screenshot match does not establish complete Teams feature or behavior parity.

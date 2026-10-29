@@ -19,7 +19,7 @@ def call(product, context, name, args):
 def source(product, chat_id, owner="owner-alex"):
     if chat_id.startswith("duet-"):
         from duet_test_support import append_duet
-        return append_duet(product, chat_id, owner, "Isolated project evidence " + uuid4().hex)["id"]
+        return append_duet(product, chat_id, "owner-maya" if owner == "owner-alex" else "owner-alex", "Isolated project evidence " + uuid4().hex)["id"]
     with product.transaction() as db:
         row = product.append_message(db, db.get(Chat, chat_id), author_id=product.twin(db, owner).id if chat_id.startswith("duet-") else owner,
             kind="twin" if chat_id.startswith("duet-") else "human", body="Isolated project evidence " + uuid4().hex)
@@ -42,10 +42,14 @@ def topic(product, chat_id, owner="owner-alex", *, sources=True):
 
 def origin(product, chat_id="private-alex", owner="owner-alex"):
     source_id = source(product, chat_id, owner)
-    with product.transaction() as db:
-        row = product.accept_request(db, db.get(Chat, chat_id), product.twin(db, owner).id,
-            owner, "auto" if chat_id.startswith("duet-") else "manual", uuid4().hex, source_message_id=source_id)
-        request_id = row.id
+    if chat_id.startswith("duet-"):
+        from duet_test_support import request_duet_reply
+        request_id = request_duet_reply(product, owner, chat_id, source_id, owner.replace("owner-", "twin-"))["id"]
+    else:
+        with product.transaction() as db:
+            row = product.accept_request(db, db.get(Chat, chat_id), product.twin(db, owner).id,
+                owner, "manual", uuid4().hex, source_message_id=source_id)
+            request_id = row.id
     return request_id, product.get_runtime_context(request_id)
 
 

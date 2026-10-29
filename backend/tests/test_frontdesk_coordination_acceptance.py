@@ -86,7 +86,7 @@ def test_actual_main_and_child_factories_keep_coordination_out_of_worker_role(pr
             assert {"spawn_agent", "get_agent", "send_agent_message", "wait_agent", "stop_agent"} <= names
             assert {"memory_read", "memory_write", "memory_search", "memory_delete"} <= names
             assert {"bash", "read", "write", "create_approval", "request_credential"} <= names
-            assert child.session_id in runtime.managers
+            assert (child.session_id, False) in runtime.managers
             assert personal.get_execution_config(request["id"]) == frozen_before
             with product.transaction() as db:
                 chain = db.get(CausalChain, request["causal_chain_id"])
@@ -111,7 +111,7 @@ def test_actual_main_and_child_factories_keep_coordination_out_of_worker_role(pr
 
 def test_actual_group_child_keeps_third_party_origin_without_parent_history(product):
     """A delegate must not confuse its controlling owner with the human who asked."""
-    from duet_test_support import request_duet_reply as legacy_request
+    from duet_test_support import request_duet_reply as receiver_request
 
     async def run():
         runtime = RuntimeBridge(product)
@@ -127,7 +127,7 @@ def test_actual_group_child_keeps_third_party_origin_without_parent_history(prod
         try:
             source = send_message(product, "owner-maya", "duet-alex-maya",
                 "Please do this separate task for me", uuid4().hex)["message"]
-            request = legacy_request(product, "owner-maya", "duet-alex-maya",
+            request = receiver_request(product, "owner-maya", "duet-alex-maya",
                 source["id"], "twin-alex", uuid4().hex)
             context = product.get_runtime_context(request["id"])
             result = await runtime.execute(product.get_request(request["id"]), context)

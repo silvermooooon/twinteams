@@ -12,7 +12,7 @@ from duet_test_support import append_duet, approved_chat, request_duet_reply
 from sqlalchemy import func, select
 from test_memory_dream import product as product  # noqa: PLC0414
 
-from app.models import Message, MessageReaction, ReplyRequest, RoutingDecision
+from app.models import Message, MessageReaction, ReplyRequest
 from app.runtime_bridge import RuntimeBridge, text_content
 
 
@@ -38,7 +38,7 @@ def test_actual_reaction_only_turn_is_persisted_and_does_not_create_a_conversati
             message_id = append_duet(product, chat_id, "owner-maya", "Thanks, that helped")["id"]
             request = request_duet_reply(product, "owner-maya", chat_id, message_id, "twin-alex")
         with product.transaction() as db:
-            before = tuple(db.scalar(select(func.count()).select_from(table)) for table in (Message, ReplyRequest, RoutingDecision))
+            before = tuple(db.scalar(select(func.count()).select_from(table)) for table in (Message, ReplyRequest))
         runtime = RuntimeBridge(product)
         calls = []
 
@@ -58,7 +58,7 @@ def test_actual_reaction_only_turn_is_persisted_and_does_not_create_a_conversati
                 reaction = db.get(MessageReaction, (message_id, "twin-alex", "❤️"))
                 assert reaction is not None
                 assert not db.scalar(select(Message.id).where(Message.request_id == request["id"]))
-                assert tuple(db.scalar(select(func.count()).select_from(table)) for table in (Message, ReplyRequest, RoutingDecision)) == before
+                assert tuple(db.scalar(select(func.count()).select_from(table)) for table in (Message, ReplyRequest)) == before
             await product.execute_request(request["id"])
             assert len(calls) == 2
         finally:

@@ -1,5 +1,7 @@
 # Message reactions acceptance — 2026-10-19
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 ## Scope and test isolation
 
 The platform now has 28 group tool declarations and 14 exact platform write-action variants, including `set_message_reaction`. Earlier approval-detail regression evidence for 13 variants refers to the pre-reaction version.

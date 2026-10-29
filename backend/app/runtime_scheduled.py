@@ -21,7 +21,9 @@ def is_scheduled_request(request, context=None):
 
 
 def terminal_output_only(request, context=None):
-    return request.get("source") == "followup_result" or is_scheduled_request(request, context)
+    context = context or {}
+    return (request.get("chat_kind") == "duet" or context.get("chat", {}).get("kind") == "duet"
+            or request.get("source") == "duet_message" or is_scheduled_request(request, context))
 
 
 def scheduled_prompt(request, context):
@@ -34,7 +36,7 @@ def scheduled_prompt(request, context):
         return (
             "This is the platform's periodic private system review, not a new human message. "
             "Review authorized ongoing Tracking and recent changes, blockers, pending owner "
-            "approvals, background children, follow-ups and upcoming or overdue deadlines. "
+            "approvals, background children and upcoming or overdue deadlines. "
             "Read relevant details before acting. Time passing can matter even without new "
             "local messages: evaluate unresolved time-sensitive work and known external watches. "
             "Continue useful work already authorized by the owner; delegate substantial "
@@ -78,7 +80,7 @@ def scheduled_policy(context):
         "reporting behavior and pending work. Execute in your owner's private chat; coordinate "
         "with peers through active approved Duet conversations or request_duet_conversation. "
         "Never wake or publish a Duet in a human chat. Connection approval grants no extra "
-        "task authority, and the shared six-reply chain still applies. Do not duplicate operations or create, edit or "
+        "task authority, and the shared six-send chain still applies. Do not duplicate operations or create, edit or "
         "cancel schedules. Only a completed final response is published; an empty response "
         "is silent. Approval and credential forms still request necessary owner action. "
     )

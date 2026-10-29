@@ -1,5 +1,7 @@
 # 私聊重置、即时 Dream 与 SOUL.md 独立验收（2026-10-18）
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 本轮所有写入验收使用随机 PostgreSQL schema、临时 Git/工作区和离线 fake provider。SDK、PG 事务、Git 发布与 HTTP/WS 均真实；没有调用官方模型；生产仅执行获授权的迁移与只读验收，未调用真实用户重置、手动 Dream 或改名。
 
 ## 实现边界

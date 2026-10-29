@@ -1,5 +1,7 @@
 # Duet delegation and social behavior acceptance — 2026-10-28
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 ## Scope and method
 
 This acceptance used only **GPT-6 Luna / OpenAI Responses** through the previously authorized provider configuration and proxy. All six original V2 cases completed. The aggregate result was **29 actual HTTP attempts: 28 HTTP 200 and one pre-response ConnectError**. The isolated acceptance did not change production chats, state, services or files. Any later authorized deployment is recorded separately below. No further model calls are planned.

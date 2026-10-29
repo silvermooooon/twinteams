@@ -113,7 +113,7 @@ def test_atomic_occurrence_and_coalescing_restarts(product):
         assert schedules.snapshot(request)["planned_at"] == schedules.iso(planned)
         assert request.source == "scheduled_task" and request.source_message_id is None
         assert db.get(DispatchCommand, request.id)
-        assert db.get(CausalChain, request.causal_chain_id).spent == 1
+        assert db.get(CausalChain, request.causal_chain_id).spent == 0
         assert request.execution_config is None
     restarted = service_module.ProductService()
     try:
@@ -391,13 +391,13 @@ def test_reminder_alone_eligible_and_foreign_chain_request_not_cancellable(produ
     request_id = schedules.process_due(product)[0]
     context = product.get_runtime_context(request_id)
     assert context["system_review"]["deadlines"][0]["title"] == "Deadline tomorrow"
+    from duet_test_support import approved_chat
+    approved_chat(product, "duet-alex-maya")
+    sent = product._runtime_tool_transaction("send_chat_message", {"chat_id": "duet-alex-maya",
+        "body": "An authorized peer subtask", "source_message_ids": []}, {**context, "operation_id": uuid4().hex})
     with product.transaction() as db:
-        root = db.get(ReplyRequest, request_id)
-        from duet_test_support import approved_chat
-        approved_chat(product, "duet-alex-maya")
-        group = db.get(Chat, "duet-alex-maya")
-        foreign = product.accept_request(db, group, "twin-maya", "owner-alex", "auto", uuid4().hex, causal_chain_id=root.causal_chain_id)
-        assert foreign.target_twin_id != root.target_twin_id
+        foreign = db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == sent["message_id"]))
+        assert foreign.target_twin_id != db.get(ReplyRequest, request_id).target_twin_id
     product.finish_request(request_id, "completed")
     item = next(item for item in schedules.list_tasks(product, "owner-alex")["items"] if item["id"] == system["id"])
     assert item["pending_work"] and item["active_request_id"] is None

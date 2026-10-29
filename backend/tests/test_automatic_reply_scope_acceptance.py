@@ -4,7 +4,6 @@ from uuid import uuid4
 import pytest
 from duet_test_support import append_duet, seed_collaborations
 from sqlalchemy import func, select
-from test_group_trigger_matrix import candidates, route
 from test_memory_dream import product as product  # noqa: PLC0414
 from test_send_ack import send_clients as send_clients  # noqa: PLC0414
 from test_send_ack import sender_socket
@@ -17,8 +16,8 @@ def test_human_http_messages_do_not_schedule_model_work(send_clients, chat_id):
     product, sender, _ = send_clients
     response = sender.post(f'/api/chats/{chat_id}/messages', json={'body': '@twin-maya can you help?', 'client_request_key': uuid4().hex})
     assert response.status_code == 200 and response.json()['request'] is None
-    assert product.pending_routes({chat_id}) == []
-    assert candidates(product, response.json()['message']['id']) == {}
+    with product.transaction() as db:
+        assert db.scalar(select(func.count()).select_from(ReplyRequest).where(ReplyRequest.source_message_id == response.json()['message']['id'])) == 0
 
 
 @pytest.mark.parametrize('command', ['messages', 'reply-requests'])
@@ -61,9 +60,9 @@ def test_owner_reads_do_not_consume_or_cancel_approved_duet_work(send_clients):
     seed_collaborations(product)
     message = append_duet(product, 'duet-alex-maya', 'owner-alex', 'Question for peer')
     assert peer.post('/api/chats/duet-alex-maya/read', json={'message_ids': [message['id']]}).status_code == 200
-    route(product, message['id'], ['owner-maya'])
-    product.process_candidates({'duet-alex-maya'})
-    assert candidates(product, message['id'])['owner-maya']['state'] == 'accepted'
+    with product.transaction() as db:
+        receiver = db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == message['id'], ReplyRequest.target_twin_id == 'twin-maya'))
+        assert receiver.status == 'queued'
     assert sender.get('/api/duet-conversations/duet-alex-maya').status_code == 200
 
 

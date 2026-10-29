@@ -16,7 +16,6 @@ from .models import (
     PendingChildResult,
     ReplyRequest,
     ScheduledTask,
-    TwinFollowup,
     now,
     uid,
 )
@@ -175,8 +174,6 @@ def busy(db, row):
         return True
     if db.scalar(select(PendingChildResult.id).where(PendingChildResult.causal_chain_id == chain, PendingChildResult.state.in_(["pending", "paused"])).limit(1)):
         return True
-    if db.scalar(select(TwinFollowup.id).where(TwinFollowup.causal_chain_id == chain, TwinFollowup.notification_state.in_(["waiting", "pending", "paused"])).limit(1)):
-        return True
     requests = select(ReplyRequest.id).where(ReplyRequest.causal_chain_id == chain)
     from .credential_models import CredentialRequest
     if db.scalar(select(CredentialRequest.id).where(CredentialRequest.origin_request_id.in_(requests), CredentialRequest.status == "pending").limit(1)):
@@ -286,7 +283,6 @@ def review_snapshot(service, db, row, moment):
         "status": projection.get("status", topic.status), "updated_at": iso(topic.updated_at)}
         for topic, _, _, projection in service._tracking_scope(db, private, member, limit=100) if projection]
     approvals = [{"id": item.id, "status": item.status, "created_at": iso(item.created_at)} for item in db.scalars(select(Approval).where(Approval.approver_id == row.owner_id, Approval.status == "pending").order_by(Approval.created_at).limit(30))]
-    followups = [{"id": item.id, "status": item.status, "due_at": iso(item.due_at)} for item in db.scalars(select(TwinFollowup).where(TwinFollowup.owner_id == row.owner_id, TwinFollowup.notification_state.in_(["waiting", "pending", "paused"])).order_by(TwinFollowup.due_at).limit(30))]
     children = [{"id": item.id, "state": item.state, "created_at": iso(item.created_at)} for item in db.scalars(select(PendingChildResult).where(PendingChildResult.owner_id == row.owner_id, PendingChildResult.state.in_(["pending", "paused"])).order_by(PendingChildResult.created_at).limit(30))]
     from .models import Message
     recent = []
@@ -301,7 +297,7 @@ def review_snapshot(service, db, row, moment):
             break
     changes = [item for item in recent if datetime.fromisoformat(item["created_at"]) > datetime.fromisoformat(cutoff)]
     result = {"as_of": iso(moment), "cutoff": cutoff, "changes": changes,
-        "approvals": approvals, "followups": followups, "children": children,
+        "approvals": approvals, "children": children,
         "previous_notice": {key: value for key, value in (details.get("previous_notice") or {}).items() if key in {"fingerprint", "at"}}}
     # Open work and recent context deserve temporal judgement even without local writes:
     # deadlines and external checks cannot safely be inferred from structured metadata alone.
@@ -315,7 +311,7 @@ def review_snapshot(service, db, row, moment):
     conversation = db.scalar(select(Message.id).where(Message.chat_id == private.id,
         Message.seq >= member.lower_seq, Message.state == "published",
         Message.kind.in_(["human", "twin", "reply_for_me"])).limit(1))
-    result["needs_review"] = bool(tracking or conversation or approvals or followups or children or memory or dream or result["deadlines"])
+    result["needs_review"] = bool(tracking or conversation or approvals or children or memory or dream or result["deadlines"])
     return result
 
 

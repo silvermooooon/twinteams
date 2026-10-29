@@ -135,7 +135,6 @@ def test_one_shot_context_task_first_and_second_input_end_intro_without_losing_w
     ("scheduled_task", None, "owner-alex", False),
     ("subagent_result", None, "owner-alex", False),
     ("credential_result", None, "owner-alex", False),
-    ("followup_result", None, "owner-alex", False),
     ("private", "Please write this message", "owner-alex", False),
     ("private", None, "owner-maya", False),
 ])

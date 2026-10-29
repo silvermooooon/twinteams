@@ -47,114 +47,114 @@ def install_offline(root):
         users = [i for i, item in enumerate(context.messages) if item.get('role') == 'user']
         position = users[-1] if users else 0
         user = context.messages[position]
-        text, system = text_content(user), text_content(context.messages[0])
+        text = text_content(user)
         results = [item for item in context.messages[position + 1:] if item.get('role') == 'toolResult']
         tools = {item['name'] for item in current_tools(context.messages)}
         tool_names = [item.get('toolName') for item in results]
         name, args, info = None, None, {}
-        if system.startswith("Choose which participant owners'"):
-            payload = json.loads(text)
-            message = payload['message']; body = message.get('body', '')
-            allowed = json.loads(system.rsplit('Allowed owners: ', 1)[1])
-            author = message.get('author_owner_id') or message.get('source_owner_id') or message.get('author_id')
-            peers = [owner for owner in allowed if owner != author]
-            if body.startswith('ACCEPTANCE ROUTE_FAIL'):
-                marker = root / ('route-fail-once-' + message['id'])
-                if not marker.exists():
-                    marker.write_text('intentional isolated route failure')
-                    raise RuntimeError('Acceptance intentional classifier failure')
-            needs = body.startswith(('ACCEPTANCE QUESTION', 'ACCEPTANCE CHAIN', 'ACCEPTANCE REPORTBACK', 'ACCEPTANCE SLOW', 'ACCEPTANCE ASKOWNER'))
-            final = json.dumps({'target_owner_ids': peers[:1] if needs else [], 'needs_response': needs, 'reason': 'Deterministic approved-conversation acceptance scenario'})
-            phase = 'routing'
-        else:
-            def details():
-                from app.models import Actor, Message, ReplyRequest
-                from app.service import service
-                with service.transaction() as db:
-                    request = db.get(ReplyRequest, user.get('queueId', ''))
-                    if not request:
-                        return {}
-                    source = db.get(Message, request.source_message_id) if request.source_message_id else None
-                    return {'request_id': request.id, 'source': request.source, 'chat_id': request.chat_id,
-                            'owner_id': db.get(Actor, request.target_twin_id).owner_id,
-                            'session_id': request.session_id, 'continuation_of_request_id': getattr(request, 'continuation_of_request_id', None),
-                            'background': getattr(request, 'background', False),
-                            'body': request.input_body if request.source == 'followup_result' else source.body if source else request.input_body or ''}
-            info = await asyncio.to_thread(details)
-            body = info.get('body', text)
-            if info.get('source') in {'scheduled_task', 'system_review'}:
-                try: body = json.loads(body).get('instructions', body)
-                except (ValueError, TypeError): pass
-            if (root / ('hold-provider-source-' + info.get('source', 'unknown'))).exists():
-                body = 'CONCURRENCY HOLD ' + info['source']
-            phase = 'reply'
-            if info.get('request_id'):
-                marker = root / ('provider-start-' + info['request_id'] + '.json')
-                if not marker.exists(): marker.write_text(json.dumps(info))
-            final = 'Acceptance private reply.'
-            if info.get('source') == 'question_result' and body.startswith('CONCURRENCY QUESTION'):
-                final = 'Completed question continuation: Blue'
-            elif body.startswith('CONCURRENCY HOLD'):
+        def details():
+            from sqlalchemy import select
+
+            from app.models import Actor, Chat, Message, ReplyRequest
+            from app.question_models import QuestionRequest
+            from app.service import service
+            with service.transaction() as db:
+                request = db.get(ReplyRequest, user.get('queueId', ''))
+                if not request:
+                    return {}
+                source = db.get(Message, request.source_message_id) if request.source_message_id else None
+                owner_id = db.get(Actor, request.target_twin_id).owner_id
+                question = db.scalar(select(QuestionRequest).where(QuestionRequest.owner_id == owner_id, QuestionRequest.chat_id == request.chat_id, QuestionRequest.status == 'pending'))
+                return {'request_id': request.id, 'source': request.source, 'chat_id': request.chat_id,
+                        'owner_id': owner_id, 'source_message_id': request.source_message_id, 'pending_question_id': question.id if question else None,
+                        'session_id': request.session_id, 'continuation_of_request_id': getattr(request, 'continuation_of_request_id', None),
+                        'background': getattr(request, 'background', False), 'chat_kind': db.get(Chat, request.chat_id).kind,
+                        'body': source.body if source else request.input_body or ''}
+        info = await asyncio.to_thread(details)
+        body = info.get('body', text)
+        if info.get('source') in {'scheduled_task', 'system_review'}:
+            try: body = json.loads(body).get('instructions', body)
+            except (ValueError, TypeError): pass
+        if (root / ('hold-provider-source-' + info.get('source', 'unknown'))).exists():
+            body = 'CONCURRENCY HOLD ' + info['source']
+        phase = 'reply'
+        if info.get('request_id'):
+            marker = root / ('provider-start-' + info['request_id'] + '.json')
+            if not marker.exists(): marker.write_text(json.dumps(info))
+        final = '' if info.get('chat_kind') == 'duet' else 'Acceptance private reply.'
+        if info.get('source') == 'question_result' and body.startswith('CONCURRENCY QUESTION'):
+            final = 'Completed question continuation: Blue'
+        elif body.startswith('CONCURRENCY HOLD'):
+            release = root / ('release-slow-provider-' + info['request_id'])
+            (root / ('slow-provider-' + info['request_id'])).write_text('explicit offline concurrency barrier')
+            deadline = asyncio.get_running_loop().time() + 300
+            while not release.exists():
+                if asyncio.get_running_loop().time() > deadline: raise RuntimeError('Controlled concurrency barrier timed out')
+                await asyncio.sleep(.1)
+            final = 'Completed held task: ' + body.removeprefix('CONCURRENCY HOLD').strip()
+        elif body.startswith('CONCURRENCY QUESTION'):
+            if 'ask_question' not in tool_names:
+                name, args = 'ask_question', {'question': 'Choose the fixture color for this task.', 'options': ['Blue', 'Green']}
+            else:
+                (root / ('slow-provider-' + info['request_id'])).write_text('question published; origin still running')
                 release = root / ('release-slow-provider-' + info['request_id'])
-                (root / ('slow-provider-' + info['request_id'])).write_text('explicit offline concurrency barrier')
                 deadline = asyncio.get_running_loop().time() + 300
                 while not release.exists():
-                    if asyncio.get_running_loop().time() > deadline: raise RuntimeError('Controlled concurrency barrier timed out')
+                    if asyncio.get_running_loop().time() > deadline: raise RuntimeError('Question origin barrier timed out')
                     await asyncio.sleep(.1)
-                final = 'Completed held task: ' + body.removeprefix('CONCURRENCY HOLD').strip()
-            elif body.startswith('CONCURRENCY QUESTION'):
-                if 'ask_question' not in tool_names:
-                    name, args = 'ask_question', {'question': 'Choose the fixture color for this task.', 'options': ['Blue', 'Green']}
-                else:
-                    (root / ('slow-provider-' + info['request_id'])).write_text('question published; origin still running')
-                    release = root / ('release-slow-provider-' + info['request_id'])
-                    deadline = asyncio.get_running_loop().time() + 300
-                    while not release.exists():
-                        if asyncio.get_running_loop().time() > deadline: raise RuntimeError('Question origin barrier timed out')
-                        await asyncio.sleep(.1)
-                final = ''
-            elif body.startswith('CONCURRENCY FAIL_ONCE'):
-                marker = root / ('failed-once-' + (info.get('continuation_of_request_id') or info['request_id']))
-                if not marker.exists():
-                    marker.write_text('isolated intentional failure')
-                    raise RuntimeError('Controlled concurrency task failure')
-                final = 'Recovered fixture task.'
-            elif body.startswith('CONCURRENCY COMPLETE'):
-                final = 'Completed independent task: ' + body.removeprefix('CONCURRENCY COMPLETE').strip()
-            elif 'ACCEPTANCE PROPOSE ' in body:
-                payload = json.loads(body.split('ACCEPTANCE PROPOSE ', 1)[1])
-                if 'request_duet_conversation' not in tool_names:
-                    name, args = 'request_duet_conversation', payload
-                final = 'The Duet conversation is requested. Each owner can approve it in their private inbox or Duets sidebar.'
-            elif info.get('source') == 'followup_result':
-                final = 'Coordination summary for the initiating owner: the supplied meeting time works.'
-            elif body.startswith('ACCEPTANCE ASKOWNER'):
-                if 'ask_question' not in tool_names:
-                    name, args = 'ask_question', {'question': 'Which supplied meeting time should I use?', 'options': ['Tuesday at 14:30', 'Wednesday at 15:00']}
-                final = ''
-            elif body.startswith('ACCEPTANCE REPORTBACK'):
-                final = 'ACCEPTANCE QUESTION: The supplied time works; please confirm this to your owner.'
-            elif body.startswith('ACCEPTANCE SLOW'):
-                (root / ('slow-provider-' + info['request_id'])).write_text('isolated in-flight provider marker')
-                release = root / ('release-slow-provider-' + info['request_id'])
-                deadline = asyncio.get_running_loop().time() + 120
-                while not release.exists():
-                    if asyncio.get_running_loop().time() > deadline: raise RuntimeError('Controlled provider release timed out')
-                    await asyncio.sleep(.1)
-                final = 'The slow coordination response is complete.'
-            elif body.startswith('ACCEPTANCE CHAIN'):
-                number = int(body.split()[-1]) + 1
-                final = f'ACCEPTANCE CHAIN {number}' if number < 12 else 'The coordination is complete. Thank you.'
-            elif body.startswith('ACCEPTANCE QUESTION'):
-                if 'send_chat_message' not in tool_names:
-                    name, args = 'send_chat_message', {'chat_id': 'private-' + info['owner_id'].removeprefix('owner-'), 'body': 'Coordination report: the supplied meeting time works.', 'source_message_ids': []}
-                final = 'The supplied meeting time works. Thank you.'
-            elif 'Approval' in body:
-                final = ''
-            if name and name not in tools:
-                raise RuntimeError('Acceptance provider requested an unavailable tool: ' + name)
-            if results and results[-1].get('isError'):
-                raise RuntimeError('Acceptance tool failed: ' + str(results[-1].get('toolName')))
+            final = ''
+        elif body.startswith('CONCURRENCY FAIL_ONCE'):
+            marker = root / ('failed-once-' + (info.get('continuation_of_request_id') or info['request_id']))
+            if not marker.exists():
+                marker.write_text('isolated intentional failure')
+                raise RuntimeError('Controlled concurrency task failure')
+            final = 'Recovered fixture task.'
+        elif body.startswith('CONCURRENCY COMPLETE'):
+            final = 'Completed independent task: ' + body.removeprefix('CONCURRENCY COMPLETE').strip()
+        elif 'ACCEPTANCE PROPOSE ' in body:
+            payload = json.loads(body.split('ACCEPTANCE PROPOSE ', 1)[1])
+            if 'request_duet_conversation' not in tool_names:
+                name, args = 'request_duet_conversation', payload
+            final = 'The Duet conversation is requested. Each owner can approve it in their private inbox or Duets sidebar.'
+        elif body.startswith('ACCEPTANCE ANSWER'):
+            if info.get('pending_question_id') and 'answer_question' not in tool_names:
+                name, args = 'answer_question', {'question_id': info['pending_question_id'], 'message_id': info['source_message_id']}
+            final = 'Your answer was recorded.'
+        elif body.startswith('ACCEPTANCE SILENT'):
+            final = ''
+        elif body.startswith('ACCEPTANCE ASKOWNER') and info.get('source') == 'question_result':
+            final = 'ACCEPTANCE FINAL: The supplied meeting time works.'
+        elif body.startswith('ACCEPTANCE FINAL'):
+            if 'send_chat_message' not in tool_names:
+                name, args = 'send_chat_message', {'chat_id': 'private-' + info['owner_id'].removeprefix('owner-'), 'body': 'Coordination result: the supplied meeting time works.', 'source_message_ids': []}
+            final = ''
+        elif body.startswith('ACCEPTANCE ASKOWNER'):
+            if 'ask_question' not in tool_names:
+                name, args = 'ask_question', {'question': 'Which supplied meeting time should I use?', 'options': ['Tuesday at 14:30', 'Wednesday at 15:00']}
+            final = 'ACCEPTANCE PROGRESS: I am checking with my owner.'
+        elif body.startswith('ACCEPTANCE REPORTBACK'):
+            final = 'ACCEPTANCE QUESTION: The supplied time works; please confirm this to your owner.'
+        elif body.startswith('ACCEPTANCE SLOW'):
+            (root / ('slow-provider-' + info['request_id'])).write_text('isolated in-flight provider marker')
+            release = root / ('release-slow-provider-' + info['request_id'])
+            deadline = asyncio.get_running_loop().time() + 120
+            while not release.exists():
+                if asyncio.get_running_loop().time() > deadline: raise RuntimeError('Controlled provider release timed out')
+                await asyncio.sleep(.1)
+            final = 'The slow coordination response is complete.'
+        elif body.startswith('ACCEPTANCE CHAIN'):
+            number = int(body.split()[-1]) + 1
+            final = f'ACCEPTANCE CHAIN {number}' if number < 12 else 'The coordination is complete. Thank you.'
+        elif body.startswith('ACCEPTANCE QUESTION'):
+            if 'send_chat_message' not in tool_names:
+                name, args = 'send_chat_message', {'chat_id': 'private-' + info['owner_id'].removeprefix('owner-'), 'body': 'Coordination report: the supplied meeting time works.', 'source_message_ids': []}
+            final = ''
+        elif 'Approval' in body:
+            final = ''
+        if name and name not in tools:
+            raise RuntimeError('Acceptance provider requested an unavailable tool: ' + name)
+        if results and results[-1].get('isError'):
+            raise RuntimeError('Acceptance tool failed: ' + str(results[-1].get('toolName')))
         content = [{'type': 'toolCall', 'id': f'acceptance-{len(results)}-{name}', 'name': name, 'arguments': args}] if name else [{'type': 'text', 'text': final}]
         with (root / 'provider-calls.jsonl').open('a') as target:
             target.write(json.dumps({'phase': phase, 'tool': name, **{key: info.get(key) for key in ('request_id', 'source', 'chat_id', 'owner_id', 'session_id', 'continuation_of_request_id', 'background')}}) + '\n')
@@ -172,6 +172,7 @@ def snapshot(root):
     from sqlalchemy import select
 
     from app.models import (
+        AllowanceGrant,
         Approval,
         CausalChain,
         Chat,
@@ -180,23 +181,24 @@ def snapshot(root):
         Membership,
         Message,
         ReplyRequest,
-        RoutingDecision,
-        TwinFollowup,
     )
+    from app.question_models import QuestionRequest
     from app.service import service
     with service.transaction() as db:
         fields = lambda item, names: {name: (getattr(item, name).isoformat() if hasattr(getattr(item, name), 'isoformat') else getattr(item, name)) for name in names.split()}
         return {
+            'model_mode': os.environ.get('TWINTEAMS_E2E_MODEL_MODE'),
+            'provider_http_attempts': len(json.loads((root / 'live-budget.json').read_text())['attempts']) if (root / 'live-budget.json').exists() else 0,
             'chats': [fields(item, 'id kind title') for item in db.scalars(select(Chat))],
             'conversations': [fields(item, 'chat_id origin_chat_id status close_reason') for item in db.scalars(select(DuetConversation))],
             'memberships': [fields(item, 'chat_id owner_id') for item in db.scalars(select(Membership))],
-            'messages': [fields(item, 'id chat_id seq author_id kind body request_id reply_to_message_id') for item in db.scalars(select(Message).order_by(Message.created_at))],
-            'requests': [fields(item, 'id chat_id target_twin_id source status cancel_requested session_id run_id source_message_id accepted_at error background continuation_of_request_id') for item in db.scalars(select(ReplyRequest))],
-            'routes': [fields(item, 'id message_id status needs_response') for item in db.scalars(select(RoutingDecision))],
+            'messages': [fields(item, 'id chat_id seq author_id kind body request_id reply_to_message_id state causal_chain_id sdk_output_key') for item in db.scalars(select(Message).order_by(Message.created_at))],
+            'requests': [fields(item, 'id chat_id target_twin_id requester_id causal_chain_id source status cancel_requested session_id run_id source_message_id accepted_at error background continuation_of_request_id') for item in db.scalars(select(ReplyRequest))],
             'approvals': [fields(item, 'id chat_id approver_id status sdk_reference') for item in db.scalars(select(Approval))],
-            'followups': [fields(item, 'id owner_id chat_id target_chat_id status notification_state continuation_request_id due_at') for item in db.scalars(select(TwinFollowup))],
+            'questions': [fields(item, 'id owner_id chat_id origin_chat_id origin_request_id message_id status answer_message_id continuation_request_id created_at answered_at') for item in db.scalars(select(QuestionRequest))],
             'grants': [fields(item, 'owner_id peer_owner_id') for item in db.scalars(select(DuetContactGrant))],
             'chains': [fields(item, 'id spent allowance') for item in db.scalars(select(CausalChain))],
+            'send_grants': [fields(item, 'id causal_chain_id chat_id owner_id client_request_key amount base_allowance') for item in db.scalars(select(AllowanceGrant))],
             'provider_starts': [json.loads(path.read_text()) for path in root.glob('provider-start-*.json')],
             'provider_calls': [json.loads(line) for line in (root / 'provider-calls.jsonl').read_text().splitlines()] if (root / 'provider-calls.jsonl').exists() else [],
         }
@@ -269,12 +271,10 @@ def verify_stage(value, stage):
     group_messages = [message for message in value['messages'] if message['chat_id'] in groups]
     assert len(group_messages) >= 2 and all(message['kind'] == 'human' for message in group_messages)
     assert not any(request['chat_id'] in groups for request in value['requests'])
-    group_message_ids = {message['id'] for message in group_messages}
-    assert not any(route['message_id'] in group_message_ids for route in value['routes'])
     titles = {chat['id']: chat['title'] for chat in value['chats']}
     conversations = {titles[row['chat_id']]: row for row in value['conversations']}
     if stage == 'human':
-        assert not value['provider_calls'] and not value['requests'] and not value['routes']
+        assert not value['provider_calls'] and not value['requests']
     elif stage == 'pending':
         pending = [row for row in value['conversations'] if row['status'] == 'pending']
         assert pending
@@ -290,18 +290,17 @@ def verify_stage(value, stage):
         assert row['status'] == 'pending'
         approvals = [approval for approval in value['approvals'] if approval['chat_id'] == row['chat_id']]
         assert len(approvals) == 3 and all(approval['status'] == 'pending' for approval in approvals)
-        assert any(chain['spent'] == 12 and chain['allowance'] == 12 for chain in value['chains'])
     elif stage == 'final':
         assert conversations['Pair meeting once']['status'] == 'active'
         assert conversations['Team new recipient consent']['status'] == 'active'
         assert conversations['Pair trusted access']['close_reason'] == 'authorization_revoked'
-        assert conversations['Trusted chain six replies']['status'] == 'closed'
+        assert conversations['Trusted chain six sends']['status'] == 'closed'
         assert conversations['Private renewed consent']['status'] == 'rejected'
         assert conversations['Private renewed consent']['origin_chat_id'] == 'private-alex'
         assert value['grants'] == [{'owner_id': 'owner-maya', 'peer_owner_id': 'owner-alex'}]
         assert not any(request['status'] in {'running', 'queued'} for request in value['requests'])
-    return {'stage': stage, 'passed': True, 'model_provider': 'scripted offline' if value['provider_calls'] else 'not called',
-            'provider_decisions': len(value['provider_calls']), 'human_chat_requests': 0, 'human_chat_routes': 0}
+    return {'stage': stage, 'passed': True, 'model_provider': value['model_mode'],
+            'provider_decisions': len(value['provider_calls']), 'human_chat_requests': 0}
 
 
 def child(args):
@@ -342,20 +341,6 @@ def child(args):
                 (root / ('release-slow-provider-' + identifier)).write_text('operator released after UI revocation'); released += 1
         if not released: raise RuntimeError('Selected disposable conversation has no started provider marker')
         print(json.dumps({'selected_chat_id': args.chat_id, 'released_provider_turns': released})); return
-    if args.role == 'expire-followup':
-        from datetime import timedelta
-
-        from sqlalchemy import select
-
-        from app.models import TwinFollowup, now
-        from app.service import service
-        if not args.chat_id: raise RuntimeError('A selected fixture Duet chat ID is required')
-        with service.transaction() as db:
-            rows = list(db.scalars(select(TwinFollowup).where(TwinFollowup.target_chat_id == args.chat_id, TwinFollowup.status == 'waiting')))
-            if not rows: raise RuntimeError('No waiting followup in the selected disposable conversation')
-            for row in rows: row.due_at = now() - timedelta(seconds=1)
-        service.process_followups()
-        print(json.dumps({'selected_chat_id': args.chat_id, 'followup_deadlines_advanced': len(rows), 'test_only_time_seed': True})); return
     if args.role == 'inspect':
         value = snapshot(root)
         if os.environ.get('TWINTEAMS_E2E_BEHAVIOR_ACCEPTANCE') == 'true':
@@ -477,7 +462,7 @@ async def launch(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--role', choices=['launch', 'init', 'api', 'worker', 'inspect', 'expire-followup', 'release-provider', 'seed-background'], default='launch')
+    parser.add_argument('--role', choices=['launch', 'init', 'api', 'worker', 'inspect', 'release-provider', 'seed-background'], default='launch')
     parser.add_argument('--verify-stage', choices=['human', 'pending', 'directional', 'expanded', 'final', 'concurrent', 'cancel-isolation', 'background-overlap', 'continuation', 'cancel-finished', 'question-wait', 'parallel-results', 'retry-isolation'])
     parser.add_argument('--task-source', choices=['scheduled_task', 'system_review'], default='scheduled_task'); parser.add_argument('--owner-id', default='owner-alex'); parser.add_argument('--request-id')
     parser.add_argument('--chat-id'); parser.add_argument('--port', type=int); parser.add_argument('--state', type=Path)

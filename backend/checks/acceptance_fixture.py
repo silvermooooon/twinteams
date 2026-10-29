@@ -1,25 +1,11 @@
-"""Explicitly isolated browser-acceptance server, never an application fallback.
+"""Explicit isolated browser server with deterministic offline model responses.
 
-Run from backend with its Python 3.13 virtual environment:
-    .venv/bin/python checks/acceptance_fixture.py --port 8011
-
-Manual dialogue-cap check on this labelled fixture only:
-    Sign in as DEV-AAA, open Team workspace, turn Reply for me off, send: dialogue
-    Keep BBB and CCC offline or outside this chat. Leave AAA viewing the chat.
-    Simulated replies target BBB then alternate CCC/BBB, never observing AAA.
-    Numbered replies stop after the product's six automatic acceptances. Click
-    Continue in the paused-dialogue control to grant the next recorded allowance;
-    the same numbered causal chain continues instead of starting again at one.
-
-Manual proactive-tool check in Team workspace, Reply for me off:
-    Send: proactive
-    The simulated Twin calls the real send_chat_message tool for this same chat
-    with an authorized source ID. Its final acknowledgement needs no response.
-
-All model responses are deterministic and labelled. Product service, HTTP/auth,
-PostgreSQL journal, SDK execution/tools, FIFO, child delivery and approvals are real.
-No third-party model or effect adapter is used. Database records use a disposable
-test schema; files use backend/data/acceptance-fixture. Application tables are untouched.
+Run from backend: .venv/bin/python checks/acceptance_fixture.py --port 8011.
+Product service, authentication, PostgreSQL, SDK journals, tools and child
+notifications remain real. Duet messages use deterministic per-member delivery;
+human group messages never start agents. This is not a production fallback.
+The fixture creates a disposable PostgreSQL schema and isolated files and never
+uses a third-party model or writes the application's normal tables.
 """
 from __future__ import annotations
 
@@ -156,32 +142,6 @@ async def offline_adapter(model, context, options):
     options["signal"].throw_if_aborted()
     prompt, tools, system = _current_turn(context)
     normalized = prompt.strip().casefold()
-    if "choose which human owners a group-chat message is addressed to" in system.casefold():
-        # Exercise the real model-routing contract without producing an invalid
-        # prose response where the service expects a structured response decision.
-        allowed = json.loads(system.rsplit("Allowed owners: ", 1)[-1])
-        try:
-            message = json.loads(prompt).get("message", {})
-            author = message.get("author_owner_id") or message.get("source_owner_id") or message.get("author_id")
-            body = str(message.get("body", "")).strip().casefold().rstrip(".! ")
-        except (ValueError, AttributeError):
-            author, body = None, ""
-        dialogue = body == "dialogue" or body.startswith("dialogue ") or DIALOGUE_STEP.match(body)
-        if dialogue:
-            # Explicit test-only routing keeps the viewing AAA owner out of the
-            # target set, so presence does not hide the product's global cap.
-            target = "owner-jordan" if author == "owner-maya" else "owner-maya"
-            target = target if target in allowed and target != author else None
-        else:
-            target = next((owner for owner in allowed if owner != author), None)
-        informational = body.startswith(("acceptance fixture proactive test message [", "acceptance fixture proactive test complete ["))
-        needs_response = bool(target) and not informational and body not in {"thanks", "thank you", "ok", "okay", "done", "completed", "got it"}
-        return _final(model, _text(json.dumps({
-            "target_owner_ids": [target] if needs_response else [],
-            "needs_response": needs_response,
-            "reason": ("Acceptance fixture simulated numbered dialogue: BBB/CCC alternate while AAA observes."
-                       if dialogue else "Acceptance fixture structured routing decision; simulated for testing only."),
-        })))
     if "this request is reply-for-me" in system.casefold():
         return _final(model, _text("Acceptance fixture processed owner text: " + prompt.strip()))
     dialogue_step = DIALOGUE_STEP.match(prompt.strip())

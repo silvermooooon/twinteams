@@ -91,6 +91,26 @@ def create(service, args, context):
         return result
 
 
+def reply_scope_ids(db, chat_id, reply_to):
+    scopes = {chat_id}
+    row = db.execute(select(QuestionRequest.chat_id, QuestionRequest.origin_chat_id).where(
+        QuestionRequest.chat_id == chat_id, QuestionRequest.message_id == reply_to)).one_or_none()
+    if row:
+        scopes.update(row)
+    return scopes
+
+
+def lock_reply_scopes(db, chat_id, reply_to):
+    """A quoted owner answer locks inbox and origin in the same order as dismissal."""
+    from .service import fail
+    scopes = reply_scope_ids(db, chat_id, reply_to)
+    for scope in sorted(scopes):
+        db.scalar(select(Chat.id).where(Chat.id == scope).with_for_update())
+    db.expire_all()
+    if not reply_scope_ids(db, chat_id, reply_to).issubset(scopes):
+        fail(409, "Question context changed while waiting; retry the same message")
+
+
 def consume_reply(service, db, message):
     """Only an exact human reply-to binds automatically; other text stays a task."""
     from .service import fail

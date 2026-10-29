@@ -1,5 +1,7 @@
 # Private task concurrency acceptance — 2026-10-27
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 ## Scope and candidate
 
 Independent owner tasks in the same private chat use separate durable SDK sessions. Continuations remain attached to their originating task and reuse its session. Background admission is classified by persisted `background` metadata; `quiet_background` separately controls low-noise presentation.

@@ -2,8 +2,7 @@ export type Actor = { id: string; kind: 'human' | 'twin'; owner_id?: string; nam
 export type Chat = { id: string; revision?: number; kind: 'private' | 'group' | 'duet'; title: string; member_owner_ids: string[]; unread_count: number; last_message?: string; last_message_meta?: { id: string; seq: number; author_id: string; kind: Message['kind']; created_at: string } | null; can_rename?: boolean };
 export type ChatAttachment = { id: string; name: string; mime_type: string; size: number; kind: 'image' | 'file' | 'unsupported'; url: string; workspace_path?: string; width?: number | null; height?: number | null; preview_kind?: 'markdown' | 'text' | 'pdf' | 'html' | null; preview_url?: string | null };
 export type MessageReaction = { emoji: string; count: number; actors: Pick<Actor, 'id' | 'owner_id' | 'name' | 'kind'>[]; mine: boolean };
-export type RoutingFailure = { id: string; chat_id: string; command_id: string; error?: string; can_retry: boolean };
-export type Message = { id: string; chat_id: string; seq: number; author_id: string; author_owner_id?: string; kind: 'human' | 'twin' | 'reply_for_me' | 'system'; body: string; routing_failure?: RoutingFailure; reactions?: MessageReaction[]; reactions_revision?: number; attachments?: ChatAttachment[]; raw_owner_input?: string; created_at: string; reply_to?: { id: string; author_name: string; body: string; unavailable?: boolean }; read_by: string[]; request_id?: string; state: 'published' | 'withdrawn'; client_request_key?: string };
+export type Message = { id: string; chat_id: string; seq: number; author_id: string; author_owner_id?: string; kind: 'human' | 'twin' | 'reply_for_me' | 'system'; body: string; reactions?: MessageReaction[]; reactions_revision?: number; attachments?: ChatAttachment[]; raw_owner_input?: string; created_at: string; reply_to?: { id: string; author_name: string; body: string; unavailable?: boolean }; read_by: string[]; request_id?: string; state: 'published' | 'withdrawn'; client_request_key?: string };
 export type ReplyRequest = { id: string; chat_id: string; source_message_id: string | null; target_twin_id: string; requester_id: string; source: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'; accepted_at: string; error?: string; cancel_requested?: boolean; quiet_background?: boolean; background?: boolean; continuation_of_request_id?: string | null; can_cancel: boolean; can_retry: boolean; session_id?: string; run_id?: string; client_request_key?: string };
 export type ChatSettings = { reply_for_me_enabled: boolean; prompt_override: string | null; sidebar_open: boolean; sidebar_tab: 'activity' | 'workspace' | 'tracking' | 'duets' };
 export type Approval = { type?: 'duet_conversation' | string; scope?: 'once' | 'always' | 'standing'; peer_owner_ids?: string[]; id: string; chat_id: string; approver_id: string; title: string; description: string; target: string; impact: string; action?: { tool: string; arguments: Record<string, unknown> } | null; status: 'pending' | 'approved' | 'rejected'; created_at: string };
@@ -13,10 +12,10 @@ export type Reminder = { id: string; title: string; detail: string; due_at: stri
 export type ActivityRun = { session_id: string; run_id: string; parent_run_id?: string; source: string; status: string; started_at: string; finished_at?: string; title: string; summary?: string };
 export type ActivityEvent = { id: string; seq: number; type: string; time: string; label: string; input?: string; output?: string; status?: string };
 export type WorkspaceEntry = { id: string; name: string; kind: 'file' | 'folder'; path: string; size?: number; children?: WorkspaceEntry[] };
-/** Only chat-visible paused candidates are returned. Counts are canonical server totals. */
-export type AutomaticConversation = { id: string; causal_chain_id: string; status: 'paused'; reason: 'budget_exhausted' | 'repeated_content'; spent: number; allowance: number; remaining: number; paused_pending_count: number; continuation_allowance: number; can_continue: boolean; source_owner_id: string };
-export type AutomaticContinuation = { id: string; causal_chain_id: string; spent: number; allowance: number; remaining: number; continuation_allowance: number; grant_id: string; already_applied: boolean };
-export type ChatDetail = { revision: number; has_more?: boolean; before_seq?: number | null; chat: Chat; messages: Message[]; requests: ReplyRequest[]; approvals: Approval[]; questions?: UserQuestion[]; tracking: Tracking[]; settings: ChatSettings; members: Actor[]; automatic_conversations?: AutomaticConversation[] };
+/** Canonical peer-message totals; private reports and task execution do not spend this allowance. */
+export type DuetSendBudget = { causal_chain_id: string; spent: number; allowance: number; remaining: number; pending_count: number; can_continue: boolean; continuation_allowance: number };
+export type PendingDuetMessage = { id: string; chat_id: string; causal_chain_id: string; body: string; author_id: string; created_at: string; state: 'pending'; can_cancel: boolean };
+export type ChatDetail = { revision: number; has_more?: boolean; before_seq?: number | null; chat: Chat; messages: Message[]; requests: ReplyRequest[]; approvals: Approval[]; questions?: UserQuestion[]; tracking: Tracking[]; settings: ChatSettings; members: Actor[] };
 export type Bootstrap = { server_time?: string; current_owner_id: string; actors: Actor[]; chats: Chat[]; reminders: Reminder[]; model_configured: boolean; development_mode: boolean; acceptance_fixture?: boolean };
 export type LiveEvent = { revision?: number; type: 'changed' | 'actor_changed' | 'personal_changed' | 'twin_changed' | 'credential_requests_changed' | 'worker_status' | 'token' | 'status' | 'operation_started' | 'output_committed'; chat_id?: string; actor_id?: string; profile_revision?: number; section?: string; area?: string; request_id?: string; text?: string; event_id?: string; operation_id?: string };
 export type SendResult = { message?: Pick<Message, 'id' | 'chat_id' | 'seq' | 'created_at' | 'state' | 'client_request_key'> | null; request?: Pick<ReplyRequest, 'id' | 'chat_id' | 'status' | 'source' | 'source_message_id' | 'accepted_at' | 'client_request_key'> | null };
@@ -90,8 +89,8 @@ export class ApiClient {
   put<T>(path: string, data: unknown) { return this.request<T>(path, { method: 'PUT', body: JSON.stringify(data) }); }
   patch<T>(path: string, data: unknown) { return this.request<T>(path, { method: 'PATCH', body: JSON.stringify(data) }); }
   delete<T>(path: string) { return this.request<T>(path, { method: 'DELETE' }); }
-  continueAutomaticConversation(chatId: string, chainId: string, clientRequestKey: string, additionalReplies: number, expectedAllowance: number) {
-    return this.post<AutomaticContinuation>(`/chats/${encodeURIComponent(chatId)}/automatic-conversations/${encodeURIComponent(chainId)}/continue`, { client_request_key: clientRequestKey, additional_replies: additionalReplies, expected_allowance: expectedAllowance });
+  continueDuetMessages(chatId: string, chainId: string, clientRequestKey: string, expectedAllowance: number) {
+    return this.post(`/duet-conversations/${encodeURIComponent(chatId)}/chains/${encodeURIComponent(chainId)}/continue`, { client_request_key: clientRequestKey, expected_allowance: expectedAllowance });
   }
   /** Commands resend with stable keys; all content is loaded through authorized HTTP. */
   async events(chatId: string, signal: AbortSignal, onEvent: (event: LiveEvent) => void, onConnection: (connected: boolean) => void, scopes: string[] = [chatId]) {
@@ -127,5 +126,5 @@ export class ApiClient {
 }
 
 export type DuetConversation = { id: string; chat_id: string; kind: 'duet'; title: string; origin_chat_id: string; initiating_owner_id: string; purpose: string; opening_message: string; status: 'pending' | 'active' | 'rejected' | 'closed'; participant_owner_ids: string[]; approvals: Approval[]; created_at: string; can_close: boolean };
-export type DuetConversationDetail = ChatDetail & { conversation: DuetConversation };
+export type DuetConversationDetail = ChatDetail & { conversation: DuetConversation; send_budgets: DuetSendBudget[]; pending_messages: PendingDuetMessage[] };
 export type DuetAuthorization = { peer_owner_id: string; peer_twin_id: string; peer_name: string; created_at: string };

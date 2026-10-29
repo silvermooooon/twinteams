@@ -1,5 +1,7 @@
 # Context acceptance — 2026-10-26
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 Status: **accepted and locally deployed**. The final backend suite passed **512/512 in 412.91 seconds**; real-model and browser acceptance passed. Both local APIs and the public entry point are available. No further acceptance model calls are planned.
 
 The frozen backend and provider-guard source-set SHA-256 is `7b10613f0544e8461ee4718fe4f4028242d4898bd1ccb907ce7e893a54a743b6`. Per-file hashes are recorded in the evidence below; the real run verified identical hashes before and after execution. Tests use disposable PostgreSQL schemas, temporary workspaces and secrets directories, and separate Redis namespaces. Existing application tables and services were not changed by these checks.

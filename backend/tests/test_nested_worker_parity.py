@@ -188,8 +188,8 @@ def test_group_child_memory_write_checks_current_root_authorization(product, rev
         try:
             with product.transaction() as db:
                 chat, _ = product.membership(db, "owner-alex", "duet-alex-maya")
-                source = product.append_message(db, chat, author_id=db.scalar(select(Actor.id).where(Actor.owner_id == "owner-maya", Actor.kind == "twin")), kind="twin", body="Authorized group task")
-                request = product.accept_request(db, chat, product.twin(db, "owner-alex").id, "owner-maya", "auto", uuid4().hex, source_message_id=source.id)
+                source = product.append_message(db, chat, author_id=db.scalar(select(Actor.id).where(Actor.owner_id == "owner-maya", Actor.kind == "twin")), kind="twin", body="Authorized group task", causal_chain_id=product.new_causal_chain(db, "owner-maya").id)
+                request = db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == source.id, ReplyRequest.target_twin_id == "twin-alex", ReplyRequest.generation == 0))
                 request_id, source_id = request.id, source.id
             result = await runtime.execute(product.get_request(request_id), product.get_runtime_context(request_id))
             product.complete_request(request_id, result)

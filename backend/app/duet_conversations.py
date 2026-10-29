@@ -11,10 +11,6 @@ from .models import (
     Message,
     Owner,
     ReplyRequest,
-    RoutingDecision,
-    TriggerCandidate,
-    TwinFollowup,
-    now,
     uid,
 )
 from .service import fail, iso
@@ -128,18 +124,10 @@ def activate(service, db, conversation):
     conversation.status = "active"
     chat = db.get(Chat, conversation.chat_id)
     require_active(db, chat)
-    opening = service.append_message(db, chat, author_id=service.twin(db, conversation.initiating_owner_id).id,
+    service.append_message(db, chat, author_id=service.twin(db, conversation.initiating_owner_id).id,
         kind="twin", body=conversation.opening_message, request_id=conversation.initiating_request_id,
         causal_chain_id=conversation.causal_chain_id,
         sdk_output_key=f"duet-opening:{conversation.chat_id}")
-    service.route_committed_message(db, chat, opening)
-    origin = db.get(ReplyRequest, conversation.initiating_request_id)
-    origin_chat = db.get(Chat, origin.chat_id)
-    if (origin_chat.kind == "private" and origin_chat.private_owner_id == conversation.initiating_owner_id
-            and origin.requester_id == conversation.initiating_owner_id):
-        from .followups import create
-        create(service, db, origin, conversation.initiating_owner_id, chat, opening,
-               service.manifest_provenance(db, origin.id))
 
 
 def close(service, db, conversation, reason="owner_closed"):
@@ -157,25 +145,9 @@ def close(service, db, conversation, reason="owner_closed"):
             command.kind, command.state = "cancel", "pending"
         if request.status == "queued":
             request.status = "cancelled"
-    for followup in db.scalars(select(TwinFollowup).where(TwinFollowup.target_chat_id == conversation.chat_id)):
-        if followup.status == "waiting":
-            followup.status, followup.settled_at = "cancelled", now()
-        followup.notification_state, followup.pause_reason = "blocked", reason
-        pending = db.get(ReplyRequest, followup.continuation_request_id) if followup.continuation_request_id else None
-        if pending and pending.status in {"queued", "running"}:
-            pending.cancel_requested = True
-            if pending.status == "queued":
-                pending.status = "cancelled"
-            command = db.get(DispatchCommand, pending.id)
-            if command:
-                command.kind, command.state = "cancel", "pending"
-    for candidate in db.scalars(select(TriggerCandidate).where(TriggerCandidate.chat_id == conversation.chat_id,
-            TriggerCandidate.state.in_(["waiting", "paused"]))):
-        candidate.state = "suppressed"
-        candidate.evidence = {**candidate.evidence, "suppression": reason}
-    for decision in db.scalars(select(RoutingDecision).join(Message, Message.id == RoutingDecision.message_id)
-            .where(Message.chat_id == conversation.chat_id, RoutingDecision.status.in_(["pending", "paused"]))):
-        decision.status, decision.reason = "completed", reason
+    for message in db.scalars(select(Message).where(Message.chat_id == conversation.chat_id,
+            Message.state == "pending")):
+        message.state = "withdrawn"
 
 
 def decide(service, db, owner_id, approval, decision, scope):
@@ -225,13 +197,15 @@ def list_conversations(service, owner_id, origin_chat_id=None):
 
 def detail(service, owner_id, chat_id, limit=100, before_seq=None):
     with service.transaction() as db:
-        service.membership(db, owner_id, chat_id)
+        chat, member = service.membership(db, owner_id, chat_id)
         conversation = db.get(DuetConversation, chat_id)
         if not conversation:
             fail(404, "Duet conversation not found")
         metadata = project(service, db, conversation, owner_id)
+        from .duet_messages import view
+        sends = view(service, db, chat, member)
     result = service.chat_detail(owner_id, chat_id, limit, before_seq)
-    return {**result, "conversation": metadata, "approvals": metadata["approvals"]}
+    return {**result, **sends, "conversation": metadata, "approvals": metadata["approvals"]}
 
 
 def close_conversation(service, owner_id, chat_id):
@@ -263,7 +237,7 @@ def revoke(service, owner_id, peer_owner_id):
         query = select(Approval).join(DuetConversation, DuetConversation.chat_id == Approval.chat_id).where(
             Approval.approver_id == owner_id, DuetConversation.status.in_(["pending", "active"]),
             Approval.sdk_reference["type"].as_string() == "duet_conversation")
-        for approval in db.scalars(query):
+        for approval in db.scalars(query.order_by(Approval.chat_id)):
             if (approval.sdk_reference.get("type") == "duet_conversation"
                     and approval.sdk_reference.get("scope") in {"standing", "always"}
                     and peer_owner_id in approval.sdk_reference.get("peer_owner_ids", [])):

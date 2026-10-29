@@ -1,10 +1,22 @@
 """Authenticated JSON API. Local identities are explicitly development-only."""
 from datetime import datetime
 from typing import Annotated, Literal
+
 import jwt
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Request, Response, WebSocket
+from fastapi import (
+    APIRouter,
+    Cookie,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    WebSocket,
+)
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
+
 from .config import settings
 from .service import service
 
@@ -77,14 +89,8 @@ class Retry(Input):
     client_request_key: str = Field(min_length=1, max_length=160)
 
 
-class RetryRoute(Retry):
-    expected_command_id: str = Field(min_length=1, max_length=80)
 
 
-class ContinueAutomaticConversation(Input):
-    client_request_key: str = Field(min_length=1, max_length=160)
-    additional_replies: int = Field(ge=1, strict=True)
-    expected_allowance: int = Field(ge=0, strict=True)
 
 
 class PresenceInput(Input):
@@ -229,9 +235,6 @@ def request_reply(chat_id: str, data: RequestReply, owner: OwnerIdentity):
     return service.manual_request(owner, chat_id, data.message_id, data.target_twin_id, data.client_request_key)
 
 
-@router.post("/chats/{chat_id}/routing-decisions/{decision_id}/retry")
-def retry_route(chat_id: str, decision_id: str, data: RetryRoute, owner: OwnerIdentity):
-    return service.retry_route(owner, chat_id, decision_id, data.client_request_key, data.expected_command_id)
 
 
 @router.post("/reply-requests/{request_id}/cancel")
@@ -244,9 +247,6 @@ def retry(request_id: str, data: Retry, owner: OwnerIdentity):
     return service.retry_request(owner, request_id, data.client_request_key)
 
 
-@router.post("/chats/{chat_id}/automatic-conversations/{chain_id}/continue")
-def continue_automatic_conversation(chat_id: str, chain_id: str, data: ContinueAutomaticConversation, owner: OwnerIdentity):
-    return service.continue_automatic_conversation(owner, chat_id, chain_id, data.client_request_key, data.additional_replies, data.expected_allowance)
 
 
 @router.post("/presence")
@@ -448,3 +448,20 @@ def duet_authorizations(owner: OwnerIdentity):
 def revoke_duet_authorization(peer_owner_id: str, owner: OwnerIdentity):
     from .duet_conversations import revoke
     return revoke(service, owner, peer_owner_id)
+
+
+class ContinueDuetSends(Input):
+    client_request_key: str = Field(min_length=1, max_length=160)
+    expected_allowance: int = Field(ge=0, strict=True)
+
+
+@router.post("/duet-conversations/{chat_id}/chains/{chain_id}/continue")
+def continue_duet_sends(chat_id: str, chain_id: str, data: ContinueDuetSends, owner: OwnerIdentity):
+    from .duet_messages import continue_sends
+    return continue_sends(service, owner, chat_id, chain_id, data.client_request_key, data.expected_allowance)
+
+
+@router.delete("/duet-conversations/{chat_id}/pending-messages/{message_id}")
+def cancel_duet_send(chat_id: str, message_id: str, owner: OwnerIdentity):
+    from .duet_messages import cancel_pending
+    return cancel_pending(service, owner, chat_id, message_id)

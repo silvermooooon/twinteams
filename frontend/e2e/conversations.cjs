@@ -8,7 +8,6 @@ const {
   sendMessage,
   privateChat,
   chooseChat,
-  openTwinTab,
 } = require("./helpers.cjs");
 const fs = require("node:fs/promises");
 const { promisify } = require("node:util");
@@ -332,75 +331,12 @@ const cases = [
           )?.reactions?.length,
         "reaction removal",
       );
-      const config = await api(alex.page, "/config");
-      assert.equal(
-        config.automatic_response_delay_seconds,
-        10,
-        "use the actual product timeout",
-      );
-      await maya.page.bringToFront();
-      // Reading the source now suppresses its automatic reply. Stay genuinely
-      // online elsewhere so this workflow tests the unread ten-second fallback.
-      await openTwinTab(maya.page, 'Profile');
-      await sleep(4300);
-      const presence = await poll(() => {
-        const value = inspectFixture("presence");
-        return value.owners["owner-maya"]?.online && value;
-      }, "actual live Redis presence before online send");
-      t.record("online_presence_before_send", presence);
-      const online = t.unique("online"),
-        began = Date.now();
-      await sendMessage(alex.page, `E2E ECHO ${online}`);
-      await maya.page.bringToFront();
-      await sleep(7800);
-      const unreadSource = (await detail(alex.page, pair)).messages.find(
-        (m) => m.kind === 'human' && m.body === `E2E ECHO ${online}`,
-      );
-      assert.ok(unreadSource && !unreadSource.read_by.includes('owner-maya'),
-        'the online recipient has not read this new source message');
-      assert.ok(
-        !(await detail(alex.page, pair)).messages.some(
-          (m) => m.kind === "twin" && m.body.includes(`E2E echo: ${online}`),
-        ),
-        "an online human gets the real response window",
-      );
-      await waitMessage(
-        alex.page,
-        pair,
-        (m) => m.kind === "twin" && m.body.includes(`E2E echo: ${online}`),
-      );
-      const onlineMs = Date.now() - began;
-      assert.ok(onlineMs >= 9500);
-      await logout(maya.page);
-      // Closed/logged-out devices expire naturally; do not simulate offline by rewriting presence.
-      await sleep((config.presence_ttl_seconds + 2) * 1000);
-      const offlinePresence = inspectFixture("presence");
-      assert.equal(
-        offlinePresence.owners["owner-maya"]?.online || false,
-        false,
-        "Maya devices really expired before offline send",
-      );
-      t.record("offline_presence_before_send", offlinePresence);
-      const offline = t.unique("offline-peer"),
-        offlineAt = Date.now();
-      await sendMessage(alex.page, `E2E ECHO ${offline}`);
-      await poll(
-        async () =>
-          (await detail(alex.page, pair)).messages.some(
-            (m) => m.kind === "twin" && m.body.includes(`E2E echo: ${offline}`),
-          ),
-        "offline target replies without the ten-second gate",
-        { timeout: 9000 },
-      );
-      t.record("automatic_fallback", {
-        online_window_ms: onlineMs,
-        offline_ms: Date.now() - offlineAt,
-        product_delay_seconds: 10,
-      });
+      assert.ok((await detail(alex.page, pair)).messages.every(message => message.kind === 'human'));
+      t.record("human_delivery", { chat_id: pair.id, deduplicated: true, quote_and_reaction_persisted: true });
     },
   },
   {
-    name: "group / create and rename a multi-person chat, then send an owner-initiated Reply for me with its public disclosure",
+    name: "group / create and rename a multi-person chat and deliver a human message",
     run: async (t) => {
       const alex = await t.session(),
         maya = await t.session("DEV-BBB", { baseURL: t.secondaryURL });
@@ -426,38 +362,10 @@ const cases = [
       );
       await maya.page.reload();
       await chooseChat(maya.page, renamed);
-      const toggle = alex.page.getByRole("button", {
-        name: "Reply for me",
-        exact: true,
-      });
-      await toggle.click();
-      assert.equal(await toggle.getAttribute("aria-pressed"), "true");
-      const raw = `E2E ECHO ${t.unique("rewrite")}`;
-      await alex.page.locator(".composer textarea").fill(raw);
-      await alex.page.locator(".composer textarea").press("Enter");
-      const published = await waitMessage(
-        alex.page,
-        group,
-        (m) => m.kind === "reply_for_me" && m.raw_owner_input === raw,
-        "generated Reply for me",
-      );
-      await maya.page
-        .locator(`article[data-message-id="${published.id}"]`)
-        .waitFor();
-      const other = (await detail(maya.page, group)).messages.find(
-        (m) => m.id === published.id,
-      );
-      assert.equal(
-        other.raw_owner_input,
-        raw,
-        "published rewrite retains the existing explicit raw-input disclosure",
-      );
-      assert.equal(
-        (await detail(alex.page, group)).messages.filter(
-          (m) => m.kind === "human" && m.body === raw,
-        ).length,
-        0,
-      );
+      const body = `Human group message ${title}`;
+      await sendMessage(alex.page, body);
+      const published = await waitMessage(maya.page, group, message => message.body === body);
+      assert.equal(published.kind, 'human');
       t.record("group_id", group.id);
     },
   },
@@ -941,170 +849,6 @@ const cases = [
       });
       await page.locator(".run-card").first().waitFor();
       t.record("parent_and_resume", { first: first.id, resumed: resumed.id });
-    },
-  },
-  {
-    name: "group resources / another participant invokes the Duet owner workspace and private Memory",
-    run: async (t) => {
-      const alex = await t.session(),
-        maya = await t.session("DEV-BBB", { baseURL: t.secondaryURL });
-      const own = await privateChat(alex.page),
-        label = t.unique("identity");
-      await sendMessage(alex.page, `E2E MEMORY ${label}`);
-      await waitMessage(
-        alex.page,
-        own,
-        (m) =>
-          m.kind === "twin" && m.body.includes(`E2E memory saved: ${label}`),
-      );
-      const pair = await startChat(maya.page, ["AAA"]);
-      await sendMessage(maya.page, `E2E IDENTITY ${label}`);
-      const answer = await waitMessage(
-        maya.page,
-        pair,
-        (m) =>
-          m.kind === "twin" &&
-          m.body.includes("E2E owner identity: owner-alex") &&
-          m.body.includes("actual-memory-present=true"),
-        "owner resource tools run in the group",
-      );
-      assert.ok(answer.body.includes("/workspaces/private-alex"));
-      assert.ok(
-        !answer.body.includes("E2E memory " + label),
-        "private memory content is not copied into the group",
-      );
-      await api(maya.page, `/me/twin/memory/entry?key=e2e-${label}`, {
-        status: 404,
-      });
-      const evidence = inspectFixture();
-      const request = evidence.requests.find(
-        (row) => row.id === answer.request_id,
-      );
-      assert.equal(request.target_twin_id, "twin-alex");
-      assert.ok(
-        evidence.tools.some(
-          (tool) =>
-            tool.name === "bash" && tool.success && tool.owner_cwd_verified,
-        ),
-      );
-      assert.ok(
-        evidence.tools.some(
-          (tool) => tool.name === "memory_read" && tool.success,
-        ),
-      );
-      t.record("owner_capabilities", {
-        actual_owner: "owner-alex",
-        invoker: "owner-maya",
-        cwd: true,
-        private_memory_present: true,
-      });
-    },
-  },
-  {
-    name: "group delivery / Duet privately reports to its owner without copying private conversation into the group",
-    run: async (t) => {
-      const alex = await t.session(),
-        maya = await t.session("DEV-BBB", { baseURL: t.secondaryURL });
-      const own = await privateChat(maya.page),
-        label = t.unique("owner-dm"),
-        sentinel = `PRIVATE-ONLY-${label}`;
-      await sendMessage(maya.page, sentinel);
-      const pair = await startChat(alex.page, ["BBB"]);
-      await sendMessage(alex.page, `E2E OWNER_DM ${label}`);
-      const shared = await waitMessage(
-        alex.page,
-        pair,
-        (m) =>
-          m.kind === "twin" &&
-          m.body.includes(`E2E owner report sent: ${label}`),
-      );
-      const report = await waitMessage(
-        maya.page,
-        own,
-        (m) => m.kind === "twin" && m.body === `E2E owner report: ${label}`,
-        "real authorized cross-chat tool delivery",
-      );
-      const state = await detail(alex.page, pair);
-      assert.equal(
-        state.messages.filter(
-          (m) => m.kind === "twin" && m.request_id === shared.request_id,
-        ).length,
-        1,
-        "one current-chat output",
-      );
-      assert.ok(!JSON.stringify(state.messages).includes(sentinel));
-      assert.equal(
-        (await detail(maya.page, own)).messages.filter(
-          (m) => m.id === report.id,
-        ).length,
-        1,
-      );
-      const denied = await alex.page.request.get(
-        `${t.baseURL}/api/chats/${own.id}`,
-      );
-      assert.ok([403, 404].includes(denied.status()));
-      t.record("delivery", {
-        group: pair.id,
-        private_destination: own.id,
-        exact_once: true,
-        private_sentinel_absent_from_group: true,
-      });
-    },
-  },
-  {
-    name: "automatic replies / six real acceptances pause and explicit owner Continue grants the same chain",
-    timeout: 150000,
-    run: async (t) => {
-      const { page } = await t.session();
-      const label = t.unique("chain"),
-        group = await startChat(page, ["BBB", "CCC"], label);
-      await sendMessage(page, `E2E CHAIN ${label}`);
-      const paused = await poll(
-        async () =>
-          (await detail(page, group)).automatic_conversations?.find(
-            (chain) => chain.reason === "budget_exhausted" && chain.spent === 6,
-          ),
-        "six-reply product budget pause",
-        { timeout: 45000 },
-      );
-      const steps = (state) =>
-        state.messages
-          .filter(
-            (m) =>
-              m.kind === "twin" && m.body.startsWith(`E2E CHAIN ${label} `),
-          )
-          .map((m) => Number(m.body.split(" ").at(-1)))
-          .sort((a, b) => a - b);
-      assert.deepEqual(steps(await detail(page, group)), [1, 2, 3, 4, 5, 6]);
-      await page
-        .locator(".automatic-paused")
-        .getByRole("button", {
-          name: "Continue automatically · 6 more replies",
-          exact: true,
-        })
-        .click();
-      const continued = await poll(
-        async () =>
-          (await detail(page, group)).automatic_conversations?.find(
-            (chain) =>
-              chain.id === paused.id &&
-              chain.spent === 12 &&
-              chain.allowance === 12,
-          ),
-        "same chain extended only by explicit consent",
-        { timeout: 45000 },
-      );
-      assert.equal(continued.id, paused.id);
-      assert.deepEqual(
-        steps(await detail(page, group)),
-        Array.from({ length: 12 }, (_, i) => i + 1),
-      );
-      t.record("budget", {
-        original: 6,
-        additional: 6,
-        accepted: 12,
-        chain: paused.id,
-      });
     },
   },
   {

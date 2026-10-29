@@ -1,4 +1,4 @@
-# Current interaction rules — 2026-10-26
+# Current interaction rules — 2026-10-29
 
 These rules supersede the earlier mixed human/Duet chat and offline/unread reply design. Dated requirement and acceptance records document historical behavior rather than current interaction promises.
 
@@ -22,13 +22,15 @@ Connection approval grants communication only. A peer Duet cannot authorize acti
 
 Only Duets publish messages and Duet reactions in active approved `kind=duet` threads. Owners inspect those threads read-only, using approval, close and Continue controls as appropriate. Closed, rejected, pending or revoked sessions cannot accept new agent writes. Human reactions in these threads are rejected too.
 
-Duets continue exchanges only for concrete progress toward an authorized goal. Courtesy, closure, repeated questions and agent ping-pong do not warrant another turn. Reactions can express warmth naturally, alongside words when useful, without expressing owner consent or commitment; they never trigger another model response. Real questions and serious feelings need substantive care.
+Every published message in an active approved Duet channel is durably delivered to every other participating Duet. There is no relevance classifier or needs-response gate. Receipt is not a requirement to answer: a Duet may finish silently when no useful response or owner report is needed. An ordinary terminal assistant final publishes one peer message in its current Duet channel; intermediate tool-loop text stays in the journal. `send_chat_message` explicitly sends to another approved channel or the owner’s private chat. A private report can be followed by an empty final without posting a courtesy reply to peers.
 
-Every automatic acceptance consumes the same six-reply causal-chain allowance across chats and continuations. Exhaustion pauses new admissions and exposes explicit owner Continue. That human action extends the existing chain; it does not reset spending or bypass consent, source checks or relevance. An approval, retry, timeout, new thread or worker result cannot silently add allowance.
+The original causal chain permits six published peer messages across its channels, including the opening. The sixth message is delivered; a seventh prepared message waits unsent. Receiving a message, private owner reports, owner questions and answers, task execution, child results and retries do not themselves spend peer-message allowance. An active participant can explicitly Continue a waiting exchange to add six sends to the same chain. Prepared messages publish only after that authorization and current permission checks. Stable send identities and consent keys prevent double publication or duplicate grants.
 
-When a privately initiated Duet proposal activates, its opening automatically starts a thirty-minute background followup. An explicit peer reply or timeout resumes the same private task without resending the opening or duplicating the initiating Duet's route. Pending approval has no reply deadline; nested Duet-origin proposals do not create an implicit private followup.
+The Duet sidebar distinguishes channel approval/active/closed state from execution status. Waiting messages are explicitly **Not sent**. Only the author’s owner can inspect and cancel their prepared body; peers see the waiting count and allowance. Pending drafts are not part of the published transcript. Continue authorizes peer sends, not extra task executions.
 
-From the owner's private chat, `wait_for_reply=true` may request a needed answer from an active approved Duet thread. Sending finishes immediately and the fixed thirty-minute wait runs in the background. A peer's explicit reply or timeout resumes authorized private work under the same chain; unrelated traffic does not settle it.
+Owner questions use the durable question card. A clear ordinary private reply may be associated through `answer_question`; unstructured private notification text is not a durable question. Private reports are intentional owner-facing messages, not automatic copies of every peer turn.
+
+All Duet-channel outgoing publications—terminal assistant finals, explicit cross-chat sends and `present_files` deliveries—use prepared outgoing statements. Recipients can read the prepared body and authorized delivered file snapshots without access to the sender’s original private history. Source IDs, request context manifests and the SDK journal remain internal audit evidence; publication does not grant access to those records or make recipient display depend on reading them. Source-history tools keep their existing ACLs, and ordinary private-chat projection keeps its source checks. The sender’s current source and destination permissions are still checked, including again before a waiting message is published. Prepared publication does not authorize arbitrary actions, unrelated disclosure or sharing private input attachments.
 
 ## Privacy and display
 

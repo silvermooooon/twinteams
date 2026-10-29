@@ -11,7 +11,6 @@ from test_memory_dream import product as product  # noqa: PLC0414
 
 from app.models import Chat, Message, ProductOperation
 from app.runtime_bridge import RuntimeBridge
-from app.service import digest
 
 
 def origin(product, chat_id="private-alex", *, reply_for_me=False):
@@ -21,11 +20,8 @@ def origin(product, chat_id="private-alex", *, reply_for_me=False):
     sent = send_message(product, sender, chat_id, "Synthetic owner task", uuid4().hex)
     request = sent["request"]
     if not request:
-        # The observed bug used an accepted automatic task owned by the recipient's Twin.
-        with product.transaction() as db:
-            row = product.accept_request(db, db.get(Chat, chat_id), "twin-alex", sender,
-                "auto", uuid4().hex, source_message_id=sent["message"]["id"])
-            request = product.request_json(db, row, sender)
+        from duet_test_support import request_duet_reply
+        request = request_duet_reply(product, sender, chat_id, sent["message"]["id"], "twin-alex")
     return request, product.get_runtime_context(request["id"])
 
 
@@ -88,28 +84,7 @@ def test_reply_for_me_cannot_add_an_agent_outlet_in_a_human_chat(product):
         assert db.get(Chat, "group-alex-maya").next_message_seq == before
 
 
-def test_preexisting_committed_same_chat_receipt_replays_without_a_new_effect_and_rechecks_visibility(product):
-    request, context = origin(product)
-    args = {"chat_id": "private-alex", "body": "Synthetic legacy committed tool reply", "source_message_ids": []}
-    operation = uuid4().hex
-    with product.transaction() as db:
-        chat, member = product.membership(db, "owner-alex", "private-alex")
-        legacy = product.append_message(db, chat, author_id="twin-alex", kind="twin", body=args["body"],
-            request_id=request["id"], causal_chain_id=request["causal_chain_id"], sdk_output_key="tool:" + digest(operation))
-        result = {"status": "sent", "sent": True, "message_id": legacy.id, "chat_id": chat.id,
-            "author_id": "twin-alex", "author_owner_id": "owner-alex", "causal_chain_id": request["causal_chain_id"],
-            "message": product.message_json(db, legacy, member), "followup": None}
-        db.add(ProductOperation(operation_id=operation, chat_id=chat.id, owner_id="owner-alex",
-            name="send_chat_message", arguments_hash=digest(args), result=result))
-    assert call(product, context, args, operation)["message_id"] == result["message_id"]
-    assert len(outputs(product, request["id"], "private-alex")) == 1
-    with pytest.raises(HTTPException):
-        call(product, context, args, uuid4().hex)
-    with product.transaction() as db:
-        db.get(Message, result["message_id"]).state = "withdrawn"
-    with pytest.raises(HTTPException):
-        call(product, context, args, operation)
-    assert outputs(product, request["id"], "private-alex") == []
+
 
 
 def test_offline_sdk_recovers_from_rejected_current_chat_tool_and_emits_one_normal_reply(product):

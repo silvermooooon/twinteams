@@ -19,12 +19,6 @@ def upgrade_duet_conversation_schema(engine):
         connection.execute(text("""UPDATE tt_dispatch_outbox SET kind='cancel',state='pending'
             WHERE request_id IN (SELECT r.id FROM tt_reply_requests r JOIN tt_chats c ON c.id=r.chat_id
                 WHERE c.kind='group' AND r.cancel_requested=TRUE AND r.status IN ('cancelled','running'))"""))
-        connection.execute(text("""UPDATE tt_trigger_candidates SET state='suppressed'
-            WHERE chat_id IN (SELECT id FROM tt_chats WHERE kind='group')
-            AND state IN ('waiting','paused')"""))
-        connection.execute(text("""UPDATE tt_routing_decisions SET status='completed',reason='human_only_chat'
-            WHERE message_id IN (SELECT m.id FROM tt_messages m JOIN tt_chats c ON c.id=m.chat_id WHERE c.kind='group')
-            AND status IN ('pending','paused')"""))
 
 
 def check_duet_conversation_schema(inspector):

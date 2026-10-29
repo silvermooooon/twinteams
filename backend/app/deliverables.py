@@ -72,20 +72,23 @@ def present_files(service, db, args, context):
             request_id=request.id, **info)
         db.add(attachment)
         attachments.append(attachment)
-    # Current-chat publication keeps ordinary output source visibility. Explicit
-    # cross-chat delivery follows prepared-send semantics without granting access
-    # to the original private records or to the mutable source file.
-    provenance = inherited if target.id == origin.id else []
-    source_ids = [source["id"] for source in provenance if source.get("kind") == "message"]
-    message = service.append_message(db, target, author_id=twin.id, kind="twin", body=caption,
-        attachment_ids=[row.id for row in attachments], request_id=request.id,
-        causal_chain_id=service.request_chain(db, request).id,
-        source_provenance=provenance, source_message_ids=source_ids,
-        source_floor_seq=min([service.visible_message(db, member, sid).seq for sid in source_ids], default=target.next_message_seq),
-        sdk_output_key="tool:" + digest(context["operation_id"]))
+    payload = {"author_id": twin.id, "kind": "twin", "body": caption,
+        "attachment_ids": [row.id for row in attachments], "sdk_output_key": "tool:" + digest(context["operation_id"])}
+    if target.kind == "duet" or target.id != origin.id:
+        message = service.append_prepared_message(db, target, request, **payload)
+    else:
+        source_ids = [source["id"] for source in inherited if source.get("kind") == "message"]
+        message = service.append_message(db, target, request_id=request.id,
+            causal_chain_id=service.request_chain(db, request).id,
+            source_provenance=inherited, source_message_ids=source_ids,
+            source_floor_seq=min([service.visible_message(db, member, sid).seq for sid in source_ids], default=target.next_message_seq),
+            **payload)
     for attachment in attachments:
         attachment.message_id = message.id
     db.flush()
-    service.route_committed_message(db, target, message)
-    return {"status": "sent", "sent": True, "chat_id": target.id, "message_id": message.id,
-            "message": service.message_json(db, message, target_member)}
+    result = {"status": "sent" if message.state == "published" else "pending_budget",
+        "sent": message.state == "published", "chat_id": target.id,
+        "message_id": message.id, "state": message.state}
+    if message.state == "published":
+        result["message"] = service.message_json(db, message, target_member)
+    return result

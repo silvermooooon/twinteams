@@ -1,5 +1,7 @@
 # 我的 Twin 整体验收 — 2026-10-18
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 ## 范围与隔离
 
 结论：本轮实现通过独立整体验收，本地服务已更新并可用，所有已发现问题已修复并复验。没有调用真实模型、修改用户个人资料或新增聊天。

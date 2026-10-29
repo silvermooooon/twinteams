@@ -21,7 +21,7 @@ WRITE_TOOLS = {"request_duet_conversation", "set_message_reaction", "send_chat_m
 # Exact arguments are frozen by the SDK; no uninstalled action may enter that path.
 ACTION_FIELDS = {
     "set_message_reaction": ({"message_id", "emoji", "active"}, {"chat_id"}),
-    "send_chat_message": ({"chat_id", "body", "source_message_ids"}, {"wait_for_reply", "reply_to_message_id"}),
+    "send_chat_message": ({"chat_id", "body", "source_message_ids"}, {"reply_to_message_id"}),
     "present_files": ({"paths"}, {"caption", "chat_id"}),
     "create_chat": ({"owner_ids"}, {"title", "history_policy"}),
     "rename_chat": ({"chat_id", "title"}, set()),
@@ -98,9 +98,6 @@ def scope_ids(service, db, name, args, context):
         private = db.scalar(select(Chat.id).where(Chat.kind == "private", Chat.private_owner_id == context["owner_id"]))
         if private:
             ids.add(private)
-    if name == "send_chat_message":
-        from .followups import reply_scope_ids
-        ids.update(reply_scope_ids(service, db, target_id, args.get("reply_to_message_id")))
     return {value for value in ids if value}
 
 
@@ -278,14 +275,9 @@ def dispatch(service, db, name, args, context, chat, member, locked_ids):
         controller = db.get(ReplyRequest, context.get("request_id"))
         if not controller:
             fail(403, "Automatic retry requires a durable controller request")
-        chain = service.request_chain(db, controller)
-        reservation, reason = service.reserve_automatic(db, chain.id, "platform-retry:" + context["operation_id"], owner_id, db.get(Actor, row.target_twin_id).owner_id, None)
-        if reason:
-            return {"status": "held", "reason": reason, "request_id": row.id, "causal_chain_id": chain.id}
-        result = service._retry_request_db(db, owner_id, row.id, "platform-retry:" + context["operation_id"],
-            automatic_reservation_id=reservation.id, causal_chain_id=chain.id, automatic=True)
-        reservation.accepted_request_id = result["id"]
-        return result
+        return service._retry_request_db(db, owner_id, row.id,
+            "platform-retry:" + context["operation_id"], automatic=True)
+
     fail(400, "Unknown platform tool")
 
 

@@ -7,13 +7,11 @@ executors are replaced. No production service, database, messages, or workers ar
 from __future__ import annotations
 
 import argparse
-import ast
 import asyncio
 import hashlib
 import inspect
 import json
 import os
-import textwrap
 import time
 from copy import deepcopy
 from pathlib import Path
@@ -73,23 +71,8 @@ def cases():
     ]
 
 
-def router_cases():
-    return [
-        {"name": "router_duet_thanks", "body": "@Alex's Duet 谢谢，辛苦啦！", "needs_response": False},
-        {"name": "router_duet_closure", "body": "@Alex's Duet 已完成，时间和会议室都记下了，没有其他事项。", "needs_response": False},
-        {"name": "router_duet_necessary_question", "body": "@Alex's Duet Alex明天14:30方便参加项目同步吗？需要他确认一下。", "needs_response": True},
-    ]
 
 
-def production_router_system(owner_ids):
-    """Evaluate only the actual production system assignment, never a copied prompt."""
-    from app.runtime_bridge import RuntimeBridge
-    source = textwrap.dedent(inspect.getsource(RuntimeBridge.route_targets))
-    tree = ast.parse(source)
-    assignment = next(node for node in ast.walk(tree) if isinstance(node, ast.Assign)
-                      and any(isinstance(target, ast.Name) and target.id == "system" for target in node.targets))
-    return eval(compile(ast.Expression(assignment.value), "production-route-system", "eval"),
-                {"__builtins__": {}}, {"json": json, "owner_ids": owner_ids})
 
 
 def recording_tools(context, records):
@@ -131,7 +114,7 @@ def digest(text):
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-async def run(output, selected, selected_routers, max_attempts):
+async def run(output, selected, max_attempts):
     from checks.browser_e2e_live import PHASE, configuration, initialize_budget, install
     from checks.local_stack import environment
     os.environ.update(environment("worker"))
@@ -152,13 +135,11 @@ async def run(output, selected, selected_routers, max_attempts):
     report = {"date": "2026-10-26", "model": "gpt-6-luna", "api": "openai-responses",
         "transport": "actual Agent/Models SDK; previously authorized local configuration",
         "context": "synthetic", "actions": "recording-only executors; no production writes",
-        "router_boundary": "actual production system assignment AST; synthetic Agent/session, no service/store",
-        "max_http_attempts": max_attempts, "manual_review_required": True, "cases": [], "router_cases": []}
+        "max_http_attempts": max_attempts, "manual_review_required": True, "cases": []}
     from app.runtime_bridge import RuntimeBridge
     report["source_sha256"] = {
         "conversation_system": digest(inspect.getsource(conversation_system)),
         "request_prompt": digest(inspect.getsource(request_prompt)),
-        "route_targets": digest(inspect.getsource(RuntimeBridge.route_targets)),
         "runtime_tools": digest(inspect.getsource(RuntimeBridge._tools)),
     }
 
@@ -205,24 +186,6 @@ async def run(output, selected, selected_routers, max_attempts):
                           "stop_reason": row.get("stop_reason"), "http_attempts": report["http_attempts"]}))
         if row.get("error_type") or row.get("runtime_error") or row.get("stop_reason") == "error":
             return
-    owners = ["owner-alex", "owner-maya"]
-    roster = [{"owner_id": owner, "owner_name": name, "twin_id": owner.replace("owner-", "twin-"),
-               "twin_name": name + "'s Duet"} for owner, name in zip(owners, ["Alex", "Maya"])]
-    for case in selected_routers:
-        source = message("source-" + case["name"], "owner-maya", case["body"], duet=True)
-        prompt = json.dumps({"participants": roster, "context": {"summary": None, "messages": [
-            message("demo", "owner-alex", "明天演示从14:30开始，会议室B。"), source]}, "message": source}, ensure_ascii=False)
-        row = await prompt_case(case["name"], prompt, production_router_system(owners), [])
-        row.update(expected_needs_response=case["needs_response"], expected_target_owner_ids=["owner-alex"] if case["needs_response"] else [])
-        try:
-            row["decision"] = json.loads(row["final_reply"].strip().removeprefix("```json").removesuffix("```").strip())
-        except (ValueError, KeyError):
-            row["invalid_json"] = True
-        report["router_cases"].append(row)
-        save()
-        print(json.dumps({"case": row["name"], "decision": row.get("decision"), "http_attempts": report["http_attempts"]}, ensure_ascii=False))
-        if row.get("error_type") or row.get("runtime_error"):
-            return
     save()
 
 
@@ -231,18 +194,15 @@ if __name__ == "__main__":
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--case", action="append", choices=[case["name"] for case in cases()])
-    parser.add_argument("--router-only", action="store_true")
-    parser.add_argument("--include-router", action="store_true", help="Include router cases with a selected main subset")
     parser.add_argument("--max-attempts", type=int, choices=range(1, 25), default=24)
     args = parser.parse_args()
     if args.case and len(args.case) != len(set(args.case)):
         parser.error("Duplicate case selection")
-    selected = [] if args.router_only else [case for case in cases() if not args.case or case["name"] in args.case]
-    routers = router_cases() if args.router_only or args.include_router or not args.case else []
+    selected = [case for case in cases() if not args.case or case["name"] in args.case]
     if args.live:
         if args.output is None:
             parser.error("--live requires a new --output directory")
-        asyncio.run(run(args.output.resolve(), selected, routers, args.max_attempts))
+        asyncio.run(run(args.output.resolve(), selected, args.max_attempts))
     else:
         print(json.dumps({"cases": [{k: case[k] for k in ("name", "input", "expected")} for case in selected],
-                          "router_cases": routers, "max_http_attempts": args.max_attempts}, ensure_ascii=False, indent=2))
+                          "max_http_attempts": args.max_attempts}, ensure_ascii=False, indent=2))

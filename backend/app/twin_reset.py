@@ -28,8 +28,6 @@ from .models import (
     TrackingRevision,
     TrackingTopic,
     TrackingUpdate,
-    TriggerCandidate,
-    TwinFollowup,
     TwinReset,
     WorkspaceNode,
 )
@@ -108,8 +106,6 @@ def fence(service, owner_id, key, expected_generation):
             approval.sdk_reference, approval.source_message_ids, approval.source_provenance = {}, [], []
         db.execute(update(PendingChildResult).where(PendingChildResult.chat_id == chat.id).values(
             state="paused", pause_reason="private_reset", body="", notification={}, source_provenance=[]))
-        db.execute(update(TwinFollowup).where(TwinFollowup.chat_id == chat.id).values(
-            status="cancelled", notification_state="cancelled", source_provenance=[]))
         db.execute(update(CredentialRequest).where(CredentialRequest.chat_id == chat.id).values(
             status="cancelled", reason="", source_provenance=[]))
         from .questions import reset_owner as reset_questions
@@ -125,7 +121,6 @@ def fence(service, owner_id, key, expected_generation):
         db.execute(delete(ActivityProjection).where(ActivityProjection.chat_id == chat.id))
         db.execute(update(ProductOperation).where(ProductOperation.chat_id == chat.id).values(result={"status": "private_reset"}))
         db.execute(delete(Reminder).where(Reminder.chat_id == chat.id, Reminder.owner_id == owner_id))
-        db.execute(update(TriggerCandidate).where(TriggerCandidate.chat_id == chat.id).values(state="suppressed", evidence={}))
         db.execute(update(MemoryEditAudit).where(MemoryEditAudit.owner_id == owner_id).values(content=None, key="[reset]", state="reset"))
         db.execute(delete(MemoryDreamState).where(MemoryDreamState.owner_id == owner_id))
         lane = db.get(ReplyLane, (chat.id, service.twin(db, owner_id).id))

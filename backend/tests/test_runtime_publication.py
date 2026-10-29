@@ -1,4 +1,4 @@
-"""Follow-up output policy, using the real SDK with an offline provider and isolated PG."""
+"""Terminal publication and immutable accepted-input recovery, using the real SDK with an offline provider and isolated PG."""
 import asyncio
 from types import SimpleNamespace
 from uuid import uuid4
@@ -18,7 +18,7 @@ def record(body, seq=1, *, stop="stop", tools=False):
             "data": {"message": {"content": content, "stopReason": stop}}}
 
 
-def test_followup_projection_requires_actual_final_text_and_completed_run():
+def test_terminal_projection_requires_actual_final_text_and_completed_run():
     intermediate = record("Do not publish this narration.", stop="toolUse", tools=True)
     empty = record("", 2)
     completed = {"type": "run_completed", "data": {}}
@@ -75,7 +75,7 @@ class ProductStub:
         return {"chats": []}
 
 
-def test_proactive_send_schema_preserves_followup_and_reply_reference():
+def test_peer_send_schema_preserves_reply_reference_and_chain():
     product = ProductStub()
     runtime = RuntimeBridge(product)
     context = {"owner_id": "owner-a", "chat": {"id": "private-a", "kind": "private"},
@@ -84,10 +84,10 @@ def test_proactive_send_schema_preserves_followup_and_reply_reference():
                               tool_operation_id=lambda call: f"operation:{call}")
     tool = next(tool for tool in runtime._tools(context, session) if tool.name == "send_chat_message")
     assert tool.replay == "safe"
-    assert tool.parameters["properties"]["wait_for_reply"] == {"type": "boolean", "default": False}
+    assert "wait_for_reply" not in tool.parameters["properties"]
     assert "reply_to_message_id" not in tool.parameters["required"]
     args = {"chat_id": "existing-group", "body": "Which date works?", "source_message_ids": ["origin-message"],
-            "wait_for_reply": True, "reply_to_message_id": "target-message"}
+            "reply_to_message_id": "target-message"}
     asyncio.run(tool.execute("send", args, AbortSignal(), None))
     assert product.tool_calls[0][1] == args
     assert product.tool_calls[0][2]["causal_chain_id"] == "chain"
@@ -100,7 +100,7 @@ def test_proactive_send_schema_preserves_followup_and_reply_reference():
 
 
 @pytest.mark.parametrize("final_body,failed", [("", False), ("Useful completed result.", False), ("", True)])
-def test_followup_actual_sdk_does_not_publish_intermediate_text(monkeypatch, final_body, failed):
+def test_scheduled_actual_sdk_does_not_publish_intermediate_text(monkeypatch, final_body, failed):
     from app import twin_execution
 
     async def assemble(service, session, context):
@@ -138,11 +138,11 @@ def test_followup_actual_sdk_does_not_publish_intermediate_text(monkeypatch, fin
         await runtime.start()
         request_id = uuid4().hex
         request = {"id": request_id, "chat_id": uuid4().hex, "target_twin_id": "twin-a", "requester_id": "owner-a",
-                   "source": "followup_result", "status": "running", "causal_chain_id": "original-chain",
-                   "input_body": "This is a settled follow-up, not a new human request."}
+                   "source": "scheduled_task", "status": "running", "causal_chain_id": "original-chain",
+                   "input_body": "One saved owner task"}
         product.requests[request_id] = request
         context = {"owner_id": "owner-a", "chat": {"id": request["chat_id"], "kind": "private"},
-                   "followup_result": {"id": "followup", "status": "timeout", "outbound_body": "Which date works?"}}
+                   "scheduled_task": {"id": "task", "kind": "personal", "instructions": "One saved owner task"}}
         try:
             if failed:
                 with pytest.raises(RuntimeError, match="Offline test interruption"):
@@ -153,7 +153,7 @@ def test_followup_actual_sdk_does_not_publish_intermediate_text(monkeypatch, fin
             assert result["body"] == final_body
             assert list(product.outputs.values()) == ([final_body] if final_body else [])
             assert not any(event.get("type") == "token" for event in product.events)
-            assert "untrusted data, not a new human instruction" in str(calls[0])
+            assert "saved personal task" in str(calls[0])
             assert product.tool_calls[0][2]["causal_chain_id"] == "original-chain"
             call_count = len(calls)
             assert await runtime.execute(request, context) == result
@@ -166,8 +166,8 @@ def test_followup_actual_sdk_does_not_publish_intermediate_text(monkeypatch, fin
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("source", ["subagent_result", "followup_result"])
-def test_preaccepted_legacy_continuation_preserves_input_and_replays_once(monkeypatch, source):
+@pytest.mark.parametrize("source", ["subagent_result"])
+def test_preaccepted_task_continuation_preserves_input_and_replays_once(monkeypatch, source):
     from app import twin_execution
     from app.twin_prompts import request_prompt
 

@@ -17,7 +17,7 @@ def upgrade_request_concurrency_schema(engine):
             ON tt_activity_runs (chat_id, owner_id, private_generation, started_at)
             WHERE source='subagent' AND status='running'"""))
         connection.execute(text("""UPDATE tt_reply_requests SET background=TRUE
-            WHERE (source IN ('auto','scheduled_task','system_review','memory_dream')
+            WHERE (source IN ('duet_message','scheduled_task','system_review','memory_dream')
                 OR execution_config ->> 'scheduled_task' IS NOT NULL) AND background=FALSE"""))
 
 

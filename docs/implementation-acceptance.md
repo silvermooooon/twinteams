@@ -1,5 +1,7 @@
 # Implementation and verification status — 2026-10-18
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 The current process/transport design is [architecture.md](architecture.md). API replicas and the single-active execution service are separate. Redis is disposable notification/presence transport; PostgreSQL remains authoritative.
 
 The application uses PostgreSQL for product and SDK state in every environment.

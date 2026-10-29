@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from agent_runtime import AbortSignal, AssistantMessageEventStream, assistant_message
 from jsonschema import Draft202012Validator
-from test_followup_runtime import ProductStub
+from test_runtime_publication import ProductStub
 
 from app.runtime_bridge import RuntimeBridge
 from app.runtime_scheduled import is_scheduled_request, terminal_output_only
@@ -34,7 +34,7 @@ def test_scheduled_input_contract_keeps_authorization_scope_and_system_review_ev
     prompt = request_prompt({"source": "system_review"}, {"system_review": review})
     for value in ("previous-cutoff", "Already reported", "upcoming or overdue deadlines", "known external watches", "Never create schedules"):
         assert value in prompt
-    for source in ("approval", "credential_result", "subagent_result", "followup_result"):
+    for source in ("approval", "credential_result", "subagent_result"):
         request = {"source": source, "execution_config": {"scheduled_task": TASK}}
         assert is_scheduled_request(request) and terminal_output_only(request)
     assert not is_scheduled_request({"source": "private", "execution_config": None})

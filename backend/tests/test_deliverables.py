@@ -143,10 +143,11 @@ def test_rollback_retry_reuses_only_the_protected_original_snapshot(files, monke
     product, client, root = files
     path, context = prepare(files)
     operation = uuid4().hex
-    route = product.route_committed_message
-    def fail_before_commit(*args):
+    append = product.append_message
+    def fail_before_commit(*args, **kwargs):
+        append(*args, **kwargs)
         raise RuntimeError("Synthetic known rollback after capture")
-    monkeypatch.setattr(product, "route_committed_message", fail_before_commit)
+    monkeypatch.setattr(product, "append_message", fail_before_commit)
     with pytest.raises(RuntimeError, match="known rollback"):
         present(product, context, [path], operation=operation)
     with product.transaction() as db:
@@ -156,7 +157,7 @@ def test_rollback_retry_reuses_only_the_protected_original_snapshot(files, monke
         product.workspace("owner-alex", "private-alex", "uploads")
     assert hidden.value.status_code == 404
     path.write_text("Later working copy")
-    monkeypatch.setattr(product, "route_committed_message", route)
+    monkeypatch.setattr(product, "append_message", append)
     result = present(product, context, [path], operation=operation)
     row = result["message"]["attachments"][0]
     assert client.get(row["url"]).content == b"# Completed report\n"

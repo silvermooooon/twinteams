@@ -240,23 +240,3 @@ def test_citation_projection_deduplicates_and_leaves_input_and_existing_links_un
     assert output_text_content(message) == text_content(message)
     assert text_content(original) == "Answer."
     assert output_text_content(None) == ""
-
-
-def test_routing_classifier_keeps_responses_payload_tool_free(monkeypatch, tmp_path):
-    async def run():
-        payloads = []
-
-        def handler(request):
-            payloads.append(json.loads(request.content))
-            return response("openai-responses", searched=False,
-                body=json.dumps({"needs_response": True, "target_owner_ids": ["owner"], "reason": "Question"}))
-
-        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            harness = FactoryHarness(monkeypatch, tmp_path, client, "openai-responses")
-            participants = [{"id": "twin-owner", "kind": "twin", "owner_id": "owner", "name": "Beacon Duet"}]
-            result = await harness.runtime.route_targets("group", {"id": "route", "author_owner_id": "sender"}, [], ["owner"], participants)
-            assert result["target_owner_ids"] == ["owner"]
-            assert "tools" not in payloads[0]
-            route_input = next(item for item in payloads[0]["input"] if item["role"] == "user")
-            assert json.loads(route_input["content"][0]["text"])["participants"] == participants
-    asyncio.run(run())

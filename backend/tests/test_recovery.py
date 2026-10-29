@@ -11,8 +11,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app import service as module
-from app.models import Approval, Message, Reminder, ReplyLane, ReplyRequest, RoutingDecision
-from app.runtime_bridge import RuntimeBridge, RuntimeBusy
+from app.models import Approval, Message, Reminder, ReplyLane, ReplyRequest
+from app.runtime_bridge import RuntimeBridge
 from checks.postgres import TestDatabase
 
 
@@ -102,52 +102,8 @@ def test_reopen_rebuilds_all_complete_outputs(product):
     asyncio.run(run())
 
 
-def test_busy_router_does_not_discard_other_workers_result(product):
-    async def run():
-        runtime = await bridge_for(product)
-        try:
-            from duet_test_support import append_duet, approved_chat
-            chat = approved_chat(product, "duet-recovery")
-            message = append_duet(product, chat, "owner-alex", "Can you help?")
-            runtime.route_targets = AsyncMock(side_effect=RuntimeBusy("other holder"))
-            await product.route_pending()
-            with product.transaction() as db:
-                assert db.scalar(select(RoutingDecision).where(RoutingDecision.message_id == message["id"])).status == "pending"
-            runtime.route_targets = AsyncMock(return_value={"needs_response": True, "target_owner_ids": ["owner-maya"], "reason": "question"})
-            await product.route_pending()
-            # Candidates pass through the existing fresh-presence processing turn.
-            product.process_candidates({chat})
-            with product.transaction() as db:
-                assert db.scalar(select(RoutingDecision).where(RoutingDecision.message_id == message["id"])).status == "completed"
-                assert db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == message["id"]))
-        finally:
-            await runtime.close()
-    asyncio.run(run())
 
 
-def test_slow_routing_does_not_block_private_dispatch(product):
-    async def run():
-        runtime = await bridge_for(product)
-        entered, dispatched = asyncio.Event(), asyncio.Event()
-        async def route(*args, **kwargs):
-            entered.set()
-            await asyncio.Event().wait()
-        async def execute(request_id):
-            dispatched.set()
-        runtime.route_targets = route
-        product.execute_request = execute
-        from duet_test_support import append_duet, approved_chat
-        chat = approved_chat(product, "duet-recovery")
-        append_duet(product, chat, "owner-alex", "question")
-        await product.start()
-        try:
-            await asyncio.wait_for(entered.wait(), 2)
-            product.send_message("owner-alex", "private-alex", "independent", key())
-            await asyncio.wait_for(dispatched.wait(), 2)
-        finally:
-            await product.close()
-            await runtime.close()
-    asyncio.run(run())
 
 
 def test_deleted_tracking_cannot_return_with_new_title_or_casual_mention(product):
@@ -205,10 +161,10 @@ def test_owner_admission_precedes_global_candidate_limit(product):
     from app.models import Actor, Chat
     for index in range(105):
         approved_chat(product, f"duet-fair-{index}")
+    from duet_test_support import append_duet
+    for index in range(105):
+        append_duet(product, f"duet-fair-{index}", "owner-maya", f"Independent peer task {index}")
     with product.transaction() as db:
-        for index in range(105):
-            chat = db.get(Chat, f"duet-fair-{index}")
-            product.accept_request(db, chat, "twin-alex", "owner-maya", "auto", key(), input_body=f"Explicit independent task {index}")
         other = product.accept_request(db, db.get(Chat, "private-maya"), "twin-maya", "owner-maya", "manual", key(), input_body="Later other owner")
         other_id = other.id
     ready = product.claim_dispatches()

@@ -67,8 +67,9 @@ def test_protocol_uses_separate_owner_approved_duet_conversations(kind):
     assert "request_duet_conversation" in protocol
     assert "approve once" in protocol and "always grant to every peer" in protocol
     assert "connection only" in protocol and "no authority for arbitrary actions" in protocol
-    assert "six-reply causal-chain allowance" in protocol
-    assert "Only explicit owner continuation extends it" in protocol
+    assert "share six sends across the causal chain" in protocol
+    assert "Reading, owner reports and questions are unmetered" in protocol
+    assert "held until an authorized owner uses Continue" in protocol
     assert "Never publish in human chats" in protocol
     assert "another owner's Memory" in protocol
     assert "Main and child capabilities match" in protocol
@@ -111,7 +112,6 @@ def test_current_references_keep_only_authorized_visible_message_metadata():
 
 @pytest.mark.parametrize(("source", "body", "expected"), [
     ("subagent_result", "Worker completed the draft", "continue remaining authorized work"),
-    ("followup_result", "Timed out", "Do not invent a timeout answer"),
 ])
 def test_continuations_resume_remaining_work_without_new_permission(source, body, expected):
     prompt = request_prompt({"source": source, "input_body": body}, {})

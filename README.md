@@ -1,6 +1,6 @@
 # Duet / 双重奏
 
-Duet separates human pair/multi-person chats (`kind=group`), owner-to-own-Duet private chats (`kind=private`) and independent owner-approved Duet threads (`kind=duet`). Humans inspect Duet threads read-only in the sidebar. Approve once permits one connection; Always creates directed owner-to-peer grants, and revocation closes dependent threads. Connection consent grants no arbitrary action authority. Automatic work shares six replies across the original task chain; only explicit human Continue extends it. Human chat messages never trigger Duets through presence, unread state or a ten-second timer. The checkout, configuration prefixes and storage identifiers retain `twinteams` for compatibility. See [the visual identity](docs/visual-identity.md).
+Duet separates human pair/multi-person chats (`kind=group`), owner-to-own-Duet private chats (`kind=private`) and independent owner-approved Duet threads (`kind=duet`). Humans inspect Duet threads read-only in the sidebar. Approve once permits one connection; Always creates directed owner-to-peer grants, and revocation closes dependent threads. Connection consent grants no arbitrary action authority. Peer communication shares six published messages across the original causal chain; explicit human Continue allows the next six sends. Human chat messages never trigger Duets through presence, unread state or a ten-second timer. The checkout, configuration prefixes and storage identifiers retain `twinteams` for compatibility. See [the visual identity](docs/visual-identity.md).
 
 React/TypeScript + FastAPI application using the original
 [Agent Runtime](https://github.com/silvermooooon/agent-runtime) SDK.
@@ -12,12 +12,12 @@ The current architecture is documented in [architecture.md](docs/architecture.md
 ## Run locally
 
 Keep `twinteams/` and `agent-runtime/` as sibling checkouts. The backend installs
-Agent Runtime as an editable dependency from `../../agent-runtime`.
+Agent Runtime as an editable dependency from `../../agent-runtime`. These setup commands preserve an existing `.env`. For an existing running instance, first confirm idle and gracefully stop the old worker and APIs before the breaking upgrade described below.
 
 ```sh
 cd twinteams/backend
 uv sync --python 3.13
-cp .env.example .env
+test -f .env || cp .env.example .env
 # Fill DATABASE_URL, AGENT_DB_URL and TWINTEAMS_REDIS_URL in the private .env file.
 uv run --env-file .env python -m app.init_db
 cd ../frontend
@@ -31,10 +31,7 @@ uv run --env-file .env python run_local.py --port 8000
 uv run --env-file ../../agent-runtime/.env --env-file .env python -m app.worker
 ```
 
-`app.init_db` explicitly creates or upgrades the business schema and the SDK's
-packaged migrations (001–005). It is safe to repeat; ordinary API and worker
-startup only validates schema. To import existing Activity projections once,
-run `python -m app.init_db --backfill-activity`. No startup replays session logs.
+`app.init_db` explicitly provisions the product schema and canonical SDK migrations (001–005). The current product upgrade includes a **breaking communication cleanup**: stop old worker/API processes only after confirming idle, then run explicit provisioning before starting the new code. It drops four obsolete routing/followup/reservation tables and the request reservation column, removes old allowance grants, resets send counters to six and enables pending messages. It preserves chat messages, owner consent/configuration, credentials, workspaces and SDK journals. See [the exact upgrade scope](docs/architecture.md#provision-and-launch) and [versioned DDL](backend/app/sql/006_duet_message_channels.sql). Repeating the upgrade after the retired tables are gone does not reset current send counters. Ordinary startup only validates schema. `python -m app.init_db --backfill-activity` is a separate optional Activity import; startup never replays session logs.
 
 The configured local instance connects to `127.0.0.1:5432/appdb`. Credentials are
 stored only in ignored, private environment files. Both components use PostgreSQL;
@@ -57,7 +54,7 @@ produce a clear failure; the app never substitutes a test response.
 New Duet conversation and subagent runs using `openai-responses` enable OpenAI's
 native [`web_search`](https://developers.openai.com/api/docs/guides/tools-web-search)
 tool by default, including supported page opening and in-page search. The model
-decides when to use it. Other APIs and internal routing/Dream calls keep their
+decides when to use it. Other APIs and internal Dream calls keep their
 existing tool policy. Interrupted runs retain their exact frozen tool declarations
 and options; older runs without search do not gain it during recovery. Citation
 sources appear as clickable links in chat while the SDK journal
@@ -67,7 +64,7 @@ retains the original provider output. The SDK library itself remains opt-in.
 
 One dedicated database belongs to one `TWINTEAMS_TENANT_ID`. The product checks
 that database identity on startup. Product tables own identities, memberships,
-chat messages, source grants, task requests, routing, Tracking and reminders.
+chat messages, source grants, task requests, peer delivery, Tracking and reminders.
 The SDK owns its journal, runs, usage/audit, checkpoints, commands and leases.
 No second Runtime event log is maintained by the product.
 
@@ -75,13 +72,12 @@ Complete model outputs are committed before projection into chat. Reconnection
 loads committed outputs. WebSocket broadcasts contain only scope revisions;
 content is loaded through authorized HTTP. The former SSE/token transport and
 three-second full-chat polling have been removed. Reconciliation deduplicates
-by SDK event ID. SDK lease loss keeps the logical request recoverable. Slow model
-routing is scheduled separately from ready replies. Failed Duet routing appears on its source message. That message’s owner can explicitly retry; each click creates one fresh durable classifier attempt, retains the original causal-chain allowance and read checks, and never retries itself. Apply [the additive routing retry column](docs/group-routing-retry-schema.sql) before rollout (also applied by `app.init_db`). Approval decisions are durable
+by SDK event ID. SDK lease loss keeps the logical request recoverable. Peer messages are delivered directly to every other Duet in the approved channel. Duets decide whether to respond or finish silently; there is no model routing gate. The opening and terminal peer finals count toward six sends per causal chain. Excess messages stay prepared and visibly unsent until an active participant explicitly Continues. Private owner reports, questions, receipt and task execution do not spend sends. Approval decisions are durable
 SDK facts, then resume their originating task as a continuation. Exact installed platform actions
 are frozen and replay-safe; approval does not install extra execution capabilities.
 No email/payment adapters are installed.
 
-Private replies, approved Duet replies and Duet routing use the same server-maintained
+Private replies and approved Duet replies use the same server-maintained
 conversation checkpoint plus a contiguous recent-message tail. Estimated tokens
 trigger checkpointing at 24,000 tokens, retaining about 8,000 recent tokens; a
 40-message trigger also bounds many tiny messages (20 raw messages retained).
@@ -90,8 +86,7 @@ tokens; ordinary replies have no summary-maintenance tool or instruction. Source
 coverage is validated by the server, without a cumulative 500-ID tool limit.
 Original chat rows and SDK journals remain intact. Checkpoint failure preserves
 the previous valid state and visibly fails the attempt before incomplete history
-can reach the reply or routing model. Routing receives only authorized chat
-summary/history and participant metadata. Main and child tool runs additionally
+can reach the reply model. Main and child tool runs additionally
 use native SDK compaction near the configured model context limit, retaining its
 20,000-token recent tool history with a 16,384-token reserve. Interrupted commands
 keep their frozen input and tools; legacy frozen summary calls can still settle.
@@ -108,11 +103,8 @@ Set `TWINTEAMS_TEST_DB_URL` (or `DATABASE_URL`) to an accessible PostgreSQL URL:
 
 ```sh
 uv run --env-file .env python -m pytest tests -q
-uv run --env-file .env python checks/product_acceptance.py
 uv run --env-file .env python checks/runtime_acceptance.py
 uv run --env-file .env python checks/provider_config_acceptance.py
-uv run --env-file .env python checks/twin_message_bridge_acceptance.py
-uv run --env-file .env python checks/twin_conversation_acceptance.py
 uv run --env-file .env python checks/distributed_acceptance.py
 ```
 
@@ -122,8 +114,7 @@ are explicit test implementations. The separately launched
 `checks/acceptance_fixture.py --port 8011` uses the same schema isolation and labels
 its simulated responses; it is never an application fallback.
 
-For real browser coverage against disposable PostgreSQL, Redis, two APIs and a
-worker, see [browser E2E](docs/browser-e2e.md). Its one-command launcher uses a
+For real browser coverage against disposable PostgreSQL, Redis and API/worker processes, see [browser E2E](docs/browser-e2e.md). Its one-command launcher uses a
 deterministic offline provider while exercising real UI actions, tools and durable
 state; it never targets the production instance.
 
@@ -165,6 +156,6 @@ For the tested local two-API/single-worker stack, use the managed launcher from 
 It records only its own PIDs/logs and loads the explicitly configured private
 credential sources. This local deployment convention is not full high availability.
 
-Chat sends appear immediately as sender-local bubbles. Pending sends are kept only in memory: reloading fetches canonical server state, without a durable offline outbox. A retry keeps the same submission key and payload; “Sent” confirms server persistence, not delivery or reading. Human chat sends remain human-authored; private sends address only the owner's own Duet. Acknowledgments confirm each bubble without awaiting bootstrap; chat refreshes coalesce behind one active read and at most one follow-up, while preserving authorization checks for already loaded history.
+Chat sends appear immediately as sender-local bubbles. Sender-local pending human/private composer sends are kept only in memory: reloading fetches canonical server state, without a durable offline outbox. A retry keeps the same submission key and payload; “Sent” confirms server persistence, not delivery or reading. Human chat sends remain human-authored; private sends address only the owner's own Duet. Acknowledgments confirm each bubble without awaiting bootstrap; chat refreshes coalesce behind one active read and at most one follow-up, while preserving authorization checks for already loaded history.
 
 Chat message bodies render CommonMark and GitHub-flavored Markdown with `react-markdown` and `remark-gfm`, including lists, tables and fenced code. Raw HTML stays literal text and unsafe URL schemes are removed. Links open separately with opener/referrer protection; Markdown image URLs appear as explicit links rather than loading external images automatically. Uploaded image attachments retain their authorized preview flow. Original-input disclosures and quoted-source previews remain literal text, and rendering does not change stored message content.

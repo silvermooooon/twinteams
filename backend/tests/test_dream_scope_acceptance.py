@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
-from duet_test_support import request_duet_reply as legacy_request
+from duet_test_support import request_duet_reply as receiver_request
 from duet_test_support import seed_collaborations, send_message
 from fastapi import HTTPException
 from sqlalchemy import select, text
@@ -18,7 +18,7 @@ from app.models import Chat, MemoryDreamState, Message, ReplyRequest, now
 def append(product, body, *, chat_id="private-alex", author="twin-alex", **values):
     with product.transaction() as db:
         chat = db.get(Chat, chat_id)
-        message = product.append_message(db, chat, consume_followup=False,
+        message = product.append_message(db, chat,
             author_id=author, kind="human" if author.startswith("owner-") else "twin",
             body=body, **values)
         return message.id
@@ -43,7 +43,7 @@ def confirm(product, dream_id, payload):
 def test_group_report_without_owner_reply_or_successful_origin_is_dream_evidence(product):
     seed_collaborations(product)
     source = send_message(product, "owner-maya", "duet-alex-maya", "RAW GROUP MUST STAY OUT", uuid4().hex)["message"]
-    origin = legacy_request(product, "owner-maya", "duet-alex-maya", source["id"], "twin-alex", uuid4().hex)
+    origin = receiver_request(product, "owner-maya", "duet-alex-maya", source["id"], "twin-alex", uuid4().hex)
     context = {**product.get_runtime_context(origin["id"]), "operation_id": uuid4().hex}
     report = asyncio.run(product.runtime_tool("send_chat_message", {
         "chat_id": "private-alex", "body": "Delivered private progress from group work.",

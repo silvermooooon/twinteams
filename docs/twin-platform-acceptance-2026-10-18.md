@@ -1,5 +1,7 @@
 # Twin 平台参与者验收（2026-10-18）
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 已部署。Twin 使用其 owner 当前 membership/history 权限操作平台，不获得 tenant 管理员或其他 owner 私聊权限。本轮无 schema 变更、无迁移，未调用真实模型。
 
 ## 实现边界

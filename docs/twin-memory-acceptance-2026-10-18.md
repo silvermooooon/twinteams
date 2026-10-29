@@ -1,5 +1,7 @@
 # Soul、Git Memory 与 Dream 独立验收（2026-10-18）
 
+> Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+
 本轮使用真实 PostgreSQL 随机 schema、真实 SDK 执行和本地 bare Git。模型全部为离线 fake provider；没有向官方模型发请求，没有替实际用户重试消息。本轮已按授权部署到现有本地双 API/Worker 栈，公网入口检查通过。
 
 ## 运行与提示词边界

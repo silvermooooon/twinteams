@@ -24,7 +24,7 @@ def summaries(client, chat_id="group-alex-maya", owner="owner-alex"):
 
 def append(product, chat_id="group-alex-maya", **values):
     with product.transaction() as db:
-        row = product.append_message(db, db.get(Chat, chat_id), consume_followup=False,
+        row = product.append_message(db, db.get(Chat, chat_id),
             author_id=values.pop("author_id", "owner-maya"), kind=values.pop("kind", "human"),
             body=values.pop("body", "Synthetic visible summary"), **values)
         return row.id

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from agent_runtime.ai.estimate import estimate_message_tokens
 
 # Project only the same authorized fields used by the chat prompt. Tool/runtime
-# configuration, private Memory and Tracking never enter the summarizer/router.
+# configuration, private Memory and Tracking never enter the summarizer.
 MESSAGE_FIELDS = (
     "id", "seq", "author_id", "author_owner_id", "author_name", "kind", "body",
     "raw_owner_input", "created_at", "reply_to", "attachments",

@@ -53,17 +53,28 @@ def append_duet(product, chat_id, owner_id, body, *, reply_to=None, attachment_i
         message = product.append_message(db, chat, author_id=product.twin(db, owner_id).id,
             kind='twin', body=body, reply_to_message_id=reply_to,
             attachment_ids=list(attachment_ids), causal_chain_id=chain_id)
-        product.route_committed_message(db, chat, message)
         return product.message_json(db, message, member)
 
 
 def request_duet_reply(product, requester, chat_id, message_id, twin_id, key=None):
+    """Read the real per-recipient admission; never synthesize a second task.
+
+    Some context-only fixtures insert historical ORM rows directly. Materialize
+    their receipt through the same idempotent delivery transaction before lookup.
+    Publication/budget tests use append_duet or the actual product tool instead.
+    """
+    from app.models import Message, ReplyRequest
+
     with product.transaction() as db:
         chat, _ = product.membership(db, requester, chat_id, True)
         assert chat.kind == 'duet'
-        request = product.accept_request(db, chat, twin_id, requester, 'auto', key or uuid4().hex,
-                                         source_message_id=message_id)
-        assert request, 'Fixture exhausted the real shared automatic allowance'
+        message = db.get(Message, message_id)
+        assert message and message.chat_id == chat_id and message.state == 'published'
+        product._deliver_duet_message(db, chat, message)
+        request = db.scalar(select(ReplyRequest).where(ReplyRequest.source == 'duet_message',
+            ReplyRequest.source_message_id == message_id, ReplyRequest.target_twin_id == twin_id,
+            ReplyRequest.generation == 0))
+        assert request, 'Published fixture message has no authorized recipient task'
         return product.request_json(db, request, requester)
 
 

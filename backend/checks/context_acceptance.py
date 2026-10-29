@@ -2,7 +2,7 @@
 
 Explicit opt-in only: .venv/bin/python checks/context_acceptance.py --live
 Uses the existing authorized local provider configuration and existing HTTP guard.
-Synthetic journal rows are labelled; summary/reply/router outputs are real SDK runs.
+Synthetic journal rows are labelled; summary/reply/receiver outputs are real SDK runs.
 Never writes application tables, changes credentials, restarts services or retries.
 """
 from __future__ import annotations
@@ -54,7 +54,7 @@ def seed(product, chat_id, count, first):
                 "no new decision, permission, approval or release code replaces the original requirement."
             )
             row = Message(id=uuid4().hex, chat_id=chat_id, seq=start + index,
-                          author_id="owner-alex", kind="human", body=body)
+                          author_id="twin-alex" if chat.kind == "duet" else "owner-alex", kind="twin" if chat.kind == "duet" else "human", body=body)
             rows.append(row)
         db.add_all(rows)
         chat.next_message_seq += count
@@ -67,7 +67,7 @@ async def run(root, report):
     from sqlalchemy import event, select
 
     from app import service as service_module
-    from app.models import RoutingDecision, Summary
+    from app.models import Summary
     from app.notifications import notifications
     from app.runtime_bridge import RuntimeBridge
     from checks import browser_e2e_live as live
@@ -87,7 +87,7 @@ async def run(root, report):
         phase = live.PHASE.get()
         audit.append({"phase": phase, "payload_sha256": hashlib.sha256(request.content).hexdigest(),
                       "payload_bytes": len(request.content), "private_canary": PRIVATE_CODE in encoded})
-        if phase in {"group-summary", "router"} and PRIVATE_CODE in encoded:
+        if phase in {"group-summary", "peer-receiver"} and PRIVATE_CODE in encoded:
             raise AssertionError("Private owner context entered group model input")
         return await guarded_send(client, request, *args, **kwargs)
 
@@ -147,35 +147,41 @@ async def run(root, report):
         assert len(json.loads((root / "live-budget.json").read_text())["attempts"]) == attempts
         report["same_boundary_and_command_replay_provider_attempts"] = 0
 
-        report["stage"] = "group-summary-and-router"
-        report["synthetic_group_rows"] = seed(product, "group-team", 60,
-            "Synthetic acceptance project assignment: BBB (owner-maya) alone is responsible for "
-            "release validation. CCC (owner-jordan) observes and has no validation action. "
-            "Later requests asking the person responsible for release validation are addressed to BBB.")
-        group = product.send_message("owner-alex", "group-team",
-            "Can the person responsible for release validation confirm whether the release is ready?",
-            uuid4().hex)
-        group_rows, group_hash = journal_digest(product, "group-team")
+        report["stage"] = "duet-summary-and-receiver"
+        from app.models import Chat, ReplyRequest
+        root_request = product.send_message("owner-alex", "private-alex", "Create the authorized synthetic context channel", uuid4().hex)["request"]
+        creation_context = {**product.get_runtime_context(root_request["id"]), "operation_id": uuid4().hex}
+        proposed = product._runtime_tool_transaction("request_duet_conversation", {
+            "participant_owner_ids": ["owner-maya", "owner-jordan"], "title": "Synthetic context channel",
+            "purpose": "Read only the owners' authorized release context", "opening_message": "Synthetic shared release context"}, creation_context)
+        for approval in proposed["conversation"]["approvals"]:
+            await product.decide_approval(approval["approver_id"], approval["id"], "approved", "once")
+        context_channel = proposed["chat_id"]
+        report["synthetic_group_rows"] = seed(product, context_channel, 60,
+            "Synthetic release validation assignment: BBB (owner-maya) owns validation; CCC observes.")
         with product.transaction() as db:
-            decision = db.scalar(select(RoutingDecision).where(
-                RoutingDecision.message_id == group["message"]["id"]))
-            decision_id = decision.id
-        prepared = product._prepare_route(decision_id)
-        assert prepared
-        marker = live.PHASE.set("router")
+            chat = db.get(Chat, context_channel)
+            chain = product.new_causal_chain(db, "owner-alex")
+            message = product.append_message(db, chat, author_id="twin-alex", kind="twin",
+                body="Confirm the release validation status", causal_chain_id=chain.id)
+            message_seq = message.seq
+            receiver = db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == message.id,
+                ReplyRequest.target_twin_id == "twin-maya", ReplyRequest.generation == 0))
+            receiver_id = receiver.id
+        group_rows, group_hash = journal_digest(product, context_channel)
+        context = product.get_runtime_context(receiver_id)
+        marker = live.PHASE.set("peer-receiver")
         try:
-            routed = await runtime.route_targets(*prepared[:5], command_id=prepared[5])
+            context = await runtime._maintain_conversation_context(context)
         finally:
             live.PHASE.reset(marker)
-        assert routed["needs_response"] and routed["target_owner_ids"] == ["owner-maya"]
-        current = product.get_conversation_context(prepared[2]["_summary_scope"])
-        assert current["summary"] and "owner-maya" in current["summary"]["body"]
-        assert PRIVATE_CODE not in json.dumps(current)
-        assert [row["seq"] for row in current["messages"]] == list(range(
-            current["summary"]["coverage_end_seq"] + 1, group["message"]["seq"] + 1))
-        assert journal_digest(product, "group-team")[0] == group_rows
-        report["actual_group_summary"] = current["summary"]["body"]
-        report["actual_routing_decision"] = routed
+        assert context["summary"] and "owner-maya" in context["summary"]["body"]
+        assert PRIVATE_CODE not in json.dumps(context)
+        assert [row["seq"] for row in context["messages"]] == list(range(
+            context["summary"]["coverage_end_seq"] + 1, message_seq + 1))
+        assert journal_digest(product, context_channel)[0] == group_rows
+        report["actual_group_summary"] = context["summary"]["body"]
+        report["receiver_request_id"] = receiver_id
         report["canonical_group_sha256"] = group_hash
         report["private_canary_absent_from_group_provider_payloads"] = True
 

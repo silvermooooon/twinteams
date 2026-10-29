@@ -1,5 +1,7 @@
 # Recovery fixes and repository consolidation
 
+> Historical verification record from 2026-10-18. This describes the retired routing/followup design and is not the current product contract. See [architecture.md](architecture.md) and [implementation-contract.md](implementation-contract.md) for current message delivery and send budgets.
+
 Twinteams uses the original `silvermooooon/agent-runtime` as an editable sibling
 checkout. The useful durable execution and child-agent work from the
 separate snapshot is incorporated there. Agent loop/session state stays canonical
