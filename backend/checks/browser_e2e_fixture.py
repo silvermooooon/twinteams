@@ -69,6 +69,14 @@ def install_fixture(root):
 
     twin_execution.TwinExecutionBackend = FixtureExecutionBackend
     if live:
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'group-creation-live':
+            original_assemble = twin_execution.assemble
+            async def observed_assemble(service, session, context):
+                tools, assembled, memory = await original_assemble(service, session, context)
+                with (root / 'memory-context.jsonl').open('a') as target:
+                    target.write(json.dumps({'request_id': context.get('request_id'), 'memory': memory}) + '\n')
+                return tools, assembled, memory
+            twin_execution.assemble = observed_assemble
         return  # Use the actual SDK provider, never a scripted response.
     from agent_runtime import AssistantMessageEventStream, assistant_message
 
@@ -377,7 +385,7 @@ def seed(root):
     from datetime import timedelta
 
     from app.init_db import main as provision
-    from app.models import Actor, now
+    from app.models import Actor, ChangeOutbox, Chat, Membership, now
     from app.scheduled_tasks import ensure_system
     from app.service import service
     asyncio.run(provision())
@@ -388,6 +396,11 @@ def seed(root):
         (folder.parent.parent / 'e2e-owner-sentinel.txt').write_text('E2E owner ' + owner + '\n')
     with service.transaction() as db:
         assert db.get(Actor, 'owner-alex') is not None
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'group-creation-live':
+            from sqlalchemy import delete
+            db.execute(delete(ChangeOutbox).where(ChangeOutbox.chat_id.in_(['group-team', 'group-alex-maya'])))
+            db.execute(delete(Membership).where(Membership.chat_id.in_(['group-team', 'group-alex-maya'])))
+            db.execute(delete(Chat).where(Chat.id.in_(['group-team', 'group-alex-maya'])))
         for owner_id in ('owner-alex', 'owner-maya', 'owner-jordan'):
             review = ensure_system(service, db, owner_id)
             # A test preset, not a shorter product interval or a claim of elapsed time.
@@ -531,14 +544,16 @@ def inspect_fixture(root):
             tools.append({'name': name, 'session_id': session_id, 'run_id': run_id,
                 'call_id': data.get('call_id'), 'event_id': record.get('id'), 'seq': record.get('seq'),
                 'request_id': request_ids.get((session_id, run_id)), 'owner_id': run_owners.get((session_id, run_id)),
-                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key', 'title', 'timezone', 'schedule', 'question_id', 'message_id', 'level', 'quiet_hours') + (('body', 'recipients', 'response', 'note', 'question', 'options') if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live' else ()) if field in args},
+                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key', 'title', 'timezone', 'schedule', 'question_id', 'message_id', 'level', 'quiet_hours') + (('body', 'recipients', 'response', 'note', 'question', 'options') if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live' else ()) + (('content', 'action', 'description', 'target', 'impact', 'history_policy') if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'group-creation-live' else ()) if field in args},
                 'result_ids': {field: result_value[field] for field in ('id', 'chat_id', 'message_id', 'request_id', 'continuation_request_id') if isinstance(result_value, dict) and isinstance(result_value.get(field), str)},
                 'success': not result.get('isError', False),
                 'credential_available': 'E2E_CREDENTIAL_AVAILABLE' in output,
                 'owner_cwd_verified': 'owner-cwd=' in output and '/workspaces/private-' in output})
             from app.config import settings
-            if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live' and result.get('isError'):
+            if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'message-center-live', 'group-creation-live'} and result.get('isError'):
                 tools[-1]['error_text'] = output[:1000]
+            if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'group-creation-live' and name in {'memory_search', 'memory_read'} and not result.get('isError'):
+                tools[-1]['memory_result'] = result_value
             tools[-1]['memory_key'] = args.get('key') if name and name.startswith('memory_') else None
             tools[-1]['result_memory_keys'] = [match['key'] for match in result_value.get('matches', [])
                 if isinstance(match, dict) and isinstance(match.get('key'), str)] if name == 'memory_search' and isinstance(result_value, dict) else []
@@ -576,6 +591,8 @@ def inspect_fixture(root):
                     with path.open('rb') as source:
                         checksum = hashlib.file_digest(source, 'sha256').hexdigest()
                     files.append({'path': str(path), 'chat_id': path.relative_to(settings.workspace_root).parts[0], 'size': path.stat().st_size, 'sha256': checksum, 'request_id': request_ids.get((session_id, run_id)), 'run_id': run_id})
+    memory_path = root / 'memory-context.jsonl'
+    memory_context = [json.loads(line) for line in memory_path.read_text().splitlines()] if memory_path.exists() else []
     budget = json.loads((root / 'live-budget.json').read_text()) if (root / 'live-budget.json').exists() else None
     center = {}
     if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live':
@@ -587,7 +604,7 @@ def inspect_fixture(root):
             }.items():
                 center[name] = [dict(row._mapping) for row in db.execute(text(query))]
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
-            'center': center, 'live_budget': budget,
+            'center': center, 'live_budget': budget, 'memory_context': memory_context,
             'requests': requests, 'scheduled_tasks': tasks, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'files': files, 'approvals': approvals, 'credentials': credentials,
             'questions': questions,
             'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}

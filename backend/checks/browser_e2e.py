@@ -48,7 +48,7 @@ async def main():
     parser.add_argument('--artifact-dir', type=Path)
     parser.add_argument('--node', default=os.getenv('TWINTEAMS_E2E_NODE'), help='Node >=22.12 executable')
     parser.add_argument('--live-model', action='store_true', help='Explicit bounded real gpt-6-luna scenario; offline remains the default')
-    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking', 'scheduled-task-workflow', 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'proactivity', 'contacts', 'interaction-live', 'read-unread-live', 'group-routing-live', 'group-routing-follow-on', 'group-route-recovery', 'message-center-live'])
+    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking', 'scheduled-task-workflow', 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'proactivity', 'contacts', 'interaction-live', 'read-unread-live', 'group-routing-live', 'group-routing-follow-on', 'group-route-recovery', 'message-center-live', 'group-creation-live'])
     parser.add_argument('--live-max-attempts', type=int, default=60, help='Frozen per-campaign HTTP-attempt ceiling, including smoke and worker restarts')
     args = parser.parse_args()
     if not 1 <= args.live_max_attempts <= 60:
@@ -67,7 +67,7 @@ async def main():
     if args.live_model:
         sys.path.insert(0, str(BACKEND))
         from checks.browser_e2e_live import configuration
-        live = configuration(proxy_port=None if args.scenario == 'message-center-live' else 7894)
+        live = configuration(proxy_port=None if args.scenario in {'message-center-live', 'group-creation-live'} else 7894)
     candidates = [args.node or shutil.which('node')]
     if not args.node:
         candidates += [str(path) for path in Path('/usr/local/n/versions/node').glob('*/bin/node')]

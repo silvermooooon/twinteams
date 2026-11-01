@@ -1,0 +1,412 @@
+{
+  "kind": "real-browser-live-model-acceptance",
+  "model": "gpt-6-luna",
+  "business_api_interception": false,
+  "websocket_interception": false,
+  "duration_ms": 69278,
+  "provider_attempts": 18,
+  "provider_statuses": [
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "missing_context": {
+    "prompt": "I am starting a Borealis procurement review. What is a sensible next step?",
+    "source": "8eeb6295-fc21-4338-966d-6b438c03884c",
+    "replies": [
+      "Start with a **one-page procurement brief** before comparing vendors. Capture the business need, scope, budget, timeline, decision-maker, must-have requirements, and any security, legal, or compliance constraints. Then confirm it with the requestor and relevant approvers; it\u2019ll give you a solid baseline for the review.\n\nI don\u2019t have context on what \u201cBorealis\u201d covers yet, so share what\u2019s being procured and I can tailor the checklist."
+    ],
+    "calls": [
+      {
+        "name": "memory_search",
+        "request_id": "15ad46cc-ef0a-456d-916c-2a0168c0f656",
+        "arguments": {},
+        "result_ids": {},
+        "success": true,
+        "memory_result": {
+          "matches": []
+        }
+      }
+    ],
+    "groups": []
+  },
+  "memory_setup": {
+    "prompt": "Please remember this for future Atlas launch work: BBB owns Atlas settlement implementation, CCC owns Atlas release QA, and I coordinate the Atlas launch. BBB and CCC are the people responsible for these specific parts of Atlas.",
+    "source": "7b50e7bb-c675-4cfb-bc32-7c6942c860c7",
+    "calls": [
+      {
+        "name": "memory_write",
+        "request_id": "e53a0255-c191-4b5e-acb5-1d85950bfa01",
+        "arguments": {
+          "key": "projects/atlas",
+          "content": "Atlas launch: The owner coordinates the launch. BBB owns Atlas settlement implementation; CCC owns Atlas release QA. The owner states BBB and CCC are responsible for these specific Atlas workstreams."
+        },
+        "result_ids": {},
+        "success": true
+      }
+    ]
+  },
+  "proposal": {
+    "prompt": "Atlas readiness details are scattered across separate conversations; implementation and release QA need one shared conversation to resolve blockers. What would you suggest?",
+    "source": "661aaa25-9d14-4363-9334-71a8cf22791e",
+    "replies": [
+      "I\u2019d create a focused **Atlas Launch Readiness** conversation with you, BBB (settlement implementation), and CCC (release QA), starting fresh rather than bringing in unrelated history. Use it as the place to resolve cross-team blockers, with each blocker stating an owner, impact, next step, and target date.\n\nI found no existing shared conversation for this, and I\u2019ve submitted the group creation for your approval. **It hasn\u2019t been created yet.**"
+    ],
+    "calls": [
+      {
+        "name": "list_authorized_chats",
+        "request_id": "9423229e-acef-48fb-b11e-bc548f845bd5",
+        "arguments": {},
+        "result_ids": {},
+        "success": true
+      },
+      {
+        "name": "search_contacts",
+        "request_id": "9423229e-acef-48fb-b11e-bc548f845bd5",
+        "arguments": {
+          "limit": 10
+        },
+        "result_ids": {},
+        "success": true
+      },
+      {
+        "name": "search_contacts",
+        "request_id": "9423229e-acef-48fb-b11e-bc548f845bd5",
+        "arguments": {
+          "limit": 10
+        },
+        "result_ids": {},
+        "success": true
+      },
+      {
+        "name": "memory_search",
+        "request_id": "9423229e-acef-48fb-b11e-bc548f845bd5",
+        "arguments": {
+          "limit": 10
+        },
+        "result_ids": {},
+        "success": true,
+        "memory_result": {
+          "matches": [
+            {
+              "key": "projects/atlas",
+              "snippet": "Atlas launch: The owner coordinates the launch. BBB owns Atlas settlement implementation; CCC owns Atlas release QA. The owner states BBB and CCC are responsible for these specific Atlas workstreams.",
+              "version": "a1352f1fc849f395469f4f8ca922ba61e445ecba",
+              "sources": [
+                {
+                  "session_id": "e72c70ca3b4d57ee97bcf32578b12d96",
+                  "event_id": "a99e0a7231054edc8cc9aa245f046ff0"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "list_people",
+        "request_id": "9423229e-acef-48fb-b11e-bc548f845bd5",
+        "arguments": {
+          "limit": 10
+        },
+        "result_ids": {},
+        "success": true
+      },
+      {
+        "name": "list_people",
+        "request_id": "9423229e-acef-48fb-b11e-bc548f845bd5",
+        "arguments": {
+          "limit": 10
+        },
+        "result_ids": {},
+        "success": true
+      },
+      {
+        "name": "create_approval",
+        "request_id": "9423229e-acef-48fb-b11e-bc548f845bd5",
+        "arguments": {
+          "title": "Create Atlas launch readiness group",
+          "action": {
+            "tool": "create_chat",
+            "arguments": {
+              "owner_ids": [
+                "owner-maya",
+                "owner-jordan"
+              ],
+              "title": "Atlas Launch Readiness",
+              "history_policy": "no_prior"
+            }
+          },
+          "description": "Create a new shared human conversation with BBB (Atlas settlement implementation) and CCC (Atlas release QA) so they can resolve readiness blockers with you coordinating. Use no_prior history so the new group starts without importing unrelated conversation history.",
+          "target": "Create a human group titled \u201cAtlas Launch Readiness\u201d with BBB (owner-maya) and CCC (owner-jordan), history_policy=no_prior.",
+          "impact": "Creates a shared conversation for Atlas implementation and release QA; no messages will be sent automatically."
+        },
+        "result_ids": {
+          "id": "682c6d24-ecce-4214-a30a-b3585fd3ee13",
+          "chat_id": "private-alex"
+        },
+        "success": true
+      }
+    ],
+    "groups_before_approval": [],
+    "role_provenance": {
+      "ownerSource": "7b50e7bb-c675-4cfb-bc32-7c6942c860c7",
+      "writtenKeys": [
+        "projects/atlas"
+      ],
+      "laterMemoryContext": [
+        null,
+        {
+          "matches": [
+            {
+              "key": "projects/atlas",
+              "snippet": "Atlas launch: The owner coordinates the launch. BBB owns Atlas settlement implementation; CCC owns Atlas release QA. The owner states BBB and CCC are responsible for these specific Atlas workstreams.",
+              "version": "a1352f1fc849f395469f4f8ca922ba61e445ecba",
+              "sources": [
+                {
+                  "session_id": "e72c70ca3b4d57ee97bcf32578b12d96",
+                  "event_id": "a99e0a7231054edc8cc9aa245f046ff0"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "earlierConversationRetained": true
+    }
+  },
+  "approved_group": {
+    "approval": "682c6d24-ecce-4214-a30a-b3585fd3ee13",
+    "chat": {
+      "id": "5ec92c97-a4b1-417d-b7d6-8490873a0e61",
+      "kind": "group",
+      "title": "Atlas Launch Readiness",
+      "revision": 2,
+      "can_rename": true,
+      "member_owner_ids": [
+        "owner-alex",
+        "owner-maya",
+        "owner-jordan"
+      ],
+      "unread_count": 0,
+      "last_message": null,
+      "last_message_meta": null
+    },
+    "messages": [
+      {
+        "id": "62d47dbc-41fd-4cd7-adc3-beead106d7e6",
+        "author_id": "owner-alex",
+        "kind": "human",
+        "body": "I will coordinate Atlas readiness here."
+      },
+      {
+        "id": "7e54f66b-44a5-4324-96dd-5ae9d778f4e5",
+        "author_id": "owner-maya",
+        "kind": "human",
+        "body": "I can cover the settlement implementation."
+      },
+      {
+        "id": "31ccb4cd-eca1-4d80-b502-fb8f4b1a4d54",
+        "author_id": "owner-jordan",
+        "kind": "human",
+        "body": "I will bring the release QA checks."
+      }
+    ],
+    "requests": [],
+    "calls": [
+      {
+        "name": "execute_approved_action",
+        "session_id": "d3519af6e3505a5fa1a91f51225dadee",
+        "run_id": "60e1a5c0f2314fd3b344db31493f163e",
+        "call_id": "call_21utNITFXedIYhMnverJVaK1|fc_008d8653f0797606016ae77ad2f10087d08bfdde9eac1f3855",
+        "event_id": "199b6674ae82408288fab9dc0ad7f817",
+        "seq": 59,
+        "request_id": "c5df7dd8-e4e6-4525-9dd8-32aded254ecb",
+        "owner_id": "owner-alex",
+        "arguments": {
+          "id": "682c6d24-ecce-4214-a30a-b3585fd3ee13"
+        },
+        "result_ids": {
+          "id": "5ec92c97-a4b1-417d-b7d6-8490873a0e61"
+        },
+        "success": true,
+        "credential_available": false,
+        "owner_cwd_verified": false,
+        "memory_key": null,
+        "result_memory_keys": [],
+        "tracking_id": null,
+        "result_tracking_markers": [],
+        "attachment_ids_read": [],
+        "attachment_paths_mentioned": []
+      }
+    ]
+  },
+  "direct_creation": {
+    "source": "15fd31e2-e701-4356-bec1-7e58ed85baa0",
+    "chat": {
+      "id": "64cefa94-a983-4409-9f2b-25cc88fef36c",
+      "kind": "group",
+      "title": "Atlas release handoff",
+      "revision": 2,
+      "can_rename": true,
+      "member_owner_ids": [
+        "owner-alex",
+        "owner-maya",
+        "owner-jordan"
+      ],
+      "unread_count": 0,
+      "last_message": null,
+      "last_message_meta": null
+    },
+    "replies": [
+      "Created **Atlas release handoff** with you, BBB, and CCC. It starts without prior conversation history, and no message has been sent."
+    ],
+    "calls": [
+      {
+        "name": "list_authorized_chats",
+        "request_id": "d40443c5-7004-4142-97f5-3e59a6589afa",
+        "arguments": {},
+        "result_ids": {},
+        "success": true
+      },
+      {
+        "name": "search_contacts",
+        "request_id": "d40443c5-7004-4142-97f5-3e59a6589afa",
+        "arguments": {},
+        "result_ids": {},
+        "success": true
+      },
+      {
+        "name": "search_contacts",
+        "request_id": "d40443c5-7004-4142-97f5-3e59a6589afa",
+        "arguments": {},
+        "result_ids": {},
+        "success": true
+      },
+      {
+        "name": "list_people",
+        "request_id": "d40443c5-7004-4142-97f5-3e59a6589afa",
+        "arguments": {},
+        "result_ids": {},
+        "success": true
+      },
+      {
+        "name": "list_people",
+        "request_id": "d40443c5-7004-4142-97f5-3e59a6589afa",
+        "arguments": {},
+        "result_ids": {},
+        "success": true
+      },
+      {
+        "name": "create_chat",
+        "request_id": "d40443c5-7004-4142-97f5-3e59a6589afa",
+        "arguments": {
+          "owner_ids": [
+            "owner-maya",
+            "owner-jordan"
+          ],
+          "title": "Atlas release handoff",
+          "history_policy": "no_prior"
+        },
+        "result_ids": {
+          "id": "64cefa94-a983-4409-9f2b-25cc88fef36c"
+        },
+        "success": true
+      }
+    ],
+    "prompt": "Please create a new human group called Atlas release handoff with BBB and CCC."
+  },
+  "requests": [
+    {
+      "source": "private",
+      "status": "completed"
+    },
+    {
+      "source": "private",
+      "status": "completed"
+    },
+    {
+      "source": "private",
+      "status": "completed"
+    },
+    {
+      "source": "approval_result",
+      "status": "completed"
+    },
+    {
+      "source": "private",
+      "status": "completed"
+    }
+  ],
+  "failed_tools": [],
+  "cleanup": {
+    "schema_removed": true,
+    "redis_keys_remaining": 0,
+    "processes_stopped": true,
+    "temp_root_removed": true
+  },
+  "separate_decline_diagnostic": {
+    "source": "f9a98526-0b8d-4e99-b7b0-2df2ef718fb5",
+    "prompt": "The Atlas settlement rollout is approaching. Implementation and release QA need to coordinate on readiness and blockers. What would you suggest as the next step?",
+    "replies": [
+      "Set up a short **joint readiness review with BBB and CCC** before rollout. Ask BBB to bring implementation status, dependencies, and rollback/monitoring plans; ask CCC to bring test coverage, results, and any release-blocking defects. Together, agree on the remaining blockers, owners and due dates, plus clear go/no-go criteria.\n\nI\u2019ve submitted a request to create an **Atlas settlement readiness** group with you, BBB, and CCC, with no prior history shared. It\u2019s awaiting your approval; it hasn\u2019t been created yet."
+    ],
+    "approval_call": {
+      "name": "create_approval",
+      "request_id": "bf6bd5f2-196c-40f3-85e5-8923a2acaea0",
+      "arguments": {
+        "title": "Create Atlas settlement readiness group",
+        "action": {
+          "tool": "create_chat",
+          "arguments": {
+            "owner_ids": [
+              "owner-maya",
+              "owner-jordan"
+            ],
+            "title": "Atlas settlement readiness",
+            "history_policy": "no_prior"
+          }
+        },
+        "description": "Create a human group with you (AAA), BBB, and CCC to coordinate Atlas settlement rollout readiness and blockers. No messages will be posted automatically.",
+        "target": "A new human group titled \u201cAtlas settlement readiness\u201d with owner-alex, owner-maya (BBB), and owner-jordan (CCC), using no_prior history.",
+        "impact": "Adds BBB and CCC to a shared conversation with you. They will not receive prior chat history, and creating the group itself sends no message."
+      },
+      "result_ids": {
+        "id": "edc2529e-ff79-4747-96ef-6503dd3c14f8",
+        "chat_id": "private-alex"
+      },
+      "success": true
+    },
+    "rejection": {
+      "approval": "edc2529e-ff79-4747-96ef-6503dd3c14f8",
+      "groups": []
+    },
+    "approval_record": {
+      "id": "edc2529e-ff79-4747-96ef-6503dd3c14f8",
+      "status": "rejected",
+      "owner_id": "owner-alex",
+      "continuation_request_id": "c91de20f-232d-4c07-813f-1de1f6914919"
+    },
+    "cleanup": {
+      "schema_removed": true,
+      "redis_keys_remaining": 0,
+      "processes_stopped": true,
+      "temp_root_removed": true
+    }
+  },
+  "no_successful_duet_collaboration_request_postcheck": true
+}

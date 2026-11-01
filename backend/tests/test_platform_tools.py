@@ -57,6 +57,14 @@ def test_owner_authorized_duet_manages_human_chats_without_posting_or_routing(pr
     with product.transaction() as db:
         messages_before = db.scalar(select(func.count()).select_from(Message))
         requests_before = db.scalar(select(func.count()).select_from(ReplyRequest))
+        duets_before = db.scalar(select(func.count()).select_from(Chat).where(Chat.kind == "duet"))
+    group_args = {"owner_ids": ["owner-maya", "owner-jordan"], "title": "Project coordination"}
+    group = call(product, context, "create_chat", group_args, "create-project-group")
+    assert call(product, context, "create_chat", group_args, "create-project-group")["id"] == group["id"]
+    assert {owner for owner, section in emitted if section == "chats"} == {"owner-alex", "owner-maya", "owner-jordan"}
+    with product.transaction() as db:
+        assert {member.owner_id for member in product.members(db, group["id"])} == {"owner-alex", "owner-maya", "owner-jordan"}
+    emitted.clear()
     pair = call(product, context, "create_chat", {"owner_ids": ["owner-jordan"], "history_policy": "no_prior"})
     assert {owner for owner, section in emitted if section == "chats"} == {"owner-alex", "owner-jordan"}
     emitted.clear()
@@ -73,6 +81,7 @@ def test_owner_authorized_duet_manages_human_chats_without_posting_or_routing(pr
     with product.transaction() as db:
         assert db.scalar(select(func.count()).select_from(Message)) == messages_before
         assert db.scalar(select(func.count()).select_from(ReplyRequest)) == requests_before
+        assert db.scalar(select(func.count()).select_from(Chat).where(Chat.kind == "duet")) == duets_before
     with pytest.raises(HTTPException) as fixed:
         call(product, context, "add_chat_members", {"chat_id": "duet-alex-maya", "owner_ids": ["owner-jordan"], "history_policy": "all"})
     assert fixed.value.status_code == 409
@@ -114,7 +123,7 @@ def test_twin_status_distinguishes_retry_from_new_dream_after_recovery(product):
 
 
 @pytest.mark.parametrize("name,args", [
-    ("create_chat", {"owner_ids": ["owner-jordan"]}),
+    ("create_chat", {"owner_ids": ["owner-maya", "owner-jordan"], "title": "Owner approved group"}),
     ("rename_chat", {"chat_id": "group-team", "title": "Owner approved name"}),
     ("add_chat_members", {"chat_id": "group-alex-maya", "owner_ids": ["owner-jordan"], "history_policy": "all"}),
 ])

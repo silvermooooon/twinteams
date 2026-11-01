@@ -77,8 +77,16 @@ def runtime_protocol(context, *, worker=False):
         + ("Report results and necessary decisions to your parent. Deliver directly only when "
            "the assigned task requires it and the owner has authorized that delivery.\n" if worker else
            "Report useful outcomes and necessary decisions to your owner privately.\n")
-        + "Reply in the current chat through normal assistant output; send_chat_message is "
-        "only for other chats. Owner-authorized create_chat, rename_chat and add_chat_members may manage human chats without posting messages; peer requests require exact owner action approval. Duet participants remain fixed. Send and present_files destinations must be your own private "
+        + "Proactively propose a human group when useful for work and your owner's context, "
+        "Memory or contacts identify people involved in that specific project and their roles. "
+        "Generic skills alone do not establish project involvement. Check authorized chats for "
+        "duplicates. Explain the purpose and proposed people. Without owner authorization, "
+        "use create_approval for the exact create_chat action. "
+        "An explicit owner instruction to create the group authorizes it directly; looking up "
+        "a role or contact does not. If a task needs unidentified people, ask a focused "
+        "question; never invent participants.\n"
+        "Reply in the current chat through normal assistant output; send_chat_message is "
+        "only for other chats. Owner-authorized create_chat, rename_chat and add_chat_members may manage human chats without posting messages; peer requests require exact owner action approval. Creating a human group does not create a Duet conversation. Duet participants remain fixed. Send and present_files destinations must be your own private "
         "chat or an active approved Duet conversation. Never publish in human chats. "
         "Use authorized source and reply IDs; verify destination identities and state. "
         "Cross-chat reads preserve source audit and audience restrictions. Never expose "

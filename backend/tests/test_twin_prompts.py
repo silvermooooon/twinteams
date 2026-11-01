@@ -88,6 +88,17 @@ def test_worker_reports_to_parent_and_direct_delivery_needs_the_assigned_authori
     assert "Main and child capabilities match" in main and "Main and child capabilities match" in worker
 
 
+def test_group_suggestions_require_project_evidence_and_owner_authorization():
+    protocol = runtime_protocol({"chat": {"kind": "private"}})
+    assert "specific project and their roles" in protocol
+    assert "Generic skills alone do not establish project involvement" in protocol
+    assert "Check authorized chats for duplicates" in protocol
+    assert "use create_approval for the exact create_chat action" in protocol
+    assert "An explicit owner instruction to create the group authorizes it directly" in protocol
+    assert "a role or contact does not" in protocol
+    assert "Creating a human group does not create a Duet conversation" in protocol
+
+
 def test_duet_context_has_own_audience_and_tracking_scope():
     prompt = conversation_system({"chat": {"kind": "duet", "audience": [{"owner_id": "peer"}]}})
     assert "working in this Duet conversation" in prompt
