@@ -114,7 +114,19 @@ def install_fixture(root):
                         states = list(db.scalars(select(MemoryDreamState).where(MemoryDreamState.queued_request_id.is_not(None))))
                         state = states[0] if len(states) == 1 else None
                     if state and state.queued_request_id:
-                        return {'id': state.queued_request_id, 'source': 'memory_dream', 'owner_id': state.owner_id}
+                        from app.models import Message, ReplyRequest
+                        request = db.get(ReplyRequest, state.queued_request_id)
+                        payload = json.loads(request.input_body)
+                        proposals = []
+                        for candidate in payload.get('contact_dream', {}).get('contacts', []):
+                            refs = [db.get(Message, key) for key in candidate['source_message_ids']]
+                            supported = [row.id for row in refs if row and row.author_id == candidate['owner_id']
+                                and 'I own Atlas settlement development' in row.body]
+                            if supported:
+                                proposals.append({'owner_id': candidate['owner_id'],
+                                    'tags': ['Atlas · settlement development'], 'source_message_ids': supported})
+                        return {'id': state.queued_request_id, 'source': 'memory_dream', 'owner_id': state.owner_id,
+                            'contact_proposals': proposals}
                     return {}
             info = await asyncio.to_thread(dream_details)
         match = re.search(r'\bE2E ([A-Z_]+)(?: ([A-Za-z0-9_-]+))?', info.get('body') or text)
@@ -141,6 +153,10 @@ def install_fixture(root):
                 raise RuntimeError('E2E intentional one-time Dream provider failure')
             if 'memory_publish' in names:
                 final = 'E2E Dream published private evidence.'
+            elif 'stage_contact_tags' in tools and info.get('contact_proposals') and 'stage_contact_tags' not in names:
+                name, arguments = 'stage_contact_tags', info['contact_proposals'][0]
+            elif 'memory_write' not in tools:
+                name, arguments = 'memory_publish', {}
             elif not results:
                 refs = re.findall(r'"session_id":\s*"([^"]+)"\s*,\s*"event_id":\s*"([^"]+)"', text)
                 if refs:
@@ -159,6 +175,15 @@ def install_fixture(root):
                 name, arguments = 'memory_publish', {}
         elif question_resume is not None or info.get('source') == 'question_result':
             final = ('E2E question declined: ' if question_resume and question_resume.get('owner_declined') else 'E2E question resumed: ') + label
+        elif command in {'CONTACTS', 'CONTACTS_MISSING'}:
+            if 'search_contacts' not in names:
+                name, arguments = 'search_contacts', {'query': 'NoSuchProject' if command == 'CONTACTS_MISSING' else 'Atlas', 'limit': 100}
+            elif command == 'CONTACTS_MISSING' and 'ask_question' not in names:
+                name, arguments = 'ask_question', {'question': 'Who owns NoSuchProject for ' + label + '?',
+                    'options': ['I will introduce the owner', 'Keep this unassigned']}
+            else:
+                value = json.loads(text_content(next(row for row in results if row.get('toolName') == 'search_contacts')))
+                final = 'E2E contacts readback ' + label + ': ' + json.dumps(value, ensure_ascii=False)
         elif info.get('source') == 'system_review' and os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'proactivity':
             final = ''  # Offline decision: this explicit manual review has no useful update.
         elif info.get('reply_for_me') and command not in {'QUESTION', 'CHILD_QUESTION'}:
@@ -376,6 +401,7 @@ def api_app():
     from starlette.staticfiles import StaticFiles
 
     from app import api, main
+    from app.contact_api import router as contacts
     from app.credential_api import router as credentials
     from app.onboarding_api import router as onboarding
     from app.personal_api import router as personal
@@ -389,7 +415,7 @@ def api_app():
     def fixture_config():
         return {**api.config(), 'acceptance_fixture': os.environ.get('TWINTEAMS_E2E_MODEL_MODE') != 'live-gpt-6-luna'}
 
-    for router in (api.router, credentials, personal, provider, scheduled_tasks, onboarding, questions):
+    for router in (api.router, credentials, personal, provider, scheduled_tasks, onboarding, questions, contacts):
         app.include_router(router)
 
     @app.get('/health')
@@ -641,14 +667,14 @@ def question_history_fixture(question_id):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'question-history', 'fail-next-dream'])
+    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'fail-next-dream'])
     parser.add_argument('--port', type=int)
     parser.add_argument('--state', type=Path)
     parser.add_argument('--task-id')
     parser.add_argument('--question-id')
     parser.add_argument('--owner-id', choices=['owner-alex', 'owner-maya', 'owner-jordan'])
     args = parser.parse_args()
-    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'question-history', 'fail-next-dream'}:
+    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'fail-next-dream'}:
         if not args.state or args.state.is_symlink() or args.state.stat().st_mode & 0o077:
             raise RuntimeError('Inspect requires its private fixture state file')
         saved = json.loads(args.state.read_text())
@@ -657,6 +683,25 @@ def main():
     root = guard()
     if args.state and args.state.resolve().parent != root:
         raise RuntimeError('State file must belong to its disposable root')
+    if args.role == 'advance-contact-dream':
+        if os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline' or not args.owner_id:
+            raise RuntimeError('Contact Dream due advance requires an offline fixture and explicit owner')
+        from datetime import timedelta
+
+        from sqlalchemy import select
+
+        from app.models import ContactDreamCursor, MemoryDreamState, now
+        from app.service import service
+        with service.transaction() as db:
+            state = db.get(MemoryDreamState, args.owner_id)
+            cursor = db.scalar(select(ContactDreamCursor).where(ContactDreamCursor.owner_id == args.owner_id))
+            if not state or not cursor or state.queued_request_id:
+                raise RuntimeError('Contact Dream must already be scheduled by actual human interaction')
+            previous = state.due_at.isoformat() if state.due_at else None
+            state.due_at = now() - timedelta(seconds=1)
+        print(json.dumps({'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
+            'test_only_due_advance': True, 'owner_id': args.owner_id, 'previous_due_at': previous, 'fake_clock': False}))
+        return
     if args.role == 'fail-next-dream':
         if os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline' or not args.owner_id:
             raise RuntimeError('Dream fault injection requires an offline fixture and explicit owner')

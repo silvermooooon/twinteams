@@ -68,7 +68,7 @@ class Product:
     def mark_memory_dream_recovery(self, request_id, error):
         self.recovery.append((request_id, error))
 
-    def confirm_memory_dream_publication(self, request_id, version):
+    def confirm_memory_dream_publication(self, request_id, version, contact_proposals=None):
         self.confirmed.append((request_id, version))
 
     def publish_runtime_output(self, *args):

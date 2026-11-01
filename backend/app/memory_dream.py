@@ -4,7 +4,7 @@ import os
 from datetime import timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from .config import settings
 from .models import (
@@ -85,7 +85,7 @@ def _message_evidence(service, db, chat, member, message):
     return value
 
 
-def _message_batch(service, db, state):
+def _message_batch(service, db, state, byte_budget=96 * 1024):
     """One indexed scan page; never step over an unconsumed mutable/oversized row."""
     chat, member = service.membership(db, state.owner_id, state.chat_id)
     cursor = state.message_cursor_seq or 0
@@ -100,7 +100,7 @@ def _message_batch(service, db, state):
         if value is not None:
             from .prompt_safety import safe_text
             amount = len(safe_text(value).encode("utf-8"))
-            if batch and (len(batch) >= BATCH_SIZE or size + amount > 96 * 1024):
+            if (amount > byte_budget and byte_budget < 96 * 1024) or (batch and (len(batch) >= BATCH_SIZE or size + amount > byte_budget)):
                 break
             batch.append((row, value))
             size += amount
@@ -109,6 +109,9 @@ def _message_batch(service, db, state):
 
 
 def message_published(service, db, chat, message):
+    if os.getenv("AGENT_MEMORY_DIR") or settings.local_identity_enabled:
+        from .contacts_dream import message_published as contact_message_published
+        contact_message_published(service, db, chat, message)
     if (chat.kind != "private" or message.state != "published"
             or message.kind not in {"human", "twin", "reply_for_me"}
             or not (os.getenv("AGENT_MEMORY_DIR") or settings.local_identity_enabled)):
@@ -119,9 +122,11 @@ def message_published(service, db, chat, message):
             cursor_seq=0, message_cursor_seq=0, last_status="scheduled",
             due_at=now() + timedelta(seconds=settings.memory_dream_interval_seconds))
         db.add(state)
-    elif (not state.queued_request_id and state.last_status != "recovery_required"
+    elif (state.last_status != "recovery_required"
             and state.due_at is None and message.seq > (state.message_cursor_seq or 0)):
-        state.due_at, state.last_status = now() + timedelta(seconds=settings.memory_dream_interval_seconds), "scheduled"
+        state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds)
+        if not state.queued_request_id:
+            state.last_status = "scheduled"
 
 
 def _message_payload(batch, through, state):
@@ -186,8 +191,13 @@ def context(service, db, request):
     if manual and (not audit or audit.owner_id != owner_id or audit.action != "dream" or audit.state != "published"
             or audit.private_generation != chat.reset_generation or manual.get("session_id") != f"twin-config:{owner_id}"):
         raise HTTPException(409, "Manual memory dream has no matching owner request")
+    contact_evidence = []
+    if payload.get("contact_dream"):
+        from .contacts_dream import context as contact_context
+        contact_evidence = contact_context(service, db, owner_id, payload["contact_dream"])
     times = ([db.get(Message, reference["id"]).created_at for reference in payload["messages"]] if message_scope else
              [db.get(ReplyRequest, reference["request_id"]).accepted_at for reference in payload["experiences"]])
+    times.extend(db.get(Message, row["id"]).created_at for row in contact_evidence)
     if not times and not audit:
         raise HTTPException(409, "Memory dream has no authorized sources")
     since = min(times) if times else audit.created_at
@@ -197,7 +207,7 @@ def context(service, db, request):
         "chat_id": chat.id, "request_id": request.id, "origin_request_id": request.id,
         "target_twin_id": request.target_twin_id, "requester_id": owner_id,
         "private_generation": request.private_generation, "memory_dream": payload,
-        "memory_dream_evidence": evidence, "messages": [], "summary": None}
+        "memory_dream_evidence": evidence, "contact_dream_evidence": contact_evidence, "messages": [], "summary": None}
 
 
 def process(service, scopes=None):
@@ -220,26 +230,31 @@ def process(service, scopes=None):
             if make_memory_store(SessionInfo("dream-check", settings.tenant_id, owner_id)) is None:
                 state.due_at, state.last_status = None, "disabled"
                 continue
-            batch, through = _message_batch(service, db, state)
-            if not batch:
+            from . import contacts_dream
+            contact_payload, contact_evidence = contacts_dream.batch(service, db, owner_id)
+            batch, through = _message_batch(service, db, state, 48 * 1024 if contact_evidence else 96 * 1024)
+            if not batch and not contact_evidence:
                 # Skipping only unavailable/non-evidence rows needs no model or Git publication.
                 state.message_cursor_seq = through
-                more = through < chat.next_message_seq - 1
+                contacts_dream.advance(db, owner_id, contact_payload)
+                more = through < chat.next_message_seq - 1 or contacts_dream.pending(db, owner_id)
                 state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds) if more else None
                 state.last_status = "scheduled" if more else "idle"
                 continue
             try:
-                edits = _manual_edits(db, owner_id, min(row.created_at for row, _ in batch))
+                times = [row.created_at for row, _ in batch] + [db.get(Message, row["id"]).created_at for row in contact_evidence]
+                edits = _manual_edits(db, owner_id, min(times))
             except HTTPException as exc:
                 state.last_status, state.last_error = "failed", str(exc.detail)[:1000]
                 state.last_failure_at = now()
                 state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds)
                 continue
-            payload = {**_message_payload(batch, through, state), "manual_edits": edits}
+            payload = {**_message_payload(batch, through, state), "manual_edits": edits,
+                "contact_dream": contact_payload}
             key = "memory-dream:" + service_hash({**payload, "attempt": now().isoformat()})
             request = service.accept_request(db, chat, service.twin(db, owner_id).id, owner_id,
                 "memory_dream", key, intent_key=key, input_body=json.dumps(payload),
-                causal_chain_id=batch[-1][0].causal_chain_id, source_owner_id=owner_id)
+                causal_chain_id=batch[-1][0].causal_chain_id if batch else None, source_owner_id=owner_id)
             request.session_id = "dream:" + request.id
             state.queued_request_id, state.due_at, state.last_status = request.id, None, "queued"
 
@@ -261,6 +276,9 @@ def finish(service, db, request, status, result=None, error=None):
                 or result.get("cursor_before") != cursor
                 or result.get("through_seq") != payload["through_seq"]):
             raise HTTPException(409, "Memory dream has no confirmed publication")
+        from . import contacts_dream
+        if payload.get("contact_dream") and result.get("contact_proposals") is not None:
+            contacts_dream.finish(service, db, request.requester_id, payload["contact_dream"], result.get("contact_proposals", []))
         if message_scope:
             state.message_cursor_seq = payload["through_seq"]
         else:
@@ -269,8 +287,11 @@ def finish(service, db, request, status, result=None, error=None):
         state.last_success_at, state.last_status, state.last_error = now(), "published", None
         state.last_failure_at = None
         state.queued_request_id = None
-        state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds) if (
-            not message_scope or (state.message_cursor_seq or 0) < db.get(Chat, state.chat_id).next_message_seq - 1) else None
+        next_due = now() + timedelta(seconds=settings.memory_dream_interval_seconds) if (
+            not message_scope or (state.message_cursor_seq or 0) < db.get(Chat, state.chat_id).next_message_seq - 1
+            or contacts_dream.pending(db, request.requester_id)) else None
+        # A concurrent publication may have scheduled the next batch after this state was read.
+        state.due_at = func.coalesce(MemoryDreamState.due_at, next_due)
     elif state.last_status != "recovery_required":
         state.queued_request_id, state.last_status = None, status
         if status == "failed":
@@ -293,7 +314,7 @@ def recovery(service, request_id, error):
             state.last_failure_at = now()
 
 
-def confirm(service, request_id, version):
+def confirm(service, request_id, version, contact_proposals=None):
     with service.transaction() as db:
         request = db.get(ReplyRequest, request_id)
         if not request or request.source != "memory_dream":
@@ -302,7 +323,8 @@ def confirm(service, request_id, version):
         service._check_private_request(db, request)
         payload = json.loads(request.input_body)
         finish(service, db, request, "completed", {"published": True, "version": version,
-            "cursor_before": payload["cursor_before"], "through_seq": payload["through_seq"]})
+            "cursor_before": payload["cursor_before"], "through_seq": payload["through_seq"],
+            "contact_proposals": contact_proposals})
 
 
 def manual_request(service, owner_id, entries, generation):
@@ -321,10 +343,13 @@ def manual_request(service, owner_id, entries, generation):
                 cursor_seq=0, message_cursor_seq=0, last_status="idle")
             db.add(state)
             db.flush()
-        batch, through = _message_batch(service, db, state)
-        if not batch and not entries:
+        from . import contacts_dream
+        contact_payload, contact_evidence = contacts_dream.batch(service, db, owner_id)
+        batch, through = _message_batch(service, db, state, 48 * 1024 if contact_evidence else 96 * 1024)
+        if not batch and not entries and not contact_evidence:
             state.message_cursor_seq = through
-            more = through < chat.next_message_seq - 1
+            contacts_dream.advance(db, owner_id, contact_payload)
+            more = through < chat.next_message_seq - 1 or contacts_dream.pending(db, owner_id)
             state.due_at = now() if more else None
             state.last_status = "scheduled" if more else "idle"
             return {"status": "scheduled" if more else "nothing_to_process", "request_id": None}
@@ -332,9 +357,11 @@ def manual_request(service, owner_id, entries, generation):
             action="dream", key="[dream]", content="Owner requested immediate consolidation of existing Memory and any new authorized experiences.", state="published")
         db.add(audit)
         db.flush()
-        since = min(row.created_at for row, _ in batch) if batch else audit.created_at
+        times = [row.created_at for row, _ in batch] + [db.get(Message, row["id"]).created_at for row in contact_evidence]
+        since = min(times) if times else audit.created_at
         payload = {**_message_payload(batch, through, state),
-            "memory_only": not bool(batch),
+            "memory_only": not bool(batch or contact_evidence),
+            "contact_dream": contact_payload,
             "manual_request": {"session_id": f"twin-config:{owner_id}", "event_id": audit.id},
             "current_entries_sources": list({(source["session_id"], source["event_id"]): source
                 for entry in entries for source in entry["sources"]}.values()),

@@ -1,5 +1,5 @@
 """Bounded owner platform tools within the caller's product transaction."""
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from .direct_chat_schema import pair_key
 from .models import (
@@ -10,16 +10,17 @@ from .models import (
     ReplyRequest,
 )
 
-PLATFORM_TOOLS = {"set_message_reaction", "list_people", "get_chat", "create_chat", "rename_chat", "add_chat_members",
+PLATFORM_TOOLS = {"set_message_reaction", "list_people", "search_contacts", "update_contact_tags", "get_chat", "create_chat", "rename_chat", "add_chat_members",
                   "list_reminders", "update_reminder", "list_workspace", "read_workspace_file",
                   "get_twin_status", "get_reply_request", "cancel_reply_request", "retry_reply_request"}
 TRACKING_TOOLS = {"list_tracking", "get_tracking", "create_tracking", "update_tracking", "delete_tracking", "add_tracking_update"}
 SCOPED_TOOLS = {"history", "create_reminder"} | TRACKING_TOOLS
-WRITE_TOOLS = {"request_duet_conversation", "set_message_reaction", "send_chat_message", "present_files", "create_chat", "rename_chat", "add_chat_members", "create_reminder",
+WRITE_TOOLS = {"request_duet_conversation", "set_message_reaction", "update_contact_tags", "send_chat_message", "present_files", "create_chat", "rename_chat", "add_chat_members", "create_reminder",
                "update_reminder", "create_tracking", "update_tracking", "delete_tracking",
                "add_tracking_update", "save_summary", "cancel_reply_request", "retry_reply_request"}
 # Exact arguments are frozen by the SDK; no uninstalled action may enter that path.
 ACTION_FIELDS = {
+    "update_contact_tags": ({"contact_owner_id", "tags", "expected_revision"}, set()),
     "set_message_reaction": ({"message_id", "emoji", "active"}, {"chat_id"}),
     "send_chat_message": ({"chat_id", "body", "source_message_ids"}, {"reply_to_message_id"}),
     "present_files": ({"paths"}, {"caption", "chat_id"}),
@@ -161,8 +162,24 @@ def dispatch(service, db, name, args, context, chat, member, locked_ids):
     if name == "list_people":
         query = select(Actor).where(Actor.kind == "human")
         if args.get("query"):
-            query = query.where(Actor.name.ilike(f"%{str(args['query'])[:256]}%"))
+            pattern = f"%{str(args['query'])[:256]}%"
+            query = query.where(or_(Actor.name.ilike(pattern), Actor.id.ilike(pattern), Actor.owner_id.ilike(pattern)))
         return {"people": [service.actor_json(row) for row in db.scalars(query.order_by(Actor.name, Actor.id).limit(bounded_limit(args)))]}
+    if name == "search_contacts":
+        from .contacts import search_contacts
+        query = args.get("query", "")
+        if not isinstance(query, str) or len(query) > 256:
+            fail(400, "query must be a string of at most 256 characters")
+        return search_contacts(service, db, owner_id, query, bounded_limit(args))
+    if name == "update_contact_tags":
+        from .contacts import update_contact_tags, validate_tags
+        exact_action({"tool": name, "arguments": args})
+        if context.get("request_requester_id", owner_id) != owner_id and not context.get("approved_approval_id"):
+            fail(403, "Another participant cannot change the owner's private contact tags")
+        if not isinstance(args["contact_owner_id"], str) or type(args["expected_revision"]) is not int or args["expected_revision"] < 1:
+            fail(400, "Contact owner ID and current revision are required")
+        return update_contact_tags(service, db, owner_id, args["contact_owner_id"],
+            validate_tags(args["tags"]), manual=True, expected_revision=args["expected_revision"])
     if name == "get_chat":
         target, membership = service.membership(db, owner_id, target_id)
         rows = db.scalars(select(ReplyRequest).where(ReplyRequest.chat_id == target.id).order_by(ReplyRequest.accepted_seq.desc()).limit(20))
@@ -294,7 +311,7 @@ def read_provenance(service, db, name, args, result, context):
     sources = []
     if name == "set_message_reaction":
         sources = [{"kind": "message", "id": args["message_id"]}]
-    elif name in {"list_reminders", "get_twin_status"}:
+    elif name in {"list_reminders", "get_twin_status", "search_contacts", "update_contact_tags"}:
         target_id = db.scalar(select(Chat.id).where(Chat.kind == "private", Chat.private_owner_id == owner_id))
     elif name in {"get_reply_request", "cancel_reply_request", "retry_reply_request"}:
         row = db.get(ReplyRequest, args["id"])

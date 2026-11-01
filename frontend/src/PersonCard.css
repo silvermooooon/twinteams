@@ -1,0 +1,20 @@
+.person-card-identity { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.person-card-identity h3 { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.person-card-tags { border-top: 1px solid var(--border); padding-top: 16px; }
+.person-card-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.person-card-section-heading h3 { font-size: 14px; font-weight: 600; }
+.person-card-note, .person-card-hint, .person-card-status, .person-card-saved { color: var(--muted); font-size: 12px; line-height: 18px; margin-top: 8px; }
+.person-card-status { margin: 16px 0 4px; }
+.person-card-hint { margin: 16px 0 10px; }
+.person-card-tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.person-card-tag-list > span { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-subtle); padding: 3px 9px; font-size: 12px; line-height: 18px; overflow-wrap: anywhere; max-width: 100%; }
+.person-card-tag-fields { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.person-card-tag-field { display: flex; gap: 6px; align-items: center; }
+.person-card-tag-field input { min-width: 0; flex: 1; margin: 0; }
+.person-card-tag-field .icon-button { flex-shrink: 0; }
+.message-meta > .person-name-button { color: #424242; padding: 0; font-size: 12px; text-align: left; border-radius: 2px; line-height: inherit; }
+.message-meta > .person-name-button:hover { text-decoration: underline; background: transparent; }
+.search-results .person-search-row { display: flex; align-items: center; }
+.search-results .person-search-row > .person-search-chat { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 10px 12px; text-align: left; }
+.person-search-chat > span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-results .person-search-row > .icon-button { flex-shrink: 0; width: 32px; height: 32px; margin-right: 8px; }

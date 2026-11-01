@@ -14,6 +14,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from .api import router
 from .config import settings
+from .contact_api import router as contact_router
 from .credential_api import router as credential_router
 from .onboarding_api import router as onboarding_router
 from .personal_api import router as personal_router
@@ -54,6 +55,7 @@ app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), al
 app.include_router(router)
 app.include_router(provider_config_router)
 app.include_router(personal_router)
+app.include_router(contact_router)
 app.include_router(onboarding_router)
 app.include_router(scheduled_task_router)
 app.include_router(credential_router)

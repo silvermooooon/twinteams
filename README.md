@@ -91,6 +91,24 @@ use native SDK compaction near the configured model context limit, retaining its
 20,000-token recent tool history with a 16,384-token reserve. Interrupted commands
 keep their frozen input and tools; legacy frozen summary calls can still settle.
 
+The owner-private contact index includes people after visible human interactions: direct pair messages,
+group replies between the two people, or unambiguous `@` mentions of a current human member's
+single-token name or ID. Group membership alone creates no contact. Short tags such as
+`Atlas · settlement development` associate projects with supported responsibilities; they are
+secondary search hints, and owners can edit or clear them. Duets use `search_contacts` to find
+these private tags; public `list_people` profiles remain separate.
+
+Contacts appear immediately without a model call. Automatic tag consolidation reuses the owner's
+existing Memory Dream interval (four hours by default), worker, model and configured Git Memory;
+manual Dream can run immediately with only pending contact evidence. Explicit provisioning enrolls
+existing human-chat history once, then per-owner/chat cursors read bounded pages under current
+history permissions. Human-chat evidence is used only for contact tags. Tags and cursors apply
+after confirmed Dream publication; failed attempts retain their evidence. A manual publication
+confirmation without recovered contact proposals retains contact cursors for the next Dream. Older evidence cannot
+restore tags an owner edited or cleared, while new explicit evidence can update them. A concurrent
+owner correction wins. With Git Memory or the worker disabled, automatic tags wait; contact discovery,
+manual tags and contact search still work.
+
 Workspace files and private memory remain separate persistent file components.
 Duets can explicitly deliver finished workspace files into chat attachment cards with `present_files`; each delivery captures a snapshot. Markdown, text and PDF support in-app preview. HTML opens only after a user action in a separate sandboxed tab and remains downloadable.
 Chat uploads of every type, including images, live once in the chat workspace and reach the Duet as file-path references; installed `read`/`bash` tools inspect them on demand. The existing four-file/20 MiB limits remain. Workspace browsing lazily lists real files, including Agent outputs; private chats show the owner's execution directory and groups show only their shared chat directory. Message bodies have no business character cap; oversized WebSocket sends use HTTP with the same idempotency key. Transport and model context limits still apply. See [the file contract](docs/implementation-contract.md#uploaded-files-and-the-real-workspace), including the additive attachment-path migration required before rollout.

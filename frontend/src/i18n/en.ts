@@ -1,6 +1,20 @@
 /** English product copy. User-authored content is displayed as supplied. */
 import { twinEn } from './twin';
 export const en = {
+  'contacts.personDetails': 'Person details',
+  'contacts.personDetailsFor': 'Person details for {name}',
+  'contacts.tags': 'Your tags',
+  'contacts.editTags': 'Edit tags',
+  'contacts.private': 'Private to your account. Your Duet can use these labels to find the right person.',
+  'contacts.noInteraction': 'Tags become available after a direct interaction.',
+  'contacts.hint': 'Up to 8 short labels for projects or roles, 64 characters each.',
+  'contacts.placeholder': 'e.g. Website project, Design lead',
+  'contacts.tagNumber': 'Tag {number}',
+  'contacts.removeTag': 'Remove tag {number}',
+  'contacts.addTag': 'Add tag',
+  'contacts.empty': 'No tags yet.',
+  'contacts.saved': 'Tags saved.',
+
   'chat.activeTasks': 'Active tasks', 'chat.taskRunning': 'Running…', 'chat.reviewTask': 'Background review', 'chat.scheduledTask': 'Scheduled task', 'chat.memoryTask': 'Memory review', 'chat.backgroundTask': 'Background task', 'chat.replyTask': 'Reply · {message}', 'chat.privateTask': 'Private task',
   'notifications.title': 'Notifications and activity',
   'notifications.prompt': 'Turn on desktop notifications',

@@ -122,6 +122,8 @@ async function main() {
     ? [require("./interaction-live.cjs")]
     : !live && report.scenario === "proactivity"
     ? [require("./proactivity.cjs")]
+    : !live && report.scenario === "contacts"
+    ? [require("./contacts.cjs")]
     : !live && report.scenario === "ask-user"
     ? [require("./ask-user.cjs")]
     : !live && report.scenario === "file-delivery-preview"

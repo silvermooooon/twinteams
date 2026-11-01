@@ -108,6 +108,28 @@ class DuetContactGrant(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Contact(Base):
+    """An owner's private index of people they have actually interacted with."""
+    __tablename__ = "tt_contacts"
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), primary_key=True)
+    contact_owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), primary_key=True)
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    manual_revision: Mapped[int] = mapped_column(Integer, default=0)
+    manual_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_message_ids: Mapped[list] = mapped_column(JSON, default=list)
+    last_interaction_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ContactDreamCursor(Base):
+    __tablename__ = "tt_contact_dream_cursors"
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), primary_key=True)
+    chat_id: Mapped[str] = mapped_column(ForeignKey("tt_chats.id"), primary_key=True)
+    message_cursor_seq: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Membership(Base):
     __tablename__ = "tt_memberships"
     __table_args__ = (UniqueConstraint("chat_id", "owner_id"), CheckConstraint("history_policy IN ('all','fixed_7d','no_prior')", name="tt_history_policy"),)

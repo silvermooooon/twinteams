@@ -146,6 +146,11 @@ class ProductService:
                         new_members.add(row.owner_id)
                     if isinstance(row, ChangeOutbox) or (isinstance(row, ProductOperation) and row.name == "set_message_reaction"):
                         continue
+                    if (isinstance(row, MemoryDreamState) and row not in session.new
+                            and row.queued_request_id and
+                            {attr.key for attr in sa_inspect(row).attrs if attr.history.has_changes()} == {"due_at"}):
+                        # A queued Dream's next-batch hint needs no private-chat revision lock.
+                        continue
                     chat_id = row.id if isinstance(row, Chat) else getattr(row, "chat_id", None)
                     if isinstance(row, (Receipt, MessageReaction)):
                         message = session.get(Message, row.message_id)
@@ -205,6 +210,8 @@ class ProductService:
             upgrade_direct_chat_schema(engine)
             from .reaction_schema import upgrade_reaction_schema
             upgrade_reaction_schema(engine)
+            from .contacts_schema import upgrade_contacts_schema
+            upgrade_contacts_schema(engine)
             from .duet_conversation_schema import upgrade_duet_conversation_schema
             upgrade_duet_conversation_schema(engine)
             from .attachments import upgrade_attachment_schema
@@ -286,6 +293,8 @@ class ProductService:
         check_duet_conversation_schema(inspector)
         from .reaction_schema import check_reaction_schema
         check_reaction_schema(inspector)
+        from .contacts_schema import check_contacts_schema
+        check_contacts_schema(inspector)
         from .request_concurrency_schema import check_request_concurrency_schema
         check_request_concurrency_schema(inspector)
         from .duet_message_schema import check_duet_message_schema
@@ -1042,6 +1051,8 @@ class ProductService:
         chat.next_message_seq += 1
         db.add(msg)
         db.flush()
+        from .contacts import message_published as contact_message_published
+        contact_message_published(self, db, chat, msg)
         from .memory_dream import message_published
         message_published(self, db, chat, msg)
         return msg
@@ -1844,9 +1855,9 @@ class ProductService:
         from .memory_dream import recovery
         return recovery(self, request_id, error)
 
-    def confirm_memory_dream_publication(self, request_id, version):
+    def confirm_memory_dream_publication(self, request_id, version, contact_proposals=None):
         from .memory_dream import confirm
-        return confirm(self, request_id, version)
+        return confirm(self, request_id, version, contact_proposals)
 
     def get_memory_edit_source(self, owner_id, session_id, event_id):
         from .personal import get_memory_edit_source
