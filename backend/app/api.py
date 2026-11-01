@@ -358,6 +358,13 @@ async def upload_workspace(chat_id: str, request: Request, owner: OwnerIdentity,
     return await service.db_call("upload_workspace_file", owner, chat_id, name, bytes(data))
 
 
+@router.get("/chats/{chat_id}/shared-files")
+def list_shared_files(chat_id: str, owner: OwnerIdentity):
+    from .deliverables import shared_files
+    with service.transaction() as db:
+        return {"files": shared_files(service, db, owner, chat_id)}
+
+
 @router.get("/chats/{chat_id}/workspace/files/{node_id}")
 def download_workspace(chat_id: str, node_id: str, owner: OwnerIdentity):
     path = service.workspace_file(owner, chat_id, node_id)

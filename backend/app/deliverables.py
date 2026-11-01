@@ -6,11 +6,11 @@ from uuid import NAMESPACE_URL, uuid5
 from sqlalchemy import select
 
 from .attachments import MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, inspect_upload
-from .models import Chat, ChatAttachment
+from .models import Approval, Chat, ChatAttachment, Membership, Message, ProductOperation
 
 
-def present_files(service, db, args, context):
-    from .service import digest, fail, settings
+def prepare_files(service, db, args, context):
+    from .service import fail, settings
     request, twin, origin, member, inherited = service._message_tool_origin(db, context)
     target, target_member = service.membership(db, twin.owner_id, args.get("chat_id") or origin.id, True)
     from .duet_conversations import require_active
@@ -44,9 +44,6 @@ def present_files(service, db, args, context):
         if path in seen:
             fail(400, "Present distinct files")
         seen.add(path)
-        source_attachment = db.scalar(select(ChatAttachment).where(ChatAttachment.relative_path == str(path.relative_to(settings.workspace_root))))
-        if source_attachment and source_attachment.private_owner_input and not (target.kind == "private" and target.private_owner_id == twin.owner_id):
-            fail(403, "Private owner-input attachments cannot be published to another audience")
         identifier = uuid5(NAMESPACE_URL, "twinteams:present:" + context["operation_id"] + ":" + str(position)).hex
         destination = settings.workspace_root / target.id / "uploads" / identifier / path.name
         if any(part.is_symlink() for part in [destination, *destination.parents] if part.is_relative_to(settings.workspace_root)):
@@ -60,9 +57,49 @@ def present_files(service, db, args, context):
         if total > MAX_ATTACHMENT_BYTES:
             fail(413, "Message attachments are limited to 20 MiB in total")
         info = inspect_upload(path.name, mimetypes.guess_type(path.name)[0] or "application/octet-stream", data)
-        selected.append((identifier, destination, data, info))
+        selected.append((identifier, destination, data, info, path))
+    return request, twin, origin, member, inherited, target, target_member, selected, caption
+
+
+def file_scope(service, db, target, twin, selected):
+    peers = sorted(member.owner_id for member in service.members(db, target.id) if member.owner_id != twin.owner_id)
+    return [{"path": str(source), "sha256": info["sha256"], "peer_owner_ids": peers}
+            for _identifier, _destination, _data, info, source in selected]
+
+
+def present_files(service, db, args, context):
+    from .service import digest, settings
+    request, twin, origin, member, inherited, target, target_member, selected, caption = prepare_files(service, db, args, context)
+    sharing = file_scope(service, db, target, twin, selected) if target.kind == "duet" else []
+    if sharing:
+        approvals = list(db.scalars(select(Approval).where(Approval.approver_id == twin.owner_id,
+            Approval.status.in_(["approved", "pending"]))))
+        granted = [file for approval in approvals if approval.status == "approved"
+                   for file in approval.sdk_reference.get("file_shares", [])]
+        authorized = all(all(any(file["path"] == prior["path"] and file["sha256"] == prior["sha256"]
+            and peer in prior["peer_owner_ids"] for prior in granted) for peer in file["peer_owner_ids"]) for file in sharing)
+        if not authorized:
+            if context.get("approved_approval_id"):
+                from .service import fail
+                fail(409, "File content or recipients changed since owner approval; request new approval")
+            action = {"tool": "present_files", "arguments": args}
+            pending = next((approval for approval in approvals if approval.status == "pending"
+                and approval.sdk_reference.get("action") == action
+                and approval.sdk_reference.get("file_shares") == sharing), None)
+            if pending:
+                approval = service.approval_json(pending)
+            else:
+                names = ", ".join(destination.name for _, destination, _, _, _ in selected)
+                approval = service._tool_dispatch(db, "create_approval", {
+                    "title": "Share files: " + names,
+                    "description": "Allow your Duet to share these file versions: " + names,
+                    "target": ", ".join(service.twin(db, peer).name for peer in sharing[0]["peer_owner_ids"]),
+                    "impact": "Recipients can read and download these files. This authorization is reused for the same files and recipients.",
+                    "action": action,
+                }, context, origin, member)
+            return {"status": "approval_required", "sent": False, "chat_id": target.id, "approval": approval}
     attachments = []
-    for identifier, destination, data, info in selected:
+    for identifier, destination, data, info, _source in selected:
         destination.parent.mkdir(parents=True, exist_ok=True)
         if not destination.exists():
             with destination.open("xb") as stream:
@@ -88,7 +125,45 @@ def present_files(service, db, args, context):
     db.flush()
     result = {"status": "sent" if message.state == "published" else "pending_budget",
         "sent": message.state == "published", "chat_id": target.id,
-        "message_id": message.id, "state": message.state}
+        "message_id": message.id, "state": message.state,
+        "shared_files": [{**scope, "attachment_id": row.id} for scope, row in zip(sharing, attachments)]}
     if message.state == "published":
         result["message"] = service.message_json(db, message, target_member)
     return result
+
+
+def shared_files(service, db, owner_id, human_chat_id):
+    """Project delivered file snapshots without widening their approved audience."""
+    from .service import iso
+    chat, _ = service.membership(db, owner_id, human_chat_id)
+    if chat.kind != "group":
+        return []
+    humans = {member.owner_id for member in service.members(db, chat.id)}
+    operations = db.scalars(select(ProductOperation).where(ProductOperation.name == "present_files",
+        ProductOperation.owner_id.in_(humans),
+        ProductOperation.result["shared_files"][0]["attachment_id"].as_string().is_not(None)))
+    result, seen = [], set()
+    for operation in operations:
+        for share in operation.result.get("shared_files", []):
+            if owner_id not in {operation.owner_id, *share["peer_owner_ids"]}:
+                continue
+            if not (set(share["peer_owner_ids"]) & (humans - {operation.owner_id})):
+                continue
+            attachment = db.get(ChatAttachment, share["attachment_id"])
+            if not attachment or attachment.id in seen:
+                continue
+            message = db.get(Message, attachment.message_id)
+            if not message or message.state != "published":
+                continue
+            membership = db.scalar(select(Membership).where(Membership.chat_id == attachment.chat_id,
+                Membership.owner_id == owner_id, Membership.left_at.is_(None)))
+            if not membership:
+                continue
+            if not service.visible_message(db, membership, message.id, False):
+                continue
+            seen.add(attachment.id)
+            result.append(service.attachment_json(attachment) | {
+                "owner_id": attachment.owner_id, "shared_by_name": service.twin(db, attachment.owner_id).name,
+                "created_at": iso(attachment.created_at), "chat_id": attachment.chat_id, "message_id": message.id,
+            })
+    return sorted(result, key=lambda file: file["created_at"], reverse=True)

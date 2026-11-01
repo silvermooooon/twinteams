@@ -34,10 +34,39 @@ async function main() {
       else if (p.endsWith('/close')) { closed = true; body = conversation(); }
       else if (p === '/api/duet-authorizations') body = { authorizations: revoked ? [] : [{ peer_owner_id: 'owner-1', peer_twin_id: 'twin-1', peer_name: 'Blair Duet', created_at: now }] };
       else if (p === '/api/duet-authorizations/owner-1' && req.method() === 'DELETE') { revoked = true; body = { revoked: true, peer_owner_id: 'owner-1', closed_chat_ids: ['duet-1'] }; }
-      else if (p.endsWith('/workspace')) body = [];
+      else if (p.endsWith('/shared-files')) body = { files: [0, 1].map(i => ({ id: `shared-${i}`, name: `approved-notes-${i}.md`, mime_type: 'text/markdown', size: 42, kind: 'file', url: `/api/chats/duet-1/attachments/shared-${i}`, preview_url: `/api/chats/duet-1/attachments/shared-${i}/preview`, preview_kind: 'markdown', owner_id: `owner-${i}`, shared_by_name: ['Alex Duet', 'Blair Duet'][i], created_at: now, chat_id: 'duet-1', message_id: `share-message-${i}` })) };
+      else if (p === '/api/chats/duet-1/attachments/shared-0/preview') return route.fulfill({ contentType: 'text/markdown', body: '# Approved file preview' });
+      else if (p.endsWith('/workspace')) body = [{ id: 'existing-file', kind: 'file', name: 'Existing chat file.txt', path: 'Existing chat file.txt', size: 10 }];
       else { failures.push(`Unexpected fixture API request: ${req.method()} ${p}`); return route.fulfill({ status: 500, body: '{}' }); }
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
     });
+    await page.goto(`${origin}/e2e/duet-ui.html?fileapproval=1`);
+    await page.getByText('These file versions can be shared again with the approved recipients. Changed files or new recipients need approval.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Approve once', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Allow file sharing', exact: true }).click();
+    assert.deepEqual(decisions.at(-1), { decision: 'approved' });
+    await page.getByRole('button', { name: 'Reject file sharing', exact: true }).click();
+    assert.deepEqual(decisions.at(-1), { decision: 'rejected' });
+    await page.goto(`${origin}/e2e/duet-ui.html?ordinaryapproval=1`);
+    await page.getByText('Applies only to this specific action.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Approve once', exact: true }).isEnabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'Reject once', exact: true }).isEnabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'Allow file sharing', exact: true }).count(), 0);
+    decisions = [];
+    await page.goto(`${origin}/e2e/duet-ui.html?origin=pair`);
+    await page.getByRole('tab', { name: 'Shared files', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Existing chat file.txt', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Upload', exact: true }).isEnabled(), true);
+    const sharedFiles = page.getByRole('region', { name: 'Shared by Duets', exact: true });
+    await sharedFiles.getByText('Approved by Alex · Shared by Alex Duet', { exact: true }).waitFor();
+    await sharedFiles.getByText('Approved by Blair · Shared by Blair Duet', { exact: true }).waitFor();
+    assert.equal(await sharedFiles.getByRole('link', { name: 'approved-notes-1.md', exact: true }).getAttribute('href'), '/api/chats/duet-1/attachments/shared-1');
+    await sharedFiles.getByRole('button', { name: 'Preview approved-notes-0.md', exact: true }).click();
+    await page.getByRole('dialog').getByRole('heading', { name: 'Approved file preview', exact: true }).waitFor();
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+    await page.goto(`${origin}/e2e/duet-ui.html?kind=private&origin=private`);
+    await page.getByRole('tab', { name: 'Workspace', exact: true }).waitFor();
+    assert.equal(await page.getByRole('region', { name: 'Shared by Duets', exact: true }).count(), 0);
     await page.goto(`${origin}/e2e/duet-ui.html?tasks=1`);
     const taskRows = page.locator('.private-task-status');
     await page.locator('[data-request-id="old-task"]').waitFor();
@@ -126,7 +155,7 @@ async function main() {
     await page.getByRole('button', { name: 'Revoke access for Blair Duet', exact: true }).click();
     await page.getByText('No trusted Duets yet', { exact: true }).waitFor(); assert.equal(revoked, true);
     assert.equal(failures.length, 0, failures.join('\n')); assert.ok(reads > 0);
-    console.log('Duet UI regression passed: concurrent private running/queued status, quiet background separation, inherited background label, per-task Stop/Cancel through reorder and in-flight cancel, plus pair/multi/private sidebar, read-only transcript/history, all-owner decisions, once/always consent, own-only retry, peer-message allowance and private pending draft, close, permanent permission revocation.');
+    console.log('Duet UI regression passed: file approval explains reusable file/recipient consent while ordinary approval retains its exact-action copy; Shared files keeps existing upload/tree access, renders both owners’ approved shares and reuses file previews; private Workspace stays separate; concurrent private running/queued status, quiet background separation, inherited background label, per-task Stop/Cancel through reorder and in-flight cancel, plus pair/multi/private sidebar, read-only transcript/history, all-owner decisions, once/always consent, own-only retry, peer-message allowance and private pending draft, close, permanent permission revocation.');
   } finally { await browser?.close(); vite.kill('SIGTERM'); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

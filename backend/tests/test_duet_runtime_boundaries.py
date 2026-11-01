@@ -11,7 +11,7 @@ from test_memory_dream import product as product  # noqa: PLC0414
 
 from app import duet_conversations, reactions
 from app import service as service_module
-from app.models import Chat, ChatAttachment, Message, ProductOperation, Summary
+from app.models import Approval, Chat, ChatAttachment, Message, ProductOperation, Summary
 from app.runtime_bridge import RuntimeBridge
 
 
@@ -88,6 +88,9 @@ def test_active_duet_files_and_reactions_close_on_revocation(product, monkeypatc
     path = tmp_path / "private-alex" / "report.md"
     path.parent.mkdir(parents=True, exist_ok=True); path.write_text("Verified report")
     args = {"chat_id": pending["chat_id"], "paths": [str(path)], "caption": "Draft ready"}
+    consent = call(product, {**context, "runtime_session_id": "offline-file-session", "runtime_run_id": "offline-file-run"}, "present_files", args)
+    with product.transaction() as db:
+        db.get(Approval, consent["approval"]["id"]).status = "approved"
     delivered = call(product, context, "present_files", args)
     reaction = {"chat_id": pending["chat_id"], "message_id": delivered["message_id"], "emoji": "👍", "active": True}
     assert call(product, context, "set_message_reaction", reaction)["active"]

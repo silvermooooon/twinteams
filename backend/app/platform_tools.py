@@ -211,6 +211,11 @@ def dispatch(service, db, name, args, context, chat, member, locked_ids):
     if name == "list_workspace":
         limit = bounded_limit(args)
         entries = sorted(service._workspace_db(db, owner_id, target_id, args.get("path", "")), key=lambda entry: entry["id"])
+        if not args.get("path"):
+            from .deliverables import shared_files
+            entries.extend({**file, "id": "shared:" + file["id"], "kind": "file", "path": file["name"]}
+                           for file in shared_files(service, db, owner_id, target_id))
+            entries.sort(key=lambda entry: entry["id"])
         if args.get("after"):
             entries = [entry for entry in entries if entry["id"] > args["after"]]
         return {"chat_id": target_id, "entries": entries[:limit], "next_cursor": entries[limit - 1]["id"] if len(entries) > limit else None}

@@ -9,7 +9,7 @@ from test_chat_attachments_ui_acceptance import attachments as attachments  # no
 from test_chat_attachments_ui_acceptance import send, upload
 from test_file_workspace_acceptance import files as files  # noqa: PLC0414
 
-from app.models import ChatAttachment, Message, ProductOperation
+from app.models import Approval, ChatAttachment, Message, ProductOperation
 
 
 def prepare(files, name="result.md", data=b"# Completed report\n", chat="private-alex"):
@@ -25,7 +25,7 @@ def prepare(files, name="result.md", data=b"# Completed report\n", chat="private
     path = root / chat / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
-    return path, context
+    return path, {**context, "runtime_session_id": "offline-file-session", "runtime_run_id": "offline-file-run"}
 
 
 def present(product, context, paths, *, operation=None, **extra):
@@ -98,21 +98,30 @@ def test_preview_limit_and_immutable_snapshot_tampering_are_explicit_errors(file
     assert client.get(row["preview_url"]).status_code == 409
 
 
-def test_group_shared_source_and_owner_source_can_be_delivered_but_private_input_cannot(files):
+def test_shared_and_private_input_sources_require_owner_file_approval(files):
     product, client, root = files
     shared, context = prepare(files, "shared.txt", b"shared report", "duet-alex-maya")
+    pending = present(product, context, [shared])
+    assert pending["status"] == "approval_required"
+    with product.transaction() as db:
+        db.get(Approval, pending["approval"]["id"]).status = "approved"
     result = present(product, context, [shared])
     item = result["message"]["attachments"][0]
     assert client.get(item["url"], headers={"x-test-owner": "owner-maya"}).content == b"shared report"
     private = root / "private-alex" / "finished.txt"
     private.parent.mkdir(exist_ok=True); private.write_bytes(b"owner approved report")
-    assert present(product, context, [private])["sent"]
+    assert present(product, context, [private])["status"] == "approval_required"
     assert upload(client, chat="duet-alex-maya", name="raw.txt").status_code == 403
     uploaded = upload(client, name="raw.txt", mime="text/plain", data=b"private raw input").json()
     with product.transaction() as db:
         db.get(ChatAttachment, uploaded["id"]).private_owner_input = True
-    with pytest.raises(HTTPException, match="Private owner-input"):
-        present(product, context, [root / "private-alex" / "uploads" / uploaded["id"] / "raw.txt"])
+    raw = root / "private-alex" / "uploads" / uploaded["id"] / "raw.txt"
+    raw_pending = present(product, context, [raw])
+    assert raw_pending["status"] == "approval_required"
+    with product.transaction() as db:
+        db.get(Approval, raw_pending["approval"]["id"]).status = "approved"
+    raw_shared = present(product, context, [raw])["message"]["attachments"][0]
+    assert client.get(raw_shared["url"], headers={"x-test-owner": "owner-maya"}).content == b"private raw input"
     with product.transaction() as db:
         db.get(Message, result["message_id"]).state = "withdrawn"
     assert client.get(item["url"], headers={"x-test-owner": "owner-maya"}).status_code == 404

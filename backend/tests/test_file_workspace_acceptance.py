@@ -15,7 +15,7 @@ from test_chat_attachments_ui_acceptance import png_bytes, send, upload
 
 from app import personal
 from app import service as service_module
-from app.models import ChatAttachment, Message, WorkspaceNode
+from app.models import Approval, ChatAttachment, Message, WorkspaceNode
 from app.runtime_bridge import RuntimeBridge
 
 
@@ -108,9 +108,12 @@ def test_group_router_gets_file_references_without_pixels_or_file_body(files):
     document = upload(client, name="instructions.bin", mime="application/octet-stream", data=b"DO_NOT_AUTO_INJECT_72").json()
     request = send(client, body="Share these authorized reference files").json()["request"]
     context = product.get_runtime_context(request["id"])
-    result = product._runtime_tool_transaction("present_files", {
-        "chat_id": chat, "paths": [image["workspace_path"], document["workspace_path"]]},
-        {**context, "operation_id": uuid4().hex})
+    args = {"chat_id": chat, "paths": [image["workspace_path"], document["workspace_path"]]}
+    pending = product._runtime_tool_transaction("present_files", args,
+        {**context, "operation_id": uuid4().hex, "runtime_session_id": "offline-file-session", "runtime_run_id": "offline-file-run"})
+    with product.transaction() as db:
+        db.get(Approval, pending["approval"]["id"]).status = "approved"
+    result = product._runtime_tool_transaction("present_files", args, {**context, "operation_id": uuid4().hex})
     delivered = result["message"]["attachments"]
     image, document = delivered
     from duet_test_support import request_duet_reply

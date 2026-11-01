@@ -586,7 +586,7 @@ class ProductService:
                     if source["hash"] != current_hash and (source.get("hash_version") == 1 or source["hash"] != digest(message.body)):
                         return False
             elif source.get("kind") == "workspace":
-                if str(source.get("id", "")).startswith("path:"):
+                if str(source.get("id", "")).startswith(("path:", "shared:")):
                     try:
                         self._workspace_file_db(db, member.owner_id, member.chat_id, source["id"], allow_directory=True)
                     except HTTPException:
@@ -2342,6 +2342,17 @@ class ProductService:
             return self._workspace_file_db(db, owner_id, chat_id, node_id)
 
     def _workspace_file_db(self, db, owner_id, chat_id, node_id, *, allow_directory=False):
+        if node_id.startswith("shared:"):
+            from .deliverables import shared_files
+            attachment_id = node_id.removeprefix("shared:")
+            if not any(file["id"] == attachment_id for file in shared_files(self, db, owner_id, chat_id)):
+                fail(404, "Shared file is unavailable")
+            attachment = db.get(ChatAttachment, attachment_id)
+            path = self._attachment_path(attachment)
+            data = path.read_bytes()
+            if len(data) != attachment.size or hashlib.sha256(data).hexdigest() != attachment.sha256:
+                fail(409, "Immutable attachment content changed")
+            return path
         if node_id.startswith("path:"):
             import base64
             try:
@@ -2484,6 +2495,12 @@ class ProductService:
                 if not origin.execution_config or origin.execution_config != context.get("execution_config"):
                     fail(409, "Approval execution configuration is not frozen for this request")
                 reference.update(execution_config_digest=digest(origin.execution_config), target_twin_id=origin.target_twin_id)
+            if action["tool"] == "present_files":
+                from .deliverables import file_scope, prepare_files
+                prepared = prepare_files(self, db, action["arguments"], context)
+                _, sharing_twin, _, _, _, destination, _, selected, _ = prepared
+                if destination.kind == "duet":
+                    reference["file_shares"] = file_scope(self, db, destination, sharing_twin, selected)
             approval = Approval(id=uid(), chat_id=chat.id, source_provenance=context.get("inherited_provenance", []), source_message_ids=sources, approver_id=owner_id, title=str(args["title"])[:256], description=str(args["description"]), target=str(args["target"]), impact=str(args["impact"]), sdk_reference=reference)
             db.add(approval)
             db.flush()
@@ -2940,6 +2957,12 @@ class ProductService:
                 grant_version=member.grant_version, high_water_seq=chat.next_message_seq - 1,
                 sources=row.source_provenance, source_digest=digest(row.source_provenance)))
         self.publish_event(chat.id, {"type": "changed"})
+
+    def approved_file_share(self, request_id):
+        with self.transaction() as db:
+            return db.scalar(select(Approval.id).where(
+                Approval.continuation_request_id == request_id, Approval.status == "approved",
+                Approval.sdk_reference["action"]["tool"].as_string() == "present_files"))
 
     def _pending_approvals(self, scopes=None):
         with self.transaction() as db:

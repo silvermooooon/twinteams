@@ -55,7 +55,7 @@ def install_offline(root):
         def details():
             from sqlalchemy import select
 
-            from app.models import Actor, Chat, Message, ReplyRequest
+            from app.models import Actor, Approval, Chat, Message, ReplyRequest
             from app.question_models import QuestionRequest
             from app.service import service
             with service.transaction() as db:
@@ -65,8 +65,11 @@ def install_offline(root):
                 source = db.get(Message, request.source_message_id) if request.source_message_id else None
                 owner_id = db.get(Actor, request.target_twin_id).owner_id
                 question = db.scalar(select(QuestionRequest).where(QuestionRequest.owner_id == owner_id, QuestionRequest.chat_id == request.chat_id, QuestionRequest.status == 'pending'))
+                approval = db.scalar(select(Approval).where(Approval.continuation_request_id == request.id))
                 return {'request_id': request.id, 'source': request.source, 'chat_id': request.chat_id,
                         'owner_id': owner_id, 'source_message_id': request.source_message_id, 'pending_question_id': question.id if question else None,
+                        'approval_id': approval.id if approval else None, 'approval_status': approval.status if approval else None,
+                        'approval_tool': approval.sdk_reference.get('action', {}).get('tool') if approval else None,
                         'session_id': request.session_id, 'continuation_of_request_id': getattr(request, 'continuation_of_request_id', None),
                         'background': getattr(request, 'background', False), 'chat_kind': db.get(Chat, request.chat_id).kind,
                         'body': source.body if source else request.input_body or ''}
@@ -111,6 +114,15 @@ def install_offline(root):
             final = 'Recovered fixture task.'
         elif body.startswith('CONCURRENCY COMPLETE'):
             final = 'Completed independent task: ' + body.removeprefix('CONCURRENCY COMPLETE').strip()
+        elif info.get('source') == 'approval_result' and info.get('approval_tool') == 'present_files':
+            final = 'The approved file sharing action is complete.' if info.get('approval_status') == 'approved' else 'The file sharing request was rejected.'
+        elif body.startswith('ACCEPTANCE FILE_SHARE '):
+            payload = json.loads(body.removeprefix('ACCEPTANCE FILE_SHARE '))
+            path = root / 'workspaces' / ('private-' + info['owner_id'].removeprefix('owner-')) / 'shared-approval.md'
+            if 'present_files' not in tool_names:
+                path.write_text('# Approved file\n\nIsolated sharing regression: owner Alex to owner Maya.\n')
+                name, args = 'present_files', {'paths': [str(path)], 'caption': 'Owner-approved shared report.', 'chat_id': payload['chat_id']}
+            final = 'The file sharing request has been processed.'
         elif 'ACCEPTANCE PROPOSE ' in body:
             payload = json.loads(body.split('ACCEPTANCE PROPOSE ', 1)[1])
             if 'request_duet_conversation' not in tool_names:
@@ -176,10 +188,12 @@ def snapshot(root):
         Approval,
         CausalChain,
         Chat,
+        ChatAttachment,
         DuetContactGrant,
         DuetConversation,
         Membership,
         Message,
+        ProductOperation,
         ReplyRequest,
     )
     from app.question_models import QuestionRequest
@@ -192,7 +206,9 @@ def snapshot(root):
             'chats': [fields(item, 'id kind title') for item in db.scalars(select(Chat))],
             'conversations': [fields(item, 'chat_id origin_chat_id status close_reason') for item in db.scalars(select(DuetConversation))],
             'memberships': [fields(item, 'chat_id owner_id') for item in db.scalars(select(Membership))],
-            'messages': [fields(item, 'id chat_id seq author_id kind body request_id reply_to_message_id state causal_chain_id sdk_output_key') for item in db.scalars(select(Message).order_by(Message.created_at))],
+            'messages': [fields(item, 'id chat_id seq author_id kind body request_id reply_to_message_id state causal_chain_id sdk_output_key attachment_ids') for item in db.scalars(select(Message).order_by(Message.created_at))],
+            'attachments': [fields(item, 'id chat_id owner_id name sha256 message_id request_id') for item in db.scalars(select(ChatAttachment))],
+            'file_operations': [fields(item, 'operation_id owner_id result') for item in db.scalars(select(ProductOperation).where(ProductOperation.name == 'present_files'))],
             'requests': [fields(item, 'id chat_id target_twin_id requester_id causal_chain_id source status cancel_requested session_id run_id source_message_id accepted_at error background continuation_of_request_id') for item in db.scalars(select(ReplyRequest))],
             'approvals': [fields(item, 'id chat_id approver_id status sdk_reference') for item in db.scalars(select(Approval))],
             'questions': [fields(item, 'id owner_id chat_id origin_chat_id origin_request_id message_id status answer_message_id continuation_request_id created_at answered_at') for item in db.scalars(select(QuestionRequest))],
@@ -267,6 +283,16 @@ def verify_concurrency_stage(value, stage):
 def verify_stage(value, stage):
     if stage in {'concurrent', 'cancel-isolation', 'background-overlap', 'continuation', 'cancel-finished', 'question-wait', 'parallel-results', 'retry-isolation'}:
         return verify_concurrency_stage(value, stage)
+    if stage == 'file-sharing':
+        approvals = [row for row in value['approvals'] if row['sdk_reference'].get('file_shares')]
+        assert len(approvals) == 1 and approvals[0]['status'] == 'approved'
+        assert sorted(row['result']['status'] for row in value['file_operations']) == ['approval_required', 'sent', 'sent']
+        assert len(value['attachments']) == 2
+        assert len({row['sha256'] for row in value['attachments']}) == 1
+        assert all(row['status'] == 'completed' and not row['error'] for row in value['requests'])
+        assert not any(row['chat_id'] in {'group-alex-maya', 'group-team'} for row in value['messages'])
+        assert value['provider_http_attempts'] == 0
+        return {'stage': stage, 'passed': True, 'file_approvals': 1, 'delivered_snapshots': 2, 'provider_http_attempts': 0}
     groups = {chat['id'] for chat in value['chats'] if chat['kind'] == 'group'}
     group_messages = [message for message in value['messages'] if message['chat_id'] in groups]
     assert len(group_messages) >= 2 and all(message['kind'] == 'human' for message in group_messages)
@@ -463,7 +489,7 @@ async def launch(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--role', choices=['launch', 'init', 'api', 'worker', 'inspect', 'release-provider', 'seed-background'], default='launch')
-    parser.add_argument('--verify-stage', choices=['human', 'pending', 'directional', 'expanded', 'final', 'concurrent', 'cancel-isolation', 'background-overlap', 'continuation', 'cancel-finished', 'question-wait', 'parallel-results', 'retry-isolation'])
+    parser.add_argument('--verify-stage', choices=['human', 'pending', 'directional', 'expanded', 'final', 'concurrent', 'cancel-isolation', 'background-overlap', 'continuation', 'cancel-finished', 'question-wait', 'parallel-results', 'retry-isolation', 'file-sharing'])
     parser.add_argument('--task-source', choices=['scheduled_task', 'system_review'], default='scheduled_task'); parser.add_argument('--owner-id', default='owner-alex'); parser.add_argument('--request-id')
     parser.add_argument('--chat-id'); parser.add_argument('--port', type=int); parser.add_argument('--state', type=Path)
     parser.add_argument('--serve', action='store_true'); parser.add_argument('--live', action='store_true'); parser.add_argument('--live-approved', action='store_true')

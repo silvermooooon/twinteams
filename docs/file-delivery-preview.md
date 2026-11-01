@@ -28,6 +28,27 @@ Publication captures a snapshot. Editing the workspace source later does not
 change the previously delivered attachment. See the [file contract](implementation-contract.md#uploaded-files-and-the-real-workspace)
 for authorization, persistence and API details.
 
+## Sharing files with another Duet
+
+Conversation consent lets Duets communicate. Sharing files asks the sharing
+Duet's owner for a separate approval in the existing approval inbox. The request
+names the files and recipient Duets; pending or rejected requests publish no
+file content. The Duet can continue independent work while approval is pending.
+Approval resumes the original action, so the owner does not need to resend it.
+
+Approval is reused for the same owner's file at the same path, with identical
+content and the same approved recipients. Changed file contents or a new
+recipient require new approval. Files uploaded privately to a Duet follow the
+same rule. Delivery captures an immutable snapshot; editing the source does not
+change earlier downloads.
+
+The human conversation's **Shared files** sidebar includes the files shared by
+its participants' Duets, with the sharing Duet's name, preview and download.
+Each viewer sees only files shared with them; adding a third person to a human
+conversation does not grant that person access. Existing conversation workspace
+files and direct upload remain available. Recipient Duets can discover and read
+the approved snapshots through the existing workspace tools.
+
 ## Verification
 
 The dedicated `file-delivery-preview` browser scenario uses the actual SDK

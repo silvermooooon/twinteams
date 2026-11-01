@@ -2,6 +2,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ApiClient } from '../src/api/client';
+import { ApprovalsDrawer } from '../src/App';
 import { AskUserCard } from '../src/AskUserCard';
 import { resolveChatDestination } from '../src/api/chatDestination';
 import type { DuetNavigationTarget } from '../src/api/chatDestination';
@@ -49,6 +50,7 @@ function Harness() {
   const [settings, setSettings] = React.useState<ChatDetail['settings']>({ reply_for_me_enabled: false, prompt_override: null, sidebar_open: true, sidebar_tab: 'workspace' });
   const params = new URLSearchParams(location.search); const kind = params.get('kind') === 'private' ? 'private' : 'group';
   const detail: ChatDetail = { revision: version, chat: { id: params.get('origin') || 'pair', kind, title: kind === 'private' ? 'Alex Duet' : 'Planning', member_owner_ids: params.get('origin') === 'multi' ? ['owner-0', 'owner-1', 'owner-2'] : ['owner-0', 'owner-1'], unread_count: 0 }, messages: [], members: actors, requests: [], approvals: [], tracking: [], settings };
+  if (params.has('fileapproval') || params.has('ordinaryapproval')) return <main className="chat-main"><ApprovalsDrawer api={api} actors={actors} approvals={[{ id: 'file-approval', chat_id: 'private-owner', approver_id: 'owner-0', title: 'Share notes', description: 'Allow your Duet to share these file versions: notes.md', target: 'Blair Duet', impact: 'Recipients can read and download these files.', action: { tool: params.has('fileapproval') ? 'present_files' : 'create_reminder', arguments: {} }, status: 'pending', created_at: '2026-10-26T08:00:00Z' }]} onChange={async () => {}} onDecision={async (id, decision) => { await api.post(`/approvals/${id}/decision`, { decision }); }} /></main>;
   if (params.has('tasks')) return <PrivateTaskHarness />;
   if (params.has('originlink')) return <OriginLinkHarness />;
   if (params.has('approval')) return <main className="chat-main"><DuetApprovalActions api={api} actors={actors} ownerIds={['owner-0','owner-1']} approval={{ id: 'private-approval', chat_id: 'duet-1', type: 'duet_conversation', approver_id: 'owner-0', title: 'Private inbox collaboration', description: 'Coordinate a meeting.', target: 'Blair Duet', impact: 'Prepared **opening** for recipients.', status: 'pending', peer_owner_ids: ['owner-1'], created_at: '2026-10-26T08:00:00Z' }} onChange={async () => {}} /></main>;

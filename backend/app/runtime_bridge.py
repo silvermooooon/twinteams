@@ -400,7 +400,7 @@ class RuntimeBridge:
              {"chat_id": text, "body": text, "source_message_ids": ids,
               "reply_to_message_id": text},
              ["chat_id", "body", "source_message_ids"]),
-            ("present_files", "Publish completed local files as visible chat attachments, with an optional caption. Defaults to the current chat; destinations must be your own private chat or an active approved Duet conversation. Files must be in your owner workspace or the current chat's shared workspace. Publication saves snapshots, not live paths; report success only after this tool succeeds. Do not repeat its caption in your final reply. For delegated work, normally return files to the parent for review; publish directly only when that delivery is within the delegated task.",
+            ("present_files", "Publish local files as visible chat attachments, with an optional caption. Defaults to the current chat; destinations must be your own private chat or an active approved Duet conversation. Sharing a file version with other Duets requires your owner’s file-specific approval: this tool automatically requests it and returns approval_required without sending. Continue independent work and finish without polling; approval resumes execution of the frozen action. The same file version and recipients reuse existing approval. Files must be in your owner workspace or the current chat's shared workspace. Publication saves snapshots, not live paths; report success only after this tool succeeds. Do not repeat its caption in your final reply. For delegated work, normally return files to the parent for review; publish directly only when that delivery is within the delegated task.",
              {"paths": {"type": "array", "items": text, "minItems": 1, "maxItems": 4}, "caption": text, "chat_id": text}, ["paths"]),
             ("list_tracking", "Read visible Tracking: owner private chat includes its own and authorized human and Duet conversations; Duet origin stays in that conversation. Use each item's chat_id for details or changes.", {"chat_id": text}, []),
             ("get_tracking", "Read a relevant topic and its authorized chronological updates before resuming work or changing its state. Set chat_id to the item's source chat_id.", {"chat_id": text, "id": text}, ["id"]),
@@ -645,6 +645,10 @@ class RuntimeBridge:
             from .twin_execution import assemble
             execution_tools, agent_context, memory_index = await assemble(self.service, session, context)
             tools = [*self._tools(agent_context, session, execution_tools), *execution_tools]
+            if request.get("source") == "approval_result":
+                approval_id = await self.service.db_call("approved_file_share", request_id)
+                if approval_id:
+                    await self.service.runtime_tool("execute_approved_action", {"id": approval_id}, agent_context)
             system = self._system(agent_context)
             if not session.resumable:
                 system += await self._credential_continuation_history(agent_context)
