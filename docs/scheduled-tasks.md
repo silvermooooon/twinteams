@@ -19,11 +19,12 @@ precheck found no work to review and skipped the model call. A model run that
 finishes without a chat message still shows **Completed**. Review errors remain
 visible in the task and its history.
 
-The planned **Relevant reminders** section will give the Duet concise information
-about issues that still affect the owner. Initially it will include only unresolved
-Memory Dream failures. Once an issue has recovered, it should no longer be included
-in the review or reported to the owner solely as a reminder. This section is not
-implemented yet.
+The **Relevant reminders** section in the System Review context gives the Duet
+concise information about issues that still affect the owner. It currently
+includes only unresolved Memory Dream failures, with their latest failure time
+when known and a brief description. A failure does not start a separate review.
+Once the issue has recovered, it is omitted from subsequent review context and
+is not reported to the owner solely as a reminder.
 
 You can also tell your Twin how proactive to be in your private conversation.
 **Low** limits autonomous notices to important results, risks, blockers,

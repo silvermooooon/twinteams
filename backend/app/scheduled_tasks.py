@@ -308,11 +308,21 @@ def review_snapshot(service, db, row, moment):
     result["deadlines"] = [{"id": reminder.id, "title": reminder.title, "due_at": iso(reminder.due_at)}
         for reminder in db.scalars(select(Reminder).where(Reminder.owner_id == row.owner_id,
             Reminder.done.is_(False)).order_by(Reminder.due_at.asc().nulls_last()).limit(30))]
+    result["relevant_reminders"] = relevant_reminders(db, row.owner_id)
     conversation = db.scalar(select(Message.id).where(Message.chat_id == private.id,
         Message.seq >= member.lower_seq, Message.state == "published",
         Message.kind.in_(["human", "twin", "reply_for_me"])).limit(1))
-    result["needs_review"] = bool(tracking or conversation or approvals or children or memory or dream or result["deadlines"])
+    result["needs_review"] = bool(tracking or conversation or approvals or children or memory or dream or result["deadlines"] or result["relevant_reminders"])
     return result
+
+
+def relevant_reminders(db, owner_id):
+    from .models import MemoryDreamState
+    state = db.get(MemoryDreamState, owner_id)
+    if not state or not (state.last_failure_at or state.last_status in {"failed", "recovery_required"}):
+        return []
+    return [{"kind": "memory_dream_failure", "failed_at": iso(state.last_failure_at),
+        "context": " ".join((state.last_error or "Memory Dream did not publish").split())[:300]}]
 
 
 def enqueue(service, db, row, planned, moment, *, manual_key=None):

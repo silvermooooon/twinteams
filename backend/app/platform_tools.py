@@ -252,7 +252,8 @@ def dispatch(service, db, name, args, context, chat, member, locked_ids):
         return {"runtime": runtime, "requests": visible_requests,
                 "twin": {"id": twin.id, "name": twin.name}, "owner_private_chat_id": private.id if private else None,
                 "private_reset_pending": bool(private and private.reset_pending),
-                "memory_dream": {"status": state.last_status, "queued_request_id": state.queued_request_id} if state else None}
+                "memory_dream": {"status": state.last_status, "queued_request_id": state.queued_request_id,
+                    "last_failure_at": state.last_failure_at.isoformat() if state.last_failure_at else None} if state else None}
     if name in {"get_reply_request", "cancel_reply_request", "retry_reply_request"}:
         row, target, membership = request_row(service, db, owner_id, args["id"])
         if name == "get_reply_request":

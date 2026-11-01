@@ -13,6 +13,7 @@ PERSONAL_COLUMNS = {
     "tt_chats": {"reset_generation": "INTEGER NOT NULL DEFAULT 0", "reset_pending": "BOOLEAN NOT NULL DEFAULT FALSE"},
     "tt_activity_runs": {"private_generation": "INTEGER NOT NULL DEFAULT 0"},
     "tt_memory_edit_audit": {"private_generation": "INTEGER NOT NULL DEFAULT 0"},
+    "tt_memory_dream_state": {"last_failure_at": "TIMESTAMP WITH TIME ZONE"},
     "tt_credential_requests": {
         "runtime_session_id": "VARCHAR(128)",
         "runtime_run_id": "VARCHAR(128)",

@@ -417,7 +417,7 @@ export default function App() {
   function cancel(request: ReplyRequest) { void withBusy(request.id, () => api.post(`/reply-requests/${request.id}/cancel`)); }
   function retry(request: ReplyRequest) { void withBusy(request.id, async () => { const result = await api.post<ReplyRequest>(`/reply-requests/${request.id}/retry`, { client_request_key: requestKey() }); localSends.followRetry(request.id, result); }); }
   // Quiet system work stays in Activity/Scheduled tasks, separate from input status.
-  const requests = activeChat?.chat.kind === 'private' ? (activeChat.requests || []).filter(request => !request.quiet_background) : [];
+  const requests = activeChat?.chat.kind === 'private' ? (activeChat.requests || []).filter(request => !request.quiet_background && !(request.source === 'memory_dream' && request.status === 'failed')) : [];
   const foregroundRequests = requests.filter(request => !isBackgroundPrivateTask(request));
   const privatePending = requests.filter(request => request.target_twin_id === ownTwin?.id);
   const running = foregroundRequests.filter(request => request.status === 'running');

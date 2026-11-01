@@ -37,6 +37,9 @@ def scheduled_prompt(request, context):
             "This is the platform's periodic private system review, not a new human message. "
             "Review authorized ongoing Tracking and recent changes, blockers, pending owner "
             "approvals, background children and upcoming or overdue deadlines. "
+            "Consider Relevant reminders in the snapshot when they remain relevant; "
+            "an unresolved Memory Dream failure may warrant a concise notice with its "
+            "failure time and context. Recovered failures need no notice. "
             "Read relevant details before acting. Time passing can matter even without new "
             "local messages: evaluate unresolved time-sensitive work and known external watches. "
             "Continue useful work already authorized by the owner; delegate substantial "
@@ -89,6 +92,11 @@ def scheduled_policy(context):
             "For this system review, notify only useful progress, changed deadlines, actionable "
             "blockers or necessary owner decisions; omit unchanged notices, routine check-ins "
             "and worker narration. Prior review facts are reference data for avoiding repeats. "
+            "Before reporting a Memory Dream failure, call get_twin_status to check its "
+            "current state and omit recovered failures. "
+            "A null last_failure_at with status other than failed or recovery_required means "
+            "the previous failure has recovered; legacy failed or recovery_required remains "
+            "unresolved when its failure time is unknown. "
         )
     from .proactivity import policy_prompt
     return policy + " " + policy_prompt(task) + "\n"

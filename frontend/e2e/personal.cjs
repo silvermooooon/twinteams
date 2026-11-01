@@ -448,6 +448,85 @@ const cases = [
     },
   },
   {
+    name: "personal / failed Memory Dream stays out of chat banners before and after refresh and recovery",
+    run: async (t) => {
+      const { page } = await t.session();
+      const privateId = await privateChat(page), label = t.unique("dream-failure");
+      await sendMessage(page, "E2E MEMORY " + label);
+      await marker(page, "E2E memory saved: " + label);
+      const receivedFailures = new Set();
+      page.on("response", async response => {
+        if (response.request().method() !== "GET" || new URL(response.url()).pathname !== "/api/chats/" + privateId || !response.ok()) return;
+        try {
+          const detail = await response.json();
+          for (const request of detail.requests || [])
+            if (request.source === "memory_dream" && request.status === "failed") receivedFailures.add(request.id);
+        } catch { /* A response can be interrupted by the explicit reload below. */ }
+      });
+      const observeFailures = () => {
+        window.__dreamFailureBanners = [];
+        const scan = () => {
+          for (const row of document.querySelectorAll("[data-failed-request]"))
+            if (!window.__dreamFailureBanners.includes(row.dataset.failedRequest)) window.__dreamFailureBanners.push(row.dataset.failedRequest);
+        };
+        scan();
+        new MutationObserver(scan).observe(document, { childList: true, subtree: true, attributes: true });
+      };
+      await page.addInitScript(observeFailures);
+      await page.evaluate(observeFailures);
+      const memory = await t.session("DEV-AAA", { baseURL: t.secondaryURL });
+      await openTwinTab(memory.page, "Memory");
+      const fault = JSON.parse(execFileSync(process.env.TWINTEAMS_E2E_PYTHON, [
+        path.resolve(__dirname, "../../backend/checks/browser_e2e_fixture.py"), "fail-next-dream",
+        "--state", process.env.TWINTEAMS_E2E_STATE, "--owner-id", "owner-alex",
+      ], { encoding: "utf8" }));
+      assert.equal(fault.e2e_instance_id, process.env.TWINTEAMS_E2E_INSTANCE_ID);
+      assert.equal(fault.test_only_provider_failure, true);
+      const submission = memory.page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/me/twin/memory/dream");
+      await button(memory.page, "Dream now").click();
+      const failedId = (await (await submission).json()).request_id;
+      assert.ok(failedId);
+      const failed = await poll(async () => {
+        const state = await api(memory.page, "/me/twin/memory/status");
+        return state.dream.status === "failed" && state.dream.last_error ? state.dream : false;
+      }, "actual worker settles the one-time Dream provider failure", { timeout: 40000 });
+      const failedRequest = await poll(async () => (await api(page, "/chats/" + privateId)).requests.find(request => request.id === failedId && request.source === "memory_dream" && request.status === "failed" && request.error), "failed Dream remains in authorized API data");
+      assert.equal(failedRequest.can_retry, false);
+      await poll(() => receivedFailures.has(failedRequest.id), "private chat frontend receives real failed Dream request");
+      await page.screenshot({ path: path.join(t.artifactDir, "dream-failure-no-chat-banner.png"), fullPage: true });
+      assert.equal(await page.locator(`[data-failed-request="${failedRequest.id}"]`).count(), 0);
+      assert.ok(!(await page.evaluate(() => window.__dreamFailureBanners)).includes(failedRequest.id), "no transient Dream failure banner before reload");
+      receivedFailures.clear();
+      await page.reload();
+      await page.locator(".composer textarea").waitFor();
+      await marker(page, "E2E memory saved: " + label);
+      await poll(() => receivedFailures.has(failedRequest.id), "reloaded frontend receives the persisted failed Dream request");
+      assert.equal(await page.locator(`[data-failed-request="${failedRequest.id}"]`).count(), 0);
+      assert.ok(!(await page.evaluate(() => window.__dreamFailureBanners)).includes(failedRequest.id), "reload does not resurrect a Dream failure banner");
+      await button(memory.page, "Dream now").click();
+      const recovered = await poll(async () => {
+        const state = await api(memory.page, "/me/twin/memory/status");
+        return state.dream.status === "published" && state.dream.last_success_at ? state.dream : false;
+      }, "next ordinary Dream publishes through actual SDK memory tools", { timeout: 40000 });
+      assert.equal(recovered.last_error, null);
+      const evidence = inspectFixture();
+      assert.ok(evidence.requests.some(request => request.id === failedRequest.id && request.status === "failed"), "failure audit remains after recovery");
+      const recovery = evidence.requests.find(request => request.source === "memory_dream" && request.status === "completed" && request.id !== failedRequest.id);
+      assert.ok(recovery, "new Dream request completes without rewriting the failed attempt");
+      assert.ok(evidence.tools.some(tool => tool.request_id === recovery.id && tool.name === "memory_publish" && tool.success));
+      await page.reload();
+      await page.locator(".composer textarea").waitFor();
+      await marker(page, "E2E memory saved: " + label);
+      await page.screenshot({ path: path.join(t.artifactDir, "dream-recovered-no-chat-banner.png"), fullPage: true });
+      assert.equal(await page.locator(`[data-failed-request="${failedRequest.id}"]`).count(), 0);
+      assert.ok(!(await page.evaluate(() => window.__dreamFailureBanners)).includes(failedRequest.id), "recovered Dream has no transient failure banner");
+      t.record("dream_failure_visibility", { failedRequestId: failedRequest.id, recoveredRequestId: recovery.id,
+        failedStatus: failed.status, recoveredStatus: recovered.status, realFailedChatResponseBeforeAndAfterReload: true,
+        transientFailureBannerBeforeAndAfterReload: false, failureAuditRetained: true,
+        recoveryUsedActualMemoryPublish: true, modelMode: "deterministic-offline" });
+    },
+  },
+  {
     name: "personal / private credential CRUD, request form and continuation",
     sensitive: true,
     run: async (t) => {

@@ -38,6 +38,8 @@ Only confirmed Git publication advances `cursor_seq`. Known failure, conflict or
 
 GET `/api/me/twin/memory/status` returns Git enabled/mode and read-only Dream status, next ISO deadline, cursor, last publication version/success time and diagnostic. It does not reveal filesystem paths. Cursor/state are durable PostgreSQL rows, so restart keeps the original deadline and queued job. API, worker and migration require the additive tables and columns before startup.
 
+`last_failure_at` records the latest Dream failure time. It and the failure detail remain available while a retry is pending and are cleared after confirmed publication. The System Review receives unresolved failures as Relevant reminders; cancellation alone is not a failure. Existing databases need `ALTER TABLE tt_memory_dream_state ADD COLUMN IF NOT EXISTS last_failure_at TIMESTAMP WITH TIME ZONE` before starting the updated API or worker. Older failures without a recorded time remain undated.
+
 ## Validation
 
 `tests/test_git_memory.py` uses temporary bare repositories for explicit source-preserving migration, deletion/no-reimport, concurrent initialization, independent-file publication, same-key conflict and real HTTP owner-only CAS/audit APIs. `tests/test_memory_dream.py` uses isolated PostgreSQL for fixed future due times, incremental selection including human retry after 55 ineligible retries, cancellation, failure, unknown publication/lane release, per-owner scheduling isolation, manual edit invalidation and the complete process→SDK→Git→cursor chain. `tests/test_dream_runtime.py` covers runtime recovery/cancellation, bounded model calls, exact evidence, source authorization and protected manual edits using fake providers. No test reads real owner memory or calls a model service.

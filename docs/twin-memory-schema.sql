@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS tt_memory_dream_state (
 	last_status VARCHAR(24) NOT NULL,
 	last_version VARCHAR(64),
 	last_error TEXT,
+	last_failure_at TIMESTAMP WITH TIME ZONE,
 	last_success_at TIMESTAMP WITH TIME ZONE,
 	PRIMARY KEY (owner_id),
 	FOREIGN KEY(owner_id) REFERENCES tt_owners (id),
@@ -41,5 +42,6 @@ CREATE TABLE IF NOT EXISTS tt_memory_dream_state (
 CREATE INDEX IF NOT EXISTS tt_memory_dream_due ON tt_memory_dream_state (due_at, queued_request_id);
 
 ALTER TABLE tt_memory_edit_audit ADD COLUMN IF NOT EXISTS private_generation INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tt_memory_dream_state ADD COLUMN IF NOT EXISTS last_failure_at TIMESTAMP WITH TIME ZONE;
 
 COMMIT;

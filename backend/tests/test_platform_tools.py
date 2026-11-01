@@ -2,6 +2,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from datetime import datetime
 from threading import Barrier
 from uuid import uuid4
 
@@ -9,6 +10,7 @@ import pytest
 from duet_test_support import request_duet_reply as receiver_request
 from fastapi import HTTPException
 from sqlalchemy import func, select
+from test_memory_dream import due
 from test_memory_dream import product as product  # noqa: PLC0414
 
 from app import service as service_module
@@ -19,6 +21,7 @@ from app.models import (
     Chat,
     ContextManifest,
     Membership,
+    MemoryDreamState,
     Message,
     ProductOperation,
     ReplyRequest,
@@ -80,6 +83,34 @@ def test_owner_authorized_duet_manages_human_chats_without_posting_or_routing(pr
     status = call(product, context, "get_twin_status", {})
     assert status["twin"]["id"] == "twin-alex" and "worker" in status["runtime"]
     assert not {"soul", "execution_config", "endpoint", "key_present"} & status.keys()
+
+
+def test_twin_status_distinguishes_retry_from_new_dream_after_recovery(product):
+    _, context = origin(product, "private-alex")
+    dream_id = due(product)
+    product.fail_request(dream_id, "Publication failed")
+    failed = call(product, context, "get_twin_status", {})["memory_dream"]
+    assert failed["status"] == "failed"
+    with product.transaction() as db:
+        assert datetime.fromisoformat(failed["last_failure_at"]) == db.get(MemoryDreamState, "owner-alex").last_failure_at
+    retry_id = due(product)
+    retry = call(product, context, "get_twin_status", {})["memory_dream"]
+    assert retry["status"] == "queued" and retry["queued_request_id"] == retry_id
+    assert retry["last_failure_at"] == failed["last_failure_at"]
+    product.confirm_memory_dream_publication(retry_id, "verified")
+    recovered = call(product, context, "get_twin_status", {})["memory_dream"]
+    assert recovered["status"] == "published" and recovered["last_failure_at"] is None
+    with product.transaction() as db:
+        product.append_message(db, db.get(Chat, "private-alex"), author_id="owner-alex",
+            kind="human", body="New experience after publication")
+    next_id = due(product)
+    next_dream = call(product, context, "get_twin_status", {})["memory_dream"]
+    assert next_dream["status"] == "queued" and next_dream["queued_request_id"] == next_id
+    assert next_dream["last_failure_at"] is None
+    with product.transaction() as db:
+        db.get(MemoryDreamState, "owner-alex").last_status = "recovery_required"
+    legacy = call(product, context, "get_twin_status", {})["memory_dream"]
+    assert legacy["status"] == "recovery_required" and legacy["last_failure_at"] is None
 
 
 @pytest.mark.parametrize("name,args", [

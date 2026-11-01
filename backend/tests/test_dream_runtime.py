@@ -291,6 +291,33 @@ def test_cancel_during_publish_verifies_git_before_allowing_fresh_batch(monkeypa
     asyncio.run(run())
 
 
+def test_dream_preserves_bounded_api_failure_context_from_real_journal(monkeypatch, tmp_path):
+    async def run():
+        runtime, product, request, context = await fixture_runtime(monkeypatch, tmp_path)
+        failure = "Synthetic API 429 rate limit\nBearer synthetic-token sk-synthetic1234567890 " + "detail " * 100
+
+        def failed_provider(model, context, options):
+            raise RuntimeError(failure)
+
+        runtime.models.register_api("offline-regression", failed_provider)
+        try:
+            with pytest.raises(RuntimeError, match="Dream did not complete") as caught:
+                await runtime.execute(request, context)
+            diagnostic = str(caught.value)
+            assert "Synthetic API 429 rate limit" in diagnostic
+            assert "[redacted]" in diagnostic and "synthetic-token" not in diagnostic
+            assert "sk-synthetic1234567890" not in diagnostic and "\n" not in diagnostic
+            assert len(diagnostic) < 400
+            command = await runtime.store.get_command(runtime.tenant_id, request["id"])
+            rows = await runtime._run_records(runtime.tenant_id, command["session_id"], command["run_id"])
+            assert any(row["type"] == "run_interrupted" and row["data"].get("reason") == failure for row in rows)
+            assert publication_facts(command["session_id"], command["run_id"], rows) == []
+            assert product.outputs == [] and product.confirmed == [] and product.recovery == []
+        finally:
+            await runtime.close()
+    asyncio.run(run())
+
+
 def test_dream_model_turn_budget_stops_tool_loops(monkeypatch, tmp_path):
     async def run():
         runtime, product, request, context = await fixture_runtime(monkeypatch, tmp_path)

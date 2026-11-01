@@ -339,6 +339,7 @@ class MemoryDreamState(Base):
     last_status: Mapped[str] = mapped_column(String(24), default="idle")
     last_version: Mapped[str | None] = mapped_column(String(64))
     last_error: Mapped[str | None] = mapped_column(Text)
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

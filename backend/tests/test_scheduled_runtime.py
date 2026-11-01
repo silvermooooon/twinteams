@@ -30,10 +30,13 @@ def test_scheduled_input_contract_keeps_authorization_scope_and_system_review_ev
     assert "Do not use an arbitrary" not in prompt
     assert "Asia/Shanghai" in prompt and "occurrence-a" in prompt
     review = {"as_of": "2026-10-23T04:00:00Z", "cutoff": "previous-cutoff", "deadlines": [{"id": "due", "due_at": "2026-10-23T05:00:00Z"}],
+              "relevant_reminders": [{"kind": "memory_dream_failure", "failed_at": "2026-10-23T03:00:00Z", "context": "Publication unavailable"}],
               "external_watches": [{"id": "watch", "status": "unresolved"}], "previous_notice": {"body": "Already reported"}}
     prompt = request_prompt({"source": "system_review"}, {"system_review": review})
     for value in ("previous-cutoff", "Already reported", "upcoming or overdue deadlines", "known external watches", "Never create schedules"):
         assert value in prompt
+    assert "Relevant reminders" in prompt and "Publication unavailable" in prompt
+    assert "Recovered failures need no notice" in prompt
     for source in ("approval", "credential_result", "subagent_result"):
         request = {"source": source, "execution_config": {"scheduled_task": TASK}}
         assert is_scheduled_request(request) and terminal_output_only(request)
@@ -42,6 +45,8 @@ def test_scheduled_input_contract_keeps_authorization_scope_and_system_review_ev
     assert "Scheduled occurrence" in conversation_system({"scheduled_task": TASK})
     continued = conversation_system({"scheduled_task": {**TASK, "kind": "system_review"}})
     assert "omit unchanged notices" in continued and "Only a completed final response" in continued
+    assert "call get_twin_status" in continued and "omit recovered failures" in continued
+    assert "A null last_failure_at" in continued and "failure time is unknown" in continued
     with pytest.raises(ValueError, match="frozen owner task instructions"):
         request_prompt({"source": "scheduled_task", "input_body": '{"instructions":"unfrozen"}'}, {})
 

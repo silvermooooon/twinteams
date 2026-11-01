@@ -232,6 +232,7 @@ def process(service, scopes=None):
                 edits = _manual_edits(db, owner_id, min(row.created_at for row, _ in batch))
             except HTTPException as exc:
                 state.last_status, state.last_error = "failed", str(exc.detail)[:1000]
+                state.last_failure_at = now()
                 state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds)
                 continue
             payload = {**_message_payload(batch, through, state), "manual_edits": edits}
@@ -266,12 +267,17 @@ def finish(service, db, request, status, result=None, error=None):
             state.cursor_seq = payload["through_seq"]
         state.last_version = result["version"]
         state.last_success_at, state.last_status, state.last_error = now(), "published", None
+        state.last_failure_at = None
         state.queued_request_id = None
         state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds) if (
             not message_scope or (state.message_cursor_seq or 0) < db.get(Chat, state.chat_id).next_message_seq - 1) else None
     elif state.last_status != "recovery_required":
         state.queued_request_id, state.last_status = None, status
-        state.last_error = (error or "Memory dream did not publish")[:1000]
+        if status == "failed":
+            state.last_error = (error or "Memory dream did not publish")[:1000]
+            state.last_failure_at = now()
+        elif state.last_failure_at is None:
+            state.last_error = (error or "Memory dream did not publish")[:1000]
         state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds)
 
 
@@ -284,6 +290,7 @@ def recovery(service, request_id, error):
         state = db.get(MemoryDreamState, request.requester_id)
         if state and state.queued_request_id == request.id:
             state.last_status, state.last_error, state.due_at = "recovery_required", error[:1000], None
+            state.last_failure_at = now()
 
 
 def confirm(service, request_id, version):

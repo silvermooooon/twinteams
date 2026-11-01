@@ -200,6 +200,7 @@ def test_one_owner_manual_edit_limit_does_not_block_another_owner(product):
     with product.transaction() as db:
         bad, good = db.get(MemoryDreamState, "owner-alex"), db.get(MemoryDreamState, "owner-maya")
         assert bad.last_status == "failed" and bad.queued_request_id is None and bad.due_at > now()
+        assert bad.last_failure_at is not None and bad.last_failure_at <= now()
         assert good.last_status == "queued" and good.queued_request_id
 
 

@@ -259,6 +259,18 @@ async def execute_dream(runtime, request, context):
                 raise error
             raise RuntimeError("Memory publication could not be confirmed; manual reconciliation required")
         if error:
+            if isinstance(error, Exception):
+                reason = next((row["data"]["reason"] for row in reversed(rows)
+                    if row["type"] == "run_interrupted" and row.get("data", {}).get("status") == "failed"
+                    and row["data"].get("reason")), None)
+                if not reason:
+                    reason = next((row["data"]["message"]["errorMessage"] for row in reversed(rows)
+                        if row["type"] == "model_attempt"
+                        and row.get("data", {}).get("message", {}).get("stopReason") == "error"
+                        and row["data"]["message"].get("errorMessage")), None)
+                if reason:
+                    detail = " ".join(safe_text(reason).split())[:300]
+                    raise RuntimeError(f"{safe_text(str(error))}; {detail}") from error
             raise error
         raise RuntimeError("Memory Dream did not publish; processing cursor remains unchanged")
     finally:

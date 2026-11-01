@@ -1483,6 +1483,11 @@ class ProductService:
             summary_scope["context_manifest_id"] = manifest.id
             from .scheduled_tasks import snapshot as scheduled_snapshot
             scheduled_payload = scheduled_snapshot(request)
+            if scheduled_payload and scheduled_payload.get("kind") == "system_review":
+                from .scheduled_tasks import relevant_reminders
+                scheduled_payload = {**scheduled_payload, "system_review": {
+                    **scheduled_payload.get("system_review", {}),
+                    "relevant_reminders": relevant_reminders(db, twin.owner_id)}}
             source_message = self.visible_message(db, member, request.source_message_id, cache=checked) if request.source_message_id else None
             file_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
             files = self.attachment_references(db, file_ids, member, private_request=request if request.raw_owner_input is not None else None)

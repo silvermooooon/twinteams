@@ -131,6 +131,14 @@ def install_fixture(root):
         final = 'E2E echo: ' + label
         if 'memory_publish' in tools:
             command, label = 'DREAM', 'private-evidence'
+            fault = root / ('fail-next-dream-' + info.get('owner_id', 'unknown'))
+            if fault.exists():
+                fault.unlink()
+                with (root / 'provider-calls.jsonl').open('a') as target:
+                    target.write(json.dumps({'command': 'DREAM_FAIL_ONCE', 'tool': None,
+                        'request_id': info.get('id'), 'source': info.get('source'),
+                        'owner_id': info.get('owner_id')}) + '\n')
+                raise RuntimeError('E2E intentional one-time Dream provider failure')
             if 'memory_publish' in names:
                 final = 'E2E Dream published private evidence.'
             elif not results:
@@ -633,13 +641,14 @@ def question_history_fixture(question_id):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'question-history'])
+    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'question-history', 'fail-next-dream'])
     parser.add_argument('--port', type=int)
     parser.add_argument('--state', type=Path)
     parser.add_argument('--task-id')
     parser.add_argument('--question-id')
+    parser.add_argument('--owner-id', choices=['owner-alex', 'owner-maya', 'owner-jordan'])
     args = parser.parse_args()
-    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'question-history'}:
+    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'question-history', 'fail-next-dream'}:
         if not args.state or args.state.is_symlink() or args.state.stat().st_mode & 0o077:
             raise RuntimeError('Inspect requires its private fixture state file')
         saved = json.loads(args.state.read_text())
@@ -648,6 +657,14 @@ def main():
     root = guard()
     if args.state and args.state.resolve().parent != root:
         raise RuntimeError('State file must belong to its disposable root')
+    if args.role == 'fail-next-dream':
+        if os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline' or not args.owner_id:
+            raise RuntimeError('Dream fault injection requires an offline fixture and explicit owner')
+        with (root / ('fail-next-dream-' + args.owner_id)).open('x') as target:
+            target.write('one-time offline provider failure')
+        print(json.dumps({'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
+            'test_only_provider_failure': True, 'owner_id': args.owner_id}))
+        return
     if args.role == 'question-history':
         print(json.dumps(question_history_fixture(args.question_id)))
         return
