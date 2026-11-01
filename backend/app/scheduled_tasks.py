@@ -312,7 +312,9 @@ def review_snapshot(service, db, row, moment):
     conversation = db.scalar(select(Message.id).where(Message.chat_id == private.id,
         Message.seq >= member.lower_seq, Message.state == "published",
         Message.kind.in_(["human", "twin", "reply_for_me"])).limit(1))
-    result["needs_review"] = bool(tracking or conversation or approvals or children or memory or dream or result["deadlines"] or result["relevant_reminders"])
+    from .message_center import pending_digest
+    result["message_center"] = pending_digest(db, row.owner_id)
+    result["needs_review"] = bool(result["message_center"] or tracking or conversation or approvals or children or memory or dream or result["deadlines"] or result["relevant_reminders"])
     return result
 
 
@@ -356,6 +358,9 @@ def enqueue(service, db, row, planned, moment, *, manual_key=None):
     request = service.accept_request(db, chat, service.twin(db, row.owner_id).id, row.owner_id,
         "system_review" if row.kind == "system_review" else "scheduled_task", key,
         input_body=json.dumps(context, ensure_ascii=False), intent_key=key)
+    if row.kind == "system_review":
+        from .message_center import attach_digest
+        attach_digest(db, request, context["system_review"]["message_center"])
     request.command_fingerprint = row.id
     row.details = {**details, "active_request_id": request.id, "last_request_id": request.id,
         "last_run_at": iso(moment), "last_status": "queued", "last_error": None}

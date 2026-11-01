@@ -421,6 +421,9 @@ class RuntimeBridge:
             ("create_reminder", "Create an in-app reminder record explicitly requested by this owner. It does not wake a Duet or deliver a timed notification. For future reminders or recurring execution, prefer suitable scheduled-task tools in the owner's private chat.",
              {"chat_id": text, "title": text, "detail": text, "due_at": text}, ["title"]),
         ]
+        from .message_center import configured as center_configured, tool_schemas as center_tool_schemas
+        if center_configured() and context.get("chat", {}).get("kind") == "private":
+            schemas.extend(center_tool_schemas())
         from .runtime_scheduled import scheduled_tool_schemas
         schemas.extend(scheduled_tool_schemas())
         from .proactivity import tool_schemas as proactivity_tool_schemas

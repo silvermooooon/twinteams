@@ -107,6 +107,7 @@ class ProductService:
         self.runtime_scopes = set()
         self.deadlines = {}
         self.scheduled_task_loop = None
+        self.message_center_loop = None
         self.scheduled_due_index = None
 
     @property
@@ -195,7 +196,10 @@ class ProductService:
 
     def initialize(self, create_schema=False):
         if settings.local_identity_enabled or create_schema:
+            from . import message_center  # register its schema before provisioning
             Base.metadata.create_all(engine)
+            for index in message_center.CenterDelivery.__table__.indexes:
+                index.create(engine, checkfirst=True)
             from .conversation_context import upgrade_schema as upgrade_context_schema
             upgrade_context_schema(engine)
             from .personal_schema import upgrade_personal_schema
@@ -301,6 +305,8 @@ class ProductService:
         check_duet_message_schema(inspector)
         from .activity_visibility_schema import check_activity_visibility_schema
         check_activity_visibility_schema(inspector)
+        if not inspector.has_table("tt_message_center_deliveries") or not {"tt_center_result_outbox", "tt_center_pending_digest"}.issubset({index["name"] for index in inspector.get_indexes("tt_message_center_deliveries")}):
+            raise RuntimeError("Run python -m app.init_db before starting API or worker")
         if not inspector.has_table("tt_change_outbox") or not inspector.has_table("tt_chat_attachments") or "revision" not in {col["name"] for col in inspector.get_columns("tt_chats")} or "attachment_ids" not in {col["name"] for col in inspector.get_columns("tt_messages")}:
             raise RuntimeError("Run python -m app.init_db before starting API or worker")
         if any(column["name"] == "relative_path" and getattr(column["type"], "length", None) is not None
@@ -1121,7 +1127,7 @@ class ProductService:
         db.add(request); db.flush()
         from .request_sessions import legacy_session_id, request_session_id
         request.continuation_of_request_id = continuation_of_request_id
-        request.background = origin.background if origin else source in {"duet_message", "scheduled_task", "system_review", "memory_dream"}
+        request.background = origin.background if origin else source in {"duet_message", "scheduled_task", "system_review", "memory_dream", "message_center"}
         request.session_id = (origin.session_id or legacy_session_id(origin.chat_id, origin.target_twin_id, origin.private_generation)) if origin else request_session_id(request.id)
         db.add(DispatchCommand(request_id=request.id))
         return request
@@ -1372,8 +1378,11 @@ class ProductService:
         chain = self.request_chain(db, old)
         # Retry is a new generation of this delivery, retaining its private
         # authorization checks and terminal-only/silent output policy.
-        source = old.source if old.source in {"question_result", "duet_message", "scheduled_task", "system_review"} else "tool_retry" if automatic else "retry"
+        source = old.source if old.source in {"question_result", "duet_message", "scheduled_task", "system_review", "message_center"} else "tool_retry" if automatic else "retry"
         request = self.accept_request(db, chat, old.target_twin_id, owner_id, source, key, source_message_id=old.source_message_id, raw=old.raw_owner_input, prompt=old.frozen_prompt, reply_to=old.reply_to_message_id, generation=generation, intent_key=old.intent_key, input_body=old.input_body, causal_chain_id=chain.id, source_owner_id=old.source_owner_id, input_attachment_ids=old.input_attachment_ids, command_fingerprint=old.command_fingerprint, continuation_of_request_id=old.id)
+        from .message_center import configured as center_configured, retry as center_retry
+        if old.background and (center_configured() or old.source == "message_center"):
+            center_retry(db, old, request)
         from .scheduled_tasks import snapshot as scheduled_snapshot
         if automatic or scheduled_snapshot(old):
             from copy import deepcopy
@@ -1499,6 +1508,15 @@ class ProductService:
                 scheduled_payload = {**scheduled_payload, "system_review": {
                     **scheduled_payload.get("system_review", {}),
                     "relevant_reminders": relevant_reminders(db, twin.owner_id)}}
+            from .message_center import configured as center_configured, delivery_context
+            center_delivery = delivery_context(db, request) if request.background and (center_configured() or request.source == "message_center") else None
+            if scheduled_payload and scheduled_payload.get("kind") == "system_review":
+                from .message_center import CenterDelivery, brief
+                entries = scheduled_payload.get("system_review", {}).get("message_center", [])
+                ids = [entry["delivery_id"] for entry in entries]
+                current = {item.id: item for item in db.scalars(select(CenterDelivery).where(
+                    CenterDelivery.id.in_(ids), CenterDelivery.state == "received"))} if ids else {}
+                scheduled_payload["system_review"]["message_center"] = [brief(current[item_id]) for item_id in ids if item_id in current]
             source_message = self.visible_message(db, member, request.source_message_id, cache=checked) if request.source_message_id else None
             file_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
             files = self.attachment_references(db, file_ids, member, private_request=request if request.raw_owner_input is not None else None)
@@ -1507,7 +1525,7 @@ class ProductService:
             continuation_origin = ({"request_id": origin.id, "session_id": origin.session_id,
                 "run_id": origin.run_id, "status": origin.status, "cancel_requested": origin.cancel_requested} if origin else None)
             from .onboarding import context_for_request
-            return {"background": request.background, "activity_user_visible": self._activity_request_user_visible(db, request), "active_requests": active_requests, "continuation_of_request_id": request.continuation_of_request_id, "continuation_origin": continuation_origin, "pending_questions": pending, "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": conversation["messages"], "_summary_scope": summary_scope, "context_incomplete": conversation["context_incomplete"], "source_message": self.message_json(db, source_message, member, cache=checked) if source_message else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+            return {"message_center": center_delivery, "background": request.background, "activity_user_visible": self._activity_request_user_visible(db, request), "active_requests": active_requests, "continuation_of_request_id": request.continuation_of_request_id, "continuation_origin": continuation_origin, "pending_questions": pending, "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": conversation["messages"], "_summary_scope": summary_scope, "context_incomplete": conversation["context_incomplete"], "source_message": self.message_json(db, source_message, member, cache=checked) if source_message else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
 
     def _concurrent_task_context(self, db, request, chat, member):
         """Authorized task hints, including children whose foreground turn finished."""
@@ -1732,6 +1750,9 @@ class ProductService:
                 experience_completed(self, db, request)
             from .scheduled_tasks import finish as scheduled_finish
             scheduled_finish(db, request, status)
+            from .message_center import configured as center_configured, finish as center_finish
+            if request.background and (center_configured() or request.source == "message_center"):
+                center_finish(db, request, status)
             command = db.get(DispatchCommand, request.id)
             if command:
                 command.state, command.updated_at = "delivered", now()
@@ -1914,6 +1935,16 @@ class ProductService:
                 raise RuntimeError(f"Runtime storage is unavailable: {self.runtime.startup_error}")
             if not self.runtime or not self.model_configured:
                 raise RuntimeError("Model provider is not configured. Set the supported provider API key and restart; no generated reply was produced.")
+            from .message_center import configured as center_configured, refresh as center_refresh
+            if center_configured() and payload.get("background"):
+                try:
+                    current = await center_refresh(self, request_id)
+                except Exception:
+                    self.deferred[request_id] = (self.loop.time() if self.loop else 0) + settings.compensation_seconds
+                    return
+                if not current:
+                    await self.db_call("finish_request", request_id, "completed")
+                    return
             context = await self.db_call("get_runtime_context", request_id)
             self.publish_event(payload["chat_id"], {"type": "status", "request_id": request_id, "text": "running"})
             result = await resolve(self.runtime.execute(payload, context))
@@ -2054,11 +2085,14 @@ class ProductService:
             from .scheduled_tasks import DueIndex
             self.scheduled_due_index = DueIndex(self)
             self.scheduled_task_loop = asyncio.create_task(self.scheduled_tasks_scheduler())
+            from .message_center import configured as center_configured, run as center_run
+            if center_configured():
+                self.message_center_loop = asyncio.create_task(center_run(self))
 
     async def close(self):
         self.stopping = True
         notifications.listeners.discard(self._notify)
-        tasks = [t for t in [self.scheduler_task, self.scheduled_task_loop, *self.tasks.values()] if t]
+        tasks = [t for t in [self.scheduler_task, self.scheduled_task_loop, self.message_center_loop, *self.tasks.values()] if t]
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -2691,6 +2725,9 @@ class ProductService:
                 "author_id": twin.id, "author_owner_id": twin.owner_id}
 
     async def runtime_tool(self, name, args, context):
+        from .message_center import TOOLS as CENTER_TOOLS, tool as center_tool
+        if name in CENTER_TOOLS:
+            return await center_tool(self, name, args, context)
         if name == "execute_approved_action":
             if not isinstance(args, dict) or set(args) != {"id"} or not isinstance(args["id"], str):
                 fail(400, "execute_approved_action accepts only the approval ID")

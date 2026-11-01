@@ -21,6 +21,7 @@ from .personal_api import router as personal_router
 from .provider_config import router as provider_config_router
 from .question_api import router as question_router
 from .scheduled_task_api import router as scheduled_task_router
+from .message_center import router as message_center_router
 from .service import service
 
 if sys.version_info[:2] != (3, 13):
@@ -53,6 +54,7 @@ async def lifespan(app):
 app = FastAPI(title="Duet API", version="0.2.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_credentials=False, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization", "X-Owner-Id"])
 app.include_router(router)
+app.include_router(message_center_router)
 app.include_router(provider_config_router)
 app.include_router(personal_router)
 app.include_router(contact_router)

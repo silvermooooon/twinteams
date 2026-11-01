@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-02",
+  "status": "passed",
+  "scope": "Separate Message Center and Duet services",
+  "execution": {
+    "command": "cd backend && uv run python checks/message_center_acceptance.py",
+    "services": ["Message Center API", "Message Center worker", "Duet API", "Duet worker", "Agent Runtime SDK"],
+    "model": "Explicit deterministic offline SDK provider; no live model calls",
+    "storage": "Disposable isolated PostgreSQL schema and temporary workspaces",
+    "external_state": "No application database or existing processes modified"
+  },
+  "cross_service_cases": [
+    "Alex's Duet publishes a Message Center message addressed to Maya",
+    "Immediate delivery produces a private owner report and confirmed owner update",
+    "Immediate delivery can complete silently without claiming an owner update or human read",
+    "Duplicate delivery callbacks reuse the original request",
+    "Maya's explicit attendance response appears in Message Center",
+    "Digest delivery waits without an immediate Duet request and is consumed by system review",
+    "Accepted delivery survives a Duet worker restart and Message Center outage, then processes after recovery"
+  ],
+  "isolated_regression": {
+    "command": "uv run pytest -q tests/test_message_center.py tests/test_scheduled_tasks.py tests/test_request_concurrency.py tests/test_activity_visibility.py",
+    "result": "55 passed",
+    "additional_center_suite": "9 passed",
+    "coverage": ["delivery identity and retry", "silent and reported SDK execution", "bounded digest batches", "result outbox outage recovery", "obsolete versions and continuations", "late private owner update", "bounded tool results", "explicit consumed marks", "callback authentication and validation"]
+  },
+  "notification_semantics": "notified records a confirmed private owner update. Digest notifications remain conservatively unconfirmed because a general review report cannot be attributed reliably to each receipt. Human read is separate."
+}

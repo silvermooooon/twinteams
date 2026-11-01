@@ -83,3 +83,7 @@ legacy migration, conflict and unknown-publication behavior. Runtime status is w
 not a promise that an existing run uses a newly changed model configuration.
 
 Message reactions use the additive `tt_message_reactions` table, with a composite Message/Actor/emoji primary key. Deploy `python -m app.migrate_reactions` before reloading the API and Worker; it only provisions this table, performs no history backfill and invokes no model. New installations also provision it through `app.init_db`. See [message-reactions.md](message-reactions.md) and the standalone [DDL](message-reactions-schema.sql) for desired-state idempotence, batch projections, Actor ownership and private-reset cleanup.
+
+## Message Center integration
+
+Set `TWINTEAMS_MESSAGE_CENTER_URL` and `TWINTEAMS_MESSAGE_CENTER_TOKEN` to connect the separately deployed Message Center, and configure its Duet callback URL and the same service token. Run `cd backend && uv run python -m app.init_db` before starting the API and worker to provision the additive delivery inbox. Both processes need the same settings. With the URL or token unset, the integration is disabled. Immediate deliveries enqueue the owner's private Duet; digest deliveries wait for its system review. Delivery receipt, Duet processing, and the owner's explicit read status are separate facts; queued result reports retry while the service is unavailable.

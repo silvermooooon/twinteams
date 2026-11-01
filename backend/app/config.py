@@ -23,6 +23,8 @@ def local_database(url: str) -> bool:
 
 @dataclass(frozen=True)
 class Settings:
+    message_center_url: str = os.getenv("TWINTEAMS_MESSAGE_CENTER_URL", "").strip()
+    message_center_token: str = os.getenv("TWINTEAMS_MESSAGE_CENTER_TOKEN", "").strip()
     tenant_id: str = os.getenv("TWINTEAMS_TENANT_ID", "local")
     environment: str = os.getenv("TWINTEAMS_ENV", "local")
     development_mode: bool = flag("TWINTEAMS_DEVELOPMENT_MODE", False)
