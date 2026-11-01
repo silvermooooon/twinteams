@@ -48,7 +48,7 @@ async def main():
     parser.add_argument('--artifact-dir', type=Path)
     parser.add_argument('--node', default=os.getenv('TWINTEAMS_E2E_NODE'), help='Node >=22.12 executable')
     parser.add_argument('--live-model', action='store_true', help='Explicit bounded real gpt-6-luna scenario; offline remains the default')
-    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking', 'scheduled-task-workflow', 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'proactivity', 'contacts', 'interaction-live', 'read-unread-live', 'group-routing-live', 'group-routing-follow-on', 'group-route-recovery'])
+    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking', 'scheduled-task-workflow', 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'proactivity', 'contacts', 'interaction-live', 'read-unread-live', 'group-routing-live', 'group-routing-follow-on', 'group-route-recovery', 'message-center-live'])
     parser.add_argument('--live-max-attempts', type=int, default=60, help='Frozen per-campaign HTTP-attempt ceiling, including smoke and worker restarts')
     args = parser.parse_args()
     if not 1 <= args.live_max_attempts <= 60:
@@ -67,7 +67,7 @@ async def main():
     if args.live_model:
         sys.path.insert(0, str(BACKEND))
         from checks.browser_e2e_live import configuration
-        live = configuration()
+        live = configuration(proxy_port=None if args.scenario == 'message-center-live' else 7894)
     candidates = [args.node or shutil.which('node')]
     if not args.node:
         candidates += [str(path) for path in Path('/usr/local/n/versions/node').glob('*/bin/node')]
@@ -184,6 +184,30 @@ async def main():
             if args.live_model:
                 from checks.browser_e2e_live import initialize_budget
                 initialize_budget(root, max_attempts=args.live_max_attempts)
+            if args.scenario == 'message-center-live':
+                center_port = free_port()
+                while center_port in {port_a, port_b, 8020}:
+                    center_port = free_port()
+                center_dir = BACKEND.parent.parent / 'message-center' / 'backend'
+                center_python = str(center_dir / '.venv' / 'bin' / 'python')
+                token = 'acceptance-' + uuid4().hex
+                center_url = f'http://127.0.0.1:{center_port}'
+                env.update(TWINTEAMS_E2E_CENTER_URL=center_url, TWINTEAMS_MESSAGE_CENTER_URL=center_url,
+                    TWINTEAMS_MESSAGE_CENTER_TOKEN=token, MESSAGE_CENTER_SERVICE_TOKEN=token,
+                    DUET_BASE_URL=url_a, MESSAGE_CENTER_TEST_FIXTURE='true')
+                state.write_text(json.dumps({'env': env, 'root': str(root)}))
+                def center_spawn(role, command):
+                    log = (artifacts / (role + '.log')).open('w')
+                    handles.append(log)
+                    process = subprocess.Popen(command, cwd=center_dir, env={**env, 'REDIS_URL': ''},
+                        stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                    processes.append(process)
+                    return process
+                init = center_spawn('center-init', [center_python, '-m', 'app.init_db'])
+                if await asyncio.to_thread(init.wait, 30):
+                    raise RuntimeError('Center initialization failed')
+                center_spawn('center-api', [center_python, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(center_port), '--log-level', 'warning'])
+                center_spawn('center-worker', [center_python, '-m', 'app.worker'])
             spawn('worker')
             spawn('api', port_a)
             spawn('api', port_b)
@@ -281,8 +305,9 @@ async def main():
             # Logs contain only synthetic fixture data; redact private connection strings.
             for path in artifacts.glob('*.log'):
                 content = path.read_text(errors='replace')
-                for value in (private['DATABASE_URL'], private['TWINTEAMS_REDIS_URL'], database.url, env['AGENT_SECRETS_KEY'], *live.values()):
-                    content = content.replace(value, '<private-test-config>')
+                for value in (private['DATABASE_URL'], private['TWINTEAMS_REDIS_URL'], database.url, env['AGENT_SECRETS_KEY'], env.get('TWINTEAMS_MESSAGE_CENTER_TOKEN', ''), *live.values()):
+                    if value:
+                        content = content.replace(value, '<private-test-config>')
                 path.write_text(content)
             redis = Redis.from_url(env['TWINTEAMS_REDIS_URL'])
             remaining = None

@@ -421,7 +421,8 @@ class RuntimeBridge:
             ("create_reminder", "Create an in-app reminder record explicitly requested by this owner. It does not wake a Duet or deliver a timed notification. For future reminders or recurring execution, prefer suitable scheduled-task tools in the owner's private chat.",
              {"chat_id": text, "title": text, "detail": text, "due_at": text}, ["title"]),
         ]
-        from .message_center import configured as center_configured, tool_schemas as center_tool_schemas
+        from .message_center import configured as center_configured
+        from .message_center import tool_schemas as center_tool_schemas
         if center_configured() and context.get("chat", {}).get("kind") == "private":
             schemas.extend(center_tool_schemas())
         from .runtime_scheduled import scheduled_tool_schemas
@@ -503,7 +504,9 @@ class RuntimeBridge:
                 ["name", "description", "keynames", "reason"]))
         schemas.extend([
             ("ask_question", "Ask your own owner one focused non-secret question needed for the current task. Optional two or three suggestions still allow free text. A durable question appears in the owner's private chat, with this task as its origin. Returns pending immediately: continue independent work, then yield rather than wait or poll. The answer resumes this exact task; it is input, not action approval. Never request credentials here or repeat the question in your final reply.",
-             {"question": text, "options": {"type": "array", "items": text, "minItems": 2, "maxItems": 3}}, ["question"]),
+             {"question": text, "options": {"anyOf": [
+                 {"type": "array", "items": text, "maxItems": 0},
+                 {"type": "array", "items": text, "minItems": 2, "maxItems": 3}]}}, ["question"]),
             ("answer_question", "Associate this fresh owner's human input with a pending question only when it clearly answers that question. Supply the current source message ID; the server uses its exact text. Unrelated or ambiguous input remains a new request; never invent or rewrite an owner's decision. This grants no action approval.",
              {"question_id": text, "message_id": text}, ["question_id", "message_id"]),
         ])

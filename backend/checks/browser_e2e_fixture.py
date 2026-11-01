@@ -401,6 +401,7 @@ def api_app():
     from starlette.staticfiles import StaticFiles
 
     from app import api, main
+    from app.message_center import router as message_center
     from app.contact_api import router as contacts
     from app.credential_api import router as credentials
     from app.onboarding_api import router as onboarding
@@ -415,7 +416,7 @@ def api_app():
     def fixture_config():
         return {**api.config(), 'acceptance_fixture': os.environ.get('TWINTEAMS_E2E_MODEL_MODE') != 'live-gpt-6-luna'}
 
-    for router in (api.router, credentials, personal, provider, scheduled_tasks, onboarding, questions, contacts):
+    for router in (api.router, message_center, credentials, personal, provider, scheduled_tasks, onboarding, questions, contacts):
         app.include_router(router)
 
     @app.get('/health')
@@ -530,12 +531,14 @@ def inspect_fixture(root):
             tools.append({'name': name, 'session_id': session_id, 'run_id': run_id,
                 'call_id': data.get('call_id'), 'event_id': record.get('id'), 'seq': record.get('seq'),
                 'request_id': request_ids.get((session_id, run_id)), 'owner_id': run_owners.get((session_id, run_id)),
-                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key', 'title', 'timezone', 'schedule', 'question_id', 'message_id', 'level', 'quiet_hours') if field in args},
+                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key', 'title', 'timezone', 'schedule', 'question_id', 'message_id', 'level', 'quiet_hours') + (('body', 'recipients', 'response', 'note', 'question', 'options') if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live' else ()) if field in args},
                 'result_ids': {field: result_value[field] for field in ('id', 'chat_id', 'message_id', 'request_id', 'continuation_request_id') if isinstance(result_value, dict) and isinstance(result_value.get(field), str)},
                 'success': not result.get('isError', False),
                 'credential_available': 'E2E_CREDENTIAL_AVAILABLE' in output,
                 'owner_cwd_verified': 'owner-cwd=' in output and '/workspaces/private-' in output})
             from app.config import settings
+            if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live' and result.get('isError'):
+                tools[-1]['error_text'] = output[:1000]
             tools[-1]['memory_key'] = args.get('key') if name and name.startswith('memory_') else None
             tools[-1]['result_memory_keys'] = [match['key'] for match in result_value.get('matches', [])
                 if isinstance(match, dict) and isinstance(match.get('key'), str)] if name == 'memory_search' and isinstance(result_value, dict) else []
@@ -574,8 +577,17 @@ def inspect_fixture(root):
                         checksum = hashlib.file_digest(source, 'sha256').hexdigest()
                     files.append({'path': str(path), 'chat_id': path.relative_to(settings.workspace_root).parts[0], 'size': path.stat().st_size, 'sha256': checksum, 'request_id': request_ids.get((session_id, run_id)), 'run_id': run_id})
     budget = json.loads((root / 'live-budget.json').read_text()) if (root / 'live-budget.json').exists() else None
+    center = {}
+    if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live':
+        with service.transaction() as db:
+            for name, query in {
+                'messages': 'SELECT id,title,body,kind,publisher,recipients FROM mc_messages ORDER BY created_at',
+                'deliveries': 'SELECT id,message_id,owner_id,status,notified,human_read,request_id,attempts FROM mc_deliveries ORDER BY created_at',
+                'responses': 'SELECT message_id,owner_id,response,note FROM mc_responses ORDER BY updated_at',
+            }.items():
+                center[name] = [dict(row._mapping) for row in db.execute(text(query))]
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
-            'live_budget': budget,
+            'center': center, 'live_budget': budget,
             'requests': requests, 'scheduled_tasks': tasks, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'files': files, 'approvals': approvals, 'credentials': credentials,
             'questions': questions,
             'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}

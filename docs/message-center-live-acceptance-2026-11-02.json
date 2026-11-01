@@ -1,0 +1,850 @@
+{
+  "description": "Isolated real browser, real gpt-6-luna, Duet and Message Center worker acceptance.",
+  "actual_model": "gpt-6-luna",
+  "status": "passed",
+  "duration_ms": 95086,
+  "provider_attempt_count": 25,
+  "provider_http_statuses": [
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "details": {
+    "scope_check": {
+      "prompt": "Please organize a team lunch next Friday and invite people to sign up.",
+      "source": "788c12d3-fba6-4027-8c7d-c67a42d22aa1",
+      "scopeText": "Who should I invite (names), and what time or location—if any—should the signup invitation include? I have next Friday as November 6, 2026; if the details aren’t set, I can leave them open/TBD.\nI’m treating “next Friday” as **November 6, 2026**. Who should I invite, and what time or location should I include? If those details aren’t set, I can leave them TBD.\nWho should I invite (names), and what time or location—if any—should the signup invitation include? I have next Friday as November 6, 2026; if the details aren’t set, I can leave them open/TBD.",
+      "centerMessages": [],
+      "toolCalls": [
+        {
+          "name": "ask_question",
+          "session_id": "acf05ca1be36549781dd82ca851bcfde",
+          "run_id": "7a1c00913bd0483dbe4ce58bd256410d",
+          "call_id": "call_xnWlasjeJHxsB5NCxGqA29AL|fc_0c5474b9a6fecc81016ae771162b1487d0ac78ef4d06ee2247",
+          "event_id": "523d32eb0f3345329796ef0468270bb8",
+          "seq": 9,
+          "request_id": "3b2849ae-0f8a-498a-ab17-f01b04ca9509",
+          "owner_id": "owner-alex",
+          "arguments": {
+            "question": "Who should I invite (names), and what time or location—if any—should the signup invitation include? I have next Friday as November 6, 2026; if the details aren’t set, I can leave them open/TBD.",
+            "options": [
+              "I’ll provide names and details",
+              "Invite a named team/group; leave details TBD"
+            ]
+          },
+          "result_ids": {
+            "id": "4fdda951-ee2f-4a00-9d64-8c7baf97eebe",
+            "message_id": "b445dd17-8ecb-4888-8f14-d35d1bd14753"
+          },
+          "success": true,
+          "credential_available": false,
+          "owner_cwd_verified": false,
+          "memory_key": null,
+          "result_memory_keys": [],
+          "tracking_id": null,
+          "result_tracking_markers": [],
+          "attachment_ids_read": [],
+          "attachment_paths_mentioned": []
+        }
+      ],
+      "audienceAnswer": "Please invite Alex, Maya, and Jordan."
+    },
+    "all_delivery": {
+      "message": {
+        "id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "title": "Team lunch signup — Friday, November 6",
+        "body": "We’re organizing a team lunch for Friday, November 6, 2026. Time and location are TBD. Please sign up if you’d like to join; indicate whether you plan to attend so we can get a headcount.",
+        "kind": "invitation",
+        "publisher": "owner-alex",
+        "recipients": [
+          "owner-alex",
+          "owner-maya",
+          "owner-jordan"
+        ]
+      },
+      "owners": {
+        "alex": {
+          "delivery": {
+            "id": "1ff09f009d1b42fb84f16f69e04ed6c3",
+            "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+            "owner_id": "owner-alex",
+            "status": "processed",
+            "notified": true,
+            "human_read": false,
+            "request_id": "5f658d98-4aab-45e5-916f-8e12d56f31a5",
+            "attempts": 0
+          },
+          "messages": [
+            {
+              "kind": "twin",
+              "body": "For the team lunch on Friday, November 6, 2026 (time and location TBD), would you like me to tell the organizer that you’re attending or declining?"
+            }
+          ],
+          "questions": [
+            {
+              "id": "f09d7c20-57e1-4c44-88ae-fe226317fa75",
+              "question": "For the team lunch on Friday, November 6, 2026 (time and location TBD), would you like me to tell the organizer that you’re attending or declining?"
+            }
+          ]
+        },
+        "maya": {
+          "delivery": {
+            "id": "7f9fa4af49a246d68187199d961c1c8f",
+            "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+            "owner_id": "owner-maya",
+            "status": "processed",
+            "notified": true,
+            "human_read": false,
+            "request_id": "b1b8752c-70bf-4e5e-addf-21bd2229175a",
+            "attempts": 0
+          },
+          "messages": [
+            {
+              "kind": "twin",
+              "body": "Would you like me to tell the organizer whether you plan to attend the team lunch on Friday, November 6, 2026? The time and location are still TBD."
+            }
+          ],
+          "questions": [
+            {
+              "id": "7ccfc078-8f89-43ae-b232-35cb822cf66d",
+              "question": "Would you like me to tell the organizer whether you plan to attend the team lunch on Friday, November 6, 2026? The time and location are still TBD."
+            }
+          ]
+        },
+        "jordan": {
+          "delivery": {
+            "id": "61fa918595464c4e85e7f77d137b9d27",
+            "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+            "owner_id": "owner-jordan",
+            "status": "processed",
+            "notified": true,
+            "human_read": false,
+            "request_id": "ddbea623-d280-46d4-9560-d3e1c8eaf8dd",
+            "attempts": 0
+          },
+          "messages": [
+            {
+              "kind": "twin",
+              "body": "Would you like me to tell Alex that you’re attending or declining the team lunch on Friday, November 6? The time and location are still TBD."
+            }
+          ],
+          "questions": [
+            {
+              "id": "e8a59554-baf2-4f88-8ad8-90e85d90ebf4",
+              "question": "Would you like me to tell Alex that you’re attending or declining the team lunch on Friday, November 6? The time and location are still TBD."
+            }
+          ]
+        }
+      },
+      "publishCalls": [
+        {
+          "name": "publish_center_message",
+          "session_id": "acf05ca1be36549781dd82ca851bcfde",
+          "run_id": "321d5f2258ae4de6b999030ee5826682",
+          "call_id": "call_y92hio8MiH7WdlmV8KRGtyD0|fc_0c5474b9a6fecc81016ae771287f7c87d088795a205bd8f3e9",
+          "event_id": "832150707da446f0a2b2572f51507572",
+          "seq": 43,
+          "request_id": "d6f6fc86-1071-4d5f-bb82-a4a356530fad",
+          "owner_id": "owner-alex",
+          "arguments": {
+            "title": "Team lunch signup — Friday, November 6",
+            "body": "We’re organizing a team lunch for Friday, November 6, 2026. Time and location are TBD. Please sign up if you’d like to join; indicate whether you plan to attend so we can get a headcount.",
+            "recipients": [
+              "owner-alex",
+              "owner-maya",
+              "owner-jordan"
+            ]
+          },
+          "result_ids": {
+            "id": "3aef2d0e9e3a473e8b43d337030e0780"
+          },
+          "success": true,
+          "credential_available": false,
+          "owner_cwd_verified": false,
+          "memory_key": null,
+          "result_memory_keys": [],
+          "tracking_id": null,
+          "result_tracking_markers": [],
+          "attachment_ids_read": [],
+          "attachment_paths_mentioned": []
+        }
+      ]
+    },
+    "attendance": {
+      "responses": [
+        {
+          "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+          "owner_id": "owner-alex",
+          "response": "attending",
+          "note": "I will attend."
+        },
+        {
+          "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+          "owner_id": "owner-maya",
+          "response": "attending",
+          "note": null
+        },
+        {
+          "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+          "owner_id": "owner-jordan",
+          "response": "attending",
+          "note": "I’ll attend the team lunch on Friday, November 6."
+        }
+      ],
+      "calls": [
+        {
+          "name": "respond_center_message",
+          "session_id": "042fbe6401c852aebde8a3f70108d04d",
+          "run_id": "fce4986d9a2a40e2b4f5a8315dbc2c0d",
+          "call_id": "call_73LYZuOW8jgBygabmxpWmtKs|fc_01d7956d50dbe3fe016ae77146bb7487d09a273640dbdc7f8e",
+          "event_id": "de8ef78320e64aa9b589721ebb066a9c",
+          "seq": 27,
+          "request_id": "d91f2612-d05f-4063-a287-165b9c744608",
+          "owner_id": "owner-alex",
+          "arguments": {
+            "id": "3aef2d0e9e3a473e8b43d337030e0780",
+            "response": "attending",
+            "note": "I will attend."
+          },
+          "result_ids": {
+            "id": "1729027aa7ee4fa6aa0fafbf2798a326",
+            "message_id": "3aef2d0e9e3a473e8b43d337030e0780"
+          },
+          "success": true,
+          "credential_available": false,
+          "owner_cwd_verified": false,
+          "memory_key": null,
+          "result_memory_keys": [],
+          "tracking_id": null,
+          "result_tracking_markers": [],
+          "attachment_ids_read": [],
+          "attachment_paths_mentioned": []
+        },
+        {
+          "name": "respond_center_message",
+          "session_id": "b3bc383486ed55a984a797319ce6f3fa",
+          "run_id": "f38af05f3f9b4d4ebef1040ca86e6966",
+          "call_id": "call_gEIrBJSuBOgtOSd39btDUKPI|fc_0afb706f35abd3f9016ae7714e034c87d0801865d113710c35",
+          "event_id": "fe35882e340f4ae39aa1915d59339c2e",
+          "seq": 27,
+          "request_id": "5e30d6ce-560b-49ce-a416-0af9b1e20568",
+          "owner_id": "owner-jordan",
+          "arguments": {
+            "id": "3aef2d0e9e3a473e8b43d337030e0780",
+            "response": "attending",
+            "note": "I’ll attend the team lunch on Friday, November 6."
+          },
+          "result_ids": {
+            "id": "4634ef7ee62646fb901029a25b874080",
+            "message_id": "3aef2d0e9e3a473e8b43d337030e0780"
+          },
+          "success": true,
+          "credential_available": false,
+          "owner_cwd_verified": false,
+          "memory_key": null,
+          "result_memory_keys": [],
+          "tracking_id": null,
+          "result_tracking_markers": [],
+          "attachment_ids_read": [],
+          "attachment_paths_mentioned": []
+        },
+        {
+          "name": "respond_center_message",
+          "session_id": "e0b2cb03b48050579e9c1a66df2d10ac",
+          "run_id": "9b616f73137f414a92dffd522a680a40",
+          "call_id": "call_viXCv5VRQlyaWkTyks9c4bOC|fc_05fe928c372180aa016ae77148030c87d091a97bfd51587cc8",
+          "event_id": "6b2d97e1ca9e4e6d8f70c0f901456d2a",
+          "seq": 27,
+          "request_id": "ca58d535-978d-4286-b118-a09649b97390",
+          "owner_id": "owner-maya",
+          "arguments": {
+            "id": "3aef2d0e9e3a473e8b43d337030e0780",
+            "response": "attending"
+          },
+          "result_ids": {
+            "id": "2587b9239c354908bc1e433213306b5f",
+            "message_id": "3aef2d0e9e3a473e8b43d337030e0780"
+          },
+          "success": true,
+          "credential_available": false,
+          "owner_cwd_verified": false,
+          "memory_key": null,
+          "result_memory_keys": [],
+          "tracking_id": null,
+          "result_tracking_markers": [],
+          "attachment_ids_read": [],
+          "attachment_paths_mentioned": []
+        }
+      ],
+      "ownerAnswer": "Yes, I will attend. Please tell the organizer."
+    },
+    "subset": {
+      "source": "5e8be769-3006-4ce3-b656-399055cb7a82",
+      "message": {
+        "id": "ea6f740b8db74ffbbaed334dcce1c397",
+        "title": "Book club — Wednesday, November 4, 2026",
+        "body": "I’m organizing a book club for Wednesday, November 4, 2026. Time and location are TBD. Maya and Jordan, please sign up and indicate whether you plan to attend.",
+        "kind": "invitation",
+        "publisher": "owner-alex",
+        "recipients": [
+          "owner-maya",
+          "owner-jordan"
+        ]
+      },
+      "deliveries": [
+        {
+          "id": "9e1b8d605c9a41a1b0e744b564b76426",
+          "message_id": "ea6f740b8db74ffbbaed334dcce1c397",
+          "owner_id": "owner-maya",
+          "status": "processed",
+          "notified": true,
+          "human_read": false,
+          "request_id": "40aa9226-504d-4c17-be4f-5cc4adc76d78",
+          "attempts": 0
+        },
+        {
+          "id": "98a88b9b621a48a4abc786d26a31e1be",
+          "message_id": "ea6f740b8db74ffbbaed334dcce1c397",
+          "owner_id": "owner-jordan",
+          "status": "processed",
+          "notified": true,
+          "human_read": false,
+          "request_id": "f3dee767-0068-48de-b34f-31f877841928",
+          "attempts": 0
+        }
+      ],
+      "questions": {
+        "maya": {
+          "messages": [
+            "For the book club on Wednesday, November 4, 2026 (time and location TBD), would you like me to tell the organizer that you’re attending or declining?"
+          ],
+          "questions": [
+            "For the book club on Wednesday, November 4, 2026 (time and location TBD), would you like me to tell the organizer that you’re attending or declining?"
+          ]
+        },
+        "jordan": {
+          "messages": [
+            "Do you want me to tell Alex whether you’re attending or declining the book club on Wednesday, November 4? The time and location are still TBD."
+          ],
+          "questions": [
+            "Do you want me to tell Alex whether you’re attending or declining the book club on Wednesday, November 4? The time and location are still TBD."
+          ]
+        }
+      },
+      "publishCalls": [
+        {
+          "name": "publish_center_message",
+          "session_id": "a72054db84ed585981b42f1fd86f0aab",
+          "run_id": "294fa1ef558647aba6921d3ae0abecc1",
+          "call_id": "call_caNhOVetpG5etL3na5MJi1pS|fc_0e988b063448b488016ae7715fd25487d0ba1e9bd98f310ec8",
+          "event_id": "3e69e23758aa4323b12a51b44b8068a5",
+          "seq": 28,
+          "request_id": "d4c2d61d-aeb0-4f8c-b831-0e3a939dc2e3",
+          "owner_id": "owner-alex",
+          "arguments": {
+            "title": "Book club — Wednesday, November 4, 2026",
+            "body": "I’m organizing a book club for Wednesday, November 4, 2026. Time and location are TBD. Maya and Jordan, please sign up and indicate whether you plan to attend.",
+            "recipients": [
+              "owner-maya",
+              "owner-jordan"
+            ]
+          },
+          "result_ids": {
+            "id": "ea6f740b8db74ffbbaed334dcce1c397"
+          },
+          "success": true,
+          "credential_available": false,
+          "owner_cwd_verified": false,
+          "memory_key": null,
+          "result_memory_keys": [],
+          "tracking_id": null,
+          "result_tracking_markers": [],
+          "attachment_ids_read": [],
+          "attachment_paths_mentioned": []
+        },
+        {
+          "name": "publish_center_message",
+          "session_id": "acf05ca1be36549781dd82ca851bcfde",
+          "run_id": "321d5f2258ae4de6b999030ee5826682",
+          "call_id": "call_y92hio8MiH7WdlmV8KRGtyD0|fc_0c5474b9a6fecc81016ae771287f7c87d088795a205bd8f3e9",
+          "event_id": "832150707da446f0a2b2572f51507572",
+          "seq": 43,
+          "request_id": "d6f6fc86-1071-4d5f-bb82-a4a356530fad",
+          "owner_id": "owner-alex",
+          "arguments": {
+            "title": "Team lunch signup — Friday, November 6",
+            "body": "We’re organizing a team lunch for Friday, November 6, 2026. Time and location are TBD. Please sign up if you’d like to join; indicate whether you plan to attend so we can get a headcount.",
+            "recipients": [
+              "owner-alex",
+              "owner-maya",
+              "owner-jordan"
+            ]
+          },
+          "result_ids": {
+            "id": "3aef2d0e9e3a473e8b43d337030e0780"
+          },
+          "success": true,
+          "credential_available": false,
+          "owner_cwd_verified": false,
+          "memory_key": null,
+          "result_memory_keys": [],
+          "tracking_id": null,
+          "result_tracking_markers": [],
+          "attachment_ids_read": [],
+          "attachment_paths_mentioned": []
+        }
+      ],
+      "prompt": "Please organize a book club next Wednesday and invite only Maya and Jordan to sign up."
+    },
+    "closure": {
+      "requests": [
+        {
+          "id": "3b2849ae-0f8a-498a-ab17-f01b04ca9509",
+          "source": "private",
+          "status": "completed"
+        },
+        {
+          "id": "d6f6fc86-1071-4d5f-bb82-a4a356530fad",
+          "source": "question_result",
+          "status": "completed"
+        },
+        {
+          "id": "5f658d98-4aab-45e5-916f-8e12d56f31a5",
+          "source": "message_center",
+          "status": "completed"
+        },
+        {
+          "id": "b1b8752c-70bf-4e5e-addf-21bd2229175a",
+          "source": "message_center",
+          "status": "completed"
+        },
+        {
+          "id": "ddbea623-d280-46d4-9560-d3e1c8eaf8dd",
+          "source": "message_center",
+          "status": "completed"
+        },
+        {
+          "id": "ca58d535-978d-4286-b118-a09649b97390",
+          "source": "question_result",
+          "status": "completed"
+        },
+        {
+          "id": "d91f2612-d05f-4063-a287-165b9c744608",
+          "source": "question_result",
+          "status": "completed"
+        },
+        {
+          "id": "d4c2d61d-aeb0-4f8c-b831-0e3a939dc2e3",
+          "source": "private",
+          "status": "completed"
+        },
+        {
+          "id": "5e30d6ce-560b-49ce-a416-0af9b1e20568",
+          "source": "question_result",
+          "status": "completed"
+        },
+        {
+          "id": "40aa9226-504d-4c17-be4f-5cc4adc76d78",
+          "source": "message_center",
+          "status": "completed"
+        },
+        {
+          "id": "f3dee767-0068-48de-b34f-31f877841928",
+          "source": "message_center",
+          "status": "completed"
+        }
+      ],
+      "failedTools": []
+    }
+  },
+  "center": {
+    "messages": [
+      {
+        "id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "title": "Team lunch signup — Friday, November 6",
+        "body": "We’re organizing a team lunch for Friday, November 6, 2026. Time and location are TBD. Please sign up if you’d like to join; indicate whether you plan to attend so we can get a headcount.",
+        "kind": "invitation",
+        "publisher": "owner-alex",
+        "recipients": [
+          "owner-alex",
+          "owner-maya",
+          "owner-jordan"
+        ]
+      },
+      {
+        "id": "ea6f740b8db74ffbbaed334dcce1c397",
+        "title": "Book club — Wednesday, November 4, 2026",
+        "body": "I’m organizing a book club for Wednesday, November 4, 2026. Time and location are TBD. Maya and Jordan, please sign up and indicate whether you plan to attend.",
+        "kind": "invitation",
+        "publisher": "owner-alex",
+        "recipients": [
+          "owner-maya",
+          "owner-jordan"
+        ]
+      }
+    ],
+    "deliveries": [
+      {
+        "id": "1ff09f009d1b42fb84f16f69e04ed6c3",
+        "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "owner_id": "owner-alex",
+        "status": "processed",
+        "notified": true,
+        "human_read": false,
+        "request_id": "5f658d98-4aab-45e5-916f-8e12d56f31a5",
+        "attempts": 0
+      },
+      {
+        "id": "7f9fa4af49a246d68187199d961c1c8f",
+        "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "owner_id": "owner-maya",
+        "status": "processed",
+        "notified": true,
+        "human_read": false,
+        "request_id": "b1b8752c-70bf-4e5e-addf-21bd2229175a",
+        "attempts": 0
+      },
+      {
+        "id": "61fa918595464c4e85e7f77d137b9d27",
+        "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "owner_id": "owner-jordan",
+        "status": "processed",
+        "notified": true,
+        "human_read": false,
+        "request_id": "ddbea623-d280-46d4-9560-d3e1c8eaf8dd",
+        "attempts": 0
+      },
+      {
+        "id": "9e1b8d605c9a41a1b0e744b564b76426",
+        "message_id": "ea6f740b8db74ffbbaed334dcce1c397",
+        "owner_id": "owner-maya",
+        "status": "processed",
+        "notified": true,
+        "human_read": false,
+        "request_id": "40aa9226-504d-4c17-be4f-5cc4adc76d78",
+        "attempts": 0
+      },
+      {
+        "id": "98a88b9b621a48a4abc786d26a31e1be",
+        "message_id": "ea6f740b8db74ffbbaed334dcce1c397",
+        "owner_id": "owner-jordan",
+        "status": "processed",
+        "notified": true,
+        "human_read": false,
+        "request_id": "f3dee767-0068-48de-b34f-31f877841928",
+        "attempts": 0
+      }
+    ],
+    "responses": [
+      {
+        "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "owner_id": "owner-alex",
+        "response": "attending",
+        "note": "I will attend."
+      },
+      {
+        "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "owner_id": "owner-maya",
+        "response": "attending",
+        "note": null
+      },
+      {
+        "message_id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "owner_id": "owner-jordan",
+        "response": "attending",
+        "note": "I’ll attend the team lunch on Friday, November 6."
+      }
+    ]
+  },
+  "tool_calls": [
+    {
+      "name": "ask_question",
+      "owner_id": "owner-alex",
+      "request_id": "5f658d98-4aab-45e5-916f-8e12d56f31a5",
+      "call_id": "call_Kw4OWuQRenvxfBiWT5jFvda9|fc_01d7956d50dbe3fe016ae77139efe087d0819fbdb0374e5a8f",
+      "arguments": {
+        "question": "For the team lunch on Friday, November 6, 2026 (time and location TBD), would you like me to tell the organizer that you’re attending or declining?"
+      },
+      "result_ids": {
+        "id": "f09d7c20-57e1-4c44-88ae-fe226317fa75",
+        "message_id": "e83a57c0-c389-4e14-baf8-8fd9304769e0"
+      },
+      "success": true
+    },
+    {
+      "name": "respond_center_message",
+      "owner_id": "owner-alex",
+      "request_id": "d91f2612-d05f-4063-a287-165b9c744608",
+      "call_id": "call_73LYZuOW8jgBygabmxpWmtKs|fc_01d7956d50dbe3fe016ae77146bb7487d09a273640dbdc7f8e",
+      "arguments": {
+        "id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "response": "attending",
+        "note": "I will attend."
+      },
+      "result_ids": {
+        "id": "1729027aa7ee4fa6aa0fafbf2798a326",
+        "message_id": "3aef2d0e9e3a473e8b43d337030e0780"
+      },
+      "success": true
+    },
+    {
+      "name": "ask_question",
+      "owner_id": "owner-maya",
+      "request_id": "40aa9226-504d-4c17-be4f-5cc4adc76d78",
+      "call_id": "call_ggMOrgXLvXEaNxzNjWhIAFkr|fc_05bcb2a93ff3f149016ae7716554fc87d0a9889defcc24245b",
+      "arguments": {
+        "question": "For the book club on Wednesday, November 4, 2026 (time and location TBD), would you like me to tell the organizer that you’re attending or declining?",
+        "options": [
+          "Attending",
+          "Declining"
+        ]
+      },
+      "result_ids": {
+        "id": "d4cae5db-9f99-4a59-86b3-fc0a2cfa4380",
+        "message_id": "805bfb97-9a72-42f7-8839-d4f016e58599"
+      },
+      "success": true
+    },
+    {
+      "name": "ask_question",
+      "owner_id": "owner-jordan",
+      "request_id": "f3dee767-0068-48de-b34f-31f877841928",
+      "call_id": "call_yUmLtMqcZsbBHjpKOcg1LwRh|fc_02e1b32019ee41f2016ae77165cbb087d0958e1a9b2df444e4",
+      "arguments": {
+        "question": "Do you want me to tell Alex whether you’re attending or declining the book club on Wednesday, November 4? The time and location are still TBD.",
+        "options": [
+          "Attending",
+          "Declining"
+        ]
+      },
+      "result_ids": {
+        "id": "f876d2d2-ac39-488c-bf52-c6b300ba4085",
+        "message_id": "b15cdb48-380d-4685-b4ca-3217e90402de"
+      },
+      "success": true
+    },
+    {
+      "name": "search_contacts",
+      "owner_id": "owner-alex",
+      "request_id": "d4c2d61d-aeb0-4f8c-b831-0e3a939dc2e3",
+      "call_id": "call_ffgn7ZIzpsyQ1PPctikmWAxx|fc_0e988b063448b488016ae7715af14487d0b0f65875c0910089",
+      "arguments": {},
+      "result_ids": {},
+      "success": true
+    },
+    {
+      "name": "search_contacts",
+      "owner_id": "owner-alex",
+      "request_id": "d4c2d61d-aeb0-4f8c-b831-0e3a939dc2e3",
+      "call_id": "call_5bseTaP7POw6NIkF8Odbhd1F|fc_0e988b063448b488016ae7715af15887d0b3cb2557c1ed6710",
+      "arguments": {},
+      "result_ids": {},
+      "success": true
+    },
+    {
+      "name": "list_people",
+      "owner_id": "owner-alex",
+      "request_id": "d4c2d61d-aeb0-4f8c-b831-0e3a939dc2e3",
+      "call_id": "call_F6gQZtD5VvNLog6UpRRNBZik|fc_0e988b063448b488016ae7715af16087d09b4d02e26eaf0eac",
+      "arguments": {
+        "limit": 20
+      },
+      "result_ids": {},
+      "success": true
+    },
+    {
+      "name": "list_people",
+      "owner_id": "owner-alex",
+      "request_id": "d4c2d61d-aeb0-4f8c-b831-0e3a939dc2e3",
+      "call_id": "call_lNm7HCM4pJtlV4P9WuyMxMyU|fc_0e988b063448b488016ae7715af16c87d09f82bbdfd2819676",
+      "arguments": {
+        "limit": 20
+      },
+      "result_ids": {},
+      "success": true
+    },
+    {
+      "name": "publish_center_message",
+      "owner_id": "owner-alex",
+      "request_id": "d4c2d61d-aeb0-4f8c-b831-0e3a939dc2e3",
+      "call_id": "call_caNhOVetpG5etL3na5MJi1pS|fc_0e988b063448b488016ae7715fd25487d0ba1e9bd98f310ec8",
+      "arguments": {
+        "title": "Book club — Wednesday, November 4, 2026",
+        "body": "I’m organizing a book club for Wednesday, November 4, 2026. Time and location are TBD. Maya and Jordan, please sign up and indicate whether you plan to attend.",
+        "recipients": [
+          "owner-maya",
+          "owner-jordan"
+        ]
+      },
+      "result_ids": {
+        "id": "ea6f740b8db74ffbbaed334dcce1c397"
+      },
+      "success": true
+    },
+    {
+      "name": "ask_question",
+      "owner_id": "owner-alex",
+      "request_id": "3b2849ae-0f8a-498a-ab17-f01b04ca9509",
+      "call_id": "call_xnWlasjeJHxsB5NCxGqA29AL|fc_0c5474b9a6fecc81016ae771162b1487d0ac78ef4d06ee2247",
+      "arguments": {
+        "question": "Who should I invite (names), and what time or location—if any—should the signup invitation include? I have next Friday as November 6, 2026; if the details aren’t set, I can leave them open/TBD.",
+        "options": [
+          "I’ll provide names and details",
+          "Invite a named team/group; leave details TBD"
+        ]
+      },
+      "result_ids": {
+        "id": "4fdda951-ee2f-4a00-9d64-8c7baf97eebe",
+        "message_id": "b445dd17-8ecb-4888-8f14-d35d1bd14753"
+      },
+      "success": true
+    },
+    {
+      "name": "list_people",
+      "owner_id": "owner-alex",
+      "request_id": "d6f6fc86-1071-4d5f-bb82-a4a356530fad",
+      "call_id": "call_gM1lmfQ6kclTnWWiZasqzxKl|fc_0c5474b9a6fecc81016ae7712083a087d090403db49d2551fe",
+      "arguments": {
+        "limit": 20
+      },
+      "result_ids": {},
+      "success": true
+    },
+    {
+      "name": "list_people",
+      "owner_id": "owner-alex",
+      "request_id": "d6f6fc86-1071-4d5f-bb82-a4a356530fad",
+      "call_id": "call_nVsSPyoOSHCk2d2P6SRgPQ0K|fc_0c5474b9a6fecc81016ae7712083b487d09fd44b9082d087d2",
+      "arguments": {
+        "limit": 20
+      },
+      "result_ids": {},
+      "success": true
+    },
+    {
+      "name": "list_people",
+      "owner_id": "owner-alex",
+      "request_id": "d6f6fc86-1071-4d5f-bb82-a4a356530fad",
+      "call_id": "call_mTJVBRxO2AfxuHBJoBjz19OR|fc_0c5474b9a6fecc81016ae7712083bc87d0a33a17b889f9d8f5",
+      "arguments": {
+        "limit": 20
+      },
+      "result_ids": {},
+      "success": true
+    },
+    {
+      "name": "publish_center_message",
+      "owner_id": "owner-alex",
+      "request_id": "d6f6fc86-1071-4d5f-bb82-a4a356530fad",
+      "call_id": "call_y92hio8MiH7WdlmV8KRGtyD0|fc_0c5474b9a6fecc81016ae771287f7c87d088795a205bd8f3e9",
+      "arguments": {
+        "title": "Team lunch signup — Friday, November 6",
+        "body": "We’re organizing a team lunch for Friday, November 6, 2026. Time and location are TBD. Please sign up if you’d like to join; indicate whether you plan to attend so we can get a headcount.",
+        "recipients": [
+          "owner-alex",
+          "owner-maya",
+          "owner-jordan"
+        ]
+      },
+      "result_ids": {
+        "id": "3aef2d0e9e3a473e8b43d337030e0780"
+      },
+      "success": true
+    },
+    {
+      "name": "ask_question",
+      "owner_id": "owner-jordan",
+      "request_id": "ddbea623-d280-46d4-9560-d3e1c8eaf8dd",
+      "call_id": "call_a8vqcHVJy10pPFDc14u98BBW|fc_0afb706f35abd3f9016ae7713f1cd087d0ac3749737c44762d",
+      "arguments": {
+        "question": "Would you like me to tell Alex that you’re attending or declining the team lunch on Friday, November 6? The time and location are still TBD.",
+        "options": [
+          "Attending",
+          "Declining"
+        ]
+      },
+      "result_ids": {
+        "id": "e8a59554-baf2-4f88-8ad8-90e85d90ebf4",
+        "message_id": "0a70b2f6-4e49-441c-b960-18cc46e99a82"
+      },
+      "success": true
+    },
+    {
+      "name": "respond_center_message",
+      "owner_id": "owner-jordan",
+      "request_id": "5e30d6ce-560b-49ce-a416-0af9b1e20568",
+      "call_id": "call_gEIrBJSuBOgtOSd39btDUKPI|fc_0afb706f35abd3f9016ae7714e034c87d0801865d113710c35",
+      "arguments": {
+        "id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "response": "attending",
+        "note": "I’ll attend the team lunch on Friday, November 6."
+      },
+      "result_ids": {
+        "id": "4634ef7ee62646fb901029a25b874080",
+        "message_id": "3aef2d0e9e3a473e8b43d337030e0780"
+      },
+      "success": true
+    },
+    {
+      "name": "ask_question",
+      "owner_id": "owner-maya",
+      "request_id": "b1b8752c-70bf-4e5e-addf-21bd2229175a",
+      "call_id": "call_nQ4dABWC7cTwOOcADLsufDh7|fc_05fe928c372180aa016ae7713901d087d09a4512a7a3e75966",
+      "arguments": {
+        "question": "Would you like me to tell the organizer whether you plan to attend the team lunch on Friday, November 6, 2026? The time and location are still TBD.",
+        "options": [
+          "Tell them I plan to attend",
+          "Tell them I decline"
+        ]
+      },
+      "result_ids": {
+        "id": "7ccfc078-8f89-43ae-b232-35cb822cf66d",
+        "message_id": "6e938148-474f-4cb2-834f-10e8e58d9fac"
+      },
+      "success": true
+    },
+    {
+      "name": "respond_center_message",
+      "owner_id": "owner-maya",
+      "request_id": "ca58d535-978d-4286-b118-a09649b97390",
+      "call_id": "call_viXCv5VRQlyaWkTyks9c4bOC|fc_05fe928c372180aa016ae77148030c87d091a97bfd51587cc8",
+      "arguments": {
+        "id": "3aef2d0e9e3a473e8b43d337030e0780",
+        "response": "attending"
+      },
+      "result_ids": {
+        "id": "2587b9239c354908bc1e433213306b5f",
+        "message_id": "3aef2d0e9e3a473e8b43d337030e0780"
+      },
+      "success": true
+    }
+  ],
+  "cleanup": {
+    "schema_removed": true,
+    "redis_keys_remaining": 0,
+    "processes_stopped": true,
+    "temp_root_removed": true
+  }
+}

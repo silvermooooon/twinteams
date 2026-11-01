@@ -16,7 +16,7 @@ MODE = 'live-gpt-6-luna'
 PHASE = ContextVar('browser_e2e_live_phase', default='scenario')
 
 
-def configuration():
+def configuration(*, proxy_port=7894):
     from checks.local_stack import RUNTIME, read_env
     saved = read_env(RUNTIME / '.env')
     key, base = saved.get('OPENAI_API_KEY', '').strip(), saved.get('OPENAI_BASE_URL', '').rstrip('/')
@@ -24,8 +24,8 @@ def configuration():
     origin, gateway = urlsplit(base), urlsplit(proxy)
     if not key or origin.scheme != 'https' or not origin.netloc or origin.username or origin.password or origin.query or origin.fragment:
         raise RuntimeError('Live E2E requires the existing configured key and HTTPS base URL')
-    if gateway.hostname not in {'127.0.0.1', 'localhost', '::1'} or gateway.port != 7894:
-        raise RuntimeError('Live E2E requires the existing loopback proxy on port 7894')
+    if gateway.hostname not in {'127.0.0.1', 'localhost', '::1'} or (gateway.port is None or (proxy_port is not None and gateway.port != proxy_port)):
+        raise RuntimeError('Live E2E requires the configured loopback proxy')
     return {'OPENAI_API_KEY': key, 'OPENAI_BASE_URL': base, 'HTTPS_PROXY': proxy}
 
 
@@ -87,11 +87,19 @@ def install(root, role):
     original_async = httpx.AsyncClient.send
     base = os.environ.get('OPENAI_BASE_URL', '').rstrip('/')
     allowed = base + '/responses'
+    center = os.environ.get('TWINTEAMS_E2E_CENTER_URL', '') if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live' else ''
+    center_origin = urlsplit(center)
+    if center and (center_origin.scheme != 'http' or center_origin.hostname != '127.0.0.1' or center_origin.port in {8000, 8001, 8020} or center_origin.path or center_origin.query or center_origin.fragment):
+        raise RuntimeError('Center must be an isolated loopback origin')
     secrets = [os.environ.get(name, '') for name in ('OPENAI_API_KEY', 'OPENAI_BASE_URL', 'HTTPS_PROXY')]
     # No real credential, configured gateway URL or proxy value may reach logs.
     sys.stdout, sys.stderr = RedactedStream(sys.stdout, secrets), RedactedStream(sys.stderr, secrets)
 
     async def bounded_send(client, request, *args, **kwargs):
+        url = urlsplit(str(request.url))
+        if center and role == 'worker' and (url.scheme, url.netloc) == (center_origin.scheme, center_origin.netloc) and url.path.startswith('/api/integrations/duet/'):
+            kwargs['follow_redirects'] = False
+            return await original_async(client, request, *args, **kwargs)
         if role != 'worker' or request.method != 'POST' or str(request.url) != allowed:
             raise AssertionError('Live E2E denies HTTP outside its configured model endpoint')
         attempt = reserve(root, json.loads(request.content))

@@ -73,6 +73,7 @@ def test_exact_answer_creates_only_one_original_task_continuation(product, mode)
         assert resumed.requester_id == request["requester_id"]
         assert db.scalar(select(func.count()).select_from(ReplyRequest)) == 2
         assert "not new action approval" in resumed.input_body
+        assert "do not call answer_question again" in resumed.input_body
         assert (saved.answer in resumed.input_body) if saved.answer else ('"owner_declined": true' in resumed.input_body)
 
 

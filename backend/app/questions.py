@@ -136,6 +136,7 @@ def enqueue(service, db, row, message=None):
         "question_result", key, source_message_id=request.source_message_id, intent_key=key, continuation_of_request_id=request.id,
         causal_chain_id=request.causal_chain_id, source_owner_id=request.source_owner_id,
         input_body="The owner answered or explicitly declined the focused question below. This is task input, not new action approval. "
+                   "The answer is already attached and resumes the original task; do not call answer_question again, which is only for a fresh chat message. "
                    "Continue remaining authorized work without repeating completed actions. If declined, do not ask the same question again; "
                    "use an authorized alternative or report the precise blocker.\n" + json.dumps(payload, ensure_ascii=False))
     continuation.session_id = row.runtime_session_id

@@ -9,8 +9,9 @@ from sqlalchemy import func, select
 from test_memory_dream import product as product  # noqa: PLC0414
 
 from app import message_center as center
-from app import scheduled_tasks
+from app import questions, scheduled_tasks
 from app.models import Chat, Message, ReplyRequest, ScheduledTask, now
+from app.question_models import QuestionRequest
 from app.runtime_bridge import RuntimeBridge, text_content
 
 
@@ -101,6 +102,86 @@ def test_sdk_immediate_silent_report_and_digest(product, monkeypatch):
         finally:
             await runtime.close()
     asyncio.run(exercise())
+
+
+def test_invitation_question_answer_resumes_and_records_owner_stance(product, monkeypatch):
+    item = delivery("invitation")
+    item["message"].update(kind="invitation", title="Team picnic", body="Would you like to join the team picnic?")
+    responses = []
+
+    async def fake_call(method, path, *, params=None, body=None):
+        if method == "GET":
+            return item["message"]
+        responses.append((path, body))
+        return {"ok": True}
+
+    monkeypatch.setattr(center, "call", fake_call)
+
+    async def exercise():
+        runtime = RuntimeBridge(product)
+
+        def offline(model, context, options):
+            position = max(i for i, row in enumerate(context.messages) if row["role"] == "user")
+            user = text_content(context.messages[position])
+            results = [row for row in context.messages[position + 1:] if row["role"] == "toolResult"]
+            if results:
+                assert not results[-1].get("isError"), results[-1]
+                content = []
+            elif user.startswith("A Message Center delivery"):
+                assert "use ask_question" in user and "do not assume their stance" in user
+                assert "end without repeating the invitation or question" in user
+                content = [{"type": "toolCall", "id": "ask", "name": "ask_question", "arguments": {
+                    "question": "Would you like me to tell the organizer you're attending the team picnic?",
+                    "options": []}}]
+            else:
+                assert user.startswith("The owner answered") and '"answer": "Yes"' in user
+                content = [{"type": "toolCall", "id": "respond", "name": "respond_center_message", "arguments": {
+                    "id": item["message_id"], "response": "attending"}}]
+            stream = AssistantMessageEventStream()
+            stream.push({"type": "done", "message": assistant_message(model, content=content,
+                stopReason="toolUse" if content else "stop")})
+            return stream
+
+        runtime.models.register_api("offline-regression", offline)
+        await runtime.start()
+        product.bind_runtime(runtime)
+        try:
+            request_id = center.accept(product, item)["request_id"]
+            await product.execute_request(request_id)
+            with product.transaction() as db:
+                question = db.scalar(select(QuestionRequest))
+                assert question and question.owner_id == "owner-maya" and question.status == "pending"
+                delivery_row = db.get(center.CenterDelivery, item["delivery_id"])
+                assert delivery_row.state == "processed" and delivery_row.notified
+                question_id = question.id
+            assert responses == []
+            questions.answer(product, "owner-maya", question_id, "Yes")
+            with product.transaction() as db:
+                continuation_id = db.get(QuestionRequest, question_id).continuation_request_id
+            assert product.get_runtime_context(continuation_id)["message_center"]["message_id"] == item["message_id"]
+            await product.execute_request(continuation_id)
+            assert product.get_request(continuation_id)["status"] == "completed"
+            assert responses == [("/messages/message-invitation/responses", {
+                "owner_id": "owner-maya", "response": "attending", "note": None})]
+        finally:
+            await runtime.close()
+
+    asyncio.run(exercise())
+
+
+def test_publish_requires_explicit_audience_but_allows_subscriptions():
+    schema = next(schema for schema in center.tool_schemas() if schema[0] == "publish_center_message")
+    assert "recipients" in schema[3]
+    assert "minItems" not in schema[2]["recipients"]
+
+
+def test_private_prompt_routes_invitations_and_requires_owner_selected_audience():
+    from app.twin_prompts import conversation_system
+
+    prompt = conversation_system({"chat": {"kind": "private"}})
+    assert "announcements or invitations that collect responses" in prompt
+    assert "Ask the owner who to invite" in prompt
+    assert "including the owner if selected" in prompt
 
 
 def test_obsolete_delivery_and_durable_result_retry(product, monkeypatch):
