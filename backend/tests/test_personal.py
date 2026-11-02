@@ -1,5 +1,6 @@
 """Personal pages against an isolated PG schema, local files and no model calls."""
 import asyncio
+import shutil
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
@@ -106,6 +107,56 @@ def test_skills_scope_invalid_deleted_and_snapshot():
     assert missing["enabled"] and not missing["available"]
     assert client.patch(f"/api/me/twin/skills/{name}", json={"enabled": False}).status_code == 200
     assert "enabled_skill_names" not in str(client.get("/api/bootstrap").json())
+
+
+def test_skill_folder_upload_and_validation():
+    client = client_for()
+    other = client_for("DEV-BBB")
+    name = "upload-" + uuid4().hex
+    root = personal.resolve_twin_workspace("owner-alex") / "skills"
+    folder = root / name
+    files = [
+        ("files", (f"{name}/SKILL.md", b"---\ndescription: Uploaded report\n---\nUse the reference.")),
+        ("files", (f"{name}/references/style.md", b"Keep it short.")),
+        ("files", (f"{name}/references/nested/example.txt", b"Example")),
+    ]
+    try:
+        with service.transaction() as db:
+            actor = service.twin(db, "owner-alex")
+            actor.enabled_skill_names = [*(actor.enabled_skill_names or []), name]
+        assert TestClient(app).post("/api/me/twin/skills/upload", files=files).status_code == 401
+        result = client.post("/api/me/twin/skills/upload", files=files)
+        assert result.status_code == 200
+        item = next(item for item in result.json()["items"] if item["name"] == name)
+        assert item["available"] and not item["enabled"] and item["description"] == "Uploaded report"
+        assert not any(item["name"] == name for item in other.get("/api/me/twin/skills").json()["items"])
+        assert client.patch(f"/api/me/twin/skills/{name}", json={"enabled": True}).status_code == 200
+        config = asyncio.run(personal.build_skill_config("owner-alex"))
+        store = personal.create_enabled_skill_store("owner-alex", config)
+        assert asyncio.run(store.load(name)).content.endswith("Use the reference.")
+        assert asyncio.run(store.load_reference(name, "references/nested/example.txt")) == "Example"
+        collision = client.post("/api/me/twin/skills/upload", files=[
+            ("files", (f"{name}/SKILL.md", b"replacement")),
+        ])
+        assert collision.status_code == 409
+        assert (folder / "SKILL.md").read_bytes() == files[0][1][1]
+
+        invalid = "invalid-" + uuid4().hex
+        for upload in (
+            [("files", (f"{invalid}/SKILL.md", b"---\ndescription: [\n---\nBad"))],
+            [("files", (f"{invalid}/references/a.txt", b"missing SKILL.md"))],
+            [("files", (f"{invalid}/SKILL.md", b"ok")), ("files", (f"{invalid}/../escape.txt", b"bad"))],
+            [("files", (f"{invalid}/SKILL.md", b"ok")), ("files", ("other/a.txt", b"bad"))],
+        ):
+            assert client.post("/api/me/twin/skills/upload", files=upload).status_code == 422
+            assert not (root / invalid).exists()
+        assert client.post("/api/me/twin/skills/upload", files=[
+            ("files", (f"{invalid}/SKILL.md", b"x" * (20 * 1024 * 1024 + 1))),
+        ]).status_code == 413
+        assert not (root / invalid).exists()
+    finally:
+        client.patch(f"/api/me/twin/skills/{name}", json={"enabled": False})
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 def test_memory_read_only_pagination_and_owner_scope():

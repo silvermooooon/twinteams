@@ -14,6 +14,7 @@ dependencies = [
   "websockets>=14,<16",
   "agent-runtime[postgres,secrets]",
   "pillow>=11,<14",
+  "python-multipart>=0.0.18,<1",
 ]
 
 [dependency-groups]

@@ -4,9 +4,11 @@ from typing import Literal
 from fastapi import APIRouter, Header, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import Field, StrictBool
+from starlette.datastructures import UploadFile
 
 from . import personal
 from .api import Input, OwnerIdentity
+from .attachments import MAX_ATTACHMENT_BYTES
 from .service import fail, service
 
 router = APIRouter(prefix="/api")
@@ -110,6 +112,44 @@ def remove_avatar(owner: OwnerIdentity):
 @router.get("/me/twin/skills")
 async def skills(owner: OwnerIdentity):
     return await personal.discover_skills(owner)
+
+
+@router.post("/me/twin/skills/upload")
+async def upload_skills(request: Request, owner: OwnerIdentity):
+    name, files = await _read_skill_folder(request)
+    return await personal.upload_skill(owner, name, files)
+
+
+async def _read_skill_folder(request):
+    async with request.form() as form:
+        files = form.getlist("files")
+        if not files or len(files) != len(form.multi_items()) or any(not isinstance(file, UploadFile) for file in files):
+            fail(422, "Select one Skill folder")
+        paths = []
+        contents = []
+        size = 0
+        for file in files:
+            path = file.filename or ""
+            parts = path.split("/")
+            if (len(parts) < 2 or any(not part or part in {".", ".."} or len(part) > 200
+                                      or "\\" in part or any(ord(char) < 32 for char in part)
+                                      for part in parts)):
+                fail(422, "Invalid Skill folder path")
+            paths.append(parts)
+            data = await file.read(MAX_ATTACHMENT_BYTES - size + 1)
+            size += len(data)
+            if size > MAX_ATTACHMENT_BYTES:
+                fail(413, "Skill folders are limited to 20 MiB")
+            contents.append(data)
+        name = paths[0][0]
+        personal._validate_skill_name(name)
+        if (len(name) > 128 or any(parts[0] != name for parts in paths)
+                or [name, "SKILL.md"] not in paths or len({tuple(path) for path in paths}) != len(paths)):
+            fail(422, "Select one Skill folder containing SKILL.md")
+        path_set = {tuple(path) for path in paths}
+        if any(tuple(path[:index]) in path_set for path in paths for index in range(2, len(path))):
+            fail(422, "Invalid Skill folder path")
+        return name, list(zip(paths, contents))
 
 
 @router.get("/me/twin/skills/detail")

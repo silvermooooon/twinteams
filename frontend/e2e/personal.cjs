@@ -2,6 +2,8 @@
 const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
 const path = require("node:path");
+const fs = require("node:fs/promises");
+const os = require("node:os");
 const { api, openTwinTab, sendMessage, poll } = require("./helpers.cjs");
 
 const button = (page, name) => page.getByRole("button", { name, exact: true });
@@ -118,6 +120,65 @@ async function noFixtureValue(page, value) {
 }
 
 const cases = [
+  {
+    name: "personal / upload Skill folder preserves references and owner isolation",
+    run: async (t) => {
+      const { page } = await t.session();
+      const peer = await t.session("DEV-BBB");
+      const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "twin-skill-upload-"));
+      const name = "e2e-upload-check";
+      const folder = path.join(temporary, name);
+      const content = (owner) => `---\nname: ${name}\ndescription: Browser upload fixture\n---\n${owner} instructions. See references/guide.md.\n`;
+      try {
+        await fs.mkdir(path.join(folder, "references"), { recursive: true });
+        await fs.writeFile(path.join(folder, "SKILL.md"), content("First owner"));
+        await fs.writeFile(path.join(folder, "references", "guide.md"), "Nested reference marker\n");
+        await openTwinTab(page, "Skills");
+        const chooser = page.waitForEvent("filechooser");
+        await button(page, "Upload Skill folder").click();
+        const upload = page.waitForResponse((response) => response.url().endsWith("/api/me/twin/skills/upload") && response.request().method() === "POST");
+        await (await chooser).setFiles(folder);
+        assert.equal((await upload).status(), 200);
+        await page.getByText("Skill uploaded. Enable it when you’re ready to use it.").waitFor();
+        const toggle = page.getByRole("switch", { name: `Enable ${name}`, exact: true });
+        await toggle.waitFor();
+        assert.equal(await toggle.getAttribute("aria-checked"), "false");
+        await button(page, `Details ${name}`).click();
+        await dialog(page).getByText("First owner instructions. See references/guide.md.").waitFor();
+        await dialog(page).getByText("references/guide.md", { exact: true }).waitFor();
+        await page.keyboard.press("Escape");
+        assert.ok(!(await api(peer.page, "/me/twin/skills")).items.some((skill) => skill.name === name));
+        await toggle.click();
+        await saved(page, "/me/twin/skills", (value) => value.items.some((skill) => skill.name === name && skill.enabled));
+        await page.reload();
+        await toggle.waitFor();
+        assert.equal(await toggle.getAttribute("aria-checked"), "true");
+
+        await fs.writeFile(path.join(folder, "SKILL.md"), content("Second owner"));
+        const retryChooser = page.waitForEvent("filechooser");
+        await button(page, "Upload Skill folder").click();
+        const retry = page.waitForResponse((response) => response.url().endsWith("/api/me/twin/skills/upload") && response.request().method() === "POST");
+        await (await retryChooser).setFiles(folder);
+        assert.equal((await retry).status(), 409);
+        await page.getByRole("alert").getByText("A Skill with this folder name already exists").waitFor();
+        await button(page, `Details ${name}`).click();
+        await dialog(page).getByText("First owner instructions. See references/guide.md.").waitFor();
+
+        await openTwinTab(peer.page, "Skills");
+        const peerChooser = peer.page.waitForEvent("filechooser");
+        await button(peer.page, "Upload Skill folder").click();
+        const peerUpload = peer.page.waitForResponse((response) => response.url().endsWith("/api/me/twin/skills/upload") && response.request().method() === "POST");
+        await (await peerChooser).setFiles(folder);
+        assert.equal((await peerUpload).status(), 200);
+        await button(peer.page, `Details ${name}`).click();
+        await dialog(peer.page).getByText("Second owner instructions. See references/guide.md.").waitFor();
+        assert.equal((await api(peer.page, "/me/twin/skills")).items.find((skill) => skill.name === name).enabled, false);
+        t.record("skill_upload", { folderChooser: true, referenceListed: true, disabledInitially: true, enabledAfterReload: true, duplicateRejected: true, independentOwnerFolder: true });
+      } finally {
+        await fs.rm(temporary, { recursive: true, force: true });
+      }
+    },
+  },
   {
     name: "personal / profile, avatar, runtime and cross-API identity",
     run: async (t) => {

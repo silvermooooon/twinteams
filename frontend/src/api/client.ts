@@ -58,7 +58,7 @@ export class ApiClient {
   }
   headers(json = true) { return { ...(json ? { 'Content-Type': 'application/json' } : {}),  }; }
   async request<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const response = await fetch(`/api${path}`, { ...options, credentials: 'same-origin', headers: { ...this.headers(), ...options.headers } });
+    const response = await fetch(`/api${path}`, { ...options, credentials: 'same-origin', headers: { ...this.headers(!(options.body instanceof FormData)), ...options.headers } });
     if (!response.ok) {
       if (response.status === 401) { this.cancelCommands(); this.onUnauthorized?.(); }
       let detail = `${response.status} ${response.statusText}`;

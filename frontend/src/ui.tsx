@@ -4,9 +4,10 @@ import type { Actor, Chat } from './api/client';
 import { t, formatDate, formatTime } from './i18n';
 import { PresetAvatar } from './TwinAvatars';
 import { defaultAvatarColor } from './avatarColors';
-export type IconName = 'chat' | 'bell' | 'search' | 'send' | 'smile' | 'edit' | 'check' | 'clock' | 'plus' | 'more' | 'chevron' | 'people' | 'info' | 'close' | 'reply' | 'spark' | 'sidebar' | 'folder' | 'file' | 'arrow' | 'refresh' | 'settings' | 'trash' | 'video' | 'apps' | 'image' | 'attachment' | 'star' | 'panel-left' | 'play' | 'pause' | 'stop';
+export type IconName = 'chat' | 'bell' | 'search' | 'send' | 'smile' | 'edit' | 'check' | 'clock' | 'plus' | 'more' | 'chevron' | 'people' | 'info' | 'close' | 'reply' | 'spark' | 'sidebar' | 'folder' | 'file' | 'arrow' | 'refresh' | 'settings' | 'trash' | 'video' | 'apps' | 'image' | 'attachment' | 'star' | 'panel-left' | 'play' | 'pause' | 'stop' | 'upload';
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
+    upload: <><path d="M12 16V3m-5 5 5-5 5 5" /><path d="M4 16v4h16v-4" /></>,
     play: <path d="m8 5 11 7-11 7Z" />, pause: <><rect x="6" y="5" width="4" height="14" rx=".5" /><rect x="14" y="5" width="4" height="14" rx=".5" /></>, stop: <rect x="6" y="6" width="12" height="12" rx="1" />,
     video: <><rect x="3" y="6" width="12" height="12" rx="2" /><path d="m15 10 6-4v12l-6-4" /></>, apps: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>, image: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8" cy="8" r="1.5" /><path d="m3 17 6-6 4 4 3-3 5 5" /></>, attachment: <path d="m8 12 7-7a3 3 0 0 1 4 4L9 19a5 5 0 0 1-7-7L12 2m-7 13 9-9" />, star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z" />, 'panel-left': <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M5.5 8h1M5.5 11h1M5.5 14h1" /></>,
     plus: <path d="M12 4v16M4 12h16" />, more: <><circle cx="5" cy="12" r=".8" /><circle cx="12" cy="12" r=".8" /><circle cx="19" cy="12" r=".8" /></>, chevron: <path d="m9 5 7 7-7 7" />,

@@ -39,6 +39,7 @@ export function twinApi(api: ApiClient) {
     saveSoul: (content: string, expectedVersion: string | null) => api.request<Soul>('/me/twin/soul', { method: 'PUT', body: JSON.stringify({ content, expected_version: expectedVersion }) }),
     clearSoul: (expectedVersion: string | null) => api.delete<Soul>(`/me/twin/soul${expectedVersion ? `?expected_version=${encodeURIComponent(expectedVersion)}` : ''}`),
     skills: (signal?: AbortSignal) => api.get<{ items: TwinSkill[] }>('/me/twin/skills', signal),
+    uploadSkill: (files: FileList) => { const body = new FormData(); for (const file of files) body.append('files', file, file.webkitRelativePath); return api.request<{ items: TwinSkill[] }>('/me/twin/skills/upload', { method: 'POST', body }); },
     skill: (name: string, signal?: AbortSignal) => api.get<SkillDetail>(`/me/twin/skills/detail?name=${encodeURIComponent(name)}`, signal),
     setSkill: (name: string, enabled: boolean) => api.patch<TwinSkill>(`/me/twin/skills/${encodeURIComponent(name)}`, { enabled }),
     memories: (after?: string, signal?: AbortSignal) => api.get<{ enabled: boolean; items: MemoryEntry[]; next_cursor: string | null }>(`/me/twin/memory?limit=20${after ? `&after=${encodeURIComponent(after)}` : ''}`, signal),

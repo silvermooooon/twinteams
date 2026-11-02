@@ -1,6 +1,7 @@
 """Owner-scoped profile, skill discovery and versioned Git memory services."""
 import hashlib
 import os
+import tempfile
 import time
 import warnings
 from contextlib import contextmanager
@@ -328,6 +329,32 @@ async def discover_skills(owner_id):
 def _validate_skill_name(name):
     if not name or name.startswith(".") or Path(name).name != name or "\\" in name:
         fail(422, "Skill name must be a visible directory name")
+
+
+async def upload_skill(owner_id, name, files):
+    root = await service.db_call(_skill_root, owner_id)
+    root.mkdir(parents=True, exist_ok=True)
+    destination = root / name
+    if destination.exists() or destination.is_symlink():
+        fail(409, "A Skill with this folder name already exists")
+    with tempfile.TemporaryDirectory(prefix=".skill-upload-", dir=root) as temporary:
+        staging = Path(temporary)
+        for parts, data in files:
+            path = staging.joinpath(*parts)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        try:
+            await LocalSkillStore(staging, env={}).load(name)
+        except (OSError, ValueError, UnicodeError):
+            fail(422, "Skill is invalid or unavailable")
+        (staging / name).rename(destination)
+    def disable_existing_name():
+        with service.transaction() as db:
+            actor = db.scalar(select(Actor).where(Actor.owner_id == owner_id, Actor.kind == "twin").with_for_update())
+            actor.enabled_skill_names = [item for item in (actor.enabled_skill_names or []) if item != name]
+    await service.db_call(disable_existing_name)
+    notifications.emit_personal(owner_id, "skills")
+    return await discover_skills(owner_id)
 
 
 async def skill_detail(owner_id, name):
