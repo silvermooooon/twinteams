@@ -550,7 +550,7 @@ def inspect_fixture(root):
                               'tracking_refs': refs})
         tracking = [{'id': row.id, 'chat_id': row.chat_id, 'source_message_ids': row.source_message_ids, 'revision': row.revision, 'status': row.status, 'deleted': row.deleted_at is not None} for row in db.scalars(select(TrackingTopic))]
         workflow = {}
-        if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'story-workflow-live', 'continue-ui-smoke'}:
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'story-workflow-live', 'tracking-reconciliation-live', 'continue-ui-smoke'}:
             workflow['tracking'] = [{key: getattr(row, key) for key in ('id', 'chat_id', 'title', 'description', 'status', 'source_message_ids')} for row in db.scalars(select(TrackingTopic)) if not row.deleted_at]
             workflow['tracking_updates'] = [{key: getattr(row, key) for key in ('id', 'topic_id', 'body', 'source_message_ids')} for row in db.scalars(select(TrackingUpdate))]
             workflow['reminders'] = [{key: getattr(row, key) for key in ('id', 'owner_id', 'title', 'detail', 'done')} for row in db.scalars(select(Reminder))]
@@ -578,7 +578,7 @@ def inspect_fixture(root):
                 item['file_shares'] = row.sdk_reference.get('file_shares', [])
         credentials = [{'id': row.id, 'status': row.status, 'owner_id': row.owner_id, 'continuation_request_id': row.continuation_request_id} for row in db.scalars(select(CredentialRequest))]
         questions = [{key: getattr(row, key) for key in ('id', 'owner_id', 'chat_id', 'message_id', 'origin_chat_id', 'origin_request_id', 'status', 'answer_message_id', 'runtime_session_id', 'runtime_run_id', 'runtime_command_id', 'continuation_request_id')} for row in db.scalars(select(QuestionRequest))]
-        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live':
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'story-workflow-live', 'tracking-reconciliation-live'}:
             for row in db.scalars(select(QuestionRequest)):
                 next(item for item in questions if item['id'] == row.id)['question'] = row.question
         private_chats = {row.private_owner_id: row.id for row in db.scalars(select(Chat).where(Chat.kind == "private"))}

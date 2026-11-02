@@ -242,7 +242,7 @@ function isSettled(evidence) {
     && evidence.runs.every(row => row.status === 'completed' || (row.status === 'stopped' && ignoredRuns.has(`${row.session_id}/${row.run_id}`)))
     && executableCommands.every(row => row.state === 'completed')
     && evidence.center_results.every(row => row.state === 'processed' && row.result_sent)
-    && evidence.center.deliveries.every(row => row.status === 'processed')
+    && (evidence.center.deliveries || []).every(row => row.status === 'processed')
     && !pendingApprovals.length
     && evidence.live_budget.attempts.every(row => row.response_at);
 }
@@ -593,4 +593,4 @@ const cases = [{
     await afterConsultation(t, sessions, { drafted, revised, consultation, beforeConsultationQuestions, beforeConsultationMessages });
   },
 }];
-module.exports = { cases, selectStories, initialRequest, isSettled, peerQuestion, sharedReadHashes, consultationSettled, continueHeldConsultation, afterConsultation, afterCapacity, afterDeveloperPlans, previewFile };
+module.exports = { cases, selectStories, initialRequest, isSettled, peerQuestion, sharedReadHashes, consultationSettled, continueHeldConsultation, afterConsultation, afterCapacity, afterDeveloperPlans, previewFile, inspect, say, answer, waitFor, reviewReports };

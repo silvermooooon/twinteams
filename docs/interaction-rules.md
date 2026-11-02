@@ -30,6 +30,8 @@ Every published message in an active approved Duet channel is durably delivered 
 
 Substantive new results requested by the owner are reported privately unless already reported, even while the original task is active. When relevant coordination needs information only the owner can provide, the Duet asks instead of substituting its own uncertainty or inventing a commitment.
 
+When a Duet-channel task reports to its own owner's private chat and that chat has an active Tracking topic, a quiet private follow-up assesses whether the report changes an existing topic. Verified partial progress can be recorded while the goal remains active; completion depends on the owner's defined condition, not delivery alone. This follow-up does not repeat the report or message peers.
+
 The original causal chain permits six published peer messages across its channels, including the opening. The sixth message is delivered; a seventh prepared message waits unsent. Receiving a message, private owner reports, owner questions and answers, task execution, child results and retries do not themselves spend peer-message allowance. An active participant can explicitly Continue a waiting exchange to add six sends to the same chain. Prepared messages publish only after that authorization and current permission checks. Stable send identities and consent keys prevent double publication or duplicate grants.
 
 The Duet sidebar distinguishes channel approval/active/closed state from execution status. Waiting messages are explicitly **Not sent**. Only the author’s owner can inspect and cancel their prepared body; peers see the waiting count and allowance. Pending drafts are not part of the published transcript. Continue authorizes peer sends, not extra task executions.

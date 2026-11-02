@@ -736,7 +736,7 @@ class ProductService:
         owns = target is not None and target.owner_id == owner_id
         result = {**{k: getattr(request, k) for k in ("id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "error", "session_id", "run_id", "causal_chain_id", "source_owner_id", "continuation_of_request_id", "background")}, "accepted_at": iso(request.accepted_at), "cancel_requested": request.cancel_requested, "can_cancel": not request.cancel_requested and ( (request.status == "queued" and (owns or request.requester_id == owner_id)) or (request.status == "running" and owns)), "can_retry": request.source != "memory_dream" and request.status == "failed" and owns}
         from .scheduled_tasks import snapshot as scheduled_snapshot
-        result["quiet_background"] = bool(scheduled_snapshot(request))
+        result["quiet_background"] = request.source == "peer_report_reconcile" or bool(scheduled_snapshot(request))
         if request.requester_id == owner_id:
             result["client_request_key"] = request.client_request_key
         return result
@@ -1134,7 +1134,7 @@ class ProductService:
         db.add(request); db.flush()
         from .request_sessions import legacy_session_id, request_session_id
         request.continuation_of_request_id = continuation_of_request_id
-        request.background = origin.background if origin else source in {"duet_message", "scheduled_task", "system_review", "memory_dream", "message_center"}
+        request.background = origin.background if origin else source in {"duet_message", "scheduled_task", "system_review", "memory_dream", "message_center", "peer_report_reconcile"}
         request.session_id = (origin.session_id or legacy_session_id(origin.chat_id, origin.target_twin_id, origin.private_generation)) if origin else request_session_id(request.id)
         db.add(DispatchCommand(request_id=request.id))
         return request
@@ -1385,13 +1385,13 @@ class ProductService:
         chain = self.request_chain(db, old)
         # Retry is a new generation of this delivery, retaining its private
         # authorization checks and terminal-only/silent output policy.
-        source = old.source if old.source in {"question_result", "duet_message", "scheduled_task", "system_review", "message_center"} else "tool_retry" if automatic else "retry"
+        source = old.source if old.source in {"question_result", "duet_message", "scheduled_task", "system_review", "message_center", "peer_report_reconcile"} else "tool_retry" if automatic else "retry"
         request = self.accept_request(db, chat, old.target_twin_id, owner_id, source, key, source_message_id=old.source_message_id, raw=old.raw_owner_input, prompt=old.frozen_prompt, reply_to=old.reply_to_message_id, generation=generation, intent_key=old.intent_key, input_body=old.input_body, causal_chain_id=chain.id, source_owner_id=old.source_owner_id, input_attachment_ids=old.input_attachment_ids, command_fingerprint=old.command_fingerprint, continuation_of_request_id=old.id)
         from .message_center import configured as center_configured, retry as center_retry
         if old.background and (center_configured() or old.source == "message_center"):
             center_retry(db, old, request)
         from .scheduled_tasks import snapshot as scheduled_snapshot
-        if automatic or scheduled_snapshot(old):
+        if automatic or scheduled_snapshot(old) or old.source == "peer_report_reconcile":
             from copy import deepcopy
             request.execution_config = deepcopy(old.execution_config) if old.execution_config is not None else None if scheduled_snapshot(old) else {
                 "version": 0, "skills": [], "credentials": [], "execution_enabled": False}
@@ -1635,7 +1635,7 @@ class ProductService:
             request = db.get(ReplyRequest, request_id)
             if not request:
                 fail(404, "Reply request not found")
-            if request.source == "memory_dream":
+            if request.source in {"memory_dream", "peer_report_reconcile"}:
                 return None  # Internal maintenance never projects into a conversation.
             target_id = request.chat_id
             chat = db.get(Chat, target_id)
@@ -2733,6 +2733,15 @@ class ProductService:
             body=body, reply_to_message_id=reply_to,
             sdk_output_key=f"tool:{digest(context['operation_id'])}")
         published = message.state == "published"
+        if (published and origin.kind == "duet" and target.kind == "private"
+                and target.private_owner_id == twin.owner_id
+                and db.scalar(select(TrackingTopic.id).where(TrackingTopic.chat_id == target.id,
+                    TrackingTopic.status == "active", TrackingTopic.deleted_at.is_(None)).limit(1))):
+            key = "peer-report-reconcile:" + message.id
+            chain = self.new_causal_chain(db, twin.owner_id, root_message_id=message.id)
+            reconcile = self.accept_request(db, target, twin.id, twin.owner_id, "peer_report_reconcile", key,
+                source_message_id=message.id, intent_key=key, causal_chain_id=chain.id)
+            reconcile.execution_config = {"version": 1, "skills": [], "credentials": [], "execution_enabled": False}
         return {"status": "sent" if published else "pending_budget", "sent": published,
                 "message_id": message.id, "state": message.state,
                 "chat_id": target.id, "causal_chain_id": message.causal_chain_id,
@@ -2740,6 +2749,10 @@ class ProductService:
                 "author_id": twin.id, "author_owner_id": twin.owner_id}
 
     async def runtime_tool(self, name, args, context):
+        if context.get("request_source") == "peer_report_reconcile":
+            if (name not in {"list_tracking", "get_tracking", "update_tracking", "add_tracking_update"}
+                    or not isinstance(args, dict) or args.get("chat_id", context["chat"]["id"]) != context["chat"]["id"]):
+                fail(403, "Tracking reconciliation is limited to the owner's private Tracking")
         from .message_center import TOOLS as CENTER_TOOLS, tool as center_tool
         if name in CENTER_TOOLS:
             return await center_tool(self, name, args, context)

@@ -51,6 +51,8 @@ test('settles durable approval facts but waits for executable child work and Cen
   data.center_results[0].notified = false;
   data.center.deliveries[0].notified = false;
   assert.equal(isSettled(data), true, 'a processed silent delivery can be settled');
+  data.center = {};
+  assert.equal(isSettled(data), true, 'a fixture without Center can be settled');
   data.live_budget.attempts[0] = {};
   assert.equal(isSettled(data), false);
 });

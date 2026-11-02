@@ -1,7 +1,7 @@
 """Owner Activity presentation only; execution and internal activity stay intact."""
 from sqlalchemy import inspect, text
 
-HIDDEN_ACTIVITY_SOURCES = ("scheduled_task", "system_review", "memory_dream", "message_center")
+HIDDEN_ACTIVITY_SOURCES = ("scheduled_task", "system_review", "memory_dream", "message_center", "peer_report_reconcile")
 
 
 def backfill_activity_visibility(connection):

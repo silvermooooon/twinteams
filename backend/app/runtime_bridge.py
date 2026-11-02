@@ -656,6 +656,8 @@ class RuntimeBridge:
             from .twin_execution import assemble
             execution_tools, agent_context, memory_index = await assemble(self.service, session, context)
             tools = [*self._tools(agent_context, session, execution_tools), *execution_tools]
+            if request.get("source") == "peer_report_reconcile":
+                tools = [tool for tool in tools if tool.name in {"list_tracking", "get_tracking", "update_tracking", "add_tracking_update"}]
             if request.get("source") == "approval_result":
                 approval_id = await self.service.db_call("approved_file_share", request_id)
                 if approval_id:
@@ -669,7 +671,8 @@ class RuntimeBridge:
                           system_prompt=system, tools=tools, compaction=CompactionSettings(),
                           prepare_request=self._generation_gate(agent_context),
                           before_tool_call=self._generation_gate(agent_context))
-            self._add_web_search(agent)
+            if request.get("source") != "peer_report_reconcile":
+                self._add_web_search(agent)
             # New runs use the currently authorized context; old journal remains intact.
             # Resumptions keep the SDK-frozen request and re-injected tool contract.
             if not session.resumable:
@@ -723,7 +726,8 @@ class RuntimeBridge:
                         last_seq = records[-1]["seq"]
                     await self.emit(chat_id, type="changed", request_id=request_id)
             agent.subscribe(observe)
-            await self._attach_subagents(agent, agent_context)
+            if request.get("source") != "peer_report_reconcile":
+                await self._attach_subagents(agent, agent_context)
             return agent
 
         executor = DurableExecutor(self.store, factory, host=self._host_for(context))

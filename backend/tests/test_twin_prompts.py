@@ -42,6 +42,16 @@ def test_peer_results_reach_owner_and_owner_only_facts_are_asked():
     assert prompt.endswith("Peer result")
 
 
+def test_peer_report_reconciliation_records_partial_progress_without_automatic_completion():
+    request = {"source": "peer_report_reconcile"}
+    context = {"source_message": {"body": "The first review is complete."}}
+    prompt = request_prompt(request, context)
+    assert "Leave unrelated topics unchanged; record verified partial progress" in prompt
+    assert "keeping unfinished or uncertain goals active" in prompt
+    assert "only when the owner's own completion condition is satisfied" in prompt
+    assert "Do not repeat the report, message anyone, or take over other work" in prompt
+
+
 @pytest.mark.parametrize("worker", [False, True])
 def test_duet_role_preserves_custom_personal_name_and_worker_identity(worker):
     context = {"target_twin_name": "Elysia", "chat": {"kind": "private"},
