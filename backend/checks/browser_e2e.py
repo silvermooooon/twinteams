@@ -48,17 +48,20 @@ async def main():
     parser.add_argument('--artifact-dir', type=Path)
     parser.add_argument('--node', default=os.getenv('TWINTEAMS_E2E_NODE'), help='Node >=22.12 executable')
     parser.add_argument('--live-model', action='store_true', help='Explicit bounded real gpt-6-luna scenario; offline remains the default')
-    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking', 'scheduled-task-workflow', 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'proactivity', 'contacts', 'interaction-live', 'read-unread-live', 'group-routing-live', 'group-routing-follow-on', 'group-route-recovery', 'message-center-live', 'group-creation-live'])
+    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking', 'scheduled-task-workflow', 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'proactivity', 'contacts', 'interaction-live', 'read-unread-live', 'group-routing-live', 'group-routing-follow-on', 'group-route-recovery', 'message-center-live', 'group-creation-live', 'story-workflow-live', 'continue-ui-smoke'])
     parser.add_argument('--live-max-attempts', type=int, default=60, help='Frozen per-campaign HTTP-attempt ceiling, including smoke and worker restarts')
     args = parser.parse_args()
-    if not 1 <= args.live_max_attempts <= 60:
-        parser.error('--live-max-attempts must be between 1 and 60')
-    if (args.live_model and not args.scenario) or (not args.live_model and args.scenario not in {None, 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'proactivity', 'contacts', 'group-route-recovery'}):
+    max_attempts = 320 if args.scenario == 'story-workflow-live' else 60
+    if not 1 <= args.live_max_attempts <= max_attempts:
+        parser.error(f'--live-max-attempts must be between 1 and {max_attempts}')
+    if (args.live_model and not args.scenario) or (not args.live_model and args.scenario not in {None, 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'proactivity', 'contacts', 'group-route-recovery', 'continue-ui-smoke'}):
         parser.error('--live-model requires an explicit dedicated --scenario')
     if not args.live_model and args.live_max_attempts != 60:
         parser.error('--live-max-attempts requires --live-model')
     if args.live_model and args.scenario == 'group-route-recovery':
         parser.error('group-route-recovery is strictly offline; it never injects a live provider failure')
+    if args.live_model and args.scenario == 'continue-ui-smoke':
+        parser.error('continue-ui-smoke is strictly offline')
     if args.live_model and args.scenario in {'group-routing-live', 'group-routing-follow-on'} and args.live_max_attempts > 40:
         parser.error('Post-fix group-routing-live acceptance requires --live-max-attempts <=40')
     if args.live_model and os.environ.get('TWINTEAMS_E2E_CASE'):
@@ -67,7 +70,7 @@ async def main():
     if args.live_model:
         sys.path.insert(0, str(BACKEND))
         from checks.browser_e2e_live import configuration
-        live = configuration(proxy_port=None if args.scenario in {'message-center-live', 'group-creation-live'} else 7894)
+        live = configuration(proxy_port=None if args.scenario in {'message-center-live', 'group-creation-live', 'story-workflow-live'} else 7894)
     candidates = [args.node or shutil.which('node')]
     if not args.node:
         candidates += [str(path) for path in Path('/usr/local/n/versions/node').glob('*/bin/node')]
@@ -183,8 +186,9 @@ async def main():
             state.write_text(json.dumps({'env': env, 'root': str(root)}))
             if args.live_model:
                 from checks.browser_e2e_live import initialize_budget
-                initialize_budget(root, max_attempts=args.live_max_attempts)
-            if args.scenario == 'message-center-live':
+                initialize_budget(root, max_attempts=args.live_max_attempts,
+                                  story_workflow=args.scenario == 'story-workflow-live')
+            if args.scenario in {'message-center-live', 'story-workflow-live'}:
                 center_port = free_port()
                 while center_port in {port_a, port_b, 8020}:
                     center_port = free_port()
@@ -206,7 +210,10 @@ async def main():
                 init = center_spawn('center-init', [center_python, '-m', 'app.init_db'])
                 if await asyncio.to_thread(init.wait, 30):
                     raise RuntimeError('Center initialization failed')
-                center_spawn('center-api', [center_python, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(center_port), '--log-level', 'warning'])
+                center_command = ([center_python, str(Path(__file__).with_name('browser_e2e_center.py')), str(center_port)]
+                                  if args.scenario == 'story-workflow-live'
+                                  else [center_python, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(center_port), '--log-level', 'warning'])
+                center_spawn('center-api', center_command)
                 center_spawn('center-worker', [center_python, '-m', 'app.worker'])
             spawn('worker')
             spawn('api', port_a)
@@ -235,7 +242,7 @@ async def main():
             monitor = asyncio.create_task(control_worker())
             async with httpx.AsyncClient(base_url=url_a, trust_env=False) as first, httpx.AsyncClient(base_url=url_b, trust_env=False) as second:
                 await asyncio.gather(ready(first), ready(second))
-            runner_env = {**env, **{name: value for name, value in os.environ.items() if name in {'TWINTEAMS_E2E_CASE', 'TWINTEAMS_E2E_HEADED', 'TWINTEAMS_BROWSER_CHANNEL', 'PLAYWRIGHT_BROWSERS_PATH', 'HEADED', 'BROWSER_CHANNEL'}}, 'TWINTEAMS_E2E_URL': url_a, 'TWINTEAMS_E2E_SECONDARY_URL': url_b,
+            runner_env = {**env, **{name: value for name, value in os.environ.items() if name in {'TWINTEAMS_E2E_CASE', 'TWINTEAMS_E2E_HEADED', 'TWINTEAMS_BROWSER_CHANNEL', 'PLAYWRIGHT_BROWSERS_PATH', 'HEADED', 'BROWSER_CHANNEL', 'TWINTEAMS_E2E_DRAFT_DIAGNOSTIC'}}, 'TWINTEAMS_E2E_URL': url_a, 'TWINTEAMS_E2E_SECONDARY_URL': url_b,
                 'TWINTEAMS_E2E_ARTIFACT_DIR': str(artifacts), 'TWINTEAMS_E2E_NAMESPACE': namespace,
                 'TWINTEAMS_E2E_MODEL_MODE': 'live-gpt-6-luna' if args.live_model else 'deterministic-offline', 'TWINTEAMS_E2E_STATE': str(state),
                 'TWINTEAMS_E2E_PYTHON': sys.executable}

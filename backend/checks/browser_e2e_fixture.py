@@ -48,6 +48,27 @@ def text_content(message):
 def install_fixture(root):
     import httpx
 
+    if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live':
+        import hashlib
+        import secrets
+        from datetime import timedelta
+
+        from app.models import Actor, DevelopmentSession, now
+        from app.service import service
+        original_login = service.login_local
+
+        def fixture_login(username):
+            if username.strip().upper() != 'DEV-DDD':
+                return original_login(username)
+            token = secrets.token_urlsafe(40)
+            with service.transaction() as db:
+                db.add(DevelopmentSession(token_hash=hashlib.sha256(token.encode()).hexdigest(),
+                                          owner_id='owner-riley', expires_at=now() + timedelta(hours=12)))
+                owner = service.actor_json(db.get(Actor, 'owner-riley'))
+            return token, {'owner': owner, 'current_owner_id': 'owner-riley', 'development_mode': True}
+
+        service.login_local = fixture_login
+
     async def deny_async(*args, **kwargs):
         raise AssertionError('Browser E2E forbids outbound HTTP, including model requests')
 
@@ -385,7 +406,7 @@ def seed(root):
     from datetime import timedelta
 
     from app.init_db import main as provision
-    from app.models import Actor, ChangeOutbox, Chat, Membership, now
+    from app.models import Actor, ChangeOutbox, Chat, Membership, Owner, now
     from app.scheduled_tasks import ensure_system
     from app.service import service
     asyncio.run(provision())
@@ -396,16 +417,31 @@ def seed(root):
         (folder.parent.parent / 'e2e-owner-sentinel.txt').write_text('E2E owner ' + owner + '\n')
     with service.transaction() as db:
         assert db.get(Actor, 'owner-alex') is not None
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live':
+            db.add(Owner(id='owner-riley', auth_subject='local:riley'))
+            db.flush()
+            db.add_all([
+                Actor(id='owner-riley', owner_id='owner-riley', kind='human', name='DDD', initials='DD', color='#668899'),
+                Actor(id='twin-riley', owner_id='owner-riley', kind='twin', name="DDD's Duet", initials='DD', color='#6dbdad'),
+            ])
+            db.flush()
+            db.add(Chat(id='private-riley', kind='private', title="DDD's Duet", private_owner_id='owner-riley'))
+            db.flush()
+            db.add(Membership(chat_id='private-riley', owner_id='owner-riley', history_policy='all', lower_seq=1))
         if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'group-creation-live':
             from sqlalchemy import delete
             db.execute(delete(ChangeOutbox).where(ChangeOutbox.chat_id.in_(['group-team', 'group-alex-maya'])))
             db.execute(delete(Membership).where(Membership.chat_id.in_(['group-team', 'group-alex-maya'])))
             db.execute(delete(Chat).where(Chat.id.in_(['group-team', 'group-alex-maya'])))
-        for owner_id in ('owner-alex', 'owner-maya', 'owner-jordan'):
+        owners = ['owner-alex', 'owner-maya', 'owner-jordan']
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live':
+            owners.append('owner-riley')
+        for owner_id in owners:
             review = ensure_system(service, db, owner_id)
             # A test preset, not a shorter product interval or a claim of elapsed time.
             # Explicit review cases advance their selected task through the guarded CLI.
-            review.next_run_at, review.index_dirty = now() + timedelta(minutes=30), True
+            minutes = 60 if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live' else 30
+            review.next_run_at, review.index_dirty = now() + timedelta(minutes=minutes), True
 
 
 def api_app():
@@ -414,9 +450,9 @@ def api_app():
     from starlette.staticfiles import StaticFiles
 
     from app import api, main
-    from app.message_center import router as message_center
     from app.contact_api import router as contacts
     from app.credential_api import router as credentials
+    from app.message_center import router as message_center
     from app.onboarding_api import router as onboarding
     from app.personal_api import router as personal
     from app.provider_config import router as provider
@@ -461,16 +497,21 @@ def inspect_fixture(root):
     from sqlalchemy import select, text
 
     from app.credential_models import CredentialRequest
+    from app.message_center import CenterDelivery
     from app.models import (
         Approval,
         Chat,
         ChatAttachment,
         ContextManifest,
+        DuetConversation,
+        Membership,
         Message,
+        Reminder,
         ReplyRequest,
         ScheduledTask,
         TrackingRevision,
         TrackingTopic,
+        TrackingUpdate,
     )
     from app.question_models import QuestionRequest
     from app.service import service
@@ -508,16 +549,45 @@ def inspect_fixture(root):
                               'tracking_ids': list(dict.fromkeys(ref['tracking_id'] for ref in refs)),
                               'tracking_refs': refs})
         tracking = [{'id': row.id, 'chat_id': row.chat_id, 'source_message_ids': row.source_message_ids, 'revision': row.revision, 'status': row.status, 'deleted': row.deleted_at is not None} for row in db.scalars(select(TrackingTopic))]
+        workflow = {}
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'story-workflow-live', 'continue-ui-smoke'}:
+            workflow['tracking'] = [{key: getattr(row, key) for key in ('id', 'chat_id', 'title', 'description', 'status', 'source_message_ids')} for row in db.scalars(select(TrackingTopic)) if not row.deleted_at]
+            workflow['tracking_updates'] = [{key: getattr(row, key) for key in ('id', 'topic_id', 'body', 'source_message_ids')} for row in db.scalars(select(TrackingUpdate))]
+            workflow['reminders'] = [{key: getattr(row, key) for key in ('id', 'owner_id', 'title', 'detail', 'done')} for row in db.scalars(select(Reminder))]
+            workflow['chats'] = [{**{key: getattr(row, key) for key in ('id', 'kind', 'title', 'private_owner_id')},
+                                  'duet_status': db.get(DuetConversation, row.id).status if row.kind == 'duet' and db.get(DuetConversation, row.id) else None,
+                                  'opening_message': db.get(DuetConversation, row.id).opening_message if row.kind == 'duet' and db.get(DuetConversation, row.id) else None,
+                                  'owner_ids': list(db.scalars(select(Membership.owner_id).where(Membership.chat_id == row.id)))}
+                                 for row in db.scalars(select(Chat))]
+            workflow['messages'] = [{key: getattr(row, key) for key in ('id', 'chat_id', 'author_id', 'kind', 'body', 'request_id', 'state', 'causal_chain_id', 'attachment_ids')} for row in db.scalars(select(Message))]
+            workflow['attachments'] = [{key: getattr(row, key) for key in ('id', 'chat_id', 'owner_id', 'name', 'sha256', 'message_id', 'request_id')} for row in db.scalars(select(ChatAttachment))]
+            workflow['workspace_files'] = [
+                {'chat_id': owner_root.name, 'path': file.relative_to(owner_root).as_posix()}
+                for owner_root in (root / 'workspaces').glob('private-*')
+                for file in owner_root.rglob('*')
+                if file.is_file() and 'skills' not in file.relative_to(owner_root).parts
+            ]
         revisions = [{key: getattr(row, key) for key in ('topic_id', 'revision', 'status', 'source_message_ids', 'changed_by', 'deleted')} for row in db.scalars(select(TrackingRevision))]
         runs = [dict(row._mapping) for row in db.execute(text('SELECT session_id,run_id,user_id,root_run_id,source,status FROM agent_runs'))]
+        commands = [dict(row._mapping) for row in db.execute(text('SELECT command_id,session_id,run_id,kind,state FROM agent_commands'))]
+        center_results = [{key: getattr(row, key) for key in ('id', 'owner_id', 'message_id', 'request_id', 'state', 'result_sent', 'notified')} for row in db.scalars(select(CenterDelivery))]
         approvals = [{'id': row.id, 'status': row.status, 'owner_id': row.approver_id, 'continuation_request_id': row.continuation_request_id} for row in db.scalars(select(Approval))]
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live':
+            for row in db.scalars(select(Approval)):
+                item = next(value for value in approvals if value['id'] == row.id)
+                item['file_shares'] = row.sdk_reference.get('file_shares', [])
         credentials = [{'id': row.id, 'status': row.status, 'owner_id': row.owner_id, 'continuation_request_id': row.continuation_request_id} for row in db.scalars(select(CredentialRequest))]
         questions = [{key: getattr(row, key) for key in ('id', 'owner_id', 'chat_id', 'message_id', 'origin_chat_id', 'origin_request_id', 'status', 'answer_message_id', 'runtime_session_id', 'runtime_run_id', 'runtime_command_id', 'continuation_request_id')} for row in db.scalars(select(QuestionRequest))]
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live':
+            for row in db.scalars(select(QuestionRequest)):
+                next(item for item in questions if item['id'] == row.id)['question'] = row.question
         private_chats = {row.private_owner_id: row.id for row in db.scalars(select(Chat).where(Chat.kind == "private"))}
         attachments = [{key: getattr(row, key) for key in ('id', 'chat_id', 'relative_path')} for row in db.scalars(select(ChatAttachment))]
         records = list(db.execute(text('SELECT session_id, record FROM agent_session_events ORDER BY session_id, seq')))
     current, arguments, returned, tools, files, model_calls = {}, {}, {}, [], [], []
     request_ids = {(row['session_id'], row['run_id']): row['id'] for row in requests}
+    request_by_run = {row['run_id']: row['id'] for row in requests if row['run_id']}
+    run_roots = {(row['session_id'], row['run_id']): row['root_run_id'] for row in runs}
     run_owners = {(row['session_id'], row['run_id']): row['user_id'] for row in runs}
     for session_id, record in records:
         data, kind, run_id = record.get('data', {}), record.get('type'), record.get('run_id')
@@ -537,21 +607,25 @@ def inspect_fixture(root):
             result = returned.get(key, {}) if data.get('use_returned') else data.get('result', {})
             output = text_content(result)
             name, args = current.get(key), arguments.get(key, {})
+            owner = run_owners.get((session_id, run_id))
+            source_request_id = request_ids.get((session_id, run_id)) or request_by_run.get(run_roots.get((session_id, run_id)))
             try:
                 result_value = json.loads(output)
             except (ValueError, TypeError):
                 result_value = {}
             tools.append({'name': name, 'session_id': session_id, 'run_id': run_id,
                 'call_id': data.get('call_id'), 'event_id': record.get('id'), 'seq': record.get('seq'),
-                'request_id': request_ids.get((session_id, run_id)), 'owner_id': run_owners.get((session_id, run_id)),
-                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key', 'title', 'timezone', 'schedule', 'question_id', 'message_id', 'level', 'quiet_hours') + (('body', 'recipients', 'response', 'note', 'question', 'options') if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live' else ()) + (('content', 'action', 'description', 'target', 'impact', 'history_policy') if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'group-creation-live' else ()) if field in args},
+                'request_id': source_request_id, 'owner_id': owner,
+                'arguments': {field: args[field] for field in ('id', 'chat_id', 'owner_ids', 'source_message_ids', 'name', 'task_id', 'path', 'offset', 'limit', 'key', 'title', 'timezone', 'schedule', 'question_id', 'message_id', 'level', 'quiet_hours') + (('body', 'recipients', 'response', 'note', 'question', 'options', 'attachment_ids', 'paths') if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'message-center-live', 'story-workflow-live'} else ()) + (('content', 'action', 'description', 'target', 'impact', 'history_policy') if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'group-creation-live' else ()) if field in args},
                 'result_ids': {field: result_value[field] for field in ('id', 'chat_id', 'message_id', 'request_id', 'continuation_request_id') if isinstance(result_value, dict) and isinstance(result_value.get(field), str)},
                 'success': not result.get('isError', False),
                 'credential_available': 'E2E_CREDENTIAL_AVAILABLE' in output,
                 'owner_cwd_verified': 'owner-cwd=' in output and '/workspaces/private-' in output})
             from app.config import settings
-            if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'message-center-live', 'group-creation-live'} and result.get('isError'):
+            if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'message-center-live', 'group-creation-live', 'story-workflow-live'} and result.get('isError'):
                 tools[-1]['error_text'] = output[:1000]
+            if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live' and name in {'present_files', 'get_center_message', 'read_workspace_file'}:
+                tools[-1]['result'] = result_value
             if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'group-creation-live' and name in {'memory_search', 'memory_read'} and not result.get('isError'):
                 tools[-1]['memory_result'] = result_value
             tools[-1]['memory_key'] = args.get('key') if name and name.startswith('memory_') else None
@@ -560,15 +634,19 @@ def inspect_fixture(root):
             tools[-1]['tracking_id'] = args.get('id') if name == 'get_tracking' else None
             tools[-1]['result_tracking_markers'] = sorted(set(re.findall(r'\bGROUP-[0-9a-f]{8}\b', output)))
             tools[-1]['attachment_ids_read'] = []
+            tools[-1]['attachment_ids_partially_read'] = []
             tools[-1]['attachment_paths_mentioned'] = []
             for attachment in attachments:
-                expected = (settings.workspace_root / attachment['chat_id'] / attachment['relative_path']).resolve()
+                expected = (settings.workspace_root / attachment['relative_path']).resolve()
                 read_path = Path(args.get('path', ''))
                 if not read_path.is_absolute():
-                    owner = run_owners.get((session_id, run_id))
-                    read_path = settings.workspace_root / private_chats[owner] / read_path if owner in private_chats else read_path
+                    source_chat = request_chats.get(source_request_id) or private_chats.get(owner)
+                    read_path = settings.workspace_root / source_chat / read_path if source_chat else read_path
                 if name == 'read' and not result.get('isError') and read_path.resolve() == expected:
-                    tools[-1]['attachment_ids_read'].append(attachment['id'])
+                    field = 'attachment_ids_read' if expected.is_file() and output == expected.read_text(encoding='utf-8', errors='replace') else 'attachment_ids_partially_read'
+                    tools[-1][field].append(attachment['id'])
+                    if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live':
+                        tools[-1]['read_text'] = output
                 elif name == 'bash':
                     owner = run_owners.get((session_id, run_id))
                     owner_root = settings.workspace_root / private_chats[owner] if owner in private_chats else None
@@ -591,21 +669,38 @@ def inspect_fixture(root):
                     with path.open('rb') as source:
                         checksum = hashlib.file_digest(source, 'sha256').hexdigest()
                     files.append({'path': str(path), 'chat_id': path.relative_to(settings.workspace_root).parts[0], 'size': path.stat().st_size, 'sha256': checksum, 'request_id': request_ids.get((session_id, run_id)), 'run_id': run_id})
+                    if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live' and path.stat().st_size <= 100000:
+                        files[-1]['text'] = path.read_text(errors='replace')
+    if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live':
+        import hashlib
+
+        recorded = {row['path'] for row in files}
+        for item in workflow['workspace_files']:
+            workspace = (root / 'workspaces' / item['chat_id']).resolve()
+            path = (workspace / item['path']).resolve()
+            if not path.is_relative_to(workspace):
+                continue
+            if str(path) in recorded or path.name in {'SOUL.md', 'e2e-owner-sentinel.txt'} or path.suffix.lower() not in {'.md', '.txt'} or path.stat().st_size > 100000:
+                continue
+            data = path.read_bytes()
+            files.append({'path': str(path), 'chat_id': item['chat_id'], 'size': len(data),
+                          'sha256': hashlib.sha256(data).hexdigest(), 'text': data.decode('utf-8', errors='replace'),
+                          'observed_workspace_file': True})
     memory_path = root / 'memory-context.jsonl'
     memory_context = [json.loads(line) for line in memory_path.read_text().splitlines()] if memory_path.exists() else []
     budget = json.loads((root / 'live-budget.json').read_text()) if (root / 'live-budget.json').exists() else None
     center = {}
-    if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live':
+    if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'message-center-live', 'story-workflow-live'}:
         with service.transaction() as db:
             for name, query in {
-                'messages': 'SELECT id,title,body,kind,publisher,recipients FROM mc_messages ORDER BY created_at',
+                'messages': 'SELECT id,title,body,kind,publisher,recipients,metadata FROM mc_messages ORDER BY created_at',
                 'deliveries': 'SELECT id,message_id,owner_id,status,notified,human_read,request_id,attempts FROM mc_deliveries ORDER BY created_at',
                 'responses': 'SELECT message_id,owner_id,response,note FROM mc_responses ORDER BY updated_at',
             }.items():
                 center[name] = [dict(row._mapping) for row in db.execute(text(query))]
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
-            'center': center, 'live_budget': budget, 'memory_context': memory_context,
-            'requests': requests, 'scheduled_tasks': tasks, 'runs': runs, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'files': files, 'approvals': approvals, 'credentials': credentials,
+            'center': center, 'workflow': workflow, 'live_budget': budget, 'memory_context': memory_context,
+            'requests': requests, 'scheduled_tasks': tasks, 'runs': runs, 'commands': commands, 'center_results': center_results, 'context_manifests': manifests, 'model_calls': model_calls, 'dreams': dreams, 'tracking': tracking, 'tracking_revisions': revisions, 'files': files, 'approvals': approvals, 'credentials': credentials,
             'questions': questions,
             'tool_counts': dict(Counter(row['name'] for row in tools)), 'tools': tools}
 
@@ -696,14 +791,14 @@ def question_history_fixture(question_id):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'fail-next-dream'])
+    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'fail-next-dream', 'continue-smoke-seed'])
     parser.add_argument('--port', type=int)
     parser.add_argument('--state', type=Path)
     parser.add_argument('--task-id')
     parser.add_argument('--question-id')
     parser.add_argument('--owner-id', choices=['owner-alex', 'owner-maya', 'owner-jordan'])
     args = parser.parse_args()
-    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'fail-next-dream'}:
+    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'fail-next-dream', 'continue-smoke-seed'}:
         if not args.state or args.state.is_symlink() or args.state.stat().st_mode & 0o077:
             raise RuntimeError('Inspect requires its private fixture state file')
         saved = json.loads(args.state.read_text())
@@ -712,6 +807,29 @@ def main():
     root = guard()
     if args.state and args.state.resolve().parent != root:
         raise RuntimeError('State file must belong to its disposable root')
+    if args.role == 'continue-smoke-seed':
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') != 'continue-ui-smoke' or os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline':
+            raise RuntimeError('Continue UI smoke seed is restricted to its offline fixture')
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests'))
+        from duet_test_support import approved_chat
+
+        from app.models import Chat, uid
+        from app.service import service
+        previous = approved_chat(service, 'duet-smoke-previous', ['owner-maya', 'owner-alex'])
+        target = approved_chat(service, 'duet-smoke-target', ['owner-maya', 'owner-jordan'])
+        with service.transaction() as db:
+            db.get(Chat, previous).title = 'Previous BA collaboration'
+            db.get(Chat, target).title = 'Technical clarification'
+            private = db.get(Chat, 'private-maya')
+            request = service.accept_request(db, private, 'twin-maya', 'owner-maya', 'manual', uid(), input_body='Offline continuation smoke')
+            request.status = 'completed'
+            chat = db.get(Chat, target)
+            messages = [service.append_prepared_message(db, chat, request, author_id='twin-maya', kind='twin', body=f'Test send {index}') for index in range(6)]
+            held = service.append_prepared_message(db, chat, request, author_id='twin-maya', kind='twin', body='For the same refund key with a different amount, reject the conflicting request.')
+            assert all(row.state == 'published' for row in messages) and held.state == 'pending'
+            result = {'previous': previous, 'target': target, 'chain': request.causal_chain_id, 'held': held.id}
+        print(json.dumps(result))
+        return
     if args.role == 'advance-contact-dream':
         if os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline' or not args.owner_id:
             raise RuntimeError('Contact Dream due advance requires an offline fixture and explicit owner')

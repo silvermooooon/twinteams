@@ -1,9 +1,13 @@
 """Owner-approved Duet conversations, reusing chat execution and approval records."""
+from copy import deepcopy
+
+from fastapi import HTTPException
 from sqlalchemy import select
 
 from .models import (
     Approval,
     Chat,
+    ContextManifest,
     DispatchCommand,
     DuetContactGrant,
     DuetConversation,
@@ -13,7 +17,7 @@ from .models import (
     ReplyRequest,
     uid,
 )
-from .service import fail, iso
+from .service import digest, fail, iso
 
 
 def lock_consent(db, owner_ids):
@@ -115,7 +119,7 @@ def propose(service, db, args, context):
             "conversation": project(service, db, conversation, twin.owner_id)}
 
 
-def activate(service, db, conversation):
+def activate(service, db, conversation, *, resume=False):
     if conversation.status != "pending":
         return
     rows = approvals(db, conversation.chat_id)
@@ -124,10 +128,47 @@ def activate(service, db, conversation):
     conversation.status = "active"
     chat = db.get(Chat, conversation.chat_id)
     require_active(db, chat)
-    service.append_message(db, chat, author_id=service.twin(db, conversation.initiating_owner_id).id,
+    opening = service.append_message(db, chat, author_id=service.twin(db, conversation.initiating_owner_id).id,
         kind="twin", body=conversation.opening_message, request_id=conversation.initiating_request_id,
         causal_chain_id=conversation.causal_chain_id,
         sdk_output_key=f"duet-opening:{conversation.chat_id}")
+    if resume:
+        return resume_initiator(service, db, conversation, opening)
+
+
+def resume_initiator(service, db, conversation, opening):
+    origin = db.get(ReplyRequest, conversation.initiating_request_id)
+    if not origin or origin.cancel_requested or origin.status == "cancelled":
+        return None
+    chat = db.get(Chat, origin.chat_id)
+    if not chat or chat.kind != "private" or chat.private_owner_id != conversation.initiating_owner_id:
+        return None
+    try:
+        service._check_private_request(db, origin)
+        _, member = service.membership(db, conversation.initiating_owner_id, chat.id, True)
+    except HTTPException:
+        return None
+    sources = service.manifest_provenance(db, origin.id)
+    if not service.provenance_allowed(db, member, sources):
+        return None
+    if origin.source_message_id and not service.visible_message(db, member, origin.source_message_id, False):
+        return None
+    key = "duet-activation:" + conversation.chat_id
+    state = ("The opening message was published and delivered to the other Duets."
+             if opening.state == "published" else
+             "The opening message is pending the existing send allowance and has not been delivered.")
+    request = service.accept_request(db, chat, origin.target_twin_id, origin.requester_id,
+        "approval_result", key, source_message_id=origin.source_message_id,
+        continuation_of_request_id=origin.id, intent_key=key, causal_chain_id=origin.causal_chain_id,
+        source_owner_id=origin.source_owner_id,
+        input_body=f"All owners approved Duet conversation {conversation.chat_id}. {state} "
+            "This approves the connection only; the original task's authorization and file-sharing permissions are unchanged. "
+            "Continue the remaining work authorized in the original task. Do not resend the opening or poll for approval.")
+    request.execution_config = deepcopy(origin.execution_config)
+    db.add(ContextManifest(request_id=request.id, owner_id=conversation.initiating_owner_id,
+        grant_version=member.grant_version, high_water_seq=chat.next_message_seq - 1,
+        sources=sources, source_digest=digest(sources)))
+    return chat.id
 
 
 def close(service, db, conversation, reason="owner_closed"):
@@ -161,7 +202,7 @@ def decide(service, db, owner_id, approval, decision, scope):
         fail(404, "Approval not found")
     if approval.status != "pending":
         if approval.status == decision and (decision == "rejected" or approval.sdk_reference.get("scope") == scope):
-            return {**service.approval_json(approval), "accepted": "business_persisted"}
+            return {**service.approval_json(approval), "accepted": "business_persisted"}, None
         fail(409, "This approval already has a different decision")
     if conversation.status != "pending":
         fail(409, "This Duet conversation is no longer awaiting approval")
@@ -177,8 +218,8 @@ def decide(service, db, owner_id, approval, decision, scope):
         close(service, db, conversation, "owner_rejected")
         conversation.status = "rejected"
     db.flush()
-    activate(service, db, conversation)
-    return {**service.approval_json(approval), "accepted": "business_persisted"}
+    wake_chat_id = activate(service, db, conversation, resume=True)
+    return {**service.approval_json(approval), "accepted": "business_persisted"}, wake_chat_id
 
 
 def list_conversations(service, owner_id, origin_chat_id=None):

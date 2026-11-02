@@ -1,4 +1,5 @@
 """Source authorization semantics and query bounds on disposable PostgreSQL only."""
+import base64
 from uuid import uuid4
 
 import pytest
@@ -8,8 +9,16 @@ from test_context_acceptance import sql_reads
 from test_memory_dream import product as product  # noqa: PLC0414
 
 from app.conversation_context import message_source
-from app.models import Chat, ChatAttachment, ContextManifest, Membership, Message, now
-from app.service import digest
+from app.models import (
+    Chat,
+    ChatAttachment,
+    ContextManifest,
+    Membership,
+    Message,
+    WorkspaceNode,
+    now,
+)
+from app.service import digest, settings
 
 
 def append(product, *, chat_id="private-alex", dependencies=(), attachment_ids=()):
@@ -50,6 +59,50 @@ def test_shared_source_dag_authorizes_with_linear_database_reads(product):
     # Allows metadata + hash read per unique message and fixed authorization reads.
     assert len(reads) <= 2 * distinct_messages + 12, len(reads)
     assert sum(row["rows"] for row in reads if " from tt_messages" in row["sql"]) <= 2 * distinct_messages
+
+
+def test_repeated_tracking_sources_reuse_workspace_checks_and_recheck_revocations(product):
+    root = settings.workspace_root / "private-alex"
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "protected.txt").write_text("Authorized workspace fact")
+    file_id = "path:" + base64.urlsafe_b64encode(b"protected.txt").decode().rstrip("=")
+    workspace = {"kind": "workspace", "id": file_id}
+    message_ids = []
+    with product.transaction() as db:
+        chat = db.get(Chat, "private-alex")
+        node = WorkspaceNode(chat_id=chat.id, relative_path="protected.txt", source_message_ids=[],
+                             granted_owner_ids=["owner-alex"], shared_with_chat=False)
+        db.add(node)
+        for _ in range(6):
+            dependencies = message_ids[-2:]
+            sources = [workspace]
+            if dependencies:
+                sources.append({"kind": "tracking", "id": "test-topic", "source_message_ids": dependencies})
+            message = product.append_message(db, chat, author_id="owner-alex", kind="human", body="Fact",
+                                             source_message_ids=dependencies, source_provenance=sources)
+            message_ids.append(message.id)
+        db.flush()
+        node_id = node.id
+
+    tracking = {"kind": "tracking", "id": "test-topic", "source_message_ids": message_ids[-3:]}
+    context = accepted_context(product, [tracking, tracking, tracking])
+    with sql_reads() as reads:
+        assert product.authorize_runtime_generation(context) is True
+    assert sum(" from tt_workspace_nodes" in row["sql"] for row in reads) <= 1
+    assert sum(" from tt_chat_attachments" in row["sql"] for row in reads) <= 1
+
+    with product.transaction() as db:
+        db.get(WorkspaceNode, node_id).granted_owner_ids = []
+    with pytest.raises(HTTPException) as denied:
+        product.authorize_runtime_generation(context)
+    assert denied.value.status_code == 409
+
+    with product.transaction() as db:
+        db.get(WorkspaceNode, node_id).granted_owner_ids = ["owner-alex"]
+        db.get(Message, message_ids[0]).state = "withdrawn"
+    with pytest.raises(HTTPException) as denied:
+        product.authorize_runtime_generation(context)
+    assert denied.value.status_code == 409
 
 
 @pytest.mark.parametrize("cycle", ["self", "two_messages"])

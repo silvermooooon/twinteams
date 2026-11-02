@@ -32,6 +32,8 @@ def test_progress_then_ordinary_owner_answer_reaches_peer_and_private_owner_once
                 content = [{"type": "text", "text": "Owner coordination requested"}] if results else [tool(
                     "request_duet_conversation", participant_owner_ids=["owner-maya"], title="Authorized coordination",
                     purpose="Ask the owner to choose a time", opening_message="PEER-ASK-OWNER")]
+            elif user.startswith("All owners approved Duet conversation "):
+                content = []
             elif user == "PEER-ASK-OWNER" and worker:
                 content = [{"type": "text", "text": "PEER-PROGRESS-WAITING"}] if results else [tool(
                     "spawn_agent", name="worker", task="CHILD-ASK-OWNER")]

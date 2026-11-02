@@ -103,6 +103,25 @@ def test_live_budget_rejects_wrong_model_unbounded_output_and_expired_window(tmp
     assert json.loads(path.read_text())['attempts'] == []
 
 
+def test_story_workflow_budget_is_bounded_and_does_not_expand_other_scenarios(tmp_path, monkeypatch):
+    import json
+
+    from checks.browser_e2e_live import initialize_budget, reserve
+    with pytest.raises(ValueError, match='between 1 and 60'):
+        initialize_budget(tmp_path, max_attempts=320)
+    with pytest.raises(ValueError, match='between 1 and 320'):
+        initialize_budget(tmp_path, max_attempts=321, story_workflow=True)
+    budget = initialize_budget(tmp_path, max_attempts=320, story_workflow=True)
+    assert 3599 <= budget['deadline_at'] - budget['started_at'] <= 3601
+    monkeypatch.setenv('TWINTEAMS_E2E_SCENARIO', 'story-workflow-live')
+    payload = {'model': 'gpt-6-luna', 'max_output_tokens': 4096}
+    for attempt in range(1, 321):
+        assert reserve(tmp_path, payload) == attempt
+    with pytest.raises(RuntimeError, match='budget exhausted'):
+        reserve(tmp_path, payload)
+    assert len(json.loads((tmp_path / 'live-budget.json').read_text())['attempts']) == 320
+
+
 def test_live_http_fence_allows_only_worker_endpoint_and_records_no_values(tmp_path, monkeypatch):
     import asyncio
     import json

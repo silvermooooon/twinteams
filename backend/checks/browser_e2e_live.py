@@ -12,6 +12,8 @@ from urllib.parse import urlsplit
 MAX_ATTEMPTS = 60
 MAX_OUTPUT = 4096
 MAX_SECONDS = 900
+STORY_MAX_ATTEMPTS = 320
+STORY_MAX_SECONDS = 3600
 MODE = 'live-gpt-6-luna'
 PHASE = ContextVar('browser_e2e_live_phase', default='scenario')
 
@@ -29,11 +31,13 @@ def configuration(*, proxy_port=7894):
     return {'OPENAI_API_KEY': key, 'OPENAI_BASE_URL': base, 'HTTPS_PROXY': proxy}
 
 
-def initialize_budget(root, *, max_attempts=MAX_ATTEMPTS):
-    if type(max_attempts) is not int or not 1 <= max_attempts <= MAX_ATTEMPTS:
-        raise ValueError('Live E2E attempt ceiling must be between 1 and 60')
+def initialize_budget(root, *, max_attempts=MAX_ATTEMPTS, story_workflow=False):
+    ceiling = STORY_MAX_ATTEMPTS if story_workflow else MAX_ATTEMPTS
+    seconds = STORY_MAX_SECONDS if story_workflow else MAX_SECONDS
+    if type(max_attempts) is not int or not 1 <= max_attempts <= ceiling:
+        raise ValueError(f'Live E2E attempt ceiling must be between 1 and {ceiling}')
     value = {'max_attempts': max_attempts, 'max_output_tokens': MAX_OUTPUT,
-             'started_at': time.time(), 'deadline_at': time.time() + MAX_SECONDS, 'attempts': []}
+             'started_at': time.time(), 'deadline_at': time.time() + seconds, 'attempts': []}
     (root / 'live-budget.json').write_text(json.dumps(value))
     return value
 
@@ -47,7 +51,8 @@ def reserve(root, payload):
     with (root / 'live-budget.json').open('r+') as target:
         fcntl.flock(target, fcntl.LOCK_EX)
         value = json.load(target)
-        if time.time() >= value['deadline_at'] or len(value['attempts']) >= min(value['max_attempts'], MAX_ATTEMPTS):
+        ceiling = STORY_MAX_ATTEMPTS if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live' else MAX_ATTEMPTS
+        if time.time() >= value['deadline_at'] or len(value['attempts']) >= min(value['max_attempts'], ceiling):
             raise RuntimeError('Live E2E model budget exhausted; no further request was sent')
         attempt = len(value['attempts']) + 1
         value['attempts'].append({'attempt': attempt, 'phase': PHASE.get(), 'started_at': time.time(),
@@ -87,7 +92,7 @@ def install(root, role):
     original_async = httpx.AsyncClient.send
     base = os.environ.get('OPENAI_BASE_URL', '').rstrip('/')
     allowed = base + '/responses'
-    center = os.environ.get('TWINTEAMS_E2E_CENTER_URL', '') if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'message-center-live' else ''
+    center = os.environ.get('TWINTEAMS_E2E_CENTER_URL', '') if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'message-center-live', 'story-workflow-live'} else ''
     center_origin = urlsplit(center)
     if center and (center_origin.scheme != 'http' or center_origin.hostname != '127.0.0.1' or center_origin.port in {8000, 8001, 8020} or center_origin.path or center_origin.query or center_origin.fragment):
         raise RuntimeError('Center must be an isolated loopback origin')

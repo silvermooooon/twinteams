@@ -551,10 +551,10 @@ class ProductService:
         cache[msg.id] = self.provenance_allowed(db, member, msg.source_provenance, seen, cache)
         return cache[msg.id]
 
-    def sources_allowed(self, db, member, source_ids, source_floor=None):
+    def sources_allowed(self, db, member, source_ids, source_floor=None, *, cache=None):
         if source_floor is not None and source_floor < member.lower_seq:
             return False
-        return all(self.visible_message(db, member, source_id, False) for source_id in source_ids)
+        return all(self.visible_message(db, member, source_id, False, cache=cache) for source_id in source_ids)
 
     def provenance_allowed(self, db, member, sources, seen=None, cache=None):
         cache = {} if cache is None else cache
@@ -602,16 +602,19 @@ class ProductService:
                         return False
             elif source.get("kind") == "workspace":
                 if str(source.get("id", "")).startswith(("path:", "shared:")):
-                    try:
-                        self._workspace_file_db(db, member.owner_id, member.chat_id, source["id"], allow_directory=True)
-                    except HTTPException:
-                        return False
+                    key = ("workspace", member.owner_id, member.chat_id, source["id"])
+                    if key not in cache:
+                        try:
+                            self._workspace_file_db(db, member.owner_id, member.chat_id, source["id"], allow_directory=True)
+                        except HTTPException:
+                            return False
+                        cache[key] = True
                     continue
                 node = db.get(WorkspaceNode, source.get("id"))
                 if not node or node.chat_id != member.chat_id or not self.workspace_node_allowed(db, member, node):
                     return False
             elif source.get("kind") == "tracking":
-                if source.get("floor_seq", member.lower_seq) < member.lower_seq or not self.sources_allowed(db, member, source.get("source_message_ids", [])):
+                if source.get("floor_seq", member.lower_seq) < member.lower_seq or not self.sources_allowed(db, member, source.get("source_message_ids", []), cache=cache):
                     return False
                 if member.history_policy != "all":
                     if not source.get("created_at"):
@@ -620,6 +623,10 @@ class ProductService:
                     cutoff = aware(member.joined_at) - timedelta(days=7 if member.history_policy == "fixed_7d" else 0)
                     if aware(created) < cutoff:
                         return False
+            elif source.get("kind") == "message_center":
+                origin = db.get(Chat, member.chat_id)
+                if not origin or origin.kind != "private" or origin.private_owner_id != source.get("owner_id") or member.owner_id != source.get("owner_id") or origin.reset_pending or origin.reset_generation != source.get("private_generation"):
+                    return False
             else:
                 return False  # Unrecognized provenance must never broaden access.
         return True
@@ -1509,7 +1516,12 @@ class ProductService:
                     **scheduled_payload.get("system_review", {}),
                     "relevant_reminders": relevant_reminders(db, twin.owner_id)}}
             from .message_center import configured as center_configured, delivery_context
-            center_delivery = delivery_context(db, request) if request.background and (center_configured() or request.source == "message_center") else None
+            center_delivery = delivery_context(self, db, request) if request.background and (center_configured() or request.source == "message_center") else None
+            if center_delivery:
+                from .message_center import CenterDelivery, center_source
+                delivery = db.get(CenterDelivery, center_delivery["delivery_id"])
+                manifest.sources = [*manifest.sources, center_source(twin.owner_id, delivery.message, chat.reset_generation)]
+                manifest.source_digest = digest(manifest.sources)
             if scheduled_payload and scheduled_payload.get("kind") == "system_review":
                 from .message_center import CenterDelivery, brief
                 entries = scheduled_payload.get("system_review", {}).get("message_center", [])
@@ -1517,6 +1529,9 @@ class ProductService:
                 current = {item.id: item for item in db.scalars(select(CenterDelivery).where(
                     CenterDelivery.id.in_(ids), CenterDelivery.state == "received"))} if ids else {}
                 scheduled_payload["system_review"]["message_center"] = [brief(current[item_id]) for item_id in ids if item_id in current]
+                from .message_center import center_source
+                manifest.sources = [*manifest.sources, *(center_source(twin.owner_id, current[item_id].message, chat.reset_generation) for item_id in ids if item_id in current)]
+                manifest.source_digest = digest(manifest.sources)
             source_message = self.visible_message(db, member, request.source_message_id, cache=checked) if request.source_message_id else None
             file_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
             files = self.attachment_references(db, file_ids, member, private_request=request if request.raw_owner_input is not None else None)
@@ -2946,7 +2961,10 @@ class ProductService:
                     participants = [m.owner_id for m in self.members(db, row.chat_id)]
                     lock_consent(db, participants)
                     return decide(self, db, owner_id, row, decision, scope)
-            return await self.db_call(consent)
+            result, wake_chat_id = await self.db_call(consent)
+            if wake_chat_id:
+                self.publish_event(wake_chat_id, {"type": "changed"})
+            return result
         if scope != "once":
             fail(400, "Always consent is available only for Duet conversation approvals")
         await self.db_call("approval_for_execution", owner_id, chat_id, approval_id)

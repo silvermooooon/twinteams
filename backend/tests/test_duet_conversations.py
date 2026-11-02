@@ -10,7 +10,9 @@ from test_credentials import product as product  # noqa: PLC0414
 from app import duet_conversations as duet
 from app.models import (
     Approval,
+    CausalChain,
     Chat,
+    ContextManifest,
     DuetContactGrant,
     Message,
     ReplyRequest,
@@ -75,6 +77,67 @@ def test_pending_unanimous_consent_then_atomic_opening_and_receiver(product):
         duet.detail(product, 'owner-jordan', chat_id)
 
 
+@pytest.mark.parametrize('exhausted', [False, True])
+def test_consent_resumes_original_private_task_once_with_actual_opening_state(product, exhausted):
+    row, context, _ = proposal(product)
+    original_id = context['request_id']
+    with product.transaction() as db:
+        original = db.get(ReplyRequest, original_id)
+        original.execution_config = {'version': 0, 'skills': [], 'credentials': [], 'execution_enabled': False}
+        if exhausted:
+            db.get(CausalChain, original.causal_chain_id).spent = 6
+        original_sources = product.manifest_provenance(db, original_id)
+    consent(product, row)
+    with product.transaction() as db:
+        assert not db.scalar(select(ReplyRequest.id).where(ReplyRequest.continuation_of_request_id == original_id))
+    consent(product, row, 'owner-maya')
+    consent(product, row, 'owner-maya')
+    with product.transaction() as db:
+        continuations = list(db.scalars(select(ReplyRequest).where(ReplyRequest.continuation_of_request_id == original_id)))
+        assert len(continuations) == 1
+        resumed, original = continuations[0], db.get(ReplyRequest, original_id)
+        assert resumed.source == 'approval_result' and resumed.chat_id == original.chat_id == 'private-alex'
+        assert resumed.session_id == original.session_id and resumed.causal_chain_id == original.causal_chain_id
+        assert resumed.target_twin_id == original.target_twin_id and resumed.requester_id == original.requester_id
+        assert resumed.execution_config == original.execution_config
+        assert product.manifest_provenance(db, resumed.id) == original_sources
+        assert db.scalar(select(ContextManifest.id).where(ContextManifest.request_id == resumed.id))
+        assert 'connection only' in resumed.input_body and 'Do not resend' in resumed.input_body
+        assert ('has not been delivered' if exhausted else 'published and delivered') in resumed.input_body
+        messages = list(db.scalars(select(Message).where(Message.chat_id == row['chat_id'])))
+        assert len(messages) == 1 and messages[0].state == ('pending' if exhausted else 'published')
+        assert db.get(CausalChain, original.causal_chain_id).spent == (6 if exhausted else 1)
+        assert resumed.id not in product.claim_dispatches()
+        resumed_id = resumed.id
+    product.finish_request(original_id, 'completed')
+    assert resumed_id in product.claim_dispatches()
+
+
+@pytest.mark.parametrize('restriction', ['rejected', 'cancelled', 'reset', 'source_invalid'])
+def test_no_continuation_after_rejection_or_invalid_original_task(product, restriction):
+    row, context, _ = proposal(product)
+    original_id = context['request_id']
+    if restriction == 'rejected':
+        consent(product, row, decision='rejected')
+    else:
+        consent(product, row)
+        with product.transaction() as db:
+            origin = db.get(ReplyRequest, original_id)
+            if restriction == 'cancelled':
+                origin.cancel_requested = True
+            elif restriction == 'reset':
+                db.get(Chat, origin.chat_id).reset_generation += 1
+            else:
+                source_id = next(source['id'] for source in product.manifest_provenance(db, origin.id)
+                                 if source['kind'] == 'message')
+                db.get(Message, source_id).state = 'withdrawn'
+        with pytest.raises(HTTPException):
+            consent(product, row, 'owner-maya')
+    with product.transaction() as db:
+        assert not db.scalar(select(ReplyRequest.id).where(ReplyRequest.continuation_of_request_id == original_id))
+        assert not db.scalar(select(Message.id).where(Message.chat_id == row['chat_id']))
+
+
 def test_human_only_group_and_owner_read_only_duet(product):
     sent = product.send_message('owner-alex', 'group-alex-maya', 'Human message', key())
     assert sent['request'] is None
@@ -106,9 +169,11 @@ def test_always_grants_are_directed_new_peers_prompt_revoke_closes(product):
     consent(product, row, scope='always')
     consent(product, row, 'owner-maya', scope='always')
     assert duet.authorizations(product, 'owner-alex')['authorizations'][0]['peer_owner_id'] == 'owner-maya'
-    second, _, _ = proposal(product)
+    second, second_context, _ = proposal(product)
     assert second['status'] == 'active'
     assert {a['scope'] for a in second['conversation']['approvals']} == {'standing'}
+    with product.transaction() as db:
+        assert not db.scalar(select(ReplyRequest.id).where(ReplyRequest.continuation_of_request_id == second_context['request_id']))
     third, _, _ = proposal(product, ['owner-maya', 'owner-jordan'])
     assert third['status'] == 'pending'
     assert all(a['status'] == 'pending' for a in third['conversation']['approvals'])

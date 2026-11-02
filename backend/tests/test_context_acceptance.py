@@ -123,9 +123,17 @@ def test_over_500_sources_keep_journal_and_bound_repeated_context_reads(product,
                              session_id=product.get_request(next_id)["session_id"], run_id="run-" + next_id)
     with product.transaction() as db:
         output = db.scalar(select(Message).where(Message.request_id == next_id))
-        assert output and any(source.get("kind") == "summary" for source in output.source_provenance)
-        assert len(output.source_message_ids) <= len(expected_tail)
-        assert len(json.dumps(output.source_provenance)) < 15000
+        assert output
+        if chat_id == "duet-team":
+            assert output.source_message_ids == [] and output.source_provenance == []
+            manifests = db.scalars(select(ContextManifest).where(ContextManifest.request_id == next_id))
+            sources = [source for manifest in manifests for source in manifest.sources]
+            assert any(source.get("kind") == "summary" and source.get("id") == saved["id"] for source in sources)
+            assert len(json.dumps(sources)) < 15000
+        else:
+            assert any(source.get("kind") == "summary" for source in output.source_provenance)
+            assert len(output.source_message_ids) <= len(expected_tail)
+            assert len(json.dumps(output.source_provenance)) < 15000
 
 
 def test_legacy_duet_tail_dependencies_do_not_reexpand_the_summarized_prefix(product):

@@ -37,6 +37,7 @@ def test_new_catalog_exposes_connection_contract_and_preserves_legacy_recovery()
     request = tools["request_duet_conversation"]
     assert set(request.parameters["required"]) == {"participant_owner_ids", "title", "purpose", "opening_message"}
     assert "connection only" in request.description
+    assert "Omit origin_chat_id for a private-origin task" in request.description
     assert all(name in str(tools["create_approval"].parameters) for name in ("create_chat", "rename_chat", "add_chat_members"))
     frozen = {"name": "create_chat", "description": "Old declaration", "version": "old",
               "parameters": {"type": "object", "properties": {}}, "replay": "safe"}

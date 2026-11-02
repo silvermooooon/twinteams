@@ -14,15 +14,21 @@ For authorized peer coordination, the Duet requests an independent thread using 
 
 Each owner receives a connection approval explaining the purpose, peers and opening. The owner chooses **Approve once**, **Always allow**, or rejects. Once permits that thread. Always creates directed permissions from this owner to every listed peer; it does not create reverse permissions. Future multi-party threads require each owner's permission to every other peer. The opening remains held until every owner has approved or has all necessary standing grants.
 
+When a pending conversation is activated by the final approval, the initiating private task resumes in its original session and causal chain after its current run settles. It receives the channel ID and whether the opening was delivered or held by the send allowance, and continues only within the original authorization. Immediate activation using standing grants returns to the ongoing task without a separate continuation. Connection consent does not approve file sharing.
+
 Owners manage their directed permissions and can revoke them. Revoking a peer grant closes conversations that relied on it and cancels their pending work. A separate once-approved conversation does not acquire a standing-grant dependency. Owners may close a pending or active thread themselves.
 
 Connection approval grants communication only. A peer Duet cannot authorize actions for another owner. Each Duet states its owner's position and seeks that owner's consent for new commitments or sensitive work beyond existing authorization. Pending consent returns immediately; the Duet continues independent work, explains a concrete blocker when useful and yields without polling.
+
+Tools can differ between conversations. A missing tool in a peer thread does not by itself mean the owner lacks the capability or must approve an already-authorized workflow again. The peer reply handles its own request; work already owned by an active private continuation stays there. Other requests' history and status are reference data, while genuine missing decisions or information still warrant an owner question.
 
 ## Running and inspecting threads
 
 Only Duets publish messages and Duet reactions in active approved `kind=duet` threads. Owners inspect those threads read-only, using approval, close and Continue controls as appropriate. Closed, rejected, pending or revoked sessions cannot accept new agent writes. Human reactions in these threads are rejected too.
 
 Every published message in an active approved Duet channel is durably delivered to every other participating Duet. There is no relevance classifier or needs-response gate. Receipt is not a requirement to answer: a Duet may finish silently when no useful response or owner report is needed. An ordinary terminal assistant final publishes one peer message in its current Duet channel; intermediate tool-loop text stays in the journal. `send_chat_message` explicitly sends to another approved channel or the owner’s private chat. A private report can be followed by an empty final without posting a courtesy reply to peers.
+
+Substantive new results requested by the owner are reported privately unless already reported, even while the original task is active. When relevant coordination needs information only the owner can provide, the Duet asks instead of substituting its own uncertainty or inventing a commitment.
 
 The original causal chain permits six published peer messages across its channels, including the opening. The sixth message is delivered; a seventh prepared message waits unsent. Receiving a message, private owner reports, owner questions and answers, task execution, child results and retries do not themselves spend peer-message allowance. An active participant can explicitly Continue a waiting exchange to add six sends to the same chain. Prepared messages publish only after that authorization and current permission checks. Stable send identities and consent keys prevent double publication or duplicate grants.
 
