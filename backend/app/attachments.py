@@ -1,4 +1,5 @@
 """Upload metadata; file contents are read on demand from the chat workspace."""
+import base64
 import hashlib
 import warnings
 from io import BytesIO
@@ -13,6 +14,10 @@ MAX_ATTACHMENTS = 4
 MAX_IMAGE_PIXELS = 25_000_000
 IMAGE_FORMATS = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "GIF": "image/gif"}
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+
+
+def workspace_path_id(relative):
+    return "path:" + base64.urlsafe_b64encode(str(relative).encode()).decode().rstrip("=")
 
 
 def upgrade_attachment_schema(engine):

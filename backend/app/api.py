@@ -69,6 +69,7 @@ class SendMessage(Input):
     body: str = ""
     client_request_key: str = Field(min_length=1, max_length=160)
     reply_to_message_id: str | None = None
+    reference_message_id: str | None = Field(default=None, min_length=1, max_length=80)
     reply_for_me: bool = False
     attachment_ids: list[Annotated[str, Field(min_length=1, max_length=80)]] = Field(default_factory=list, max_length=4)
 
@@ -227,7 +228,7 @@ def add_members(chat_id: str, data: AddMembers, owner: OwnerIdentity):
 
 @router.post("/chats/{chat_id}/messages")
 def send_message(chat_id: str, data: SendMessage, owner: OwnerIdentity):
-    return service.send_message(owner, chat_id, data.body, data.client_request_key, data.reply_to_message_id, data.reply_for_me, data.attachment_ids)
+    return service.send_message(owner, chat_id, data.body, data.client_request_key, data.reply_to_message_id, data.reply_for_me, data.attachment_ids, data.reference_message_id)
 
 
 @router.post("/chats/{chat_id}/reply-requests")

@@ -78,7 +78,7 @@ def count(product, model):
         return db.scalar(select(func.count()).select_from(model))
 
 
-async def run_offline(product, request, history=False):
+async def run_offline(product, request, history=False, first_tools=()):
     runtime = RuntimeBridge(product)
     await runtime.start()
     product.bind_runtime(runtime)
@@ -88,11 +88,11 @@ async def run_offline(product, request, history=False):
         # Copy the actual SDK model boundary, including system and tool messages.
         calls.append(json.loads(json.dumps(context.messages)))
         stream = AssistantMessageEventStream()
-        tool = history and len(calls) == 1
-        content = ([{"type": "toolCall", "id": "attachment-history", "name": "history", "arguments": {}}]
-                   if tool else [{"type": "text", "text": "Offline attachment accepted."}])
+        tools = ([("history", {})] if history else first_tools) if len(calls) == 1 else []
+        content = ([{"type": "toolCall", "id": f"attachment-{name}", "name": name, "arguments": args}
+                    for name, args in tools] or [{"type": "text", "text": "Offline attachment accepted."}])
         stream.push({"type": "done", "message": assistant_message(
-            model, content=content, stopReason="toolUse" if tool else "stop")})
+            model, content=content, stopReason="toolUse" if tools else "stop")})
         return stream
 
     runtime.models.register_api("offline-regression", provider)
@@ -245,3 +245,79 @@ def test_reply_for_me_cannot_publish_raw_attachments_in_human_chat(attachments):
     assert (count(product, ReplyRequest), count(product, Message)) == before
     assert client.get(image["url"], headers={"x-test-owner": "owner-maya"}).status_code in (403, 404)
     assert client.get(image["url"]).status_code == 200
+
+
+def test_owner_references_human_review_and_reads_original_files(attachments):
+    product, client = attachments
+    group = product.create_chat("owner-alex", ["owner-maya"], "Review team")["id"]
+    send(client, chat=group, owner="owner-maya", body="UNRELATED_GROUP_DISCUSSION")
+    note = upload(client, group, b"actual review text", "review.md", "text/markdown", "owner-maya").json()
+    image = upload(client, group, png_bytes(), "chart.png", "image/png", "owner-maya").json()
+    original = send(client, chat=group, owner="owner-maya", body="Please review these files.",
+                    ids=[note["id"], image["id"]]).json()["message"]
+    original_chat_ids = [row["id"] for row in product.chat_detail("owner-maya", group)["messages"]]
+    key = uuid4().hex
+    response = send(client, body="Analyze privately.", key=key, reference_message_id=original["id"])
+    assert response.status_code == 200, response.text
+    private, request = response.json()["message"], response.json()["request"]
+    reference = private["message_reference"]
+    assert (reference["chat_id"], reference["message_id"], reference["body"]) == (group, original["id"], original["body"])
+    assert private["attachments"] == []
+    assert [file["id"] for file in reference["attachments"]] == [note["id"], image["id"]]
+    assert send(client, body="Analyze privately.", key=key, reference_message_id=original["id"]).json()["message"]["id"] == private["id"]
+    assert send(client, body="Analyze privately.", key=key).status_code == 409
+    calls = asyncio.run(run_offline(product, request, first_tools=[
+        ("read_workspace_file", {"chat_id": group, "id": reference["attachments"][0]["workspace_id"]}),
+        ("read", {"path": reference["attachments"][1]["workspace_path"]}),
+    ]))
+    wire = json.dumps(calls[0])
+    assert private["id"] in wire and original["id"] in wire and original["body"] in wire
+    assert "UNRELATED_GROUP_DISCUSSION" not in wire and "actual review text" not in wire
+    results = [message for message in calls[-1] if message["role"] == "toolResult"]
+    assert any("actual review text" in json.dumps(result["content"]) for result in results)
+    assert any(part["type"] == "image" for result in results for part in result["content"])
+    assert not any(result.get("isError") for result in results)
+    follow_up = send(client, body="What were the review files?").json()["request"]
+    follow_context = product.get_runtime_context(follow_up["id"])
+    assert next(row for row in follow_context["messages"] if row["id"] == private["id"])["message_reference"] == reference
+    assert [row["id"] for row in product.chat_detail("owner-maya", group)["messages"]] == original_chat_ids
+    with product.transaction() as db:
+        db.get(Message, original["id"]).state = "withdrawn"
+    assert private["id"] not in {row["id"] for row in product.chat_detail("owner-alex", "private-alex")["messages"]}
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException):
+        product.authorize_runtime_generation(follow_context)
+    assert client.get(reference["attachments"][0]["url"]).status_code == 404
+
+
+def test_reference_requires_incoming_visible_human_message_and_private_destination(attachments):
+    product, client = attachments
+    group = product.create_chat("owner-alex", ["owner-maya"], "Review")["id"]
+    source = send(client, chat=group, body="Received.", owner="owner-maya").json()["message"]["id"]
+    assert send(client, chat=group, body="Review", reference_message_id=source).status_code == 403
+    assert send(client, chat="private-maya", owner="owner-maya", body="Review", reference_message_id=source).status_code == 422
+    assert send(client, chat="private-jordan", owner="owner-jordan", body="Review", reference_message_id=source).status_code == 403
+    product.add_members("owner-alex", group, ["owner-jordan"], "no_prior")
+    assert send(client, chat="private-jordan", owner="owner-jordan", body="Review", reference_message_id=source).status_code == 404
+    private_source = send(client, body="Maya only.", chat="private-maya", owner="owner-maya").json()["message"]["id"]
+    assert send(client, body="Review", reference_message_id=private_source).status_code == 403
+
+
+def test_compacted_reference_still_depends_on_quoted_source(attachments, monkeypatch):
+    product, client = attachments
+    monkeypatch.setenv("TWINTEAMS_SUMMARY_AFTER_MESSAGES", "1")
+    monkeypatch.setenv("TWINTEAMS_SUMMARY_KEEP_MESSAGES", "1")
+    group = product.create_chat("owner-alex", ["owner-maya", "owner-jordan"], "Review")["id"]
+    original = send(client, chat=group, owner="owner-maya", body="Review tomorrow's proposal").json()["message"]
+    private = send(client, body="Help me review.", reference_message_id=original["id"]).json()["message"]
+    send(client, body="Keep the proposed edits private.")
+    scope = {"chat_id": "private-alex", "owner_id": "owner-alex"}
+    prepared = product.prepare_conversation_summary(scope)
+    assert next(row for row in prepared["messages"] if row["id"] == private["id"])["message_reference"]["message_id"] == original["id"]
+    product.save_conversation_summary(prepared["scope"], "Maya requested a review tomorrow.")
+    assert product.get_conversation_context(scope)["summary"]["body"] == "Maya requested a review tomorrow."
+    with product.transaction() as db:
+        db.get(Message, original["id"]).body = "A changed source."
+    fresh = product.get_conversation_context(scope)
+    assert fresh["summary"] is None
+    assert private["id"] not in {row["id"] for row in fresh["messages"]}

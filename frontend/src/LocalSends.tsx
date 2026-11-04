@@ -1,3 +1,4 @@
+import { MessageReferenceQuote } from './MessageReferenceQuote';
 import { MessageMarkdown } from './MessageMarkdown';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from './api/client';
@@ -6,7 +7,7 @@ import { Avatar, Icon, time } from './ui';
 import { MessageAttachments } from './Attachments';
 import { t } from './i18n';
 
-type Payload = { body: string; attachment_ids: string[]; client_request_key: string; reply_to_message_id?: string };
+type Payload = { body: string; attachment_ids: string[]; client_request_key: string; reply_to_message_id?: string; reference_message_id?: string };
 export type LocalSend = {
   key: string; ownerId: string; chatId: string; epoch: number; payload: Payload; message: Message;
   phase: 'sending' | 'sent' | 'failed'; error?: string; uncertain?: boolean; acceptedAt?: number;
@@ -75,8 +76,8 @@ export function useLocalSends(api: ApiClient) {
   return { followRetry, items: items.filter(item => item.ownerId === api.ownerId), submit, retry: (entry: LocalSend) => { if (!entry.requestFailed) void transmit(entry); }, clear, reconcile, refresh };
 }
 
-export function LocalSendItem({ entry, actor, onRetry }: { entry: LocalSend; actor?: Actor; onRetry: () => void }) {
+export function LocalSendItem({ entry, referenceChatName, actor, onRetry }: { entry: LocalSend; referenceChatName?: string; actor?: Actor; onRetry: () => void }) {
   const message = entry.message;
   const label = entry.phase === 'failed' ? t(entry.uncertain ? 'chat.sendUnconfirmed' : 'chat.sendFailed') : t(entry.phase === 'sending' ? 'chat.sending' : 'chat.sent');
-  return <article className={`message-row own local-send ${entry.phase}`} data-local-send={entry.key} tabIndex={0}><Avatar actor={actor} size={34} /><div className="message-content"><div className="message-meta"><span>{actor?.name}</span><time>{time(message.created_at)}</time></div><div className="message-bubble">{message.reply_to && <div className="source-quote"><strong>{message.reply_to.author_name}</strong><span>{message.reply_to.unavailable ? t('chat.quoteUnavailable') : message.reply_to.body}</span></div>}{message.body && <MessageMarkdown text={message.body} />}{!!message.attachments?.length && <MessageAttachments attachments={message.attachments} />}</div><div className="local-send-status" role="status" title={entry.error || (entry.phase === 'sent' ? t('chat.persistedHint') : undefined)}><Icon name={entry.phase === 'failed' ? 'info' : entry.phase === 'sent' ? 'check' : 'clock'} size={12} /><span>{label}</span>{entry.phase === 'failed' && !entry.requestFailed && <button type="button" className="text-button" aria-label={t('chat.retrySend')} onClick={onRetry}>{t('common.retry')}</button>}</div></div></article>;
+  return <article className={`message-row own local-send ${entry.phase}`} data-local-send={entry.key} tabIndex={0}><Avatar actor={actor} size={34} /><div className="message-content"><div className="message-meta"><span>{actor?.name}</span><time>{time(message.created_at)}</time></div><div className="message-bubble">{message.message_reference && <MessageReferenceQuote reference={message.message_reference} chatName={referenceChatName} />}{message.reply_to && <div className="source-quote"><strong>{message.reply_to.author_name}</strong><span>{message.reply_to.unavailable ? t('chat.quoteUnavailable') : message.reply_to.body}</span></div>}{message.body && <MessageMarkdown text={message.body} />}{!!message.attachments?.length && <MessageAttachments attachments={message.attachments} />}</div><div className="local-send-status" role="status" title={entry.error || (entry.phase === 'sent' ? t('chat.persistedHint') : undefined)}><Icon name={entry.phase === 'failed' ? 'info' : entry.phase === 'sent' ? 'check' : 'clock'} size={12} /><span>{label}</span>{entry.phase === 'failed' && !entry.requestFailed && <button type="button" className="text-button" aria-label={t('chat.retrySend')} onClick={onRetry}>{t('common.retry')}</button>}</div></div></article>;
 }

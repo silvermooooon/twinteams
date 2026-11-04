@@ -9,6 +9,31 @@ from .attachments import MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, inspect_upload
 from .models import Approval, Chat, ChatAttachment, Membership, Message, ProductOperation
 
 
+def snapshot_destination(chat_id, operation_id, position, name):
+    from .service import fail, settings
+    identifier = uuid5(NAMESPACE_URL, "twinteams:present:" + operation_id + ":" + str(position)).hex
+    destination = settings.workspace_root / chat_id / "uploads" / identifier / name
+    if any(part.is_symlink() for part in [destination, *destination.parents] if part.is_relative_to(settings.workspace_root)):
+        fail(403, "Delivery snapshots cannot use symlinks")
+    return identifier, destination
+
+
+def save_snapshots(db, request, owner_id, target, selected):
+    from .service import settings
+    attachments = []
+    for identifier, destination, data, info, _source in selected:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if not destination.exists():
+            with destination.open("xb") as stream:
+                stream.write(data)
+        attachment = ChatAttachment(id=identifier, chat_id=target.id, owner_id=owner_id,
+            name=destination.name, relative_path=str(destination.relative_to(settings.workspace_root)),
+            request_id=request.id, **info)
+        db.add(attachment)
+        attachments.append(attachment)
+    return attachments
+
+
 def prepare_files(service, db, args, context):
     from .service import fail, settings
     request, twin, origin, member, inherited = service._message_tool_origin(db, context)
@@ -44,10 +69,7 @@ def prepare_files(service, db, args, context):
         if path in seen:
             fail(400, "Present distinct files")
         seen.add(path)
-        identifier = uuid5(NAMESPACE_URL, "twinteams:present:" + context["operation_id"] + ":" + str(position)).hex
-        destination = settings.workspace_root / target.id / "uploads" / identifier / path.name
-        if any(part.is_symlink() for part in [destination, *destination.parents] if part.is_relative_to(settings.workspace_root)):
-            fail(403, "Delivery snapshots cannot use symlinks")
+        identifier, destination = snapshot_destination(target.id, context["operation_id"], position, path.name)
         # An unknown DB commit can leave this exact operation's protected snapshot.
         # Reuse it rather than replacing the bytes with a later source-file edit.
         capture = destination if destination.exists() else path
@@ -68,7 +90,7 @@ def file_scope(service, db, target, twin, selected):
 
 
 def present_files(service, db, args, context):
-    from .service import digest, settings
+    from .service import digest
     request, twin, origin, member, inherited, target, target_member, selected, caption = prepare_files(service, db, args, context)
     sharing = file_scope(service, db, target, twin, selected) if target.kind == "duet" else []
     if sharing:
@@ -98,17 +120,7 @@ def present_files(service, db, args, context):
                     "action": action,
                 }, context, origin, member)
             return {"status": "approval_required", "sent": False, "chat_id": target.id, "approval": approval}
-    attachments = []
-    for identifier, destination, data, info, _source in selected:
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if not destination.exists():
-            with destination.open("xb") as stream:
-                stream.write(data)
-        attachment = ChatAttachment(id=identifier, chat_id=target.id, owner_id=twin.owner_id,
-            name=destination.name, relative_path=str(destination.relative_to(settings.workspace_root)),
-            request_id=request.id, **info)
-        db.add(attachment)
-        attachments.append(attachment)
+    attachments = save_snapshots(db, request, twin.owner_id, target, selected)
     payload = {"author_id": twin.id, "kind": "twin", "body": caption,
         "attachment_ids": [row.id for row in attachments], "sdk_output_key": "tool:" + digest(context["operation_id"])}
     if target.kind == "duet" or target.id != origin.id:

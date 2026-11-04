@@ -160,6 +160,10 @@ def install_fixture(root):
             info = await asyncio.to_thread(dream_details)
         match = re.search(r'\bE2E ([A-Z_]+)(?: ([A-Za-z0-9_-]+))?', info.get('body') or text)
         command, label = match.groups() if match else ('ECHO', 'message')
+        if info.get('body') == 'Please review the proposal and prepare a reply with a review document. Do not send it yet.':
+            command = 'REVIEW_REFERENCE'
+        elif info.get('body') == 'Looks good. Please reply to them with the review you just showed me.':
+            command = 'RETURN_REVIEW'
         label = label or 'fixture'
         question_resume = None
         if text.startswith('The owner answered or explicitly declined the focused question below.'):
@@ -301,6 +305,29 @@ def install_fixture(root):
             final = 'E2E route recovered: ' + label
         elif command == 'MARKDOWN':
             final = '# E2E Markdown ' + label + '\n\n**Bold** and `inline code`.\n\n- First item\n- Second item\n\n```python\nprint("E2E")\n```\n\n| Column | Value |\n| --- | --- |\n| E2E | passed |'
+        elif command in {'REVIEW_REFERENCE', 'RETURN_REVIEW'}:
+            from agent_runtime.transcript import system_prompt
+            prompt = system_prompt(context.messages)
+            history = json.loads(prompt.split('Authorized recent messages, with no gap after summary: ', 1)[1].split('\n', 1)[0])
+            anchor = next(row for row in reversed(history) if row.get('message_reference'))
+            reference = anchor['message_reference']
+            filename = 'review-' + reference['attachments'][0]['name'].removeprefix('proposal-')
+            if command == 'REVIEW_REFERENCE':
+                if 'read_workspace_file' not in names:
+                    name, arguments = 'read_workspace_file', {'chat_id': reference['chat_id'], 'id': reference['attachments'][0]['workspace_id']}
+                elif 'write' not in names:
+                    read = json.loads(text_content(next(row for row in results if row['toolName'] == 'read_workspace_file')))
+                    name, arguments = 'write', {'path': info['workspace'] + '/' + filename,
+                        'content': '# Review\n\nClarify the owner of this milestone: ' + read['content']}
+                elif 'present_files' not in names:
+                    name, arguments = 'present_files', {'paths': [filename], 'caption': 'I reviewed the proposal; please clarify the milestone owner.'}
+                final = 'Your private review is ready: ' + filename
+            elif 'reply_as_owner' not in names:
+                review = next(row for row in history if any(file['name'] == filename for file in row.get('attachments', [])))
+                name, arguments = 'reply_as_owner', {'reference_message_id': anchor['id'], 'review_message_id': review['id'],
+                    'body': review['body'], 'attachment_ids': [file['id'] for file in review['attachments']]}
+            else:
+                final = 'E2E return review processed: ' + label
         elif command == 'FILE_PREVIEW':
             documents = preview_documents(label)
             written = names.count('write')

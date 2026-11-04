@@ -1,6 +1,5 @@
 """Durable Message Center delivery inbox and owner-scoped integration tools."""
 import asyncio
-import base64
 import hashlib
 import hmac
 import logging
@@ -141,6 +140,7 @@ def bounded_message(message, body_limit=4000, body_offset=0):
 
 def file_references(service, db, owner_id, attachment_ids, *, recipients=None):
     """Resolve only snapshots already delivered through an approved Duet share."""
+    from .attachments import workspace_path_id
     from .service import fail
     references = []
     for attachment_id in attachment_ids:
@@ -157,7 +157,7 @@ def file_references(service, db, owner_id, attachment_ids, *, recipients=None):
             _, member = service.membership(db, reader, attachment.chat_id)
             service.visible_message(db, member, attachment.message_id)
         relative = attachment.relative_path.removeprefix(attachment.chat_id + "/")
-        entry_id = "path:" + base64.urlsafe_b64encode(relative.encode()).decode().rstrip("=")
+        entry_id = workspace_path_id(relative)
         info = service.attachment_json(attachment)
         references.append({key: info[key] for key in ("id", "name", "mime_type", "size", "preview_kind", "preview_url", "url")}
                           | {"chat_id": attachment.chat_id, "workspace_id": entry_id, "sha256": attachment.sha256})

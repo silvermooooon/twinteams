@@ -15,7 +15,7 @@ PLATFORM_TOOLS = {"set_message_reaction", "list_people", "search_contacts", "upd
                   "get_twin_status", "get_reply_request", "cancel_reply_request", "retry_reply_request"}
 TRACKING_TOOLS = {"list_tracking", "get_tracking", "create_tracking", "update_tracking", "delete_tracking", "add_tracking_update"}
 SCOPED_TOOLS = {"history", "create_reminder"} | TRACKING_TOOLS
-WRITE_TOOLS = {"request_duet_conversation", "set_message_reaction", "update_contact_tags", "send_chat_message", "present_files", "create_chat", "rename_chat", "add_chat_members", "create_reminder",
+WRITE_TOOLS = {"reply_as_owner", "request_duet_conversation", "set_message_reaction", "update_contact_tags", "send_chat_message", "present_files", "create_chat", "rename_chat", "add_chat_members", "create_reminder",
                "update_reminder", "create_tracking", "update_tracking", "delete_tracking",
                "add_tracking_update", "save_summary", "cancel_reply_request", "retry_reply_request"}
 # Exact arguments are frozen by the SDK; no uninstalled action may enter that path.
@@ -75,6 +75,8 @@ def scope_ids(service, db, name, args, context):
         ids.add(args["origin_chat_id"])
     request = db.get(ReplyRequest, context.get("request_id")) if context.get("request_id") else None
     source_ids = args.get("source_message_ids", [])
+    if name == "reply_as_owner":
+        source_ids = [args.get("reference_message_id"), args.get("review_message_id")]
     if name == "set_message_reaction" and args.get("message_id"):
         source_ids = [*source_ids, args["message_id"]]
     if request or name == "set_message_reaction":

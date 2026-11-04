@@ -89,6 +89,64 @@ async function workspace(page) {
 }
 const cases = [
   {
+    name: "references / review an incoming document privately and reply to the original human message",
+    run: async (t) => {
+      const { page: owner } = await t.session();
+      const { page: sender } = await t.session("DEV-BBB", { baseURL: t.secondaryURL });
+      const bootstrap = await api(owner, "/bootstrap");
+      const ownerName = bootstrap.actors.find(actor => actor.id === bootstrap.current_owner_id).name;
+      const senderId = (await api(sender, "/auth/me")).current_owner_id;
+      const senderName = bootstrap.actors.find(actor => actor.id === senderId).name;
+      const label = t.unique("milestone"), inputName = "proposal-" + label + ".md", outputName = "review-" + label + ".md";
+      const fileContents = "Milestone delta: release " + t.unique("readback") + ".";
+      const privateRoom = await privateChat(owner);
+      const direct = await startChat(sender, [ownerName]);
+      await sender.locator(".chat-main > input[type=file]").first().setInputFiles({
+        name: inputName, mimeType: "text/markdown", buffer: Buffer.from(fileContents),
+      });
+      await sender.locator(".draft-attachment.ready").waitFor();
+      const incoming = await sendMessage(sender, "Please review this proposal: " + label);
+      const sourceId = await incoming.getAttribute("data-message-id");
+      const originalHistory = (await detail(sender, direct)).messages.map(row => row.id);
+      await owner.reload(); await chooseChat(owner, senderName);
+      const original = owner.locator(`article[data-message-id="${sourceId}"]`);
+      const before = (await detail(owner, privateRoom)).messages.map(row => row.id);
+      await original.click({ button: "right" });
+      await owner.getByRole("menuitem", { name: "Reference in Duet", exact: true }).click();
+      const reference = owner.locator(".composer-reply .message-reference");
+      await reference.getByText(inputName, { exact: true }).waitFor();
+      assert.deepEqual((await detail(owner, privateRoom)).messages.map(row => row.id), before, "selecting a reference only opens a draft");
+      await owner.getByRole("button", { name: "Remove reference", exact: true }).click();
+      await reference.waitFor({ state: "detached" });
+      await chooseChat(owner, senderName); await original.focus(); await original.press("Shift+F10");
+      await owner.getByRole("menuitem", { name: "Reference in Duet", exact: true }).click();
+      await reference.waitFor();
+      const anchor = await sendMessage(owner, "Please review the proposal and prepare a reply with a review document. Do not send it yet.");
+      const anchorId = await anchor.getAttribute("data-message-id");
+      await anchor.locator(".message-reference").getByText(inputName, { exact: true }).waitFor();
+      await waitMessage(owner, privateRoom, row => row.body.includes("Your private review is ready: " + outputName), "Duet read, wrote and presented a review");
+      const privateFile = (await detail(owner, privateRoom)).messages.flatMap(row => row.attachments || []).find(file => file.name === outputName);
+      assert.ok(privateFile, "private reviewed file exists");
+      const expected = Buffer.from("# Review\n\nClarify the owner of this milestone: " + fileContents);
+      assert.deepEqual(await (await owner.request.get(new URL(privateFile.url, owner.url()).href)).body(), expected);
+      assert.deepEqual((await detail(sender, direct)).messages.map(row => row.id), originalHistory, "private review alone did not post any message or notice to the human chat");
+      assert.ok([403, 404].includes((await sender.request.get(new URL(privateFile.url, sender.url()).href)).status()), "private draft is not shared");
+      await owner.reload();
+      await owner.locator(`article[data-message-id="${anchorId}"] .message-reference`).getByText(inputName, { exact: true }).waitFor();
+      const replyText = "I reviewed the proposal; please clarify the milestone owner.";
+      await sendMessage(owner, "Looks good. Please reply to them with the review you just showed me.");
+      const response = await waitMessage(sender, direct, row => row.reply_to?.id === sourceId, "owner-authorized reply sent to original conversation");
+      assert.equal(response.author_id, bootstrap.current_owner_id); assert.equal(response.kind, "human"); assert.equal(response.body, replyText);
+      assert.equal(response.attachments.length, 1); assert.equal(response.attachments[0].name, outputName);
+      assert.deepEqual(await (await sender.request.get(new URL(response.attachments[0].url, sender.url()).href)).body(), expected);
+      const received = sender.locator(`article[data-message-id="${response.id}"]`);
+      await received.locator(".source-quote").getByText("Please review this proposal: " + label).waitFor();
+      await received.getByRole("link", { name: outputName }).waitFor();
+      assert.equal((await detail(sender, direct)).messages.filter(row => row.reply_to?.id === sourceId).length, 1);
+      t.record("reference_review", { sourceId, anchorId, replyId: response.id, uploadedBytesRead: true, reviewedBytesDelivered: true });
+    },
+  },
+  {
     name: "auth / anonymous and invalid login are rejected; UI login/logout changes the real session",
     run: async (t) => {
       const { page } = await t.session(null);

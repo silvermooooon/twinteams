@@ -109,6 +109,8 @@ restore tags an owner edited or cleared, while new explicit evidence can update 
 owner correction wins. With Git Memory or the worker disabled, automatic tags wait; contact discovery,
 manual tags and contact search still work.
 
+In human conversations, choose **Reference in Duet** on an incoming message to draft a private review request. After reviewing the proposed reply or file, ask your Duet to send it back as you in a separate private message.
+
 Workspace files and private memory remain separate persistent file components.
 In Duet settings, upload one Skill folder containing `SKILL.md`; its nested files are preserved in the owner's private workspace. Folder contents may total up to 20 MiB, and an existing folder with the same name is not overwritten. Newly uploaded Skills are disabled until enabled in settings.
 Duets can explicitly deliver finished workspace files into chat attachment cards with `present_files`; each delivery captures a snapshot. Markdown, text and PDF support in-app preview. HTML opens only after a user action in a separate sandboxed tab and remains downloadable.

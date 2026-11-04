@@ -312,6 +312,9 @@ def _lineage(service, db, member, messages, previous):
                     for requirement in checkpoint.source_provenance:
                         requirements[digest(requirement)] = requirement
             elif kind == "chat_context":
+                if source.get("context_role") == "owner_message_reference":
+                    # Keep the exact human message/attachment hash behind a quoted document after compaction.
+                    requirements[digest(source)] = source
                 # Even an empty origin context retains its membership/reset ACL.
                 preserved = {key: value for key, value in source.items() if key != "sources"}
                 origin = db.get(Chat, source["chat_id"])

@@ -44,3 +44,5 @@ button{transition:background-color 100ms,border-color 100ms,color 100ms}button:h
 
 .failed-chip .icon-button{width:22px;height:22px;padding:3px;flex-shrink:0}
 .message-request-chips:empty{display:none}
+
+.fluent-menu.message-reference-menu{position:fixed;width:180px;max-width:calc(100vw - 8px);z-index:70}

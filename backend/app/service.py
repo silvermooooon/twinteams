@@ -731,11 +731,18 @@ class ProductService:
         result["reactions"] = projection(db, msg.id, member.owner_id)
         result["created_at"] = iso(msg.created_at)
         result["read_by"] = receipts[msg.id] if receipts is not None else list(db.scalars(select(Receipt.owner_id).where(Receipt.message_id == msg.id)))
+        from .message_references import reference_json, referenced_human_message
+        reference = referenced_human_message(db, msg)
+        if reference is not None and self.message_sources_visible(db, member, msg, cache=cache):
+            result["message_reference"] = reference_json(self, db, reference)
         if msg.reply_to_message_id:
             quoted = self.visible_message(db, member, msg.reply_to_message_id, False, cache=cache)
             if quoted:
                 author = db.get(Actor, quoted.author_id)
-                result["reply_to"] = {"id": quoted.id, "author_name": author.name if author else "Unknown", "body": quoted.body}
+                body = quoted.body or ", ".join(row.name for identifier in quoted.attachment_ids or []
+                    if (row := db.get(ChatAttachment, identifier)) and row.message_id == quoted.id
+                    and (not row.private_owner_input or row.owner_id == member.owner_id))
+                result["reply_to"] = {"id": quoted.id, "author_name": author.name if author else "Unknown", "body": body}
             else:
                 result["reply_to"] = {"id": msg.reply_to_message_id, "author_name": "", "body": "Message unavailable", "unavailable": True}
         return result
@@ -1161,7 +1168,7 @@ class ProductService:
         return request
 
 
-    def send_message(self, owner_id, chat_id, body, key, reply_to=None, reply_for_me=False, attachment_ids=None):
+    def send_message(self, owner_id, chat_id, body, key, reply_to=None, reply_for_me=False, attachment_ids=None, reference_message_id=None):
         attachment_ids = list(attachment_ids or [])
         with self.transaction() as db:
             if reply_to:
@@ -1177,7 +1184,13 @@ class ProductService:
             attachments = self._attachment_selection(db, owner_id, chat_id, attachment_ids)
             if not body.strip() and not attachments:
                 fail(400, "Message cannot be blank")
-            fingerprint = digest([body, reply_to, reply_for_me, [[row.id, row.sha256] for row in attachments]])
+            fingerprint_parts = [body, reply_to, reply_for_me, [[row.id, row.sha256] for row in attachments]]
+            provenance = []
+            if reference_message_id:
+                from .message_references import reference_source
+                provenance.append(reference_source(self, db, owner_id, chat, reference_message_id))
+                fingerprint_parts.append(reference_message_id)
+            fingerprint = digest(fingerprint_parts)
             existing = db.scalar(select(Message).where(Message.command_owner_id == owner_id, Message.client_request_key == key))
             if existing:
                 if (existing.command_fingerprint and existing.command_fingerprint != fingerprint) or existing.chat_id != chat_id or existing.body != body or existing.reply_to_message_id != reply_to or (not existing.command_fingerprint and attachment_ids):
@@ -1197,7 +1210,7 @@ class ProductService:
             msg = self.append_message(db, chat, author_id=owner_id, kind="human", body=body,
                 reply_to_message_id=reply_to, command_owner_id=owner_id, client_request_key=key,
                 causal_chain_id=chain.id if chain else None, attachment_ids=attachment_ids,
-                command_fingerprint=fingerprint)
+                source_provenance=provenance, command_fingerprint=fingerprint)
             for row in attachments:
                 row.message_id = msg.id
             db.add(Receipt(message_id=msg.id, owner_id=owner_id))
@@ -1509,8 +1522,12 @@ class ProductService:
             if covering:
                 checked[("covering_summary", member.chat_id)] = covering.id
             conversation, sources, rows = read_context(self, db, chat, member, summary_scope, cache=checked)
-            if request.source_message_id:
-                self.visible_message(db, member, request.source_message_id, cache=checked)
+            source_message = self.visible_message(db, member, request.source_message_id, cache=checked) if request.source_message_id else None
+            from .message_references import referenced_human_message
+            reference = referenced_human_message(db, source_message) if source_message else None
+            if reference:
+                # The active input may be older than the history budget; its external grant still gates every step.
+                sources.extend(source_message.source_provenance)
             previous_manifests = list(db.scalars(select(ContextManifest).where(ContextManifest.request_id == request.id)))
             if not all(self.provenance_allowed(db, member, manifest.sources, cache=checked) for manifest in previous_manifests):
                 fail(409, "Previously supplied runtime context is no longer authorized; explicit retry with a fresh request is required")
@@ -1553,9 +1570,11 @@ class ProductService:
                 from .message_center import center_source
                 manifest.sources = [*manifest.sources, *(center_source(twin.owner_id, current[item_id].message, chat.reset_generation) for item_id in ids if item_id in current)]
                 manifest.source_digest = digest(manifest.sources)
-            source_message = self.visible_message(db, member, request.source_message_id, cache=checked) if request.source_message_id else None
             file_ids = request.input_attachment_ids if request.raw_owner_input is not None else source_message.attachment_ids if source_message else []
             files = self.attachment_references(db, file_ids, member, private_request=request if request.raw_owner_input is not None else None)
+            if reference:
+                origin_member = self.membership(db, member.owner_id, reference.chat_id)[1]
+                files.extend(self.attachment_references(db, reference.attachment_ids, origin_member))
             active_requests = self._concurrent_task_context(db, request, chat, member)
             origin = db.get(ReplyRequest, request.continuation_of_request_id) if request.continuation_of_request_id else None
             continuation_origin = ({"request_id": origin.id, "session_id": origin.session_id,
@@ -2346,13 +2365,17 @@ class ProductService:
             return self._attachment_path(attachment), self.attachment_json(attachment) | {"sha256": attachment.sha256}
 
     def attachment_content(self, owner_id, chat_id, attachment_id):
-        from .attachments import MAX_ATTACHMENT_BYTES
         path, info = self.attachment_file(owner_id, chat_id, attachment_id)
+        return self.verified_attachment_bytes(path, info), info
+
+    @staticmethod
+    def verified_attachment_bytes(path, info):
+        from .attachments import MAX_ATTACHMENT_BYTES
         with path.open("rb") as stream:
             data = stream.read(MAX_ATTACHMENT_BYTES + 1)
         if len(data) != info["size"] or hashlib.sha256(data).hexdigest() != info["sha256"]:
             fail(409, "Immutable attachment content changed")
-        return data, info
+        return data
 
     def _attachment_selection(self, db, owner_id, chat_id, attachment_ids):
         from .attachments import MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS
@@ -2840,7 +2863,7 @@ class ProductService:
                 if prior:
                     if (prior.chat_id, prior.owner_id, prior.name, prior.arguments_hash) != (chat_id, owner_id, name, arguments_hash):
                         fail(409, "Product operation identity conflicts with its original action")
-                    if name in {"send_chat_message", "present_files"}:
+                    if name in {"send_chat_message", "present_files", "reply_as_owner"}:
                         self._message_tool_origin(db, context)
                         destination_member = self.membership(db, owner_id, prior.result["chat_id"])[1]
                         if prior.result.get("message_id"):
@@ -2888,6 +2911,9 @@ class ProductService:
                 result = runtime_dispatch(self, db, name, args, context, chat)
             elif name in PROACTIVITY_TOOLS:
                 result = proactivity_dispatch(self, db, name, args, context)
+            elif name == "reply_as_owner":
+                from .owner_replies import reply_as_owner
+                result = reply_as_owner(self, db, args, context)
             elif name in PLATFORM_TOOLS:
                 result = dispatch(self, db, name, args, context, chat, member, locked_ids)
             elif name in {"send_chat_message", "present_files", "list_authorized_chats"}:
@@ -3144,7 +3170,7 @@ class ProductService:
         return self.workspace_node_allowed(db, member, discovered)
 
     def _workspace_db(self, db, owner_id, chat_id, relative=""):
-        import base64
+        from .attachments import workspace_path_id
         _, member = self.membership(db, owner_id, chat_id)
         root = settings.workspace_root / chat_id
         root.mkdir(parents=True, exist_ok=True)
@@ -3161,7 +3187,7 @@ class ProductService:
             if not self._workspace_path_allowed(db, member, path, local, nodes=nodes, attachments=attachments):
                 continue
             node = next((node for node in nodes if Path(node.relative_path) == local), None)
-            identifier = node.id if node else "path:" + base64.urlsafe_b64encode(str(local).encode()).decode().rstrip("=")
+            identifier = node.id if node else workspace_path_id(local)
             entries.append({"id": identifier, "name": path.name, "kind": "folder" if path.is_dir() else "file",
                             "path": str(local), "workspace_path": str(path), "size": None if path.is_dir() else path.stat().st_size})
         return entries
