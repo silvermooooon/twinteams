@@ -779,8 +779,7 @@ def question_history_fixture(question_id):
         first = chat.next_message_seq
         twin_id = service.twin(db, question.owner_id).id
         for index in range(101):
-            service.append_message(db, chat, consume_followup=False,
-                author_id=twin_id, kind='system',
+            service.append_message(db, chat, author_id=twin_id, kind='system',
                 body=f'Isolated pagination fixture {question_id} entry {index + 1}')
         chat_id, last = chat.id, chat.next_message_seq - 1
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
