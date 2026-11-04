@@ -182,7 +182,17 @@ const cases = [
       assert.deepEqual(observed, { sameElement: true, disconnected: false, focused: true }); assert.equal(await input.inputValue(), draft);
       await card(page, value.id).getByRole('button', { name: 'Dismiss question', exact: true }).click();
       await card(page, value.id).getByText('Dismissed', { exact: true }).waitFor();
-      t.record('older_history', { questionId: value.id, explicitSeed: seeded, reauthorizedOlderPages: loads.length, sameInputElement: true, draftAndFocusPreserved: true });
+      const latestId = (await detail(page, inbox.id)).messages.at(-1).id;
+      await chooseChat(page, 'Team workspace');
+      await page.locator(`article[data-message-id="${latestId}"]`).waitFor({ state: 'detached' });
+      const priorReads = loads.length;
+      await privateChat(page);
+      await page.locator(`article[data-message-id="${latestId}"]`).waitFor();
+      assert.equal(await card(page, value.id).count(), 0, 'reopening the conversation starts with current messages');
+      assert.equal(loads.length, priorReads, 'previously expanded pages do not delay the reopened conversation');
+      await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click();
+      await card(page, value.id).getByText('Dismissed', { exact: true }).waitFor();
+      t.record('older_history', { reopenedLatestOnly: true, manualHistoryStillAvailable: true, questionId: value.id, explicitSeed: seeded, reauthorizedOlderPages: loads.length, sameInputElement: true, draftAndFocusPreserved: true });
     },
   },
 ];

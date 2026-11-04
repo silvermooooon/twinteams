@@ -563,25 +563,28 @@ class ProductService:
                 from .conversation_context import summary_allowed, summary_metadata
                 if not summary_allowed(self, db, member, summary_metadata(db, source.get("id")), seen, cache):
                     return False
-            elif source.get("kind") == "history_range":
-                origin = db.get(Chat, source.get("chat_id"))
-                grant = db.scalar(select(Membership).where(Membership.chat_id == source.get("chat_id"),
-                    Membership.owner_id == member.owner_id, Membership.left_at.is_(None)))
-                if not origin or not grant or grant.lower_seq > source.get("lower_seq", 0):
+            elif source.get("kind") in {"history_range", "chat_context"}:
+                chat_id = source.get("chat_id")
+                grants = cache.get("projection_grants")
+                key = (member.owner_id, chat_id)
+                if grants is not None and key in grants:
+                    origin, grant = grants[key]
+                else:
+                    origin = db.get(Chat, chat_id)
+                    grant = db.scalar(select(Membership).where(Membership.chat_id == chat_id,
+                        Membership.owner_id == member.owner_id, Membership.left_at.is_(None)))
+                    if grants is not None:
+                        grants[key] = origin, grant
+                if not origin or not grant:
                     return False
-                if origin.kind == "private" and (origin.private_owner_id != member.owner_id or origin.reset_pending or
-                        origin.reset_generation != source.get("private_generation")):
+                is_range = source["kind"] == "history_range"
+                if is_range and grant.lower_seq > source.get("lower_seq", 0):
                     return False
-            elif source.get("kind") == "chat_context":
-                # Cross-chat output keeps the complete original context boundary.
-                # Every reader must still hold the original history grant.
-                origin_chat = db.get(Chat, source.get("chat_id"))
-                origin_member = db.scalar(select(Membership).where(Membership.chat_id == source.get("chat_id"), Membership.owner_id == member.owner_id, Membership.left_at.is_(None)))
-                if not origin_chat or not origin_member or (origin_chat.kind == "private" and
-                        (origin_chat.private_owner_id != member.owner_id or origin_chat.reset_pending or
-                         source.get("private_generation", origin_chat.reset_generation) != origin_chat.reset_generation)):
+                generation = source.get("private_generation", None if is_range else origin.reset_generation)
+                if origin.kind == "private" and (origin.private_owner_id != member.owner_id
+                        or origin.reset_pending or generation != origin.reset_generation):
                     return False
-                if not self.provenance_allowed(db, origin_member, source.get("sources", []), seen, cache):
+                if not is_range and not self.provenance_allowed(db, grant, source.get("sources", []), seen, cache):
                     return False
             elif source.get("kind") == "message":
                 if not source.get("hash") and cache is not None and cache.get(("covered_message", member.chat_id, source["id"])):
@@ -592,10 +595,16 @@ class ProductService:
                 if source.get("hash"):
                     from .conversation_context import message_source
                     # Fetch hash inputs together, preserving already loaded or edited values.
-                    missing = sa_inspect(message).unloaded.intersection({"body", "raw_owner_input", "attachment_ids"})
-                    if missing:
-                        db.refresh(message, attribute_names=sorted(missing))
-                    current_hash = message_source(db, message)["hash"]
+                    hashes = cache.get("projection_hashes")
+                    if hashes is not None and message.id in hashes:
+                        current_hash = hashes[message.id]
+                    else:
+                        missing = sa_inspect(message).unloaded.intersection({"body", "raw_owner_input", "attachment_ids"})
+                        if missing:
+                            db.refresh(message, attribute_names=sorted(missing))
+                        current_hash = message_source(db, message)["hash"]
+                        if hashes is not None:
+                            hashes[message.id] = current_hash
                     # Frozen pre-checkpoint tool manifests used a body-only
                     # digest; new sources explicitly version the full snapshot.
                     if source["hash"] != current_hash and (source.get("hash_version") == 1 or source["hash"] != digest(message.body)):
@@ -754,7 +763,7 @@ class ProductService:
                 return peer.name
         return chat.title
 
-    def chat_json(self, db, chat, member, owner_ids=None):
+    def chat_json(self, db, chat, member, owner_ids=None, *, cache=None):
         from sqlalchemy.dialects.postgresql import JSONB
         from sqlalchemy.orm import load_only
         metadata = load_only(Message.id, Message.chat_id, Message.seq, Message.author_id, Message.kind, Message.created_at, Message.state,
@@ -763,7 +772,7 @@ class ProductService:
         if chat.kind == "group":
             visible = visible.where(Message.kind == "human")
         last, cursor = None, None
-        checked = {}
+        checked = {} if cache is None else cache
         # Only authorization metadata is paged; fetch one body for the final preview.
         while last is None:
             query = visible.where(Message.seq < cursor) if cursor else visible
@@ -1008,7 +1017,8 @@ class ProductService:
             messages = list(reversed(list(db.scalars(query.order_by(Message.seq.desc()).limit(limit + 1)))))
             has_more = len(messages) > limit
             messages = messages[-limit:]
-            checked = {}
+            # A single owner snapshot checks overlapping provenance for messages, questions and preview.
+            checked = {"projection_hashes": {}, "projection_grants": {(owner_id, chat_id): (chat, member)}}
             requests = []
             if chat.kind != "group":
                 newer = aliased(ReplyRequest)
@@ -1024,8 +1034,19 @@ class ProductService:
                 requests = [r for r in requests if (r.source_message_id and self.visible_message(db, member, r.source_message_id, False, cache=checked)) or (r.source_message_id is None and r.requester_id == owner_id)]
             tracking = [row[3] for row in self._tracking_scope(db, chat, member)]
             members = [m.owner_id for m in self.members(db, chat_id)]
+            actors = list(db.scalars(select(Actor).where(Actor.owner_id.in_(members),
+                Actor.kind == "human" if chat.kind == "group" else Actor.kind.in_(["human", "twin"]))
+                .order_by(Actor.kind, Actor.name)))
+            visible = [m for m in messages if self.message_sources_visible(db, member, m, cache=checked)]
             from .questions import for_chat
-            return {"questions": for_chat(self, db, chat, member, [m.id for m in messages if self.message_sources_visible(db, member, m, cache=checked)]), "revision": chat.revision, "has_more": has_more, "before_seq": messages[0].seq if messages else None, "chat": self.chat_json(db, chat, member), "messages": self.messages_json(db, [m for m in messages if self.message_sources_visible(db, member, m, cache=checked)], member, cache=checked), "requests": [self.request_json(db, r, owner_id) for r in requests], "approvals": self._approval_inbox(db, chat, member), "tracking": [t for t in tracking if t], "settings": self.settings_json(self.settings_row(db, owner_id, chat)), "members": [self.actor_json(a) for a in db.scalars(select(Actor).where(Actor.owner_id.in_(members), Actor.kind == "human" if chat.kind == "group" else Actor.kind.in_(["human", "twin"])).order_by(Actor.kind, Actor.name))]}
+            return {"questions": for_chat(self, db, chat, member, [m.id for m in visible], cache=checked),
+                    "revision": chat.revision, "has_more": has_more, "before_seq": messages[0].seq if messages else None,
+                    "chat": self.chat_json(db, chat, member, members, cache=checked),
+                    "messages": self.messages_json(db, visible, member, cache=checked),
+                    "requests": [self.request_json(db, r, owner_id) for r in requests],
+                    "approvals": self._approval_inbox(db, chat, member), "tracking": [t for t in tracking if t],
+                    "settings": self.settings_json(self.settings_row(db, owner_id, chat)),
+                    "members": [self.actor_json(a) for a in actors]}
 
     def _approval_inbox(self, db, chat, member):
         query = select(Approval).where(Approval.approver_id == member.owner_id, Approval.status == "pending")

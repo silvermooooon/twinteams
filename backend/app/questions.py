@@ -15,17 +15,17 @@ def dto(service, db, row):
         "created_at": row.created_at.astimezone(UTC).isoformat(), "answered_at": row.answered_at.astimezone(UTC).isoformat() if row.answered_at else None}
 
 
-def origin(service, db, row):
+def origin(service, db, row, *, cache=None):
     from .service import fail
     request, chat, member = runtime_origin(service, db, row.owner_id, row.origin_request_id, lock=False)
     inbox_member = service.membership(db, row.owner_id, row.chat_id)[1]
-    service.visible_message(db, inbox_member, row.message_id)
-    if not service.provenance_allowed(db, member, row.source_provenance):
+    service.visible_message(db, inbox_member, row.message_id, cache=cache)
+    if not service.provenance_allowed(db, member, row.source_provenance, cache=cache):
         fail(409, "The question's original context is no longer authorized")
     return request, chat, member
 
 
-def for_chat(service, db, chat, member, message_ids):
+def for_chat(service, db, chat, member, message_ids, *, cache=None):
     if chat.kind != "private" or chat.private_owner_id != member.owner_id or not message_ids:
         return []
     rows = db.scalars(select(QuestionRequest).where(QuestionRequest.owner_id == member.owner_id,
@@ -33,7 +33,7 @@ def for_chat(service, db, chat, member, message_ids):
     result = []
     for row in rows:
         try:
-            origin(service, db, row)
+            origin(service, db, row, cache=cache)
         except Exception as error:
             from fastapi import HTTPException
             if not isinstance(error, HTTPException) or error.status_code not in {403, 404, 409}:

@@ -135,3 +135,37 @@ def test_batched_projection_keeps_attachment_quote_and_source_grants_owner_scope
     # A fresh request rechecks grants; primed metadata never survives a transaction.
     for owner in ("owner-alex", "owner-maya"):
         assert output_id not in {row["id"] for row in product.chat_detail(owner, chat)["messages"]}
+
+
+def test_chat_page_rechecks_each_distinct_attachment_source_once(attachments):
+    from app.conversation_context import message_source
+
+    product, client = attachments
+    chat_id = "private-alex"
+    attachment = upload(client, chat=chat_id, name="source.txt", mime="text/plain", data=b"source").json()
+    source_id = send(client, chat=chat_id, body="Evidence", ids=[attachment["id"]]).json()["message"]["id"]
+    with product.transaction() as db:
+        chat = db.get(Chat, chat_id)
+        source = message_source(db, db.get(Message, source_id))
+        derived_ids = []
+        for index in range(24):
+            msg = product.append_message(db, chat, kind="twin", author_id="twin-alex",
+                body=f"Derived output {index}", source_provenance=[source, {
+                    "kind": "history_range", "chat_id": chat_id, "lower_seq": 1,
+                    "private_generation": chat.reset_generation}])
+            derived_ids.append(msg.id)
+
+    calls = []
+    def before(conn, cursor, statement, parameters, context, executemany):
+        calls.append(statement)
+    event.listen(service_module.engine, "before_cursor_execute", before)
+    try:
+        rows = product.chat_detail("owner-alex", chat_id)["messages"]
+    finally:
+        event.remove(service_module.engine, "before_cursor_execute", before)
+    assert set(derived_ids).issubset(row["id"] for row in rows)
+    assert sum("FROM tt_chat_attachments" in sql for sql in calls) <= 3
+    assert sum("FROM tt_memberships" in sql for sql in calls) <= 5
+    with product.transaction() as db:
+        db.get(ChatAttachment, attachment["id"]).sha256 = "0" * 64
+    assert set(derived_ids).isdisjoint(row["id"] for row in product.chat_detail("owner-alex", chat_id)["messages"])
