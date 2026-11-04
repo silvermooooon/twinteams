@@ -1,9 +1,11 @@
 # Focused owner questions
 
-When a task needs information or an ordinary decision, the Twin can use
-`ask_question` with one clear question and optionally two or three suggested
-answers. A real question message and card appear in its owner's private chat,
-with a link to the originating conversation. Free text is always available.
+When a task needs an ordinary decision, the Duet uses `ask_question` with one
+clear question and two or three actionable alternatives where they are known.
+For missing information, it can ask an open-ended question without suggestions. A real question message and card appear in its owner's private chat,
+with a link to the originating conversation. An owner can select a suggestion
+directly or choose **Write my own answer**. Without suggestions, the text field
+is visible immediately.
 This is task input, not action approval or secret entry. Credentials continue
 to use their dedicated form.
 
@@ -38,13 +40,25 @@ without cancelling unrelated Duet tasks.
 `ChatDetail.questions` supplies owner-only metadata keyed by `message_id`; Duet-thread
 views receive an empty array. Existing chat revisions and WebSocket hints refresh
 cards without polling. Authenticated owner endpoints
-`POST /api/questions/{id}/answer` (`{answer:string}`) and
+`POST /api/questions/{id}/answer` (`{answer:string, selected_option?:boolean}`) and
 `POST /api/questions/{id}/dismiss` return the question DTO directly. Replaying
 the same answer returns the same continuation; a different second answer conflicts.
 
-Provision the additive table with `python -m app.init_db` before API/worker startup.
-[question-schema.sql](question-schema.sql) records the same DDL. Provisioning is
-repeatable and preserves existing user data.
+Provision the table before API/worker startup. Existing installations may apply
+[question-schema.sql](question-schema.sql) to add the nullable `owner_reply` JSON
+column; existing ordinary questions keep their original answers and no send action.
+Fresh installations provision it through `python -m app.init_db`.
+
+## Confirming a reply to a human message
+
+A reply prepared by `reply_as_owner` uses the same private question card with a
+server-saved draft. It shows the original conversation, audience, exact reply
+and attachments. Selecting **Confirm send** delivers that draft as the owner;
+**Cancel** leaves the conversation unchanged. Only a selected answer from the
+authenticated owner on this specific card can send. Typing the same words,
+replying in chat, or choosing a similarly named option on an ordinary question
+does not authorize publication. Access to the source, file versions, and
+recipients are checked again on confirmation. A changed draft needs a new card.
 
 ## Verification (2026-10-24)
 

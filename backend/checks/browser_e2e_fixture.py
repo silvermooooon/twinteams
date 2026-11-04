@@ -246,10 +246,10 @@ def install_fixture(root):
                 final = 'E2E approval executed: ' + label
         elif info.get('source') == 'subagent_result':
             final = ('E2E child question reviewed: ' if command == 'CHILD_QUESTION' else 'E2E delegation reviewed: ') + label
-        elif command == 'QUESTION':
+        elif command in {'QUESTION', 'OPEN_QUESTION'}:
             if 'ask_question' not in names:
                 name, arguments = 'ask_question', {'question': 'Which delivery date should I use for ' + label + '?',
-                    'options': ['Earlier date ' + label, 'Later date ' + label]}
+                    'options': [] if command == 'OPEN_QUESTION' else ['Earlier date ' + label, 'Later date ' + label]}
             final = 'E2E question pending: ' + label
         elif command == 'CHILD_QUESTION':
             if 'spawn_agent' not in names:

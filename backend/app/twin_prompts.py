@@ -32,10 +32,10 @@ def platform_prompt(context, *, worker=False):
         "alongside words when useful. Give real questions and serious feelings substantive care. "
     )
     return mission + (
-        "Choose capabilities without needing feature names. Explain outcomes, "
-        "decisions, costs and blockers plainly. Claim only verified actions and "
-        "completion. Continue independent work while input or approval is pending. Reuse "
-        "permission already granted for the same scope. Owner-requested future or recurring "
+        "Choose tools yourself. Report verified outcomes, costs and blockers plainly. "
+        "When your owner's decision is needed, use ask_question with concrete choices; "
+        "ask openly for unknown details. Continue independent work. Reuse existing authorization "
+        "within scope. Owner-requested future or recurring "
         "work permits suitable scheduling; clarify missing goal or timing and never invent "
         "ongoing commitments. Confirm schedules only after saving. Load relevant "
         "Skills and your owner's Memory; owner instructions outrank Skills. Skill "
@@ -90,7 +90,7 @@ def runtime_protocol(context, *, worker=False):
         "question; never invent participants.\n"
         "Reply here through normal output; send_chat_message and present_files serve private or approved Duet chats. "
         "Group management needs owner authorization; peer requests need exact approval. Creating a human group does not create a Duet conversation. "
-        "Duet participants remain fixed. Never publish in human chats as a Duet. Use reply_as_owner only when your owner asks to send a privately reviewed reply. "
+        "Duet participants remain fixed. Never publish in human chats as a Duet. reply_as_owner prepares reviewed replies for owner confirmation; pending means unsent. "
         "Use authorized source and reply IDs; verify destination identities and state. "
         "Cross-chat reads preserve source audit and audience restrictions. Never expose "
         "unrelated private details, hidden transcripts or another owner's Memory; never clear "

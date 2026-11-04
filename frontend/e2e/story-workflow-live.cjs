@@ -1,5 +1,5 @@
 /** Isolated real-model BA -> Scrum Master -> developer coordination. */
-const { assert, api, privateChat, sendMessage, poll, sleep } = require('./helpers.cjs');
+const { assert, api, questionAnswerInput, privateChat, sendMessage, poll, sleep } = require('./helpers.cjs');
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 function intentionallyStoppedChildren(evidence) {
@@ -41,7 +41,7 @@ async function answer(session, text, approvalSessions = [], questionId = null) {
   if (questionId && !question) throw Error('The intended Duet question is no longer pending');
   if (!question) return say(session, text, approvalSessions);
   const card = session.page.locator(`[data-question-id="${question.id}"]`);
-  await card.getByLabel('Your answer').fill(text);
+  await (await questionAnswerInput(card)).fill(text);
   await card.getByRole('button', { name: 'Send answer' }).click();
   return poll(async () => {
     for (const entry of approvalSessions) await approvePending(entry);

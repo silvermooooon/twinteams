@@ -1,19 +1,59 @@
-"""Publish an owner reply only to the human message the owner referenced."""
+"""Stage a reviewed reply in a private question; only an owner option can publish it."""
 from sqlalchemy import select
 
 from .attachments import MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS
 from .deliverables import save_snapshots, snapshot_destination
 from .message_references import referenced_human_message
-from .models import ChatAttachment, Message, Receipt
+from .models import Actor, Chat, ChatAttachment, Receipt, now
+from .question_models import QuestionRequest
 
 
 def reply_as_owner(service, db, args, context):
+    from . import questions
+    from .conversation_context import message_source
     from .service import digest, fail
     request, twin, private, member, _ = service._message_tool_origin(db, context)
     if (private.kind != "private" or private.private_owner_id != twin.owner_id or request.background
             or request.source != "private" or request.requester_id != twin.owner_id
             or not request.session_id or context.get("runtime_session_id") != request.session_id):
         fail(403, "Replying as the owner requires a fresh instruction to their primary private Duet")
+    anchor, original, target, instruction, files = reviewed_reply(service, db, args, request, twin, private, member)
+    question_id = "owner-reply:" + digest([instruction.id, anchor.id])
+    members = sorted(m.owner_id for m in service.members(db, target.id) if m.owner_id != twin.owner_id)
+    frozen = {"arguments": args, "chat_id": target.id, "message_id": original.id, "audience": members,
+              "files": [[file.id, file.sha256, file.name] for file in files]}
+    existing = db.get(QuestionRequest, question_id)
+    if existing:
+        if not existing.owner_reply or any(existing.owner_reply.get(key) != value for key, value in frozen.items()):
+            fail(409, "This instruction already proposed a different reply")
+        questions.origin(service, db, existing)
+        row = existing
+    else:
+        visible_source_files = [db.get(ChatAttachment, identifier) for identifier in (original.attachment_ids or [])]
+        preview = {"destination": service.chat_title(db, target, twin.owner_id),
+                   "audience": [db.get(Actor, owner).name for owner in members],
+                   "author_name": db.get(Actor, original.author_id).name,
+                   "original_body": original.body,
+                   "original_files": [file.name for file in visible_source_files if file and not file.private_owner_input],
+                   "body": args["body"], "files": [file.name for file in files]}
+        private_ids = {anchor.id, *(file.message_id for file in files if file.chat_id == private.id)}
+        if args.get("review_message_id"):
+            private_ids.add(args["review_message_id"])
+        sources = [message_source(db, service.visible_message(db, member, mid)) for mid in private_ids]
+        row = questions.add_question(service, db, request, private, private, member, "Send this reply as you?",
+            ["Confirm send", "Cancel"], context, question_id=question_id, owner_reply={**frozen, "preview": preview},
+            additional_sources=sources)
+    return confirmation_result(service, db, row)
+
+
+def confirmation_result(service, db, row):
+    from . import questions
+    return {"status": {"pending": "confirmation_required", "answered": "sent", "cancelled": "cancelled"}[row.status],
+            "sent": row.status == "answered", "chat_id": row.chat_id, "question": questions.dto(service, db, row)}
+
+
+def reviewed_reply(service, db, args, request, twin, private, member):
+    from .service import fail
     reference_id = args.get("reference_message_id")
     body, ids = args.get("body"), args.get("attachment_ids", [])
     if (not isinstance(reference_id, str) or not isinstance(body, str)
@@ -54,29 +94,55 @@ def reply_as_owner(service, db, args, context):
         files.append(row)
     if sum(row.size for row in files) > MAX_ATTACHMENT_BYTES:
         fail(413, "Message attachments are limited to 20 MiB in total")
-    # Repeated tool calls from the same owner instruction cannot post a second reply.
-    key = "owner-reply:" + digest([instruction.id, anchor.id])
-    fingerprint = digest([body, [[row.id, row.sha256] for row in files]])
-    existing = db.scalar(select(Message).where(Message.sdk_output_key == key))
-    if existing:
-        if existing.command_fingerprint != fingerprint:
-            fail(409, "This instruction already sent a different reply")
-        service.visible_message(db, target_member, existing.id)
-        return {"sent": True, "status": "sent", "chat_id": target.id, "message_id": existing.id,
-                "message": service.message_json(db, existing, target_member)}
+    return anchor, original, target, instruction, files
+
+
+def decide(service, db, question, choice):
+    from . import questions
+    from .service import fail
+
+    frozen = question.owner_reply
+    for chat_id in sorted({question.chat_id, frozen["chat_id"]}):
+        db.scalar(select(Chat.id).where(Chat.id == chat_id).with_for_update())
+    db.refresh(question, with_for_update=True)
+    request, private, member = questions.origin(service, db, question)
+    if question.status != "pending":
+        if question.answer != choice:
+            fail(409, "This send confirmation already has a different decision")
+        return questions.dto(service, db, question)
+    if choice == "Confirm send":
+        args = frozen["arguments"]
+        twin = db.get(Actor, request.target_twin_id)
+        _, original, target, _, files = reviewed_reply(service, db, args, request, twin, private, member)
+        audience = sorted(m.owner_id for m in service.members(db, target.id) if m.owner_id != twin.owner_id)
+        if (original.id != frozen["message_id"] or target.id != frozen["chat_id"] or audience != frozen["audience"]
+                or [[file.id, file.sha256, file.name] for file in files] != frozen["files"]):
+            fail(409, "Recipients, original message or files changed; this reply cannot be sent")
+        posted = publish(service, db, question, request, twin, original, target, files, args)
+        question.owner_reply = {**frozen, "sent_message_id": posted.id}
+    elif choice != "Cancel":
+        fail(422, "Choose Confirm send or Cancel")
+    answer = service.append_message(db, private, kind="human", author_id=question.owner_id,
+        body=choice, reply_to_message_id=question.message_id, causal_chain_id=request.causal_chain_id)
+    db.add(Receipt(message_id=answer.id, owner_id=question.owner_id))
+    question.status = "answered" if choice == "Confirm send" else "cancelled"
+    question.answer, question.answer_message_id, question.answered_at = choice, answer.id, now()
+    return questions.dto(service, db, question)
+
+
+def publish(service, db, question, request, twin, original, target, files, args):
     snapshots = []
-    for position, row in enumerate(files):
-        identifier, path = snapshot_destination(target.id, context["operation_id"], position, row.name)
-        info = {key: getattr(row, key) for key in ("sha256", "size", "mime_type", "kind", "width", "height")}
-        data = service.verified_attachment_bytes(service._attachment_path(row), info)
-        snapshots.append((identifier, path, data, info, row))
+    for position, file in enumerate(files):
+        identifier, path = snapshot_destination(target.id, question.id, position, file.name)
+        info = {key: getattr(file, key) for key in ("sha256", "size", "mime_type", "kind", "width", "height")}
+        data = service.verified_attachment_bytes(service._attachment_path(file), info)
+        snapshots.append((identifier, path, data, info, file))
     attached = save_snapshots(db, request, twin.owner_id, target, snapshots)
     msg = service.append_prepared_message(db, target, request, author_id=twin.owner_id, kind="human",
         body=args["body"], reply_to_message_id=original.id, attachment_ids=[file.id for file in attached],
-        sdk_output_key=key, command_fingerprint=fingerprint)
+        sdk_output_key=question.id)
     for file in attached:
         file.message_id = msg.id
     db.add(Receipt(message_id=msg.id, owner_id=twin.owner_id))
     db.flush()
-    return {"sent": True, "status": "sent", "chat_id": target.id, "message_id": msg.id,
-            "message": service.message_json(db, msg, target_member)}
+    return msg

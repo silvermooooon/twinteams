@@ -95,7 +95,13 @@ async function chooseChat(page, title) {
   await row.click();
   await page.locator(".composer textarea").waitFor();
 }
+async function questionAnswerInput(card) {
+  const input = card.getByRole("textbox", { name: "Your answer", exact: true });
+  if (!(await input.isVisible())) await card.getByRole("button", { name: "Write my own answer", exact: true }).click();
+  return input;
+}
 module.exports = {
+  questionAnswerInput,
   assert,
   sleep,
   poll,

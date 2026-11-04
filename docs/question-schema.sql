@@ -42,4 +42,6 @@ CREATE INDEX IF NOT EXISTS ix_tt_question_requests_owner_id ON tt_question_reque
 
 CREATE INDEX IF NOT EXISTS tt_question_pending_run ON tt_question_requests (runtime_session_id, runtime_run_id, status);
 
+ALTER TABLE tt_question_requests ADD COLUMN IF NOT EXISTS owner_reply JSON;
+
 COMMIT;

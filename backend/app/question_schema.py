@@ -1,9 +1,13 @@
 """Explicit additive provisioning, never an API startup side effect."""
+from sqlalchemy import text
+
 from .question_models import QuestionRequest
 
 
 def upgrade_question_schema(engine):
     QuestionRequest.__table__.create(engine, checkfirst=True)
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE tt_question_requests ADD COLUMN IF NOT EXISTS owner_reply JSON"))
     for index in QuestionRequest.__table__.indexes:
         index.create(engine, checkfirst=True)
 

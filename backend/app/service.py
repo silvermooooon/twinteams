@@ -2873,6 +2873,13 @@ class ProductService:
                                 require_active(db, db.get(Chat, message.chat_id))
                             else:
                                 self.visible_message(db, destination_member, prior.result["message_id"])
+                    if name == "reply_as_owner" and prior.result.get("question"):
+                        from . import questions
+                        from .owner_replies import confirmation_result
+                        from .question_models import QuestionRequest
+                        row = db.get(QuestionRequest, prior.result["question"]["id"])
+                        questions.origin(self, db, row)
+                        return confirmation_result(self, db, row)
                     if name in {"create_tracking", "update_tracking", "add_tracking_update"}:
                         topic = db.get(TrackingTopic, prior.result.get("id"))
                         if not topic or not self.tracking_json(db, topic, self.membership(db, owner_id, topic.chat_id)[1]):

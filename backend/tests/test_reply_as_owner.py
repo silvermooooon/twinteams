@@ -10,7 +10,22 @@ from test_chat_attachments_ui_acceptance import send, upload
 from test_deliverables import present
 from test_file_workspace_acceptance import files as files  # noqa: PLC0414
 
-from app.models import Message, ProductOperation, ReplyRequest
+from app import question_api, questions
+from app.models import Membership, Message, ProductOperation, ReplyRequest
+from app.question_models import QuestionRequest
+
+
+@pytest.fixture(autouse=True)
+def question_route(files, monkeypatch):
+    product, client, _ = files
+    monkeypatch.setattr(question_api, "service", product)
+    client.app.include_router(question_api.router)
+
+
+def choose(client, question, answer, **kwargs):
+    return client.post(f"/api/questions/{question['id']}/answer",
+                       json={"selected_option": True, "answer": answer}, **kwargs)
+
 
 
 def owner_turn(files, text, **kwargs):
@@ -18,7 +33,8 @@ def owner_turn(files, text, **kwargs):
     result = send(client, body=text, **kwargs).json()
     request = result["request"]
     return result["message"]["id"], {
-        **product.get_runtime_context(request["id"]), "runtime_session_id": request["session_id"]}
+        **product.get_runtime_context(request["id"]), "runtime_session_id": request["session_id"],
+        "runtime_run_id": "test-run-" + request["id"], "runtime_command_id": "test-command-" + request["id"]}
 
 
 def outgoing(product, context, anchor, *, operation=None, body="", **kwargs):
@@ -54,10 +70,25 @@ def test_review_then_send_file_as_owner_once(files):
     with product.transaction() as db:
         requests_before = db.scalar(select(func.count()).select_from(ReplyRequest))
     operation = uuid4().hex
-    sent = outgoing(product, send_ctx, anchor, attachment_ids=[file_id], operation=operation)
-    # Both replay and a redundant second tool call in this turn return the posted message.
-    assert sent == outgoing(product, send_ctx, anchor, attachment_ids=[file_id], operation=operation)
-    assert sent["message_id"] == outgoing(product, send_ctx, anchor, attachment_ids=[file_id])["message_id"]
+    pending = outgoing(product, send_ctx, anchor, attachment_ids=[file_id], operation=operation)
+    assert not pending["sent"] and pending["status"] == "confirmation_required"
+    question = pending["question"]
+    assert question["reply_preview"]["original_files"] == ["story.txt"] and question["reply_preview"]["files"] == ["review.md"]
+    assert question["options"] == ["Confirm send", "Cancel"]
+    assert pending == outgoing(product, send_ctx, anchor, attachment_ids=[file_id], operation=operation)
+    assert question["id"] == outgoing(product, send_ctx, anchor, attachment_ids=[file_id])["question"]["id"]
+    assert choose(client, question, "Confirm send", headers={"x-test-owner": "owner-maya"}).status_code == 404
+    assert client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Confirm send"}).status_code == 422
+    assert choose(client, question, "I guess so").status_code == 422
+    assert send(client, body="Confirm send", reply_to_message_id=question["message_id"]).status_code == 422
+    with pytest.raises(HTTPException):
+        questions.answer_from_message(product, {"question_id": question["id"], "message_id": send_ctx["source_message_id"]}, send_ctx)
+    with product.transaction() as db:
+        assert not db.scalar(select(Message.id).where(Message.reply_to_message_id == original["id"]))
+    assert choose(client, question, "Confirm send").json()["status"] == "answered"
+    assert choose(client, question, "Confirm send").json()["status"] == "answered"
+    assert choose(client, question, "Cancel").status_code == 409
+    assert outgoing(product, send_ctx, anchor, attachment_ids=[file_id], operation=operation)["sent"]
     maya = {"x-test-owner": "owner-maya"}
     rows = client.get("/api/chats/group-team", headers=maya).json()["messages"]
     msg, = [row for row in rows if (row.get("reply_to") or {}).get("id") == original["id"]]
@@ -82,10 +113,47 @@ def test_exact_text_and_origin_boundaries(files):
     path.write_text("Check")
     reviewed = present(product, ctx, [path], caption="Run one pilot first.")["message"]
     _, current = owner_turn(files, "Yes, reply to them.")
-    assert outgoing(product, current, anchor, body=reviewed["body"], review_message_id=reviewed["id"])["sent"]
+    pending = outgoing(product, current, anchor, body=reviewed["body"], review_message_id=reviewed["id"])
+    q = pending["question"]
+    assert q["reply_preview"]["body"] == reviewed["body"] and q["reply_preview"]["audience"]
+    assert choose(client, q, "Cancel").json()["status"] == "cancelled"
+    assert client.post(f"/api/questions/{q['id']}/dismiss").json()["status"] == "cancelled"
+    assert choose(client, q, "Confirm send").status_code == 409
+    with product.transaction() as db:
+        assert not db.scalar(select(Message.id).where(Message.reply_to_message_id == original["id"]))
     with pytest.raises(HTTPException):
         outgoing(product, current, original["id"], body=reviewed["body"], review_message_id=reviewed["id"])
     with product.transaction() as db:
         db.get(Message, original["id"]).state = "withdrawn"
     with pytest.raises(HTTPException):
         outgoing(product, current, anchor, body=reviewed["body"], review_message_id=reviewed["id"])
+
+@pytest.mark.parametrize("change", ["membership", "original", "bytes", "rejection"])
+def test_no_delivery_when_confirmation_is_no_longer_valid(files, change):
+    product, client, root = files
+    received = send(client, chat="group-team", owner="owner-maya", body="Review the spec").json()["message"]
+    anchor, ctx = owner_turn(files, "Review this.", reference_message_id=received["id"])
+    path = root / "private-alex" / "notes.txt"
+    path.parent.mkdir(exist_ok=True, parents=True)
+    path.write_text("Reviewed")
+    review = present(product, ctx, [path], caption="Ready.")["message"]
+    _, ctx = owner_turn(files, "Send the notes.")
+    file = review["attachments"][0]
+    q = outgoing(product, ctx, anchor, attachment_ids=[file["id"]])["question"]
+    if change == "bytes":
+        from pathlib import Path
+        Path(file["workspace_path"]).write_text("Replaced")
+    elif change == "rejection":
+        assert client.post(f"/api/questions/{q['id']}/dismiss").json()["status"] == "cancelled"
+    else:
+        with product.transaction() as db:
+            if change == "membership":
+                from app.models import now
+                db.scalar(select(Membership).where(Membership.chat_id == "group-team",
+                    Membership.owner_id == "owner-jordan")).left_at = now()
+            else:
+                db.get(Message, received["id"]).state = "withdrawn"
+    assert choose(client, q, "Confirm send").status_code in {404, 409}
+    with product.transaction() as db:
+        assert not db.scalar(select(Message.id).where(Message.reply_to_message_id == received["id"]))
+        assert db.get(QuestionRequest, q["id"]).status != "answered"

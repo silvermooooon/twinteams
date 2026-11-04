@@ -15,7 +15,7 @@ from app.question_models import QuestionRequest
 from app.runtime_bridge import RuntimeBridge
 
 
-def pending(product, chat_id="private-alex"):
+def pending(product, chat_id="private-alex", *, options=("Short", "Detailed")):
     if chat_id == "private-alex":
         request = send_message(product, "owner-alex", chat_id, "Prepare a useful report", uuid4().hex)["request"]
     else:
@@ -29,7 +29,7 @@ def pending(product, chat_id="private-alex"):
     context = product.get_runtime_context(request["id"])
     context.update(operation_id=uuid4().hex, runtime_session_id=session_id,
         runtime_run_id="run-" + request["id"], runtime_command_id=request["id"])
-    args = {"question": "Which format should I use?", "options": ["Short", "Detailed"]}
+    args = {"question": "Which format should I use?", "options": list(options)}
     row = questions.create(product, args, context)
     return request, context, row, args
 
@@ -276,7 +276,7 @@ def test_private_reset_hard_stops_only_answer_carriers_from_group_tasks(product,
 def test_api_authenticated_answer_and_schema_upgrade_are_repeatable(product):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from sqlalchemy import inspect
+    from sqlalchemy import inspect, text
 
     from app import api, question_api
     from app import service as module
@@ -287,15 +287,34 @@ def test_api_authenticated_answer_and_schema_upgrade_are_repeatable(product):
     old = question_api.service; question_api.service = product
     try:
         client = TestClient(app)
-        response = client.post('/api/questions/' + row['id'] + '/answer', json={'answer': 'Detailed'})
+        endpoint = '/api/questions/' + row['id'] + '/answer'
+        assert client.post(endpoint, json={'answer': 'Not listed', 'selected_option': True}).status_code == 422
+        response = client.post(endpoint, json={'answer': 'Detailed', 'selected_option': True})
         assert response.status_code == 200 and response.json()['status'] == 'answered'
         assert client.post('/api/questions/' + row['id'] + '/answer', json={'answer': 'Detailed'}).json() == response.json()
         app.dependency_overrides[api.identity] = lambda: "owner-maya"
         assert client.post('/api/questions/' + row['id'] + '/dismiss').status_code == 404
     finally:
         question_api.service = old
+    with module.engine.begin() as connection:
+        connection.execute(text("ALTER TABLE tt_question_requests DROP COLUMN owner_reply"))
     upgrade_question_schema(module.engine); upgrade_question_schema(module.engine)
     check_question_schema(inspect(module.engine))
+    with product.transaction() as db:
+        restored = db.get(QuestionRequest, row["id"])
+        assert restored.answer == "Detailed" and restored.owner_reply is None
+
+
+def test_confirm_label_on_ordinary_question_is_only_task_input(product):
+    request, _, row, _ = pending(product, options=("Confirm send", "Cancel"))
+    before = product.chat_detail("owner-alex", "group-alex-maya")["messages"]
+    answer = questions.answer(product, "owner-alex", row["id"], "Confirm send", selected_option=True)
+    assert answer["answer"] == "Confirm send"
+    with product.transaction() as db:
+        question = db.get(QuestionRequest, row["id"])
+        resumed = db.get(ReplyRequest, question.continuation_request_id)
+        assert resumed.source == "question_result" and resumed.continuation_of_request_id == request["id"]
+    assert product.chat_detail("owner-alex", "group-alex-maya")["messages"] == before
 
 
 def test_private_prompt_projection_does_not_reverse_group_answer_lock_order(product, monkeypatch):

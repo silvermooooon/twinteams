@@ -88,8 +88,8 @@ async function workspace(page) {
     .waitFor();
 }
 const cases = [
-  {
-    name: "references / review an incoming document privately and reply to the original human message",
+  ...["direct", "group"].map(mode => ({
+    name: "references / review an incoming document privately and confirm a reply to the original " + mode + " message",
     run: async (t) => {
       const { page: owner } = await t.session();
       const { page: sender } = await t.session("DEV-BBB", { baseURL: t.secondaryURL });
@@ -100,7 +100,10 @@ const cases = [
       const label = t.unique("milestone"), inputName = "proposal-" + label + ".md", outputName = "review-" + label + ".md";
       const fileContents = "Milestone delta: release " + t.unique("readback") + ".";
       const privateRoom = await privateChat(owner);
-      const direct = await startChat(sender, [ownerName]);
+      const teammate = bootstrap.actors.find(actor => actor.kind === "human" && actor.id !== senderId && actor.id !== bootstrap.current_owner_id);
+      const group = mode === "group";
+      const destinationName = group ? "Review team " + label : senderName;
+      const direct = await startChat(sender, group ? [ownerName, teammate.name] : [ownerName], group ? destinationName : undefined);
       await sender.locator(".chat-main > input[type=file]").first().setInputFiles({
         name: inputName, mimeType: "text/markdown", buffer: Buffer.from(fileContents),
       });
@@ -108,7 +111,7 @@ const cases = [
       const incoming = await sendMessage(sender, "Please review this proposal: " + label);
       const sourceId = await incoming.getAttribute("data-message-id");
       const originalHistory = (await detail(sender, direct)).messages.map(row => row.id);
-      await owner.reload(); await chooseChat(owner, senderName);
+      await owner.reload(); await chooseChat(owner, destinationName);
       const original = owner.locator(`article[data-message-id="${sourceId}"]`);
       const before = (await detail(owner, privateRoom)).messages.map(row => row.id);
       await original.click({ button: "right" });
@@ -118,12 +121,12 @@ const cases = [
       assert.deepEqual((await detail(owner, privateRoom)).messages.map(row => row.id), before, "selecting a reference only opens a draft");
       await owner.getByRole("button", { name: "Remove reference", exact: true }).click();
       await reference.waitFor({ state: "detached" });
-      await chooseChat(owner, senderName); await original.focus(); await original.press("Shift+F10");
+      await chooseChat(owner, destinationName); await original.focus(); await original.press("Shift+F10");
       await owner.getByRole("menuitem", { name: "Reference in Duet", exact: true }).click();
       await reference.waitFor();
-      const anchor = await sendMessage(owner, "Please review the proposal and prepare a reply with a review document. Do not send it yet.");
-      const anchorId = await anchor.getAttribute("data-message-id");
-      await anchor.locator(".message-reference").getByText(inputName, { exact: true }).waitFor();
+      await sendMessage(owner, "Please review the proposal and prepare a reply with a review document. Do not send it yet.");
+      const anchorId = (await waitMessage(owner, privateRoom, row => row.message_reference?.message_id === sourceId, "authorized reference on the current private request")).id;
+      await owner.locator(`article[data-message-id="${anchorId}"] .message-reference`).getByText(inputName, { exact: true }).waitFor();
       await waitMessage(owner, privateRoom, row => row.body.includes("Your private review is ready: " + outputName), "Duet read, wrote and presented a review");
       const privateFile = (await detail(owner, privateRoom)).messages.flatMap(row => row.attachments || []).find(file => file.name === outputName);
       assert.ok(privateFile, "private reviewed file exists");
@@ -134,7 +137,37 @@ const cases = [
       await owner.reload();
       await owner.locator(`article[data-message-id="${anchorId}"] .message-reference`).getByText(inputName, { exact: true }).waitFor();
       const replyText = "I reviewed the proposal; please clarify the milestone owner.";
-      await sendMessage(owner, "Looks good. Please reply to them with the review you just showed me.");
+      const sendInstruction = "Looks good. Please reply to them with the review you just showed me.";
+      const pendingConfirmation = async () => poll(async () => (await detail(owner, privateRoom)).questions.find(row =>
+        row.status === "pending" && row.reply_preview?.files.includes(outputName)), "private in-message send confirmation");
+      await sendMessage(owner, sendInstruction);
+      const first = await pendingConfirmation();
+      const cancelled = owner.locator(`[data-question-id="${first.id}"]`);
+      const preview = cancelled.getByRole("region", { name: "Review your reply" });
+      assert.deepEqual([...first.reply_preview.audience].sort(), (group ? [senderName, teammate.name] : [senderName]).sort());
+      await preview.getByText(destinationName, { exact: true }).first().waitFor();
+      await preview.getByText(first.reply_preview.audience.join(", "), { exact: true }).first().waitFor();
+      await preview.getByText(senderName, { exact: true }).first().waitFor();
+      await preview.getByText("Please review this proposal: " + label, { exact: true }).waitFor();
+      await preview.getByText(inputName, { exact: true }).waitFor();
+      await preview.getByText(replyText, { exact: true }).waitFor();
+      await preview.getByText(outputName, { exact: true }).waitFor();
+      assert.equal(await cancelled.getByRole("textbox").count(), 0, "only an explicit choice can send");
+      assert.deepEqual((await detail(sender, direct)).messages.map(row => row.id), originalHistory, "send request only created a private question");
+      const typed = await owner.request.post(new URL("/api/questions/" + first.id + "/answer", owner.url()).href, { data: { answer: "Confirm send" } });
+      assert.equal(typed.status(), 422, "typing a matching answer is not an explicit send choice");
+      await cancelled.getByRole("button", { name: "Cancel", exact: true }).click();
+      await cancelled.getByText("Not sent", { exact: true }).waitFor();
+      assert.deepEqual((await detail(sender, direct)).messages.map(row => row.id), originalHistory, "cancel did not notify the recipient");
+      await sendMessage(owner, sendInstruction);
+      const second = await pendingConfirmation();
+      assert.notEqual(first.id, second.id, "fresh owner turn creates a fresh confirmation");
+      await owner.reload();
+      const confirm = owner.locator(`[data-question-id="${second.id}"]`);
+      await confirm.getByText(replyText, { exact: true }).waitFor();
+      assert.deepEqual((await detail(sender, direct)).messages.map(row => row.id), originalHistory, "the replacement question remained private after reload");
+      await confirm.getByRole("button", { name: "Confirm send", exact: true }).click();
+      await confirm.getByText("Sent in your name", { exact: true }).waitFor();
       const response = await waitMessage(sender, direct, row => row.reply_to?.id === sourceId, "owner-authorized reply sent to original conversation");
       assert.equal(response.author_id, bootstrap.current_owner_id); assert.equal(response.kind, "human"); assert.equal(response.body, replyText);
       assert.equal(response.attachments.length, 1); assert.equal(response.attachments[0].name, outputName);
@@ -143,9 +176,9 @@ const cases = [
       await received.locator(".source-quote").getByText("Please review this proposal: " + label).waitFor();
       await received.getByRole("link", { name: outputName }).waitFor();
       assert.equal((await detail(sender, direct)).messages.filter(row => row.reply_to?.id === sourceId).length, 1);
-      t.record("reference_review", { sourceId, anchorId, replyId: response.id, uploadedBytesRead: true, reviewedBytesDelivered: true });
+      t.record("reference_review", { sourceId, anchorId, replyId: response.id, cancelledQuestion: first.id, confirmedQuestion: second.id, uploadedBytesRead: true, reviewedBytesDelivered: true });
     },
-  },
+  })),
   {
     name: "auth / anonymous and invalid login are rejected; UI login/logout changes the real session",
     run: async (t) => {

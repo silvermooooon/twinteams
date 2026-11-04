@@ -1,4 +1,4 @@
-"""Non-secret owner questions; answers are input, never action approval."""
+"""Private owner questions and their optional frozen send confirmation."""
 from datetime import datetime
 
 from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
@@ -22,6 +22,7 @@ class QuestionRequest(Base):
     runtime_session_id: Mapped[str] = mapped_column(String(128))
     runtime_run_id: Mapped[str] = mapped_column(String(128))
     runtime_command_id: Mapped[str] = mapped_column(String(256))
+    owner_reply: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
     question: Mapped[str] = mapped_column(Text)
     options: Mapped[list] = mapped_column(JSON, default=list)
     source_provenance: Mapped[list] = mapped_column(JSON, default=list)

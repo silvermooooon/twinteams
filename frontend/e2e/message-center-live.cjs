@@ -1,5 +1,5 @@
 /** Real provider and Center worker, driven from the real browser UI. */
-const { assert, api, privateChat, sendMessage, poll } = require('./helpers.cjs');
+const { assert, api, questionAnswerInput, privateChat, sendMessage, poll } = require('./helpers.cjs');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -35,7 +35,7 @@ async function answer(page, chat, snapshot, text) {
   const question = snapshot.questions?.find(row => row.status === 'pending');
   if (question) {
     const card = page.locator(`[data-question-id="${question.id}"]`);
-    await card.getByLabel('Your answer').fill(text);
+    await (await questionAnswerInput(card)).fill(text);
     await card.getByRole('button', { name: 'Send answer' }).click();
     return;
   }

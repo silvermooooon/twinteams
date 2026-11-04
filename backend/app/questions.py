@@ -5,12 +5,12 @@ from datetime import UTC
 from sqlalchemy import or_, select
 
 from .credentials import runtime_origin
-from .models import Actor, Chat, ContextManifest, Message, ProductOperation, ReplyRequest, now
+from .models import Chat, ContextManifest, Message, ProductOperation, ReplyRequest, now
 from .question_models import QuestionRequest
 
 
 def dto(service, db, row):
-    return {key: getattr(row, key) for key in ("id", "message_id", "origin_chat_id", "question", "options", "status", "answer", "answer_message_id")} | {
+    return ({"reply_preview": row.owner_reply["preview"]} if row.owner_reply else {}) | {key: getattr(row, key) for key in ("id", "message_id", "origin_chat_id", "question", "options", "status", "answer", "answer_message_id")} | {
         "origin_chat_title": service.chat_title(db, db.get(Chat, row.origin_chat_id), row.owner_id),
         "created_at": row.created_at.astimezone(UTC).isoformat(), "answered_at": row.answered_at.astimezone(UTC).isoformat() if row.answered_at else None}
 
@@ -51,8 +51,6 @@ def create(service, args, context):
             or any(not isinstance(value, str) or not value.strip() or len(value) > 500 for value in options)
             or len(set(options)) != len(options)):
         fail(422, "Ask one focused question with zero or two to three suggested answers")
-    if not all(context.get(key) for key in ("runtime_session_id", "runtime_run_id", "runtime_command_id")):
-        fail(409, "Questions require a durable originating run")
     with service.transaction() as db:
         private = db.scalar(select(Chat).where(Chat.private_owner_id == context["owner_id"], Chat.kind == "private"))
         for chat_id in sorted({context["chat"]["id"], private.id}):
@@ -68,27 +66,35 @@ def create(service, args, context):
                 fail(409, "Question operation identity conflicts with its original action")
             origin(service, db, db.get(QuestionRequest, prior.result["id"]))
             return prior.result
-        existing = db.scalar(select(QuestionRequest).where(QuestionRequest.runtime_session_id == context["runtime_session_id"],
-            QuestionRequest.runtime_run_id == context["runtime_run_id"], QuestionRequest.status == "pending").limit(1))
-        if existing:
-            fail(409, "This turn already has a pending focused question")
-        sources = service.manifest_provenance(db, request.id)
-        if not service.provenance_allowed(db, member, sources):
-            fail(409, "Original question sources are no longer authorized")
-        twin = db.get(Actor, request.target_twin_id)
-        message = service.append_message(db, private, author_id=twin.id, kind="twin", body=question,
-            request_id=request.id, causal_chain_id=service.request_chain(db, request).id,
-            sdk_output_key="question:" + digest(context["operation_id"]), source_provenance=sources if private.id == chat.id else [
-                {"kind": "chat_context", "chat_id": chat.id, "sources": sources}])
-        row = QuestionRequest(owner_id=twin.owner_id, chat_id=private.id, origin_chat_id=chat.id,
-            origin_request_id=request.id, message_id=message.id, question=question, options=options,
-            runtime_session_id=context["runtime_session_id"], runtime_run_id=context["runtime_run_id"],
-            runtime_command_id=context["runtime_command_id"], source_provenance=sources)
-        db.add(row);db.flush()
+        row = add_question(service, db, request, private, chat, member, question, options, context)
         result = dto(service, db, row)
-        db.add(ProductOperation(operation_id=context["operation_id"], owner_id=twin.owner_id, chat_id=chat.id,
+        db.add(ProductOperation(operation_id=context["operation_id"], owner_id=context["owner_id"], chat_id=chat.id,
             name="ask_question", arguments_hash=fingerprint, result=result))
         return result
+
+
+def add_question(service, db, request, private, chat, member, question, options, context, *,
+                 question_id=None, owner_reply=None, additional_sources=()):
+    from .service import digest, fail
+    if not all(context.get(key) for key in ("runtime_session_id", "runtime_run_id", "runtime_command_id")):
+        fail(409, "Questions require a durable originating run")
+    existing = db.scalar(select(QuestionRequest).where(QuestionRequest.runtime_session_id == context["runtime_session_id"],
+        QuestionRequest.runtime_run_id == context["runtime_run_id"], QuestionRequest.status == "pending").limit(1))
+    if existing:
+        fail(409, "This turn already has a pending focused question")
+    sources = [*service.manifest_provenance(db, request.id), *additional_sources]
+    if not service.provenance_allowed(db, member, sources):
+        fail(409, "Original question sources are no longer authorized")
+    message = service.append_message(db, private, author_id=request.target_twin_id, kind="twin", body=question,
+        request_id=request.id, causal_chain_id=service.request_chain(db, request).id,
+        sdk_output_key="question:" + digest(context["operation_id"]), source_provenance=sources if private.id == chat.id else [
+            {"kind": "chat_context", "chat_id": chat.id, "sources": sources}])
+    row = QuestionRequest(id=question_id, owner_reply=owner_reply, owner_id=context["owner_id"], chat_id=private.id, origin_chat_id=chat.id,
+        origin_request_id=request.id, message_id=message.id, question=question, options=options,
+        runtime_session_id=context["runtime_session_id"], runtime_run_id=context["runtime_run_id"],
+        runtime_command_id=context["runtime_command_id"], source_provenance=sources)
+    db.add(row);db.flush()
+    return row
 
 
 def reply_scope_ids(db, chat_id, reply_to):
@@ -119,6 +125,8 @@ def consume_reply(service, db, message):
         return None
     if message.kind != "human" or message.author_id != row.owner_id or message.chat_id != row.chat_id:
         fail(403, "Only the owner can answer this question")
+    if row.owner_reply:
+        fail(422, "Use the send confirmation options on the question")
     if row.status != "pending":
         fail(409, "This question is no longer pending")
     if not message.body.strip() or message.created_at < row.created_at:
@@ -149,7 +157,7 @@ def enqueue(service, db, row, message=None):
     return continuation
 
 
-def answer(service, owner_id, question_id, body):
+def answer(service, owner_id, question_id, body, selected_option=False):
     from .service import fail
     if not isinstance(body, str) or not body.strip():
         fail(422, "Provide a nonempty answer")
@@ -157,6 +165,13 @@ def answer(service, owner_id, question_id, body):
         row = db.get(QuestionRequest, question_id)
         if not row or row.owner_id != owner_id:
             fail(404, "Question not found")
+        if selected_option and body not in row.options:
+            fail(422, "Select one of the offered answers")
+        if row.owner_reply:
+            if not selected_option:
+                fail(422, "Choose Confirm send or Cancel on the question")
+            from .owner_replies import decide
+            return decide(service, db, row, body)
         origin(service, db, row)
         if row.status == "answered":
             if row.answer != body:
@@ -174,6 +189,9 @@ def dismiss(service, owner_id, question_id):
         row = db.get(QuestionRequest, question_id)
         if not row or row.owner_id != owner_id:
             fail(404, "Question not found")
+        if row.owner_reply:
+            from .owner_replies import decide
+            return decide(service, db, row, "Cancel")
         lock_scopes(db, row)
         origin(service, db, row)
         if row.status == "pending":
@@ -186,6 +204,8 @@ def answer_from_message(service, args, context):
     with service.transaction() as db:
         row = db.get(QuestionRequest, args.get("question_id"))
         if row and row.owner_id == context["owner_id"]:
+            if row.owner_reply:
+                fail(403, "Only the owner can choose a send confirmation option")
             lock_scopes(db, row)
         request, _, _ = runtime_origin(service, db, context["owner_id"], context["request_id"])
         message = db.get(Message, args.get("message_id"))
@@ -245,7 +265,7 @@ def reset_owner(service, db, owner_id):
             if command:
                 command.kind, command.state = "cancel", "pending"
         row.status, row.question, row.options, row.answer = "cancelled", "", [], None
-        row.source_provenance, row.continuation_request_id = [], None
+        row.source_provenance, row.continuation_request_id, row.owner_reply = [], None, None
 
 
 def reset_scope_ids(db, owner_id):
@@ -281,7 +301,7 @@ def continuation_context(service, request_id):
 
 def pending_questions(service, db, request, owner_id, visible_ids=None):
     rows = db.scalars(select(QuestionRequest).where(QuestionRequest.owner_id == owner_id,
-        QuestionRequest.chat_id == request.chat_id, QuestionRequest.status == "pending",
+        QuestionRequest.chat_id == request.chat_id, QuestionRequest.status == "pending", QuestionRequest.owner_reply.is_(None),
         *([QuestionRequest.message_id.in_(visible_ids)] if visible_ids is not None else [])
         ).order_by(QuestionRequest.created_at).limit(50))
     result = []
