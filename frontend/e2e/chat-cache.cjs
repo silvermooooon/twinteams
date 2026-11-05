@@ -34,7 +34,9 @@ const cases = [{
     const cdp = await context.newCDPSession(page); await cdp.send('Network.enable');
     const latency = offline => cdp.send('Network.emulateNetworkConditions', { offline, latency: 700, downloadThroughput: -1, uploadThroughput: -1 });
     const output = page.locator(`article[data-message-id="${seed.private_output_id}"]`);
+    const reference = page.locator(`article[data-message-id="${seed.private_reference_id}"] .message-reference`);
     await output.waitFor();
+    assert.ok((await reference.innerText()).includes(seed.source_message_body));
     async function settled() { await sleep(200); await poll(() => !pending.size, 'chat requests settle'); }
     async function open(title, messageId, cached) {
       const from = requests.length, began = Date.now();
@@ -75,22 +77,27 @@ const cases = [{
     await sleep(150);
     const priorFrames = frames.length, withdrawn = fixture('chat-cache-withdraw');
     assert.equal(withdrawn.tracking_invalidation_published, true);
+    assert.equal(withdrawn.private_output_visible, true, 'published review is its own message snapshot');
     await poll(() => frames.slice(priorFrames).some(frame => frame.type === 'personal_changed' && frame.section === 'tracking'), 'real cross-source invalidation reached this browser');
-    await output.waitFor({ state: 'detached' }); await settled();
+    await poll(async () => (await reference.innerText()).includes('Original message unavailable'), 'withdrawn original becomes a quote placeholder');
+    await settled();
+    assert.equal(await output.count(), 1, 'withdrawing an original does not erase the published review');
     await open(seed.groups[2].title, seed.groups[2].latest_message_id);
-    await page.evaluate(id => {
+    await page.evaluate(({ id, body }) => {
       window.__cacheLeak = false;
-      window.__cacheObserver = new MutationObserver(() => { if (document.querySelector(`article[data-message-id="${id}"]`)) window.__cacheLeak = true; });
+      window.__cacheObserver = new MutationObserver(() => { if (document.querySelector(`article[data-message-id="${id}"] .message-reference`)?.textContent.includes(body)) window.__cacheLeak = true; });
       window.__cacheObserver.observe(document.body, { subtree: true, childList: true });
-    }, seed.private_output_id);
+    }, { id: seed.private_reference_id, body: seed.source_message_body });
     await chooseChat(page, seed.private_chat_title); await settled();
-    assert.equal(await output.count(), 0, 'withdrawn sources cannot return through a cached private review');
-    assert.equal(await page.evaluate(() => { window.__cacheObserver.disconnect(); return window.__cacheLeak; }), false, 'withdrawn private output never flashed during navigation');
+    assert.equal(await output.count(), 1, 'cached navigation preserves the published private review');
+    assert.ok((await reference.innerText()).includes('Original message unavailable'));
+    assert.equal(await page.evaluate(() => { window.__cacheObserver.disconnect(); return window.__cacheLeak; }), false, 'withdrawn original quote never flashed during navigation');
     await logout(page); await login(page, 'DEV-BBB'); await settled();
     assert.equal(await output.count(), 0, 'switching account cannot reuse the previous owner snapshot');
     await logout(page); await login(page, 'DEV-AAA'); await settled();
-    assert.equal(await output.count(), 0, 'signing back in reauthorizes the withdrawn source');
-    t.record('cache', { maximumRecentChats: 5, initialWarmMs: initialWarm, recentWarmMs: recentWarm, evictedPrivateMs: evictedPrivate, afterReconnectMs: reconnectPrivate, realCrossSourceInvalidation: true, oldInflightSnapshotNotReused: true, withdrawnSnapshotNeverFlashed: true, accountIsolation: true, networkLatencyMs: 700, modelMode: 'deterministic-offline' });
+    assert.equal(await output.count(), 1, 'signing back in retains published messages');
+    assert.ok((await reference.innerText()).includes('Original message unavailable'));
+    t.record('cache', { maximumRecentChats: 5, initialWarmMs: initialWarm, recentWarmMs: recentWarm, evictedPrivateMs: evictedPrivate, afterReconnectMs: reconnectPrivate, realCrossSourceInvalidation: true, oldInflightSnapshotNotReused: true, withdrawnQuoteNeverFlashed: true, publishedSnapshotPreserved: true, accountIsolation: true, networkLatencyMs: 700, modelMode: 'deterministic-offline' });
   },
 }];
 module.exports = { cases };

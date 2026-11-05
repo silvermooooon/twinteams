@@ -23,6 +23,7 @@ function OwnerReplyPreview({ preview }: { preview: ReplyPreview }) {
 export function AskUserCard({ api, question: snapshot, onChanged, onOrigin }: { api: ApiClient; question: UserQuestion; onChanged: () => Promise<void>; onOrigin: (chatId: string) => void }) {
   const [confirmed, setConfirmed] = useState<UserQuestion | null>(null);
   const question = snapshot.status === 'pending' ? confirmed || snapshot : snapshot;
+  const unavailable = !!question.origin_unavailable;
   const preview = question.reply_preview;
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const command = useRef<AbortController | null>(null);
@@ -50,11 +51,11 @@ export function AskUserCard({ api, question: snapshot, onChanged, onOrigin }: { 
     }
   }
   return <section className={`ask-user-card ${question.status}`} data-question-id={question.id} aria-label="Question from your Duet" aria-busy={busy}>
-    <div className="ask-user-heading"><Icon name={question.status === 'answered' ? 'check' : question.status === 'cancelled' ? 'close' : 'reply'} size={16} /><strong>{preview ? (question.status === 'pending' ? 'Waiting for your confirmation' : question.answer === 'Confirm send' ? 'Sent in your name' : 'Not sent') : question.status === 'pending' ? 'Waiting for your answer' : question.status === 'answered' ? 'Answered' : 'Dismissed'}</strong>{question.status === 'pending' && !preview && <IconButton icon="close" label="Dismiss question" size={15} disabled={busy} onClick={() => { void submit(); }} />}</div>
+    <div className="ask-user-heading"><Icon name={question.status === 'answered' ? 'check' : question.status === 'cancelled' ? 'close' : 'reply'} size={16} /><strong>{unavailable && question.status === 'pending' ? 'Question unavailable' : preview ? (question.status === 'pending' ? 'Waiting for your confirmation' : question.answer === 'Confirm send' ? 'Sent in your name' : 'Not sent') : question.status === 'pending' ? 'Waiting for your answer' : question.status === 'answered' ? 'Answered' : 'Dismissed'}</strong>{question.status === 'pending' && !preview && !unavailable && <IconButton icon="close" label="Dismiss question" size={15} disabled={busy} onClick={() => { void submit(); }} />}</div>
     <MessageMarkdown text={question.question} />
     {preview && <OwnerReplyPreview preview={preview} />}
-    {!preview && question.origin_chat_title && <a className="ask-user-origin" href="#/chat" onClick={event => { event.preventDefault(); onOrigin(question.origin_chat_id); }} title={`Open ${question.origin_chat_title}`}><Icon name="chat" size={13} /><span>From {question.origin_chat_title}</span><Icon name="arrow" size={13} /></a>}
-    {question.status === 'pending' ? <>
+    {!preview && question.origin_chat_title && !question.origin_unavailable && <a className="ask-user-origin" href="#/chat" onClick={event => { event.preventDefault(); onOrigin(question.origin_chat_id); }} title={`Open ${question.origin_chat_title}`}><Icon name="chat" size={13} /><span>From {question.origin_chat_title}</span><Icon name="arrow" size={13} /></a>}
+    {question.status === 'pending' ? !unavailable && <>
       {!!question.options.length && <div className="ask-user-options" role="group" aria-label={preview ? "Send confirmation" : "Suggested answers"}>{question.options.map((option, index) => <button type="button" className={preview && option === 'Confirm send' ? 'primary-button' : 'secondary-button'} key={index} disabled={busy} onClick={() => { void submit(option); }}>{option}</button>)}</div>}
       {!preview && <small className="ask-user-hint">Reply in chat.</small>}
     </> : preview ? null : question.status === 'answered' && question.answer !== null ? <div className="ask-user-saved-answer"><small>Your answer</small><p>{question.answer}</p></div> : <small className="ask-user-hint">Your Duet knows you chose not to answer.</small>}

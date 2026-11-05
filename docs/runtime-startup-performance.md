@@ -1,5 +1,7 @@
 # Reply startup performance
 
+This is the historical `a51e75e` startup baseline. Its recursive source-read costs were replaced by the [message snapshot contract](architecture.md) and the newer [chat-loading acceptance](chat-loading-performance.md). Measurements below describe that earlier implementation.
+
 The platform prepares a reply before calling the model. Measure that work separately
 from the model's response latency: a committed SDK `model_request` is a durable
 boundary just before the provider call, not a first-token timestamp.

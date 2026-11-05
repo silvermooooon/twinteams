@@ -10,7 +10,7 @@ from test_credentials import product as product  # noqa: PLC0414
 from test_nested_worker_parity import call, response, text
 
 from app import questions
-from app.models import ActivityProjection, Message, ReplyRequest
+from app.models import ActivityProjection, Chat, DuetConversation, Message, ReplyRequest
 from app.question_models import QuestionRequest
 from app.runtime_bridge import RuntimeBridge
 
@@ -104,7 +104,7 @@ def test_natural_association_rejects_existing_unrelated_quote(product):
     assert caught.value.status_code == 409
 
 
-@pytest.mark.parametrize("revoke", ["withdraw", "leave", "cancel"])
+@pytest.mark.parametrize("revoke", ["withdraw", "leave", "floor", "close", "failed", "cancel"])
 def test_group_owner_only_question_revocation_never_resumes_or_leaks_known_id(product, revoke):
     request, _, row, _ = pending(product, "duet-alex-maya")
     with product.transaction() as db:
@@ -112,6 +112,12 @@ def test_group_owner_only_question_revocation_never_resumes_or_leaks_known_id(pr
             db.get(Message, request["source_message_id"]).state = "withdrawn"
         elif revoke == "leave":
             product.membership(db, "owner-alex", "duet-alex-maya")[1].left_at = db.get(Message, request["source_message_id"]).created_at
+        elif revoke == "floor":
+            product.membership(db, "owner-alex", "duet-alex-maya")[1].lower_seq = db.get(Message, request["source_message_id"]).seq + 1
+        elif revoke == "close":
+            db.get(DuetConversation, "duet-alex-maya").status = "closed"
+        elif revoke == "failed":
+            db.get(ReplyRequest, request["id"]).status = "failed"
     if revoke == "cancel":
         asyncio.run(product.cancel_request("owner-alex", request["id"]))
     for action in [lambda: questions.answer(product, "owner-alex", row["id"], "Short"),
@@ -119,9 +125,29 @@ def test_group_owner_only_question_revocation_never_resumes_or_leaks_known_id(pr
         with pytest.raises(HTTPException):
             action()
     detail = product.chat_detail("owner-alex", "private-alex")
-    assert detail["questions"] == []
-    if revoke != "cancel":
-        assert row["message_id"] not in {m["id"] for m in detail["messages"]}
+    assert row["message_id"] in {m["id"] for m in detail["messages"]}
+    assert detail["questions"][0]["question"] == row["question"]
+    assert detail["questions"][0]["origin_unavailable"]
+    assert detail["questions"][0]["origin_chat_title"] == "Question unavailable"
+    if revoke == "cancel":
+        assert detail["questions"][0]["status"] == "cancelled"
+
+
+@pytest.mark.parametrize("reset", ["pending", "generation"])
+def test_private_question_cannot_offer_actions_during_reset(product, reset):
+    _, _, row, _ = pending(product)
+    with product.transaction() as db:
+        chat = db.get(Chat, "private-alex")
+        if reset == "pending":
+            chat.reset_pending = True
+        else:
+            chat.reset_generation += 1
+    detail = product.chat_detail("owner-alex", "private-alex")
+    assert detail["questions"][0]["origin_unavailable"]
+    for action in [lambda: questions.answer(product, "owner-alex", row["id"], "Short"),
+                   lambda: questions.dismiss(product, "owner-alex", row["id"])]:
+        with pytest.raises(HTTPException):
+            action()
 
 
 @pytest.mark.parametrize("worker,dismiss,restart,unquoted", [

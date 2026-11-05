@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import select
 from test_memory_dream import product as product  # noqa: PLC0414
 
-from app.models import Message, ReplyRequest
+from app.models import ContextManifest, Message, ReplyRequest
 
 
 def request_for(product, chat_id):
@@ -24,8 +24,9 @@ def test_auto_publication_quote_policy_preserves_source_audit_and_replay(product
         row = db.get(Message, output)
         assert row.reply_to_message_id == (source["id"] if quoted else None)
         assert row.request_id == request["id"] and row.causal_chain_id == request["causal_chain_id"]
-        assert source["id"] in row.source_message_ids
-        assert any(item["kind"] == "message" and item["id"] == source["id"] for item in row.source_provenance)
+        manifests = list(db.scalars(select(ContextManifest).where(ContextManifest.request_id == request["id"])))
+        assert any(item["kind"] == "message" and item["id"] == source["id"]
+            for manifest in manifests for item in manifest.sources)
         assert len(list(db.scalars(select(Message).where(Message.request_id == request["id"])))) == 1
     visible = next(row for row in product.chat_detail("owner-alex", chat_id)["messages"] if row["id"] == output)
     assert ("reply_to" in visible) is quoted
@@ -57,7 +58,9 @@ def test_child_continuation_does_not_reintroduce_automatic_private_quote(product
     message = next(row for row in product.chat_detail("owner-alex", chat_id)["messages"] if row["id"] == output)
     assert ("reply_to" in message) is quoted
     with product.transaction() as db:
-        assert source["id"] in db.get(Message, output).source_message_ids
+        manifests = list(db.scalars(select(ContextManifest).where(ContextManifest.request_id == child["id"])))
+        assert any(item["kind"] == "message" and item["id"] == source["id"]
+            for manifest in manifests for item in manifest.sources)
 
 
 def test_private_child_of_explicit_human_quote_keeps_lineage_without_default_quote(product):

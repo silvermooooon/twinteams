@@ -85,7 +85,7 @@ def test_repeated_tracking_sources_reuse_workspace_checks_and_recheck_revocation
         node_id = node.id
 
     tracking = {"kind": "tracking", "id": "test-topic", "source_message_ids": message_ids[-3:]}
-    context = accepted_context(product, [tracking, tracking, tracking])
+    context = accepted_context(product, [tracking, workspace, tracking, workspace, tracking])
     with sql_reads() as reads:
         assert product.authorize_runtime_generation(context) is True
     assert sum(" from tt_workspace_nodes" in row["sql"] for row in reads) <= 1
@@ -99,14 +99,14 @@ def test_repeated_tracking_sources_reuse_workspace_checks_and_recheck_revocation
 
     with product.transaction() as db:
         db.get(WorkspaceNode, node_id).granted_owner_ids = ["owner-alex"]
-        db.get(Message, message_ids[0]).state = "withdrawn"
+        db.get(Message, message_ids[-1]).state = "withdrawn"
     with pytest.raises(HTTPException) as denied:
         product.authorize_runtime_generation(context)
     assert denied.value.status_code == 409
 
 
 @pytest.mark.parametrize("cycle", ["self", "two_messages"])
-def test_cycles_fail_closed_even_after_a_shared_valid_source_is_cached(product, cycle):
+def test_audit_cycles_do_not_change_published_snapshot_authorization(product, cycle):
     leaf, first, second = append(product), append(product), append(product)
     with product.transaction() as db:
         one, two = db.get(Message, first["id"]), db.get(Message, second["id"])
@@ -114,6 +114,9 @@ def test_cycles_fail_closed_even_after_a_shared_valid_source_is_cached(product, 
         if cycle == "two_messages":
             two.source_message_ids = [leaf["id"], first["id"]]
     context = accepted_context(product, [leaf, first])
+    assert product.authorize_runtime_generation(context)
+    with product.transaction() as db:
+        db.get(Message, first["id"]).state = "withdrawn"
     with pytest.raises(HTTPException) as denied:
         product.authorize_runtime_generation(context)
     assert denied.value.status_code == 409

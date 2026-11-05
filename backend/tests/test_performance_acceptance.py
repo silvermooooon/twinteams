@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import event
+from sqlalchemy import event, select
 from test_chat_attachments_ui_acceptance import attachments as attachments  # noqa: PLC0414
 from test_chat_attachments_ui_acceptance import send, upload
 
@@ -134,12 +134,16 @@ def test_batched_projection_keeps_attachment_quote_and_source_grants_owner_scope
     assert output_id not in {row["id"] for row in product.chat_detail("owner-jordan", chat)["messages"]}
     with product.transaction() as db:
         db.get(Message, source["id"]).state = "withdrawn"
-    # A fresh request rechecks grants; primed metadata never survives a transaction.
+    # Delivery is independent; the quote and original file still obey withdrawal.
     for owner in ("owner-alex", "owner-maya"):
-        assert output_id not in {row["id"] for row in product.chat_detail(owner, chat)["messages"]}
+        rows = product.chat_detail(owner, chat)["messages"]
+        assert source["id"] not in {row["id"] for row in rows}
+        assert next(row for row in rows if row["id"] == output_id)["reply_to"]["unavailable"]
+        with pytest.raises(HTTPException):
+            product.attachment_file(owner, chat, shared["id"])
 
 
-def test_chat_page_rechecks_each_distinct_attachment_source_once(attachments):
+def test_chat_page_does_not_revalidate_audit_ancestors(attachments):
     from app.conversation_context import message_source
 
     product, client = attachments
@@ -170,7 +174,9 @@ def test_chat_page_rechecks_each_distinct_attachment_source_once(attachments):
     assert sum("FROM tt_memberships" in sql for sql in calls) <= 5
     with product.transaction() as db:
         db.get(ChatAttachment, attachment["id"]).sha256 = "0" * 64
-    assert set(derived_ids).isdisjoint(row["id"] for row in product.chat_detail("owner-alex", chat_id)["messages"])
+    assert set(derived_ids).issubset(row["id"] for row in product.chat_detail("owner-alex", chat_id)["messages"])
+    with pytest.raises(HTTPException):
+        product.attachment_content("owner-alex", chat_id, attachment["id"])
 
 
 def test_long_dependent_history_is_batched_without_reusing_stale_authorization(attachments):
@@ -196,15 +202,18 @@ def test_long_dependent_history_is_batched_without_reusing_stale_authorization(a
     assert len(page["messages"]) == 30
     assert page["messages"][-1]["id"] == seeded["latest_message_id"]
     assert page_queries < 100 and bootstrap_queries < 100
-    assert read_queries < 150, "Read receipts must share the page's batched source validation"
+    assert read_queries < 30, "Read receipts must validate and persist a batch"
     preview = next(chat for chat in bootstrap["chats"] if chat["id"] == seeded["private_chat_id"])
     assert preview["last_message"] == seeded["latest_message_body"] and preview["unread_count"] == 0
 
     with product.transaction() as db:
         db.get(Message, f"performance-message-{seeded['first_seq']}").body = "Changed original evidence"
     refreshed = product.chat_detail("owner-alex", seeded["private_chat_id"], limit=30)
-    assert all(message["kind"] == "human" for message in refreshed["messages"])
-    assert seeded["latest_message_id"] not in {message["id"] for message in refreshed["messages"]}
+    assert [row["id"] for row in refreshed["messages"]] == [row["id"] for row in page["messages"]]
+    assert refreshed["messages"][-1]["body"] == page["messages"][-1]["body"]
+    product.read("owner-alex", seeded["private_chat_id"], [seeded["latest_message_id"]])
+    with product.transaction() as db:
+        db.get(Message, seeded["latest_message_id"]).state = "withdrawn"
     with pytest.raises(HTTPException) as denied:
         product.read("owner-alex", seeded["private_chat_id"], [seeded["latest_message_id"]])
     assert denied.value.status_code == 404
@@ -296,3 +305,122 @@ def test_runtime_preparation_batches_history_and_rechecks_each_boundary(attachme
     assert denied.value.status_code == 409
     with pytest.raises(HTTPException):
         product.get_conversation_context(context["_summary_scope"])
+
+
+def test_bootstrap_batches_related_profiles_and_keeps_departed_participants(attachments):
+    from app.models import Actor, Membership, Owner, now
+
+    product, _ = attachments
+    with product.transaction() as db:
+        db.add(Owner(id="unrelated-owner", auth_subject="test:unrelated"))
+        db.flush()
+        db.add_all([Actor(id="unrelated-owner", owner_id="unrelated-owner", kind="human",
+            name="Unrelated Person", initials="UP", color="#444444"),
+            Actor(id="unrelated-twin", owner_id="unrelated-owner", kind="twin",
+                name="Unrelated Duet", initials="UD", color="#555555")])
+    assert "unrelated-owner" not in {actor["owner_id"] for actor in product.bootstrap("owner-alex")["actors"]}
+    chat = product.create_chat("owner-alex", ["unrelated-owner"])
+    with product.transaction() as db:
+        member = db.scalar(select(Membership).where(Membership.chat_id == chat["id"],
+            Membership.owner_id == "unrelated-owner"))
+        member.left_at = now()
+    for index in range(8):
+        product.create_chat("owner-alex", ["owner-maya", "owner-jordan"], f"Related room {index}")
+    statements = []
+    def before(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+    event.listen(service_module.engine, "before_cursor_execute", before)
+    try:
+        snapshot = product.bootstrap("owner-alex")
+    finally:
+        event.remove(service_module.engine, "before_cursor_execute", before)
+    assert "unrelated-owner" in {actor["owner_id"] for actor in snapshot["actors"]}
+    assert "unrelated-owner" not in next(row for row in snapshot["chats"] if row["id"] == chat["id"])["member_owner_ids"]
+    assert next(row for row in snapshot["chats"] if row["id"] == "group-alex-maya")["title"] == "BBB"
+    assert sum("tt_actors" in statement for statement in statements) == 1
+    assert sum("tt_memberships" in statement for statement in statements) == 4
+
+
+def test_bootstrap_and_chat_gets_are_read_only_with_default_settings(attachments):
+    from app.models import ChatSetting, ScheduledTask
+    from app.scheduled_tasks import system_id
+
+    product, _ = attachments
+    with product.transaction() as db:
+        before = {chat.id: chat.revision for chat in db.scalars(select(Chat))}
+        assert db.get(ChatSetting, ("owner-alex", "private-alex")) is None
+        assert db.get(ScheduledTask, system_id("owner-alex")).schedule["seconds"] == 14400
+    statements = []
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement.upper())
+    event.listen(service_module.engine, "before_cursor_execute", capture)
+    try:
+        for _ in range(2):
+            product.bootstrap("owner-alex")
+            private = product.chat_detail("owner-alex", "private-alex")
+            group = product.chat_detail("owner-alex", "group-alex-maya")
+    finally:
+        event.remove(service_module.engine, "before_cursor_execute", capture)
+    assert private["settings"] == {"reply_for_me_enabled": False, "prompt_override": None,
+        "sidebar_open": True, "sidebar_tab": "activity"}
+    assert group["settings"] == {**private["settings"], "sidebar_tab": "workspace"}
+    assert all(sql.startswith("SELECT") and "FOR UPDATE" not in sql for sql in statements)
+    with product.transaction() as db:
+        assert {chat.id: chat.revision for chat in db.scalars(select(Chat))} == before
+        assert db.get(ChatSetting, ("owner-alex", "private-alex")) is None
+    product.patch_chat_settings("owner-alex", "private-alex", {"sidebar_open": False})
+    assert product.chat_detail("owner-alex", "private-alex")["settings"]["sidebar_open"] is False
+
+
+def test_explicit_owner_provision_creates_system_review_before_first_read(attachments, monkeypatch):
+    from app import provision_owner
+    from app.models import ScheduledTask
+    from app.scheduled_tasks import system_id
+
+    product, _ = attachments
+    monkeypatch.setattr(provision_owner, "service", product)
+    monkeypatch.setattr("sys.argv", ["provision_owner", "--subject", "test:provisioned",
+        "--name", "Provisioned Owner", "--owner-id", "owner-provisioned"])
+    provision_owner.main()
+    with product.transaction() as db:
+        task = db.get(ScheduledTask, system_id("owner-provisioned"))
+        assert task and task.schedule["seconds"] == 14400 and task.kind == "system_review"
+
+
+def test_approval_inbox_and_shared_files_use_batches(attachments):
+    from app.models import Approval, ProductOperation
+
+    product, client = attachments
+    with product.transaction() as db:
+        private = db.get(Chat, "private-alex")
+        shared = db.get(Chat, "group-alex-maya")
+        for index in range(100):
+            source = product.append_message(db, private, author_id="owner-alex", kind="human", body=f"Task {index}")
+            request = product.accept_request(db, private, "twin-alex", "owner-alex", "private", uuid4().hex,
+                source_message_id=source.id)
+            db.add(Approval(id=f"batched-approval-{index}", chat_id=private.id, approver_id="owner-alex", title=f"Approval {index}",
+                description="Synthetic decision", target="fixture", impact="fixture",
+                sdk_reference={"request_id": request.id}, source_message_ids=[]))
+            message = product.append_message(db, shared, author_id="owner-alex", kind="human", body=f"File {index}")
+            identifier = f"batched-file-{index}"
+            db.add(ChatAttachment(id=identifier, chat_id=shared.id, owner_id="owner-alex", name=f"result-{index}.txt",
+                mime_type="text/plain", kind="file", size=20, sha256="a" * 64,
+                relative_path=f"group-alex-maya/result-{index}.txt", message_id=message.id))
+            db.add(ProductOperation(operation_id=f"batched-share-{index}", chat_id=shared.id, owner_id="owner-alex",
+                name="present_files", arguments_hash="b" * 64,
+                result={"shared_files": [{"attachment_id": identifier, "peer_owner_ids": ["owner-maya"]}]}))
+    statements = []
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+    event.listen(service_module.engine, "before_cursor_execute", capture)
+    try:
+        detail = product.chat_detail("owner-alex", "private-alex", limit=30)
+        assert len(detail["approvals"]) == 100
+        assert len(statements) < 35
+        statements.clear()
+        shared = client.get("/api/chats/group-alex-maya/shared-files")
+        assert shared.status_code == 200
+        assert len(shared.json()["files"]) == 100
+        assert len(statements) < 10
+    finally:
+        event.remove(service_module.engine, "before_cursor_execute", capture)

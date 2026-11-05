@@ -759,7 +759,7 @@ const cases = [
         .getByRole("button", { name: "Save", exact: true })
         .click();
       await dialog(page).waitFor({ state: "hidden" });
-      let detail = await api(page, "/chats/" + privateId);
+      const detail = await api(page, `/chats/${privateId}/tracking`);
       let topic = detail.tracking.find((r) => r.title === "E2E topic " + label);
       assert.ok(topic);
       const drawer = page.getByRole("dialog", {
@@ -803,7 +803,7 @@ const cases = [
         .getByRole("dialog", { name: "E2E edited " + label, exact: true })
         .waitFor({ state: "hidden" });
       assert.ok(
-        !(await api(page, "/chats/" + privateId)).tracking.some(
+        !(await api(page, `/chats/${privateId}/tracking`)).tracking.some(
           (r) => r.id === topic.id,
         ),
       );

@@ -3,15 +3,25 @@ import json
 from datetime import UTC
 
 from sqlalchemy import or_, select
+from sqlalchemy.orm import load_only
 
 from .credentials import runtime_origin
-from .models import Chat, ContextManifest, Message, ProductOperation, ReplyRequest, now
+from .models import (
+    Chat,
+    ContextManifest,
+    DuetConversation,
+    Membership,
+    Message,
+    ProductOperation,
+    ReplyRequest,
+    now,
+)
 from .question_models import QuestionRequest
 
 
-def dto(service, db, row):
-    return ({"reply_preview": row.owner_reply["preview"]} if row.owner_reply else {}) | {key: getattr(row, key) for key in ("id", "message_id", "origin_chat_id", "question", "options", "status", "answer", "answer_message_id")} | {
-        "origin_chat_title": service.chat_title(db, db.get(Chat, row.origin_chat_id), row.owner_id),
+def dto(service, db, row, *, origin_title=None, origin_unavailable=False):
+    return ({"origin_unavailable": True} if origin_unavailable else {}) | ({"reply_preview": row.owner_reply["preview"]} if row.owner_reply else {}) | {key: getattr(row, key) for key in ("id", "message_id", "origin_chat_id", "question", "options", "status", "answer", "answer_message_id")} | {
+        "origin_chat_title": origin_title or service.chat_title(db, db.get(Chat, row.origin_chat_id), row.owner_id),
         "created_at": row.created_at.astimezone(UTC).isoformat(), "answered_at": row.answered_at.astimezone(UTC).isoformat() if row.answered_at else None}
 
 
@@ -28,18 +38,35 @@ def origin(service, db, row, *, cache=None):
 def for_chat(service, db, chat, member, message_ids, *, cache=None):
     if chat.kind != "private" or chat.private_owner_id != member.owner_id or not message_ids:
         return []
-    rows = db.scalars(select(QuestionRequest).where(QuestionRequest.owner_id == member.owner_id,
+    from .service import SOURCE_MESSAGE_FIELDS
+    rows = db.execute(select(QuestionRequest, ReplyRequest, Chat, Membership, Message, DuetConversation.status)
+        .outerjoin(ReplyRequest, ReplyRequest.id == QuestionRequest.origin_request_id)
+        .outerjoin(Chat, Chat.id == QuestionRequest.origin_chat_id)
+        .outerjoin(Membership, (Membership.chat_id == Chat.id) & (Membership.owner_id == member.owner_id)
+            & Membership.left_at.is_(None))
+        .outerjoin(Message, Message.id == ReplyRequest.source_message_id)
+        .outerjoin(DuetConversation, DuetConversation.chat_id == Chat.id)
+        .options(load_only(*[getattr(QuestionRequest, key) for key in
+        ("id", "message_id", "origin_chat_id", "owner_id", "question", "options", "status", "answer", "answer_message_id",
+         "owner_reply", "created_at", "answered_at")]),
+            load_only(ReplyRequest.id, ReplyRequest.cancel_requested, ReplyRequest.status,
+                ReplyRequest.private_generation, ReplyRequest.source_message_id),
+            load_only(*SOURCE_MESSAGE_FIELDS)).where(QuestionRequest.owner_id == member.owner_id,
         QuestionRequest.chat_id == chat.id, QuestionRequest.message_id.in_(message_ids)))
-    result = []
-    for row in rows:
-        try:
-            origin(service, db, row, cache=cache)
-        except Exception as error:
-            from fastapi import HTTPException
-            if not isinstance(error, HTTPException) or error.status_code not in {403, 404, 409}:
-                raise
-            continue
-        result.append(dto(service, db, row))
+    result, origins = [], {}
+    for row, request, origin_chat, origin_member, source, channel_status in rows:
+        available = bool(request and origin_chat and origin_member
+            and not request.cancel_requested and request.status not in {"cancelled", "failed"}
+            and origin_chat.kind != "group"
+            and (origin_chat.kind != "duet" or channel_status == "active")
+            and (origin_chat.kind != "private" or (origin_chat.private_owner_id == member.owner_id
+                and not origin_chat.reset_pending and request.private_generation == origin_chat.reset_generation))
+            and (not request.source_message_id or (source and service.message_visible(db, origin_member, source))))
+        if available and row.origin_chat_id not in origins:
+            origins[row.origin_chat_id] = service.chat_title(db, origin_chat, member.owner_id)
+        result.append(dto(service, db, row,
+            origin_title=origins[row.origin_chat_id] if available else "Question unavailable",
+            origin_unavailable=not available))
     return result
 
 

@@ -1,6 +1,8 @@
 """Explicit single-tenant account provisioning for a verified identity subject."""
 import argparse
+
 from .models import Actor, Chat, Membership, Owner, uid
+from .scheduled_tasks import ensure_system
 from .service import service
 
 
@@ -24,6 +26,7 @@ def main():
         db.add(chat)
         db.flush()
         db.add(Membership(chat_id=chat.id, owner_id=owner_id, history_policy="all", lower_seq=1))
+        ensure_system(service, db, owner_id)
     print(f"Provisioned owner {owner_id}; the verified token subject must match the configured issuer/audience/tenant.")
 
 

@@ -40,6 +40,13 @@ async function main() {
       else { failures.push(`Unexpected fixture API request: ${req.method()} ${p}`); return route.fulfill({ status: 500, body: '{}' }); }
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
     });
+    for (const suffix of ['', '&preview=1']) {
+      await page.goto(`${origin}/e2e/duet-ui.html?unavailablequestion=1${suffix}`);
+      await page.getByText('Question unavailable', { exact: true }).waitFor();
+      await page.getByText('Previously published question.', { exact: true }).waitFor();
+      assert.equal(await page.locator('.ask-user-card button,.ask-user-card a').count(), 0, 'unavailable origins expose no answer, confirm, dismiss or navigation action');
+      assert.equal(await page.getByText('Reply in chat.', { exact: true }).count(), 0);
+    }
     await page.goto(`${origin}/e2e/duet-ui.html?fileapproval=1`);
     await page.getByText('These file versions can be shared again with the approved recipients. Changed files or new recipients need approval.', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Approve once', exact: true }).count(), 0);

@@ -73,14 +73,20 @@ def test_metadata_uses_same_authorized_last_and_rechecks_withdrawal(attachments)
     withdrawn = append(product, state="withdrawn", body="Already withdrawn")
     alex, _ = summaries(client)
     maya, _ = summaries(client, owner="owner-maya")
-    assert alex["last_message_meta"]["id"] == visible
+    assert alex["last_message_meta"]["id"] == hidden
     assert maya["last_message_meta"]["id"] == hidden
     assert withdrawn not in {alex["last_message_meta"]["id"], maya["last_message_meta"]["id"]}
     with product.transaction() as db:
         db.get(Message, private).state = "withdrawn"
     maya, _ = summaries(client, owner="owner-maya")
-    assert maya["last_message_meta"]["id"] == visible
-    assert maya["last_message"] == "Synthetic visible summary"
+    assert maya["last_message_meta"]["id"] == hidden
+    assert client.get("/api/chats/private-maya").status_code == 403
+    with product.transaction() as db:
+        db.get(Message, hidden).state = "withdrawn"
+    for owner in ("owner-alex", "owner-maya"):
+        current, _ = summaries(client, owner=owner)
+        assert current["last_message_meta"]["id"] == visible
+        assert current["last_message"] == "Synthetic visible summary"
 
 
 def test_member_history_boundary_does_not_expose_last_metadata(attachments):
@@ -125,8 +131,8 @@ def test_notification_metadata_is_batched_with_existing_message_selection(attach
         assert summary["last_message_meta"]["seq"] == 100
     finally:
         event.remove(service_module.engine, "before_cursor_execute", count)
-    # Metadata travels in the already-paged authorization selection. Only the
-    # existing final body preview can need its own deferred-column lookup.
+    # Latest-message metadata and the bounded preview share one indexed lookup;
+    # unread counts are a separate grouped aggregate.
     assert not any(statement.startswith(("SELECT tt_messages.kind ", "SELECT tt_messages.created_at ")) for statement in statements)
     message_selects = [statement for statement in statements if statement.startswith("SELECT") and "FROM tt_messages" in statement]
-    assert len(message_selects) == 4
+    assert len(message_selects) == 2

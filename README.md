@@ -125,7 +125,8 @@ state. PostgreSQL data survives application restart.
 Set `TWINTEAMS_TEST_DB_URL` (or `DATABASE_URL`) to an accessible PostgreSQL URL:
 
 ```sh
-uv run --env-file .env python -m pytest tests -q
+uv run --env-file .env python -m pytest tests -q -p checks.api_budget --api-budget-report /tmp/duet-api-budget.json
+uv run --env-file .env python -m checks.api_performance --report /tmp/duet-api-load.json
 uv run --env-file .env python checks/runtime_acceptance.py
 uv run --env-file .env python checks/provider_config_acceptance.py
 uv run --env-file .env python checks/distributed_acceptance.py
@@ -136,6 +137,13 @@ only those schemas on exit. They do not clear application tables. Model adapters
 are explicit test implementations. The separately launched
 `checks/acceptance_fixture.py --port 8011` uses the same schema isolation and labels
 its simulated responses; it is never an application fallback.
+
+The API budget report inventories all 98 HTTP routes and requires successful
+non-AI responses within three seconds. The load check uses 5,000 history messages,
+100-item peripheral datasets and ten concurrent requests. It validates returned
+records as well as latency; failed/empty responses do not count as optimization.
+File-transfer timings cover the local fixture, with external network time outside
+that measurement. See [API performance acceptance](docs/api-performance-budget.md).
 
 For real browser coverage against disposable PostgreSQL, Redis and API/worker processes, see [browser E2E](docs/browser-e2e.md). Its one-command launcher uses a
 deterministic offline provider while exercising real UI actions, tools and durable
@@ -181,7 +189,7 @@ credential sources. This local deployment convention is not full high availabili
 
 Chat sends appear immediately as sender-local bubbles. Sender-local pending human/private composer sends are kept only in memory: reloading fetches canonical server state, without a durable offline outbox. A retry keeps the same submission key and payload; “Sent” confirms server persistence, not delivery or reading. Human chat sends remain human-authored; private sends address only the owner's own Duet. Acknowledgments confirm each bubble without awaiting bootstrap; chat refreshes coalesce behind one active read and at most one follow-up, while preserving authorization checks for already loaded history.
 
-During one login, the browser retains up to five visited chat windows with at most 130 messages each, shows a valid cached window and scroll position immediately, and refreshes through authorized HTTP. If a loaded window exceeds 130 messages, its cache retains the latest 30 and reopens at the bottom; permissions, reset, connection loss and source invalidation clear affected caches. See [loading choices and upstream references](docs/chat-loading-research.md) and [performance measurements](docs/chat-loading-performance.md).
+During one login, the browser retains up to five visited chat windows with at most 130 messages each, shows a valid cached window and scroll position immediately, and refreshes through authorized HTTP. A newer revision clears cached content but retains the bounded position for reauthorization. If a loaded window exceeds 130 messages, it reopens at the latest 30. Access loss, reset, account changes and connection loss clear incompatible state; original-reference invalidation also refreshes private windows. Withdrawing a message removes that message and makes its original-reference previews unavailable; it does not erase other already-published messages that used it as audit evidence. See [loading choices and upstream references](docs/chat-loading-research.md) and [performance measurements](docs/chat-loading-performance.md).
 
 Chat message bodies render CommonMark and GitHub-flavored Markdown with `react-markdown` and `remark-gfm`, including lists, tables and fenced code. Raw HTML stays literal text and unsafe URL schemes are removed. Links open separately with opener/referrer protection; Markdown image URLs appear as explicit links rather than loading external images automatically. Uploaded image attachments retain their authorized preview flow. Original-input disclosures and quoted-source previews remain literal text, and rendering does not change stored message content.
 

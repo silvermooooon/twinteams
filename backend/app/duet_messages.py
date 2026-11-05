@@ -48,7 +48,8 @@ def publish(service, db, chat, message):
     if not sender or sender.kind != "twin":
         raise HTTPException(403, "Only a participating Duet can publish in this channel")
     member = service.membership(db, sender.owner_id, chat.id)[1]
-    if not service.message_sources_visible(db, member, message):
+    if (not service.sources_allowed(db, member, message.source_message_ids, message.source_floor_seq)
+            or not service.provenance_allowed(db, member, message.source_provenance)):
         raise HTTPException(409, "Pending send sources are no longer authorized")
     if message.reply_to_message_id:
         service.visible_message(db, member, message.reply_to_message_id)

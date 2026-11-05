@@ -47,7 +47,7 @@ async function runFirstPrivateGroupTracking(t, returned) {
   await modal.waitFor({ state: "hidden" });
   const seeded = await poll(
     async () =>
-      (await state(returned.page, group.id)).tracking.find(
+      (await api(returned.page, `/chats/${group.id}/tracking`)).tracking.find(
         (row) => row.title === title,
       ),
     "manual group topic saved",
@@ -75,7 +75,7 @@ async function runFirstPrivateGroupTracking(t, returned) {
     "new group fact is absent from all chat bodies",
   );
   assert.ok(
-    !JSON.stringify((await state(returned.page, group.id)).tracking).includes(
+    !JSON.stringify((await api(returned.page, `/chats/${group.id}/tracking`)).tracking).includes(
       marker,
     ),
     "fact is absent from the lightweight Tracking index",

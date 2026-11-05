@@ -837,6 +837,10 @@ async def chat_cache_fixture(root, *, withdraw=False):
             for index in range(5):
                 service.append_message(db, private, author_id='owner-alex', kind='human',
                     body=f'E2E private cache note {index + 1}.')
+            from app.message_references import reference_source
+            reference = service.append_message(db, private, author_id='owner-alex', kind='human',
+                command_owner_id='owner-alex', body='Review this message privately.',
+                source_provenance=[reference_source(service, db, 'owner-alex', private, source.id)])
             output = service.append_message(db, private, author_id='twin-alex', kind='twin',
                 body='E2E cached review: the team update is ready for review.',
                 source_provenance=[{'kind': 'chat_context', 'chat_id': source.chat_id,
@@ -844,6 +848,7 @@ async def chat_cache_fixture(root, *, withdraw=False):
             result = {'browser_e2e': True, 'test_only_cache_seed': True, 'model_runs_added': 0,
                 'private_chat_id': private.id, 'private_chat_title': service.chat_title(db, private, 'owner-alex'),
                 'source_chat_id': source.chat_id, 'source_chat_title': groups[0]['title'],
+                'private_reference_id': reference.id, 'source_message_body': source.body,
                 'source_message_id': source.id, 'private_output_id': output.id, 'private_output_body': output.body,
                 'groups': [{key: group[key] for key in ('id', 'title', 'latest_message_id')} for group in groups]}
         with path.open('x') as target:
@@ -877,14 +882,14 @@ async def chat_cache_fixture(root, *, withdraw=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'chat-performance-history', 'chat-cache-seed', 'chat-cache-withdraw', 'fail-next-dream', 'continue-smoke-seed'])
+    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'question-withdraw-source', 'chat-performance-history', 'chat-cache-seed', 'chat-cache-withdraw', 'fail-next-dream', 'continue-smoke-seed'])
     parser.add_argument('--port', type=int)
     parser.add_argument('--state', type=Path)
     parser.add_argument('--task-id')
     parser.add_argument('--question-id')
     parser.add_argument('--owner-id', choices=['owner-alex', 'owner-maya', 'owner-jordan'])
     args = parser.parse_args()
-    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'chat-performance-history', 'chat-cache-seed', 'chat-cache-withdraw', 'fail-next-dream', 'continue-smoke-seed'}:
+    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'question-withdraw-source', 'chat-performance-history', 'chat-cache-seed', 'chat-cache-withdraw', 'fail-next-dream', 'continue-smoke-seed'}:
         if not args.state or args.state.is_symlink() or args.state.stat().st_mode & 0o077:
             raise RuntimeError('Inspect requires its private fixture state file')
         saved = json.loads(args.state.read_text())
@@ -952,6 +957,22 @@ def main():
             target.write('one-time offline provider failure')
         print(json.dumps({'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
             'test_only_provider_failure': True, 'owner_id': args.owner_id}))
+        return
+    if args.role == 'question-withdraw-source':
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') != 'ask-user':
+            raise RuntimeError('Question withdrawal requires its isolated ask-user fixture')
+        from app.models import Message, ReplyRequest
+        from app.question_models import QuestionRequest
+        from app.service import service
+        with service.transaction() as db:
+            question = db.get(QuestionRequest, args.question_id)
+            if not question or question.status != 'pending':
+                raise RuntimeError('The isolated question must still be pending')
+            request = db.get(ReplyRequest, question.origin_request_id)
+            source = db.get(Message, request.source_message_id)
+            source.state = 'withdrawn'
+        print(json.dumps({'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
+            'question_id': args.question_id, 'test_only_source_withdrawal': True}))
         return
     if args.role == 'question-history':
         print(json.dumps(question_history_fixture(args.question_id)))

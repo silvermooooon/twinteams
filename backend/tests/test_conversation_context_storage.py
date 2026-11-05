@@ -55,15 +55,14 @@ def test_grant_change_while_model_summarizes_leaves_originals_and_no_checkpoint(
         assert db.scalar(select(func.count()).select_from(Message).where(Message.id.in_(ids))) == len(ids)
 
 
-def test_source_provenance_change_during_summary_is_not_only_a_body_hash(product):
+def test_audit_metadata_change_does_not_change_summary_input(product):
     ids = history(product)
     prepared = product.prepare_conversation_summary(scope(product))
     with product.transaction() as db:
         row = db.get(Message, ids[0])
-        row.source_floor_seq = 1  # Body is identical, but the snapshot changed.
-    with pytest.raises(HTTPException) as error:
-        product.save_conversation_summary(prepared["scope"], "Snapshot changed")
-    assert error.value.status_code == 409
+        row.source_floor_seq = 1  # Audit ancestry changed; the delivered snapshot did not.
+    result = product.save_conversation_summary(prepared["scope"], "Stable delivered messages")
+    assert result["body"] == "Stable delivered messages"
 
 
 def test_current_request_partial_output_cannot_enter_or_be_crossed_by_checkpoint(product):
@@ -134,7 +133,7 @@ def test_current_and_legacy_source_hashes_accept_unchanged_then_reject_body_edit
         assert not product.provenance_allowed(db, member, [source])
 
 
-def test_rebuilt_checkpoint_does_not_reauthorize_a_stale_hashed_derived_tail(product):
+def test_rebuilt_checkpoint_retains_published_answer_after_ancestor_correction(product):
     from app.service import digest
     ids = history(product)
     with product.transaction() as db:
@@ -151,7 +150,7 @@ def test_rebuilt_checkpoint_does_not_reauthorize_a_stale_hashed_derived_tail(pro
     fresh = scope(product)
     prepared = product.prepare_conversation_summary(fresh)
     product.save_conversation_summary(prepared["scope"], "Corrected facts")
-    assert output_id not in {row["id"] for row in product.get_conversation_context(fresh)["messages"]}
+    assert output_id in {row["id"] for row in product.get_conversation_context(fresh)["messages"]}
 
 
 def test_overlapping_preparations_discard_obsolete_result_after_valid_progress(product):

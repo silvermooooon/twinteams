@@ -79,7 +79,7 @@ const cases = [
           );
           if (request?.status === "failed")
             throw new Error(`Independent goal failed: ${request.id}`);
-          const topic = snapshot.tracking.find(
+          const topic = (await api(b.page, `/chats/${bChat.id}/tracking`)).tracking.find(
             (row) =>
               row.chat_id === bChat.id &&
               isOngoing(row.status) &&
@@ -223,7 +223,7 @@ const cases = [
         /未|待|选|决定|批准|拍板|pending|decid/i,
         "the packaging choice is still pending the owner",
       );
-      const sameTopic = resumed.snapshot.tracking.find(
+      const sameTopic = (await api(returned.page, `/chats/${bChat.id}/tracking`)).tracking.find(
         (row) => row.id === first.topic.id,
       );
       assert.ok(sameTopic && isOngoing(sameTopic.status));

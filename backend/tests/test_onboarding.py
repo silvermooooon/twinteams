@@ -119,7 +119,7 @@ def test_one_shot_context_task_first_and_second_input_end_intro_without_losing_w
     assert context["onboarding"]["status"] == "active"
     prompt = conversation_system(context)
     assert "First meeting" in prompt and "handle it immediately" in prompt
-    tools = RuntimeBridge.__new__(RuntimeBridge)._tools(context, SimpleNamespace(snapshot={}, resumable=False))
+    tools = RuntimeBridge.__new__(RuntimeBridge)._tools(context, SimpleNamespace(snapshot={}, resumable=False, session_id=context["main_session_id"]))
     assert onboarding.TOOL in {t.name for t in tools}
     second = send(product, body="Continue with the actual checklist")["request"]
     assert product.get_runtime_context(second["id"])["onboarding"] is None
@@ -144,7 +144,9 @@ def test_temporary_role_boundaries_exclude_prompt_and_tool(product, source, raw,
     context = {**tool_context(product, first["id"]), "request_source": source,
                "raw_owner_input": raw, "request_requester_id": requester}
     assert "First meeting" not in conversation_system(context, worker=worker)
-    session = SimpleNamespace(snapshot={}, resumable=False, subagent_creation={"task": "assigned"} if worker else None)
+    session = SimpleNamespace(snapshot={}, resumable=False,
+        session_id="worker-child" if worker else context["main_session_id"],
+        subagent_creation={"task": "assigned"} if worker else None)
     tools = RuntimeBridge.__new__(RuntimeBridge)._tools(context, session)
     assert (onboarding.TOOL in {tool.name for tool in tools}) == worker
 
@@ -188,13 +190,13 @@ def test_frozen_finish_declaration_survives_terminal_progress_or_disabled_featur
     first = send(product)["request"]
     context = tool_context(product, first["id"])
     bridge = RuntimeBridge.__new__(RuntimeBridge)
-    fresh = next(t for t in bridge._tools(context, SimpleNamespace(snapshot={}, resumable=False)) if t.name == onboarding.TOOL)
+    fresh = next(t for t in bridge._tools(context, SimpleNamespace(snapshot={}, resumable=False, session_id=context["main_session_id"])) if t.name == onboarding.TOOL)
     frozen = {"name": fresh.name, "description": "Saved first-meeting declaration", "parameters": fresh.parameters,
               "replay": fresh.replay, "version": fresh.version}
     onboarding.skip(product, "owner-alex")
     monkeypatch.setattr(onboarding, "settings", replace(onboarding.settings, onboarding_enabled=False))
     updated = {**context, "onboarding": None}
-    tools = bridge._tools(updated, SimpleNamespace(snapshot={"tools": [frozen]}, resumable=True))
+    tools = bridge._tools(updated, SimpleNamespace(snapshot={"tools": [frozen]}, resumable=True, session_id=context["main_session_id"]))
     assert len(tools) == 1 and tools[0].description == frozen["description"]
     assert tools[0].parameters == frozen["parameters"]
     assert asyncio.run(product.runtime_tool(onboarding.TOOL, {"status": "completed"}, updated))["status"] == "disabled"

@@ -283,7 +283,13 @@ def test_owner_references_human_review_and_reads_original_files(attachments):
     assert [row["id"] for row in product.chat_detail("owner-maya", group)["messages"]] == original_chat_ids
     with product.transaction() as db:
         db.get(Message, original["id"]).state = "withdrawn"
-    assert private["id"] not in {row["id"] for row in product.chat_detail("owner-alex", "private-alex")["messages"]}
+    retained = next(row for row in product.chat_detail("owner-alex", "private-alex")["messages"] if row["id"] == private["id"])
+    assert retained["body"] == private["body"] and retained["message_reference"]["unavailable"]
+    assert retained["message_reference"]["attachments"] == []
+    new_request = send(client, body="Summarize the already delivered review.").json()["request"]
+    new_context = product.get_runtime_context(new_request["id"])
+    assert product.authorize_runtime_generation(new_context)
+    assert original["body"] not in json.dumps(new_context["messages"])
     from fastapi import HTTPException
     with pytest.raises(HTTPException):
         product.authorize_runtime_generation(follow_context)
@@ -320,4 +326,33 @@ def test_compacted_reference_still_depends_on_quoted_source(attachments, monkeyp
         db.get(Message, original["id"]).body = "A changed source."
     fresh = product.get_conversation_context(scope)
     assert fresh["summary"] is None
-    assert private["id"] not in {row["id"] for row in fresh["messages"]}
+    retained = next(row for row in fresh["messages"] if row["id"] == private["id"])
+    assert retained["message_reference"]["body"] == "A changed source."
+
+
+def test_history_tool_records_original_reference_read_outside_initial_window(attachments):
+    from fastapi import HTTPException
+
+    from app.models import Chat, ContextManifest
+
+    product, client = attachments
+    group = product.create_chat("owner-alex", ["owner-maya"], "Referenced review")["id"]
+    original = send(client, chat=group, owner="owner-maya", body="Original document review").json()["message"]
+    anchor = send(client, body="Review this later.", reference_message_id=original["id"]).json()["message"]
+    with product.transaction() as db:
+        private = db.get(Chat, "private-alex")
+        for index in range(90):
+            product.append_message(db, private, author_id="owner-alex", kind="human", body=f"Later fact {index}")
+    request = send(client, body="Find the earlier document review.").json()["request"]
+    context = product.get_runtime_context(request["id"])
+    assert anchor["id"] not in {row["id"] for row in context["messages"]}
+    history = asyncio.run(product.runtime_tool("history", {"before_seq": anchor["seq"] + 1, "limit": 1},
+        {**context, "operation_id": uuid4().hex}))
+    assert history["messages"][0]["message_reference"]["message_id"] == original["id"]
+    with product.transaction() as db:
+        manifest = db.get(ContextManifest, context["context_manifest_id"])
+        assert any(source.get("chat_id") == group and any(item.get("id") == original["id"]
+            for item in source.get("sources", [])) for source in manifest.sources)
+        db.get(Message, original["id"]).state = "withdrawn"
+    with pytest.raises(HTTPException):
+        product.authorize_runtime_generation(context)

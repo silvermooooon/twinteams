@@ -1231,7 +1231,7 @@ const cases = [
         await modal.waitFor({ state: "hidden" });
         return poll(
           async () =>
-            (await detail(page, chat)).tracking.find(
+            (await api(page, `/chats/${chat.id}/tracking`)).tracking.find(
               (topic) => topic.title === title,
             ),
           "UI-created sourced topic",
@@ -1286,9 +1286,8 @@ const cases = [
         "owner Tracking hint fetches the small union index",
       );
       assert.ok(
-        !watched.includes("/api/bootstrap") &&
-          !watched.includes(`/api/chats/${own.id}`),
-        "external Tracking mutation does not reload the whole private chat or bootstrap",
+        !watched.includes("/api/bootstrap"),
+        "external Tracking mutation refreshes its index and current references without bootstrap",
       );
       await card(first.title).click();
       let drawer = alex.page.getByRole("dialog", {
@@ -1329,7 +1328,7 @@ const cases = [
         .click();
       await poll(
         async () =>
-          !(await detail(alex.page, ab)).tracking.some(
+          !(await api(alex.page, `/chats/${ab.id}/tracking`)).tracking.some(
             (topic) => topic.id === first.id,
           ),
         "union delete tombstones the source group topic",

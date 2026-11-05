@@ -266,7 +266,7 @@ def test_attachment_path_upgrade_is_idempotent_and_preserves_maximum_legal_name(
 
 
 @pytest.mark.parametrize("delete_before_publish", [False, True])
-def test_platform_generated_file_read_retains_live_provenance_through_sdk_output(files, delete_before_publish):
+def test_platform_file_requires_live_source_until_output_is_published(files, delete_before_publish):
     product, client, root = files
     path = root / "private-alex" / "generated.txt"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -316,4 +316,8 @@ def test_platform_generated_file_read_retains_live_provenance_through_sdk_output
     if not delete_before_publish:
         assert output_id in {row["id"] for row in product.chat_detail("owner-alex", "private-alex")["messages"]}
         path.unlink()
-        assert output_id not in {row["id"] for row in product.chat_detail("owner-alex", "private-alex")["messages"]}
+        assert output_id in {row["id"] for row in product.chat_detail("owner-alex", "private-alex")["messages"]}
+        fresh = send(client, body="Use the delivered conclusion.").json()["request"]
+        assert product.authorize_runtime_generation(product.get_runtime_context(fresh["id"]))
+        with pytest.raises(HTTPException):
+            product.workspace_file("owner-alex", "private-alex", identifier)

@@ -1,127 +1,148 @@
 # Chat loading measurements (2026-11-05)
 
-The slow path was authorization of dependent Duet messages, not the latest-page
-query. A 30-message page could recursively visit the full conversation and issue
-two reads per historical source. Bootstrap repeated that work for the preview.
+The latest-page SQL was already fast. The remaining delay came from recursively
+checking the audit ancestry of published messages, then repeating that work for
+previews, unread counts, Tracking and read receipts. Reducing SQL round trips
+alone still left work proportional to the whole history. Three concurrent history
+reads took 3.24–4.10 seconds on the 5,000-message fixture before this change.
 
-The backend now batches immediate source metadata and hash inputs, checks its
-request-local result cache before repeated ORM access, and reuses hash/grant
-results within each bootstrap chat projection. Source hashes, attachment hashes,
-withdrawal and current membership checks remain unchanged. There is no new
-database schema, index or Redis cache. Private tracking remains unchanged; its
-measured cost was small and did not justify changing that contract.
+## Current read contract
 
-Viewport read receipts use the same cache for their whole batch. Otherwise, after
-the page appeared, each visible Duet message could independently revalidate the
-full history while holding the chat lock. In the 1,000-message dependent corpus,
-marking two messages read fell from 3,998 SQL statements / 4,938 ms to 18 / 256 ms
-without a profiler. Already-existing receipts still undergo source authorization.
+A published message is a snapshot in its own conversation. Reading it checks the
+current conversation membership, history floor and publication state; it does not
+recompute its audit ancestors. Source IDs and runtime journals remain audit data.
+A quoted or referenced original still requires current access: an unavailable
+original becomes a placeholder without removing the already-published message.
+Pending actions and explicit source access retain their authorization checks.
 
-Presence view-interval audit writes no longer increment chat-content revisions.
-Previously, simply switching away from a chat closed its interval and invalidated
-the cache just saved for that chat. Presence and audit records still update;
-actual new read receipts continue to change the chat revision.
+Bootstrap loads the owner's conversations and their participants, rather than the
+whole people directory. Previews, unread counts, approvals, attachments and shared
+files use bounded or batched projections. Tracking is no longer included in chat
+detail: both private and group sidebar tabs fetch its existing endpoint on demand.
+Tracking itself also avoids recursive audit-ancestry traversal; moving it out of
+chat detail is not the only optimization.
 
-## Backend results
+The frontend retains its five recent conversation windows, with a maximum of 130
+messages each. A valid cached window displays immediately and revalidates in the
+background. A newer revision discards its cached content but preserves the bounded
+window position; revisiting reauthorizes that window before showing it. This
+prevents a read-receipt update during a switch from losing 130-message history and
+scroll position. Ordinary 30-message windows and windows exceeding the cap reopen
+at the latest 30. Account changes, reset, access loss, disconnection and existing
+cross-source invalidation still clear incompatible cache state. No transcript
+cache was added to Redis or persistent browser storage.
 
-The synthetic uncompressed corpus has 5,000 messages, 2,500 completed requests
-and 2,500 read receipts. Each Duet message depends on the previous 80 messages,
-including other Duet outputs. It reproduces recursive history growth even when
-everything is already read. Measurements use disposable local PostgreSQL schemas,
-not production content, and make no model calls.
+Sidebar reads follow the server revision. Receiving the same revision after a
+cached revisit does not fetch Activity or workspace again. Explicit workspace
+refresh and real changes continue to work. Presence view-interval audit writes
+remain separate from chat-content revisions.
 
-With **cProfile enabled**, before and after on the same data:
+## Real API load
 
-| Read | SQL statements before → after | Elapsed before → after | SQL execution before → after |
-| --- | --- | --- | --- |
-| Latest 30 messages | 9,959 → 96 | 15.65 s → 2.96 s | 5.31 s → 0.28 s |
-| Bootstrap | 9,927 → 91 | 19.46 s → 2.99 s | 5.54 s → 0.27 s |
+The isolated PostgreSQL/Redis fixture contains 5,000 historical messages, 100 human
+chats, 100 pending questions, 100 approvals, 100 shared files, 100 Activity runs,
+100 Git memory entries, and 10 Tracking topics with three updates each. The
+acceptance runner checks successful response content and a strict 3,000 ms budget;
+fast errors or accidentally empty results do not count as a pass. No model calls
+are made.
 
-Full response DTOs matched, excluding bootstrap's current server time. Profiling
-adds Python tracing overhead; these durations are not browser latency estimates.
+| API | Elapsed | SQL statements |
+| --- | ---: | ---: |
+| Bootstrap | 51 ms | 8 |
+| Latest 30 private messages | 60 ms | 23 |
+| Chat summary | 25 ms | 7 |
+| Activity | 13 ms | 4 |
+| Private Tracking union | 21 ms | 15 |
+| Tracking detail | 16 ms | 10 |
+| 100 shared files | 23 ms | 6 |
+| 100 Git memory entries | 107 ms | 6 |
+| Memory search | 111 ms | 6 |
 
-Separate runs **without cProfile** used three samples per read. The checkpoint
-corpus contains 5,000 prior facts compacted through 20 real `prepare`/`save`
-operations, covering sequence 4,980, followed by 60 current messages with hashed
-message and summary dependencies. Summary text is a synthetic fixture input.
+Ten concurrent history requests completed in 142–190 ms each; ten concurrent
+mixed page requests completed in 46–184 ms each. All responses were successful and
+below three seconds. These are local acceptance samples, not a production capacity
+claim or a guarantee under arbitrary load or network conditions.
 
-| Corpus | Read | Median elapsed | SQL statements | Temporary Python peak |
-| --- | --- | --- | --- | --- |
-| 5,000 uncompressed dependent messages | Latest 30 | 1,382 ms | 96 | 111 MiB |
-| Same | Bootstrap | 1,370 ms | 91 | 109 MiB |
-| 5,060 messages with checkpoint | Latest 30 | 121 ms | 93 | 2.10 MiB |
-| Same | Bootstrap | 85 ms | 88 | 1.94 MiB |
+Git memory previously started two Git processes per entry. SDK commit `1fe5394`
+reads one revision with `ls-tree -r -z` and `cat-file --batch`, decoding only the
+requested list page. The same standalone 101-entry repository measured list-100
+at 3,399 → 78 ms and search at 3,326 → 89 ms; both now use four Git processes,
+including clone and revision lookup. Version, provenance, publication and conflict
+semantics remain unchanged.
 
-Memory was measured in separate `tracemalloc` runs, not the timing samples. After
-the uncompressed request returned, tracked retained allocations were below
-0.61 MiB. These are Python allocation measurements, not process RSS or a capacity
-guarantee. Uncompressed transitive history remains O(N) and can consume substantial
-temporary memory. No cross-request backend cache retains its authorization data.
+## Real Chrome navigation
 
-On the 1,000-message diagnostic corpus, `EXPLAIN (ANALYZE, BUFFERS)` showed the
-existing chat/sequence index returning 31 rows in 0.033 ms and pending-request
-indexes taking 0.025 ms. Unread scans took about 2–3 ms. New indexes would not
-address the measured source-by-source round trips, so none were added.
+The browser fixture uses 5,000 uncompressed dependent messages with real HTTP,
+PostgreSQL, Redis, WebSocket events and rendering. It does not replace business
+responses. Measurements end when the expected transcript is visible; background
+synchronization can continue. Each table value is one sample, not a median.
 
-## Verification and evidence
+| Scenario | Before this change | After |
+| --- | ---: | ---: |
+| Sign in and open private chat | 3,380 ms | 287 ms |
+| Refresh | 3,384 ms | 174 ms |
+| Return in the same login | 81 ms | 83 ms |
+| Return to expanded 130-message window | 142 ms | 145 ms |
+| Refresh with 700 ms added network latency | 5,292 ms | 3,816 ms |
+| Return with 700 ms added latency | 52 ms | 58 ms |
+| Rapid A→B→A with 700 ms added latency | 183 ms | 180 ms |
 
-The 81 affected PostgreSQL regressions passed, including long dependency chains,
-source edits, withdrawal, attachment hashes, checkpoint invalidation, cross-chat
-permissions and question continuation. The new regression bounds SQL counts and
-checks that editing an old source hides newly invalid dependent replies.
-After identifying the read-receipt long tail in browser acceptance, five focused
-performance/unread tests passed again with the batch change, including refusal to
-mark a newly unauthorized message read; two existing Duet-read tests also passed.
-A focused presence-switch audit regression and the existing notification metadata
-suite passed 10 tests after separating audit writes from chat-content changes.
+Normal-network page API calls in the final browser case took at most 56 ms. With
+700 ms added network latency, they remained below three seconds; a full cold
+refresh still requires several sequential network exchanges and therefore takes
+longer than three seconds end to end. Cached switching stays immediate.
 
-Local diagnostic evidence: `/tmp/duet-synthetic-load-1000-before.json`,
-`/tmp/duet-synthetic-load-1000-after.json`,
-`/tmp/duet-synthetic-load-5000-comparison.json`,
-`/tmp/duet-load-final-unsummarized.json`, and
-`/tmp/duet-load-final-checkpoint.json`. Production sampling was read-only and emitted
-only timings, query counts and function names; its small histories are not the
-large-history benchmark.
+A deterministic read-receipt race switches away after a real revision notification
+while 700 ms latency delays HTTP synchronization. Returning takes 1,892 ms to
+authorize both history pages, retains all 130 messages, and restores the same
+message at the same 98 px offset. The cache-boundary case additionally verifies
+five-entry eviction, actual WebSocket reconnect, source withdrawal placeholders,
+preservation of published replies, no stale quoted content flashing, and account
+isolation. All isolated fixtures confirmed database, Redis and process cleanup.
 
-## Browser navigation
+Nine focused real-browser regressions also passed: direct/group reference and
+confirmed reply, local echo, generated workspace files, no-prior-history grants,
+private/group Tracking scopes, Git Memory CRUD/conflicts, Tracking CRUD and reset.
+Three further real-browser question cases passed: withdrawing the original hides
+its pending actions while preserving the published question, ordinary choices
+resume exactly once, and older-page questions retain their draft and focus during
+reauthorization. A component-only browser test separately verifies that unavailable-origin question
+cards retain their published text but expose no answer, confirmation, dismissal or
+navigation actions. That component test uses intercepted API fixtures and is not
+counted as real-server E2E.
 
-Installed Chrome used the 5,000-message uncompressed dependent corpus above,
-with real HTTP, PostgreSQL, WebSocket and rendering paths, without model calls. These are **one
-sample per scenario**, not medians or a production capacity claim. The measurement
-ends when the expected transcript is visible, before background synchronization
-necessarily finishes.
+A separate startup profile follows actual HTTP → Redis → worker → SDK execution
+with a synthetic provider and no external model calls. All seven requests
+completed: message submission took 38–70 ms; reaching the provider took 593 ms for
+one owner, 738–808 ms for three concurrent owners, and 553–565 ms when warm. No
+SQL ran on the worker event loop; its maximum measured lag was 7.69 ms. This
+measures platform preparation, not model response latency.
 
-| Scenario | Before | After |
-| --- | --- | --- |
-| Sign in and open the private chat | 45,600 ms | 3,381 ms |
-| Switch back in the same login | 12,864 ms | 69 ms |
-| Refresh the page | 37,031 ms | 3,382 ms |
-| Return after loading 130 messages | 12,872 ms | 170 ms |
-| Refresh with 700 ms emulated network latency | 63,533 ms | 5,309 ms |
-| Switch back with 700 ms latency | 12,869 ms | 62 ms |
-| Rapid A→B→A switching with 700 ms latency | 15,959 ms | 179 ms |
+## Reproduction and evidence
 
-The browser keeps up to five recent chats and 130 messages per chat in memory
-within the same login. Returning restores the transcript and scroll anchor before
-HTTP synchronization completes; it does not eliminate that synchronization. The
-130-message test restored the same message at the same 98 px offset. A history
-larger than the cache cap returns to the latest 30 messages. Refresh starts fresh;
-no persistent private-message cache was added. Initial authentication reads run
-in parallel, and the first WebSocket connection reuses the initial bootstrap.
+From `backend`, with the configured local PostgreSQL and Redis services:
 
-Evidence: `/tmp/duet-chat-performance-before-2-20261105` and
-`/tmp/duet-chat-performance-release-20261105`, including reports, screenshots and
-fixture cleanup records. Intermediate runs exposed the read-receipt long tail
-and presence-induced invalidation described above; their artifacts remain intact.
+```sh
+python -m checks.api_performance --report /tmp/duet-api-load.json
+python -m pytest tests -p checks.api_budget --api-budget-report=/tmp/duet-api-budget.json
+```
 
-The final cache-boundary browser case also passed with 700 ms emulated latency:
-recent chats appeared in 35–39 ms, while an evicted chat took 833 ms and a chat
-after an actual WebSocket disconnect/reconnect took 828 ms to reauthorize.
-Real source withdrawal notifications cleared dependent snapshots; a delayed old
-response did not repopulate them, and switching back never flashed the withdrawn
-content. Account switching cleared private cache state. The older-question
-composer draft/focus and personal reset browser regressions passed separately.
-Evidence is in `/tmp/duet-chat-cache-complete-20261105`,
-`/tmp/duet-chat-history-focus-20261105`, and
-`/tmp/duet-chat-reset-cache-20261105`. All four final fixtures confirmed removal
-of their PostgreSQL schemas, Redis keys, processes and temporary workspaces.
+The API budget plugin records coverage against registered product HTTP routes and
+fails successful requests above the configured budget. Browser acceptance uses the
+existing runner:
+
+```sh
+TWINTEAMS_BROWSER_CHANNEL=chrome backend/.venv/bin/python backend/checks/browser_e2e.py \
+  --scenario chat-loading --node /path/to/node22 \
+  --artifact-dir /tmp/duet-chat-loading
+```
+
+Evidence for this run: `/tmp/duet-api-load-final-20261105.json`,
+`/tmp/duet-query-simplification-browser-before-20261105`,
+`/tmp/duet-query-simplification-browser-final-20261105`, and
+`/tmp/duet-query-simplification-functional-20261105`,
+`/tmp/duet-query-simplification-questions-20261105`, and
+`/tmp/duet-startup-snapshot-final.json`. The failed intermediate browser
+run is retained in `/tmp/duet-query-simplification-browser-after-20261105`; it exposed
+the read-receipt/cache-window race fixed and retested above. Temporary paths are
+local diagnostic artifacts, not durable repository fixtures.

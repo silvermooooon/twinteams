@@ -72,34 +72,33 @@ export function DetailSidebar({ api, detail, duetTarget, actors, version, tracki
   const [sharedFiles, setSharedFiles] = useState<SharedFile[]>([]); const [sharedFilesLoading, setSharedFilesLoading] = useState(false);
   const [loaded, setLoaded] = useState({ activity: false, workspace: false }); const [workspaceRefresh, setWorkspaceRefresh] = useState(0);
   const [runDetail, setRunDetail] = useState<{ run: ActivityRun; events: ActivityEvent[]; has_more?: boolean; next_seq?: number | null } | null>(null); const [runKey, setRunKey] = useState<ActivityRun | null>(null); const [runLoading, setRunLoading] = useState(false);
-  const [privateTracking, setPrivateTracking] = useState<Tracking[]>([]); const [trackingLoading, setTrackingLoading] = useState(false); const [trackingRefresh, setTrackingRefresh] = useState(0);
+  const [trackingItems, setTrackingItems] = useState<Tracking[]>([]); const [trackingLoading, setTrackingLoading] = useState(false); const [trackingRefresh, setTrackingRefresh] = useState(0);
   const [trackingDetail, setTrackingDetail] = useState<Tracking | null>(null); const [edit, setEdit] = useState<Tracking | 'new' | null>(null); const [update, setUpdate] = useState(''); const [busy, setBusy] = useState(false); const [file, setFile] = useState<WorkspaceEntry | null>(null); const [deleteConfirm, setDeleteConfirm] = useState(false); const [sourceId, setSourceId] = useState<string | null>(null); const [preview, setPreview] = useState(''); const [previewLoading, setPreviewLoading] = useState(false); const [previewUnavailable, setPreviewUnavailable] = useState(false); const [uploading, setUploading] = useState(false); const uploadInput = useRef<HTMLInputElement>(null);
   const trackingSelection = useRef(trackingDetail); trackingSelection.current = trackingDetail;
   const tabsId = useId();
   const chatId = detail.chat.id; const tab = detail.settings.sidebar_tab === 'activity' && detail.chat.kind === 'group' ? 'workspace' : detail.settings.sidebar_tab;
-  useEffect(() => { setRunKey(null); setRunDetail(null); setTrackingDetail(null); setEdit(null); setFile(null); setActivity([]); setWorkspace([]); setSharedFiles([]); setLoaded({ activity: false, workspace: false }); }, [chatId, ownerId]);
-  const trackingItems = detail.chat.kind === 'private' ? privateTracking : detail.tracking;
+  useEffect(() => { setRunKey(null); setRunDetail(null); setTrackingDetail(null); setTrackingItems([]); setEdit(null); setFile(null); setActivity([]); setWorkspace([]); setSharedFiles([]); setLoaded({ activity: false, workspace: false }); }, [chatId, ownerId]);
   function sourceLabel(item: Tracking) {
     const kind = item.chat_kind || (item.chat_id === chatId ? detail.chat.kind : 'group');
     return kind === 'private' ? t('tracking.privateSource') : t('tracking.groupSource', { title: item.chat_title || item.chat_id });
   }
   function trackingChanged() { setTrackingRefresh(value => value + 1); onChange(); }
   function trackingError(error: unknown) {
-    if (error instanceof ApiError && [401, 403, 404, 409].includes(error.status)) { setPrivateTracking(previous => previous.filter(item => item.id !== trackingDetail?.id && item.id !== (edit && edit !== 'new' ? edit.id : undefined))); setTrackingDetail(null); setEdit(null); setDeleteConfirm(false); }
+    if (error instanceof ApiError && [401, 403, 404, 409].includes(error.status)) { setTrackingItems(previous => previous.filter(item => item.id !== trackingDetail?.id && item.id !== (edit && edit !== 'new' ? edit.id : undefined))); setTrackingDetail(null); setEdit(null); setDeleteConfirm(false); }
     onError(error);
   }
   useEffect(() => {
-    if (detail.chat.kind !== 'private' || tab !== 'tracking') return;
+    if (tab !== 'tracking') return;
     const abort = new AbortController(); let alive = true; setTrackingLoading(true);
     api.get<{ tracking: Tracking[] }>(`/chats/${chatId}/tracking`, abort.signal).then(result => {
       if (!alive) return;
-      setPrivateTracking(result.tracking);
+      setTrackingItems(result.tracking);
       setTrackingDetail(previous => previous && !result.tracking.some(item => item.id === previous.id && item.chat_id === previous.chat_id) ? null : previous);
       setEdit(previous => previous && previous !== 'new' && !result.tracking.some(item => item.id === previous.id && item.chat_id === previous.chat_id) ? null : previous);
       if (trackingSelection.current && !result.tracking.some(item => item.id === trackingSelection.current?.id && item.chat_id === trackingSelection.current?.chat_id)) setDeleteConfirm(false);
-    }).catch(error => { if (alive) { setPrivateTracking([]); setTrackingDetail(null); setEdit(null); setDeleteConfirm(false); onError(error); } }).finally(() => { if (alive) setTrackingLoading(false); });
+    }).catch(error => { if (alive) { setTrackingItems([]); setTrackingDetail(null); setEdit(null); setDeleteConfirm(false); onError(error); } }).finally(() => { if (alive) setTrackingLoading(false); });
     return () => { alive = false; abort.abort(); };
-  }, [api, chatId, detail.chat.kind, tab, trackingVersion, trackingRefresh]);
+  }, [api, chatId, tab, version, trackingVersion, trackingRefresh]);
   useEffect(() => { if (createFrom) { setSourceId(createFrom); setEdit('new'); onClearCreate(); } }, [createFrom]);
   useEffect(() => {
     const abort = new AbortController(); let alive = true;

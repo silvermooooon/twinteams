@@ -16,7 +16,7 @@ from functools import partial
 from pathlib import Path
 
 from fastapi import HTTPException
-from sqlalchemy import and_, cast, func, or_, select, text, update
+from sqlalchemy import and_, func, or_, select, text, true, update
 from sqlalchemy import event as sa_event
 from sqlalchemy import inspect as sa_inspect
 
@@ -65,8 +65,13 @@ from .models import (
 from .notifications import notifications
 
 SOURCE_MESSAGE_FIELDS = (Message.id, Message.chat_id, Message.seq, Message.author_id,
-    Message.kind, Message.state, Message.source_floor_seq, Message.source_message_ids,
-    Message.source_provenance)
+    Message.kind, Message.state)
+
+
+DISPLAY_MESSAGE_FIELDS = (Message.id, Message.chat_id, Message.seq, Message.author_id,
+    Message.kind, Message.state, Message.body, Message.raw_owner_input, Message.request_id,
+    Message.command_owner_id, Message.client_request_key, Message.attachment_ids,
+    Message.causal_chain_id, Message.created_at, Message.reply_to_message_id)
 
 
 def iso(value):
@@ -490,16 +495,18 @@ class ProductService:
         return chain
 
     def visible_message(self, db, member, message_id, required=True, *, cache=None):
-        msg = db.get(Message, message_id)
-        if not msg or msg.state != "published" or msg.chat_id != member.chat_id or msg.seq < member.lower_seq:
+        msg = self._message_metadata(db, message_id, cache)
+        if not msg or not self.message_visible(db, member, msg):
             if required:
                 fail(404, "Message is unavailable in your authorized history")
             return None
-        if not self.message_sources_visible(db, member, msg, cache=cache):
-            if required:
-                fail(404, "Message derives from sources outside your authorized history")
-            return None
         return msg
+
+    def message_visible(self, db, member, message):
+        """A delivered message is a snapshot, independent of its audit ancestors."""
+        chat = db.get(Chat, member.chat_id)
+        return (message.state == "published" and message.chat_id == member.chat_id
+            and message.seq >= member.lower_seq and (chat.kind != "group" or message.kind == "human"))
 
     def _message_metadata(self, db, message_id, cache=None):
         from sqlalchemy.orm import load_only
@@ -511,76 +518,23 @@ class ProductService:
             cache[key] = row
         return row
 
-    def message_sources_visible(self, db, member, msg, seen=None, cache=None):
-        cache = {} if cache is None else cache
-        if msg.id in cache:
-            return cache[msg.id]
-        chat = db.get(Chat, member.chat_id)
-        if chat and chat.kind == "group" and msg.kind != "human":
-            return False
-        seen = set() if seen is None else seen
-        if msg.id in seen:
-            return False
-        seen = seen | {msg.id}
-        if msg.source_floor_seq is not None and msg.source_floor_seq < member.lower_seq:
-            cache[msg.id] = False
-            return False
-        covering = cache.get(("covering_summary", member.chat_id))
-        dependencies = list(dict.fromkeys([*(msg.source_message_ids or []), *[
-            item["id"] for item in (msg.source_provenance or []) if item.get("kind") == "message"]]))
-        unchecked = [identifier for identifier in dependencies
-            if ("covered_message", member.chat_id, identifier) not in cache]
-        if covering and unchecked:
-            from sqlalchemy.dialects.postgresql import JSONB
-            uncovered, count = db.execute(select(
-                func.array_agg(Message.id).filter(~cast(Summary.source_message_ids, JSONB).has_key(Message.id)),
-                func.count()).select_from(Message).join(Summary, Summary.id == covering).where(
-                    Summary.state == "valid", Message.id.in_(unchecked), Message.chat_id == member.chat_id,
-                    Message.seq >= member.lower_seq, Message.state == "published")).one()
-            if count == len(unchecked):
-                # PostgreSQL checks the storage-only covered set, returning only
-                # uncovered IDs from this tail. No historical metadata rows or
-                # historical source arrays leave the database.
-                uncovered = set(uncovered or [])
-                for source_id in unchecked:
-                    cache[("covered_message", member.chat_id, source_id)] = source_id not in uncovered
-        if "projection_hashes" in cache:
-            self._prime_message_sources(db, msg, dependencies, cache)
-        for source_id in msg.source_message_ids or []:
-            if cache.get(("covered_message", member.chat_id, source_id)):
-                continue
-            source = self._message_metadata(db, source_id, cache)
-            if not source or source.chat_id != member.chat_id or source.state != "published" or source.seq < member.lower_seq or not self.message_sources_visible(db, member, source, seen, cache):
-                cache[msg.id] = False
-                return False
-        cache[msg.id] = self.provenance_allowed(db, member, msg.source_provenance, seen, cache)
-        return cache[msg.id]
-
-    def _prime_message_sources(self, db, message, dependencies, cache):
-        from sqlalchemy.orm import load_only
-        hashed = {source["id"] for source in message.source_provenance or []
-            if source.get("kind") == "message" and source.get("hash")}
-        missing = [identifier for identifier in dependencies
-            if ("metadata", identifier) not in cache
-            and (identifier in hashed or not cache.get(("covered_message", message.chat_id, identifier)))]
-        if not missing:
-            return
-        columns = SOURCE_MESSAGE_FIELDS
-        if hashed:
-            columns += (Message.body, Message.raw_owner_input, Message.attachment_ids)
-        # Keep the same per-source permission and content checks, but load a
-        # dependency batch instead of two round trips for each historical row.
-        rows = list(db.scalars(select(Message).options(load_only(*columns)).where(Message.id.in_(missing))))
-        cache.update({("metadata", identifier): None for identifier in missing})
-        cache.update({("metadata", row.id): row for row in rows})
-
     def sources_allowed(self, db, member, source_ids, source_floor=None, *, cache=None):
         if source_floor is not None and source_floor < member.lower_seq:
             return False
         return all(self.visible_message(db, member, source_id, False, cache=cache) for source_id in source_ids)
 
     def provenance_allowed(self, db, member, sources, seen=None, cache=None):
+        from sqlalchemy.orm import load_only
         cache = {} if cache is None else cache
+        direct = [source for source in sources or [] if source.get("kind") == "message"]
+        missing = {source["id"] for source in direct if ("metadata", source["id"]) not in cache}
+        if missing:
+            fields = SOURCE_MESSAGE_FIELDS + (Message.body, Message.raw_owner_input, Message.attachment_ids)
+            rows = list(db.scalars(select(Message).options(load_only(*fields)).where(Message.id.in_(missing))))
+            cache.update({("metadata", identifier): None for identifier in missing})
+            cache.update({("metadata", row.id): row for row in rows})
+            _attachments = list(db.scalars(select(ChatAttachment).where(ChatAttachment.id.in_(
+                {identifier for row in rows for identifier in row.attachment_ids or []}))))
         for source in sources or []:
             if source.get("kind") == "summary":
                 from .conversation_context import summary_allowed, summary_metadata
@@ -610,10 +564,8 @@ class ProductService:
                 if not is_range and not self.provenance_allowed(db, grant, source.get("sources", []), seen, cache):
                     return False
             elif source.get("kind") == "message":
-                if not source.get("hash") and cache is not None and cache.get(("covered_message", member.chat_id, source["id"])):
-                    continue
                 message = self._message_metadata(db, source["id"], cache)
-                if not message or message.chat_id != member.chat_id or message.state != "published" or message.seq < member.lower_seq or not self.message_sources_visible(db, member, message, seen, cache):
+                if not message or not self.message_visible(db, member, message):
                     return False
                 if source.get("hash"):
                     from .conversation_context import message_source
@@ -687,13 +639,22 @@ class ProductService:
         receipts = {message_id: [] for message_id in ids}
         for message_id, owner_id in db.execute(select(Receipt.message_id, Receipt.owner_id).where(Receipt.message_id.in_(ids))):
             receipts[message_id].append(owner_id)
-        # Keep these page-scoped rows alive in SQLAlchemy's identity map while
-        # projecting. No cross-request authorization or content cache is used.
-        _actors = list(db.scalars(select(Actor).where(Actor.id.in_({message.author_id for message in messages}))))
+        # Only human reference commands need audit metadata for their source card.
+        referenced = list(db.scalars(select(Message).options(load_only(Message.id, Message.source_provenance))
+            .where(Message.id.in_([message.id for message in messages if message.kind == "human" and message.command_owner_id]))))
+        related_ids = {message.reply_to_message_id for message in messages if message.reply_to_message_id}
+        for message in referenced:
+            for source in message.source_provenance or []:
+                if source.get("context_role") == "owner_message_reference":
+                    related_ids.update(item["id"] for item in source.get("sources", []) if item.get("kind") == "message")
+        related = list(db.scalars(select(Message).options(load_only(*DISPLAY_MESSAGE_FIELDS)).where(Message.id.in_(related_ids)))) if related_ids else []
+        all_messages = [*messages, *related]
+        # Strong references keep this page's batched rows in the session identity map.
+        _actors = list(db.scalars(select(Actor).where(Actor.id.in_({message.author_id for message in all_messages}))))
         request_ids = {message.request_id for message in messages if message.request_id}
         _requests = list(db.scalars(select(ReplyRequest).where(ReplyRequest.id.in_(request_ids))
             .options(load_only(ReplyRequest.id, ReplyRequest.chat_id, ReplyRequest.requester_id, ReplyRequest.client_request_key)))) if request_ids else []
-        _attachments = list(db.scalars(select(ChatAttachment).where(ChatAttachment.id.in_({attachment_id for message in messages for attachment_id in (message.attachment_ids or [])})))) if include_attachments else []
+        _attachments = list(db.scalars(select(ChatAttachment).where(ChatAttachment.id.in_({attachment_id for message in all_messages for attachment_id in (message.attachment_ids or [])})))) if include_attachments else []
         return [self.message_json(db, message, member, include_attachments, cache=cache, receipts=receipts) for message in messages]
 
     def set_message_reaction(self, owner_id, chat_id, message_id, emoji, active, key):
@@ -743,9 +704,7 @@ class ProductService:
                     and audit_origin.requester_id == member.owner_id):
                 result["client_request_key"] = audit_origin.client_request_key
             if audit_origin and audit_origin.chat_id != msg.chat_id:
-                origin_chat = db.get(Chat, audit_origin.chat_id)
-                if origin_chat:
-                    result["request_id"] = None
+                result["request_id"] = None
         if include_attachments:
             result["attachments"] = [self.attachment_json(attachment) for attachment_id in (msg.attachment_ids or []) if (attachment := db.get(ChatAttachment, attachment_id)) and (not attachment.private_owner_input or attachment.owner_id == member.owner_id)]
         actor = db.get(Actor, msg.author_id)
@@ -756,10 +715,22 @@ class ProductService:
         result["read_by"] = receipts[msg.id] if receipts is not None else list(db.scalars(select(Receipt.owner_id).where(Receipt.message_id == msg.id)))
         from .message_references import reference_json, referenced_human_message
         reference = referenced_human_message(db, msg)
-        if reference is not None and self.message_sources_visible(db, member, msg, cache=cache):
-            result["message_reference"] = reference_json(self, db, reference)
+        if reference is not None:
+            cache = {} if cache is None else cache
+            key = ("reference_grant", reference.chat_id)
+            if key not in cache:
+                try:
+                    cache[key] = self.membership(db, member.owner_id, reference.chat_id)[1]
+                except HTTPException:
+                    cache[key] = None
+            grant = cache[key]
+            if grant and self.visible_message(db, grant, reference.id, False):
+                result["message_reference"] = reference_json(self, db, reference)
+            else:
+                result["message_reference"] = {"chat_id": reference.chat_id, "message_id": reference.id,
+                    "author_name": "", "body": "Message unavailable", "attachments": [], "unavailable": True}
         if msg.reply_to_message_id:
-            quoted = self.visible_message(db, member, msg.reply_to_message_id, False, cache=cache)
+            quoted = self.visible_message(db, member, msg.reply_to_message_id, False)
             if quoted:
                 author = db.get(Actor, quoted.author_id)
                 body = quoted.body or ", ".join(row.name for identifier in quoted.attachment_ids or []
@@ -780,56 +751,49 @@ class ProductService:
             result["client_request_key"] = request.client_request_key
         return result
 
-    def chat_title(self, db, chat, viewer_id, owner_ids=None):
+    def chat_title(self, db, chat, viewer_id, owner_ids=None, actor_names=None):
         if chat.kind == "private":
+            if actor_names is not None:
+                return actor_names[chat.private_owner_id, "twin"]
             return self.twin(db, chat.private_owner_id).name
         if chat.kind == "duet":
             return chat.title
         owner_ids = owner_ids if owner_ids is not None else [row.owner_id for row in self.members(db, chat.id)]
         if len(owner_ids) == 2 and viewer_id in owner_ids:
             peer_id = next(owner_id for owner_id in owner_ids if owner_id != viewer_id)
+            if actor_names is not None:
+                return actor_names.get((peer_id, "human"), chat.title)
             peer = db.scalar(select(Actor).where(Actor.owner_id == peer_id, Actor.kind == "human"))
             if peer:
                 return peer.name
         return chat.title
 
-    def chat_json(self, db, chat, member, owner_ids=None, *, cache=None):
-        from sqlalchemy.dialects.postgresql import JSONB
-        from sqlalchemy.orm import load_only
-        metadata = load_only(Message.id, Message.chat_id, Message.seq, Message.author_id, Message.kind, Message.created_at, Message.state,
-                             Message.source_floor_seq, Message.source_message_ids, Message.source_provenance)
-        visible = select(Message).options(metadata).where(Message.chat_id == chat.id, Message.seq >= member.lower_seq, Message.state == "published")
-        if chat.kind == "group":
-            visible = visible.where(Message.kind == "human")
-        last, cursor = None, None
-        checked = {"projection_hashes": {}, "projection_grants": {
-            (member.owner_id, chat.id): (chat, member)}} if cache is None else cache
-        # Only authorization metadata is paged; fetch one body for the final preview.
-        while last is None:
-            query = visible.where(Message.seq < cursor) if cursor else visible
-            rows = list(db.scalars(query.order_by(Message.seq.desc()).limit(100)))
-            if not rows:
-                break
-            last = next((message for message in rows if self.message_sources_visible(db, member, message, cache=checked)), None)
-            if len(rows) < 100:
-                break
-            cursor = rows[-1].seq
-        unread_filter = (Message.chat_id == chat.id, Message.seq >= member.lower_seq, Message.state == "published",
-                         Message.author_id != member.owner_id,
-                         ~select(Receipt.message_id).where(Receipt.message_id == Message.id, Receipt.owner_id == member.owner_id).exists())
-        if chat.kind == "group":
-            unread_filter = (*unread_filter, Message.kind == "human")
-        simple = (cast(Message.source_message_ids, JSONB) == []) & (cast(Message.source_provenance, JSONB) == [])
-        unread = db.scalar(select(func.count()).select_from(Message).where(*unread_filter, simple,
-            or_(Message.source_floor_seq.is_(None), Message.source_floor_seq >= member.lower_seq))) or 0
-        # Dependent messages need current recursive grants; never disclose their count
-        # without those checks. No historical message bodies are loaded for counting.
-        for message in db.scalars(select(Message).options(metadata).where(*unread_filter, ~simple).execution_options(yield_per=100)):
-            unread += int(self.message_sources_visible(db, member, message, cache=checked))
+    def _chat_summaries(self, db, owner_id, chat_ids):
+        visible = (Message.chat_id.in_(chat_ids), Membership.owner_id == owner_id,
+            Membership.left_at.is_(None), Message.seq >= Membership.lower_seq,
+            Message.state == "published", or_(Chat.kind != "group", Message.kind == "human"))
+        preview = select(Message.id, Message.seq, Message.author_id, Message.kind, Message.created_at,
+            func.substr(Message.body, 1, 300).label("body")).where(Message.chat_id == Chat.id,
+                Message.seq >= Membership.lower_seq, Message.state == "published",
+                or_(Chat.kind != "group", Message.kind == "human")).order_by(Message.seq.desc()).limit(1).lateral()
+        previews = db.execute(select(Chat.id.label("chat_id"), preview).select_from(Chat).join(Membership,
+            Membership.chat_id == Chat.id).join(preview, true()).where(Chat.id.in_(chat_ids),
+                Membership.owner_id == owner_id, Membership.left_at.is_(None)))
+        last = {row.chat_id: row for row in previews}
+        unread = dict(db.execute(select(Message.chat_id, func.count()).join(Membership,
+            Membership.chat_id == Message.chat_id).join(Chat, Chat.id == Message.chat_id)
+            .where(*visible, Message.author_id != owner_id,
+                ~select(Receipt.message_id).where(Receipt.message_id == Message.id,
+                    Receipt.owner_id == owner_id).exists()).group_by(Message.chat_id)).all())
+        return last, unread
+
+    def chat_json(self, db, chat, member, owner_ids=None, *, actor_names=None, summaries=None):
+        previews, counts = summaries if summaries is not None else self._chat_summaries(db, member.owner_id, [chat.id])
+        last = previews.get(chat.id)
         owner_ids = owner_ids if owner_ids is not None else [m.owner_id for m in self.members(db, chat.id)]
-        return {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, member.owner_id, owner_ids), "revision": chat.revision,
+        return {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, member.owner_id, owner_ids, actor_names), "revision": chat.revision,
                 "can_rename": chat.kind == "group" and len(owner_ids) >= 3,
-                "member_owner_ids": owner_ids, "unread_count": unread,
+                "member_owner_ids": owner_ids, "unread_count": counts.get(chat.id, 0),
                 "last_message": last.body if last else None,
                 "last_message_meta": {"id": last.id, "seq": last.seq, "author_id": last.author_id,
                                       "kind": last.kind, "created_at": iso(last.created_at)} if last else None}
@@ -852,10 +816,25 @@ class ProductService:
         with self.transaction() as db:
             if not db.get(Owner, owner_id):
                 fail(401, "Unknown owner identity")
-            from .scheduled_tasks import ensure_system
-            ensure_system(self, db, owner_id)
-            memberships = list(db.scalars(select(Membership).where(Membership.owner_id == owner_id, Membership.left_at.is_(None))))
-            return {"server_time": iso(now()), "current_owner_id": owner_id, "actors": [self.actor_json(a) for a in db.scalars(select(Actor).order_by(Actor.kind, Actor.name))], "chats": [self.chat_json(db, db.get(Chat, m.chat_id), m) for m in memberships if db.get(Chat, m.chat_id).kind != "duet"], "reminders": [self.reminder_json(r) for r in db.scalars(select(Reminder).where(Reminder.owner_id == owner_id).order_by(Reminder.due_at))], "model_configured": self.model_configured, "development_mode": settings.local_identity_enabled}
+            memberships = list(db.execute(select(Chat, Membership).join(Membership, Membership.chat_id == Chat.id).where(
+                Membership.owner_id == owner_id, Membership.left_at.is_(None))))
+            chat_ids = [chat.id for chat, _ in memberships]
+            members = list(db.scalars(select(Membership).where(Membership.chat_id.in_(chat_ids))))
+            owners = {owner_id, *(member.owner_id for member in members)}
+            actors = list(db.scalars(select(Actor).where(Actor.owner_id.in_(owners)).order_by(Actor.kind, Actor.name)))
+            names = {(actor.owner_id, actor.kind): actor.name for actor in actors}
+            member_ids = {chat_id: [] for chat_id in chat_ids}
+            for member in members:
+                if member.left_at is None:
+                    member_ids[member.chat_id].append(member.owner_id)
+            summaries = self._chat_summaries(db, owner_id, [chat.id for chat, _ in memberships if chat.kind != "duet"])
+            return {"server_time": iso(now()), "current_owner_id": owner_id,
+                    "actors": [self.actor_json(actor) for actor in actors],
+                    "chats": [self.chat_json(db, chat, member, member_ids[chat.id], actor_names=names, summaries=summaries)
+                              for chat, member in memberships if chat.kind != "duet"],
+                    "reminders": [self.reminder_json(row) for row in db.scalars(select(Reminder).where(
+                        Reminder.owner_id == owner_id).order_by(Reminder.due_at))],
+                    "model_configured": self.model_configured, "development_mode": settings.local_identity_enabled}
 
     def people(self, owner_id, query):
         with self.transaction() as db:
@@ -985,18 +964,19 @@ class ProductService:
         result = self.chat_json(db, chat, member, current_ids)
         return chat, result
 
-    def tracking_json(self, db, topic, member, details=False, *, chat=None, title=None):
+    def tracking_json(self, db, topic, member, details=False, *, chat=None, title=None, cache=None):
+        cache = {"projection_hashes": {}, "projection_grants": {}} if cache is None else cache
         if not topic.source_message_ids:
             cutoff = member.joined_at if member.history_policy == "no_prior" else member.joined_at - timedelta(days=7) if member.history_policy == "fixed_7d" else None
             if cutoff and aware(topic.created_at) < aware(cutoff):
                 return None
-        if topic.deleted_at or not self.sources_allowed(db, member, topic.source_message_ids, topic.source_floor_seq) or not self.provenance_allowed(db, member, topic.source_provenance):
+        if topic.deleted_at or not self.sources_allowed(db, member, topic.source_message_ids, topic.source_floor_seq, cache=cache) or not self.provenance_allowed(db, member, topic.source_provenance, cache=cache):
             return None
         result = {**{k: getattr(topic, k) for k in ("id", "chat_id", "title", "description", "status", "revision")}, "created_at": iso(topic.created_at), "updated_at": iso(topic.updated_at)}
         chat = chat or db.get(Chat, topic.chat_id)
         result.update(chat_kind=chat.kind, chat_title=title if title is not None else self.chat_title(db, chat, member.owner_id))
         if details:
-            result["updates"] = [{"id": u.id, "body": u.body, "created_at": iso(u.created_at)} for u in db.scalars(select(TrackingUpdate).where(TrackingUpdate.topic_id == topic.id).order_by(TrackingUpdate.created_at)) if self.sources_allowed(db, member, u.source_message_ids, u.source_floor_seq) and self.provenance_allowed(db, member, u.source_provenance) and (u.source_message_ids or member.history_policy == "all" or aware(u.created_at) >= aware(member.joined_at) - timedelta(days=7 if member.history_policy == "fixed_7d" else 0))]
+            result["updates"] = [{"id": u.id, "body": u.body, "created_at": iso(u.created_at)} for u in db.scalars(select(TrackingUpdate).where(TrackingUpdate.topic_id == topic.id).order_by(TrackingUpdate.created_at)) if self.sources_allowed(db, member, u.source_message_ids, u.source_floor_seq, cache=cache) and self.provenance_allowed(db, member, u.source_provenance, cache=cache) and (u.source_message_ids or member.history_policy == "all" or aware(u.created_at) >= aware(member.joined_at) - timedelta(days=7 if member.history_policy == "fixed_7d" else 0))]
         return result
 
     def _tracking_scope(self, db, chat, member, limit=None):
@@ -1010,13 +990,14 @@ class ProductService:
         else:
             query = query.where(Chat.id == chat.id)
         titles, rows = {}, []
+        cache = {"projection_hashes": {}, "projection_grants": {}}
         query = query.order_by(TrackingTopic.created_at, TrackingTopic.id)
         if limit is not None:
             query = query.limit(limit)
         for topic, origin, source_member in db.execute(query):
             if origin.id not in titles:
                 titles[origin.id] = self.chat_title(db, origin, member.owner_id)
-            projection = self.tracking_json(db, topic, source_member, chat=origin, title=titles[origin.id])
+            projection = self.tracking_json(db, topic, source_member, chat=origin, title=titles[origin.id], cache=cache)
             if projection:
                 rows.append((topic, origin, source_member, projection))
         return rows
@@ -1036,11 +1017,11 @@ class ProductService:
         return {**{k: getattr(row, k) for k in ("id", "chat_id", "approver_id", "title", "description", "target", "impact", "status")}, "created_at": iso(row.created_at), "action": row.sdk_reference.get("action"), "type": row.sdk_reference.get("type"), "scope": row.sdk_reference.get("scope"), "peer_owner_ids": row.sdk_reference.get("peer_owner_ids", [])}
 
     def chat_detail(self, owner_id, chat_id, limit=100, before_seq=None):
-        from sqlalchemy.orm import aliased
+        from sqlalchemy.orm import aliased, load_only
 
         with self.transaction() as db:
             chat, member = self.membership(db, owner_id, chat_id)
-            query = select(Message).where(Message.chat_id == chat_id, Message.seq >= member.lower_seq, Message.state == "published")
+            query = select(Message).options(load_only(*DISPLAY_MESSAGE_FIELDS)).where(Message.chat_id == chat_id, Message.seq >= member.lower_seq, Message.state == "published")
             if chat.kind == "group":
                 query = query.where(Message.kind == "human")
             if before_seq is not None:
@@ -1048,8 +1029,6 @@ class ProductService:
             messages = list(reversed(list(db.scalars(query.order_by(Message.seq.desc()).limit(limit + 1)))))
             has_more = len(messages) > limit
             messages = messages[-limit:]
-            # A single owner snapshot checks overlapping provenance for messages, questions and preview.
-            checked = {"projection_hashes": {}, "projection_grants": {(owner_id, chat_id): (chat, member)}}
             requests = []
             if chat.kind != "group":
                 newer = aliased(ReplyRequest)
@@ -1057,49 +1036,75 @@ class ProductService:
                 # generation before limiting so old attempts cannot consume the page.
                 superseded = select(newer.id).where(newer.intent_key == ReplyRequest.intent_key,
                     newer.generation > ReplyRequest.generation).exists()
-                requests = list(db.scalars(select(ReplyRequest).where(ReplyRequest.chat_id == chat_id,
-                    ReplyRequest.status.in_(["queued", "running", "failed"]), ~superseded)
-                    .order_by(ReplyRequest.accepted_at.desc(), ReplyRequest.accepted_seq.desc()).limit(200)))
-                requests = [r for r in requests if chat.kind != "private" or r.private_generation == chat.reset_generation]
-                requests = [r for r in requests if r.raw_owner_input is None or r.requester_id == owner_id]
-                requests = [r for r in requests if (r.source_message_id and self.visible_message(db, member, r.source_message_id, False, cache=checked)) or (r.source_message_id is None and r.requester_id == owner_id)]
-            tracking = [row[3] for row in self._tracking_scope(db, chat, member)]
+                request_source = select(Message.id).where(Message.id == ReplyRequest.source_message_id,
+                    Message.chat_id == chat_id, Message.state == "published", Message.seq >= member.lower_seq).exists()
+                query = select(ReplyRequest).options(load_only(*[getattr(ReplyRequest, key) for key in (
+                    "id", "chat_id", "source_message_id", "target_twin_id", "requester_id", "source", "status", "error",
+                    "session_id", "run_id", "causal_chain_id", "source_owner_id", "continuation_of_request_id", "background",
+                    "accepted_at", "cancel_requested", "client_request_key", "execution_config", "input_body")])).where(
+                    ReplyRequest.chat_id == chat_id, ReplyRequest.status.in_(["queued", "running", "failed"]), ~superseded,
+                    or_(ReplyRequest.raw_owner_input.is_(None), ReplyRequest.requester_id == owner_id),
+                    or_(request_source, and_(ReplyRequest.source_message_id.is_(None), ReplyRequest.requester_id == owner_id)))
+                if chat.kind == "private":
+                    query = query.where(ReplyRequest.private_generation == chat.reset_generation)
+                requests = list(db.scalars(query.order_by(ReplyRequest.accepted_at.desc(), ReplyRequest.accepted_seq.desc()).limit(200)))
             members = [m.owner_id for m in self.members(db, chat_id)]
             actors = list(db.scalars(select(Actor).where(Actor.owner_id.in_(members),
                 Actor.kind == "human" if chat.kind == "group" else Actor.kind.in_(["human", "twin"]))
                 .order_by(Actor.kind, Actor.name)))
-            visible = [m for m in messages if self.message_sources_visible(db, member, m, cache=checked)]
             from .questions import for_chat
-            return {"questions": for_chat(self, db, chat, member, [m.id for m in visible], cache=checked),
+            return {"questions": for_chat(self, db, chat, member, [m.id for m in messages]),
                     "revision": chat.revision, "has_more": has_more, "before_seq": messages[0].seq if messages else None,
-                    "chat": self.chat_json(db, chat, member, members, cache=checked),
-                    "messages": self.messages_json(db, visible, member, cache=checked),
+                    "chat": self.chat_json(db, chat, member, members, actor_names={(actor.owner_id, actor.kind): actor.name for actor in actors}),
+                    "messages": self.messages_json(db, messages, member),
                     "requests": [self.request_json(db, r, owner_id) for r in requests],
-                    "approvals": self._approval_inbox(db, chat, member), "tracking": [t for t in tracking if t],
-                    "settings": self.settings_json(self.settings_row(db, owner_id, chat)),
+                    "approvals": self._approval_inbox(db, chat, member),
+                    "settings": self.settings_json(row) if (row := db.get(ChatSetting, (owner_id, chat.id))) else {
+                        "reply_for_me_enabled": False, "prompt_override": None, "sidebar_open": True,
+                        "sidebar_tab": "activity" if chat.kind == "private" else "workspace"},
                     "members": [self.actor_json(a) for a in actors]}
 
     def _approval_inbox(self, db, chat, member):
+        from sqlalchemy.orm import load_only
         query = select(Approval).where(Approval.approver_id == member.owner_id, Approval.status == "pending")
         if chat.kind != "private":
             query = query.where(Approval.chat_id == chat.id)
+        approvals = list(db.scalars(query.order_by(Approval.created_at.desc()).limit(100)))
+        if not approvals:
+            return []
+        requests = {row.id: row for row in db.scalars(select(ReplyRequest).options(load_only(
+            ReplyRequest.id, ReplyRequest.chat_id, ReplyRequest.cancel_requested, ReplyRequest.status,
+            ReplyRequest.private_generation)).where(ReplyRequest.id.in_({
+                row.sdk_reference.get("request_id") for row in approvals} - {None})))}
+        chat_ids = {row.chat_id for row in approvals} | {row.chat_id for row in requests.values()}
+        chats = {row.id: row for row in db.scalars(select(Chat).where(Chat.id.in_(chat_ids)))}
+        members = {row.chat_id: row for row in db.scalars(select(Membership).where(
+            Membership.owner_id == member.owner_id, Membership.chat_id.in_(chat_ids), Membership.left_at.is_(None)))}
+        conversations = {row.chat_id: row for row in db.scalars(select(DuetConversation).where(DuetConversation.chat_id.in_(chat_ids)))}
+        checked = {"projection_hashes": {}, "projection_grants": {
+            (member.owner_id, identifier): (chats[identifier], grant) for identifier, grant in members.items()}}
         result = []
-        for approval in db.scalars(query.order_by(Approval.created_at.desc()).limit(100)):
-            try:
-                _, origin_member = self.membership(db, member.owner_id, approval.chat_id)
-                if approval.sdk_reference.get("type") == "duet_conversation":
-                    conversation = db.get(DuetConversation, approval.chat_id)
-                    if conversation and conversation.status == "pending":
-                        result.append(self.approval_json(approval))
-                    continue
-                origin = db.get(ReplyRequest, approval.sdk_reference.get("request_id"))
-                if not origin or origin.cancel_requested or origin.status == "cancelled":
-                    continue
-                self._check_private_request(db, origin)
-                if self.sources_allowed(db, origin_member, approval.source_message_ids) and self.provenance_allowed(db, origin_member, approval.source_provenance):
-                    result.append(self.approval_json(approval))
-            except HTTPException:
+        for approval in approvals:
+            origin_member, origin_chat = members.get(approval.chat_id), chats.get(approval.chat_id)
+            if not origin_member or not origin_chat or (origin_chat.kind == "private" and origin_chat.private_owner_id != member.owner_id):
                 continue
+            if approval.sdk_reference.get("type") == "duet_conversation":
+                conversation = conversations.get(approval.chat_id)
+                if conversation and conversation.status == "pending":
+                    result.append(self.approval_json(approval))
+                continue
+            request = requests.get(approval.sdk_reference.get("request_id"))
+            if not request or request.cancel_requested or request.status == "cancelled":
+                continue
+            source_chat = chats[request.chat_id]
+            if source_chat.kind == "group" or (source_chat.kind == "private" and (
+                    source_chat.reset_pending or request.private_generation != source_chat.reset_generation)):
+                continue
+            if source_chat.kind == "duet" and (not conversations.get(source_chat.id) or conversations[source_chat.id].status != "active"):
+                continue
+            if (self.sources_allowed(db, origin_member, approval.source_message_ids, cache=checked)
+                    and self.provenance_allowed(db, origin_member, approval.source_provenance, cache=checked)):
+                result.append(self.approval_json(approval))
         return result
 
 
@@ -1126,8 +1131,8 @@ class ProductService:
         """Publish intentional outgoing content, without granting its original history.
 
         Callers authorize the sender and retain all consumed sources in the
-        request's ContextManifest. Message source fields are reader dependencies,
-        not that internal audit. The Duet publisher rechecks the original request
+        request's ContextManifest. The delivered text is an independent snapshot.
+        The Duet publisher rechecks the original request
         before sending, including a later Continue of a pending payload.
         """
         return self.append_message(db, chat, request_id=request.id,
@@ -1319,11 +1324,15 @@ class ProductService:
     def read(self, owner_id, chat_id, message_ids):
         with self.transaction() as db:
             chat, member = self.membership(db, owner_id, chat_id, True)
-            checked = {"projection_hashes": {}, "projection_grants": {(owner_id, chat_id): (chat, member)}}
-            for message_id in dict.fromkeys(message_ids):
-                self.visible_message(db, member, message_id, cache=checked)
-                if not db.get(Receipt, (message_id, owner_id)):
-                    db.add(Receipt(message_id=message_id, owner_id=owner_id))
+            ids = set(message_ids)
+            query = select(Message.id).where(Message.id.in_(ids), Message.chat_id == chat_id,
+                Message.seq >= member.lower_seq, Message.state == "published")
+            if chat.kind == "group":
+                query = query.where(Message.kind == "human")
+            if set(db.scalars(query)) != ids:
+                fail(404, "Message is unavailable in your authorized history")
+            existing = set(db.scalars(select(Receipt.message_id).where(Receipt.message_id.in_(ids), Receipt.owner_id == owner_id)))
+            db.add_all(Receipt(message_id=identifier, owner_id=owner_id) for identifier in ids - existing)
         self.publish_event(chat_id, {"type": "changed"})
         return {"ok": True}
 
@@ -1540,20 +1549,19 @@ class ProductService:
                 return {**context(self, db, request), "activity_user_visible": False, "background": request.background}
             twin = db.get(Actor, request.target_twin_id)
             chat, member = self.membership(db, twin.owner_id, request.chat_id)
-            from .conversation_context import latest_summary, read_context, scope_for
+            from .conversation_context import read_context, read_sources, scope_for
             _, _, summary_scope = scope_for(self, db, {"chat_id": chat.id, "owner_id": twin.owner_id,
                 "high_water_seq": chat.next_message_seq - 1, "exclude_request_id": request.id})
             checked = {"projection_hashes": {}, "projection_grants": {(member.owner_id, chat.id): (chat, member)}}
-            covering = latest_summary(self, db, chat, member, summary_scope)
-            if covering:
-                checked[("covering_summary", member.chat_id)] = covering.id
             conversation, sources, rows = read_context(self, db, chat, member, summary_scope, cache=checked)
             source_message = self.visible_message(db, member, request.source_message_id, cache=checked) if request.source_message_id else None
             from .message_references import referenced_human_message
             reference = referenced_human_message(db, source_message) if source_message else None
-            if reference:
-                # The active input may be older than the history budget; its external grant still gates every step.
-                sources.extend(source_message.source_provenance)
+            source_projection = self.message_json(db, source_message, member, cache=checked) if source_message else None
+            if source_message:
+                sources.extend(read_sources(db, source_message, source_projection))
+            if reference and source_projection.get("message_reference", {}).get("unavailable"):
+                reference = None
             previous_manifests = list(db.scalars(select(ContextManifest).where(ContextManifest.request_id == request.id)))
             if not all(self.provenance_allowed(db, member, manifest.sources, cache=checked) for manifest in previous_manifests):
                 fail(409, "Previously supplied runtime context is no longer authorized; explicit retry with a fresh request is required")
@@ -1606,7 +1614,7 @@ class ProductService:
             continuation_origin = ({"request_id": origin.id, "session_id": origin.session_id,
                 "run_id": origin.run_id, "status": origin.status, "cancel_requested": origin.cancel_requested} if origin else None)
             from .onboarding import context_for_request
-            return {"message_center": center_delivery, "background": request.background, "activity_user_visible": self._activity_request_user_visible(db, request), "active_requests": active_requests, "continuation_of_request_id": request.continuation_of_request_id, "continuation_origin": continuation_origin, "pending_questions": pending, "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": conversation["messages"], "_summary_scope": summary_scope, "context_incomplete": conversation["context_incomplete"], "source_message": self.message_json(db, source_message, member, cache=checked) if source_message else None, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
+            return {"message_center": center_delivery, "background": request.background, "activity_user_visible": self._activity_request_user_visible(db, request), "active_requests": active_requests, "continuation_of_request_id": request.continuation_of_request_id, "continuation_origin": continuation_origin, "pending_questions": pending, "onboarding": context_for_request(db, request, chat), "scheduled_task": scheduled_payload, "system_review": scheduled_payload.get("system_review") if scheduled_payload else None, "private_generation": request.private_generation, "input_files": files, "workspace_path": str((settings.workspace_root / chat.id).resolve()), "tenant_id": settings.tenant_id, "owner_id": twin.owner_id, "target_twin_name": twin.name, "chat": {"id": chat.id, "kind": chat.kind, "title": self.chat_title(db, chat, twin.owner_id), "audience": [{"owner_id": m.owner_id, "name": db.get(Actor, m.owner_id).name} for m in self.members(db, chat.id)]}, "messages": conversation["messages"], "_summary_scope": summary_scope, "context_incomplete": conversation["context_incomplete"], "source_message": source_projection, "tracking": [t for t in tracking if t], "summary": applicable, "prompt": request.frozen_prompt or "", "input_body": scheduled_payload["instructions"] if scheduled_payload else request.input_body, "request_id": request.id, "request_source": request.source, "origin_request_id": request.id, "causal_chain_id": request.causal_chain_id, "source_owner_id": request.source_owner_id, "requester_id": request.requester_id, "target_twin_id": request.target_twin_id, "chat_id": chat.id, "raw_owner_input": request.raw_owner_input, "source_message_id": request.source_message_id, "context_manifest_id": manifest.id, "history_lower_seq": member.lower_seq, "high_water_seq": chat.next_message_seq - 1}
 
     def _concurrent_task_context(self, db, request, chat, member):
         """Authorized task hints, including children whose foreground turn finished."""
@@ -2525,7 +2533,7 @@ class ProductService:
             if args.get("query"):
                 query = query.where(Message.body.ilike(f"%{args['query']}%"))
             limit = max(1, min(int(args.get("limit", 100)), 100))
-            rows = [m for m in db.scalars(query.order_by(Message.seq.desc()).limit(limit)) if self.message_sources_visible(db, member, m)]
+            rows = [m for m in db.scalars(query.order_by(Message.seq.desc()).limit(limit)) if self.message_visible(db, member, m)]
             return {"messages": self.messages_json(db, reversed(rows), member), "history_lower_seq": member.lower_seq, "next_before_seq": rows[-1].seq if len(rows) == limit else None}
         if name == "list_tracking":
             return {"tracking": [row[3] for row in self._tracking_scope(db, chat, member)]}
@@ -2595,7 +2603,7 @@ class ProductService:
             if not messages or not str(args["body"]).strip():
                 fail(400, "Summary requires body and exact original source messages")
             end = max(m.seq for m in messages)
-            expected = {message.id for message in db.scalars(select(Message).where(Message.chat_id == chat.id, Message.seq >= member.lower_seq, Message.seq <= end, Message.state == "published")) if self.message_sources_visible(db, member, message)}
+            expected = {message.id for message in db.scalars(select(Message).where(Message.chat_id == chat.id, Message.seq >= member.lower_seq, Message.seq <= end, Message.state == "published")) if self.message_visible(db, member, message)}
             if set(ids) != expected:
                 fail(400, "Summary must cover every authorized original message through its boundary, with no omitted sources")
             summary = Summary(chat_id=chat.id, source_provenance=context.get("inherited_provenance", []), body=str(args["body"]), source_message_ids=ids, coverage_start_seq=member.lower_seq, coverage_end_seq=end)
@@ -2957,15 +2965,17 @@ class ProductService:
             manifest = db.get(ContextManifest, manifest_id) if manifest_id else None
             if manifest and manifest.owner_id == owner_id:
                 source_ids = []
-                if name == "history":
-                    source_ids = [m["id"] for m in result.get("messages", [])]
-                elif name == "get_tracking":
+                if name == "get_tracking":
                     topic = db.get(TrackingTopic, args["id"])
                     source_ids = list(topic.source_message_ids)
                     for update in db.scalars(select(TrackingUpdate).where(TrackingUpdate.topic_id == topic.id)):
                         if self.sources_allowed(db, target_member, update.source_message_ids, update.source_floor_seq):
                             source_ids.extend(update.source_message_ids)
                 extra_provenance = []
+                if name == "history":
+                    from .conversation_context import read_sources
+                    extra_provenance = [source for message in result.get("messages", [])
+                        for source in read_sources(db, db.get(Message, message["id"]), message)]
                 tracking_ids = [row["id"] for row in result.get("tracking", [])] if name == "list_tracking" else [result["id"]] if name in {"get_tracking", "create_tracking", "update_tracking", "add_tracking_update"} and result.get("id") else []
                 for topic_id in tracking_ids:
                     topic = db.get(TrackingTopic, topic_id)

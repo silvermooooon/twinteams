@@ -22,7 +22,7 @@ Prefix /api. JSON uses snake_case. All errors `{detail:string}`. Reads enforce o
 - GET /people?q= -> Actor[] humans
 - POST /chats {owner_ids:string[],title?:string,history_policy?:'all'|'fixed_7d'|'no_prior'} -> Chat
 - POST /chats/{id}/members {owner_ids:string[],history_policy} -> Chat
-- GET /chats/{id} -> {chat:Chat,messages:Message[],requests:ReplyRequest[],approvals:Approval[],tracking:Tracking[],settings:ChatSettings,members:Actor[]}
+- GET /chats/{id} -> {chat:Chat,messages:Message[],requests:ReplyRequest[],approvals:Approval[],questions:UserQuestion[],settings:ChatSettings,members:Actor[]}
 - POST /chats/{id}/messages {body,client_request_key,reply_to_message_id?:string,reply_for_me?:boolean} -> {message:Message|null,request:ReplyRequest|null}
 - POST /chats/{id}/reply-requests {message_id,target_twin_id,client_request_key} -> ReplyRequest (own private chat only; human-group and peer-Duet invocation rejected)
 - POST /reply-requests/{id}/cancel -> ReplyRequest (requester or owner; running only owner)
@@ -37,6 +37,7 @@ Prefix /api. JSON uses snake_case. All errors `{detail:string}`. Reads enforce o
 - POST /approvals/{id}/decision {decision:'approved'|'rejected',scope?:'once'|'always'} -> Approval
 - GET /chats/{id}/workspace?path=<relative-directory> -> WorkspaceEntry[] (direct children)
 - GET /chats/{id}/attachments/{attachment_id}/preview -> authorized text or PDF bytes
+- GET /chats/{id}/tracking -> {tracking:Tracking[]} (loaded only when its sidebar tab is opened)
 - GET /chats/{id}/tracking/{id} -> Tracking with updates
 - POST /chats/{id}/tracking {title,description,source_message_ids?:string[]} -> Tracking
 - PATCH /chats/{id}/tracking/{id} {title?,description?,status?} -> Tracking
@@ -141,7 +142,7 @@ Backend product worker owns app/db.py, app/models.py, app/service.py, app/api.py
 
 ## Prepared publication and source audit
 
-All Duet-channel outgoing publications—terminal assistant finals, explicit cross-chat sends and `present_files` deliveries—use prepared outgoing statements. Recipients can read the prepared body and authorized delivered file snapshots without access to the sender’s original private history. Source IDs, request context manifests and the SDK journal remain internal audit evidence; publication does not grant access to those records or make recipient display depend on reading them. Source-history tools keep their existing ACLs, and ordinary private-chat projection keeps its source checks. The sender’s current source and destination permissions are still checked, including again before a waiting message is published. Published statements do not grant access to their original private records and do not depend on later private-history access or withdrawal. Message source fields describe reader dependencies; the originating request, ContextManifest and SDK journal retain the complete internal source audit. A pending statement still revalidates its original sources, reset state and consent before publication; a failed check consumes neither sequence nor allowance and creates no delivery receipt. Prepared publication does not authorize arbitrary actions, unrelated disclosure or sharing private input attachments.
+Published messages use the independent snapshot contract in [architecture.md](architecture.md#peer-message-delivery). Their own withdrawal and current chat history grants govern visibility; original references keep separate access checks. Execution and unsent publication still verify the exact direct inputs and current permissions.
 
 ## Approved Duet message entry
 
@@ -188,4 +189,4 @@ Message bodies have no application character cap and remain complete in PostgreS
 
 Deploy the pair-key migration before starting the new API/worker: `python -m app.migrate_direct_chats` performs only this schema/backfill, without seeding, memory work or model calls. `app.init_db` also invokes it for normal provisioning. The reference `direct-chat-schema.sql` only shows DDL; ADD COLUMN alone is insufficient because existing unique pairs must be backfilled. Ambiguous duplicate pairs cause an explicit migration failure. The generic migration never picks a canonical duplicate, deletes a conversation, merges history or alters user grants. Any individually approved empty duplicate cleanup must be separately revalidated in a maintenance transaction before backfill. There is no alias registry, new pair lock, or deterministic chat-ID reservation.
 
-The owner-private Tracking index in chat detail, runtime context, `list_tracking`, and `GET /api/chats/{chat_id}/tracking` uses the same active-membership and source-history checks. Records retain their original chat ID, title and kind; no topic is copied. Group sources in private runtime manifests retain their `chat_context` boundary. Tracking writes, membership changes and source withdrawals emit a lightweight personal Tracking hint, so the private index can refresh without loading the conversation again. Cross-chat writes retain inherited provenance: private context is not silently made readable to other group members.
+The owner-private Tracking index in runtime context, `list_tracking`, and `GET /api/chats/{chat_id}/tracking` uses the same active-membership and source-history checks. Records retain their original chat ID, title and kind; no topic is copied. Group sources in private runtime manifests retain their `chat_context` boundary. Tracking writes, membership changes and source withdrawals emit a lightweight personal Tracking hint, so an open Tracking tab can refresh independently. The same hint lightly revalidates the private message window because original references may have become unavailable; it does not reload bootstrap. Cross-chat writes retain inherited provenance: private context is not silently made readable to other group members.

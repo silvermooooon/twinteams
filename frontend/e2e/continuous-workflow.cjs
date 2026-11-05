@@ -218,7 +218,8 @@ const cases = [
         async () => {
           const current = await state(alex.page, own.id),
             evidence = await inspect();
-          const topics = current.tracking.filter(
+          const tracking = (await api(alex.page, `/chats/${own.id}/tracking`)).tracking;
+          const topics = tracking.filter(
             (topic) =>
               isOngoing(topic.status) &&
               JSON.stringify(topic).includes(project),
@@ -283,7 +284,7 @@ const cases = [
               ["queued", "running"].includes(run.status),
             );
           t.record("latest_phase_one_observation", {
-            topics: current.tracking.map((topic) => ({
+            topics: tracking.map((topic) => ({
               id: topic.id,
               title: topic.title,
               status: topic.status,
@@ -498,7 +499,7 @@ const cases = [
             if (request?.status === "failed")
               throw new Error(`Group owner run failed: ${request.id}`);
             let topic;
-            for (const row of snapshot.tracking.filter(
+            for (const row of (await api(collaborator.page, `/chats/${groupChat.id}/tracking`)).tracking.filter(
               (row) => row.chat_id === groupChat.id && isOngoing(row.status),
             )) {
               const details = await api(
@@ -661,7 +662,7 @@ const cases = [
         /审批|批准|决策|approval|sign.off/i,
         "reply resurfaces the actual unresolved approval",
       );
-      const stillActive = (await state(returned.page, own.id)).tracking.find(
+      const stillActive = (await api(returned.page, `/chats/${own.id}/tracking`)).tracking.find(
         (topic) => topic.id === milestone.topic.id,
       );
       assert.ok(

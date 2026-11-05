@@ -52,8 +52,7 @@ def invalidate_changed_messages(db):
         for row in db.identity_map.values():
             if isinstance(row, Summary) and row.owner_id in owners:
                 db.expire(row, ["grant_version"])
-    fields = ("body", "raw_owner_input", "attachment_ids", "state", "source_message_ids",
-              "source_floor_seq", "source_provenance", "chat_id", "seq")
+    fields = ("body", "raw_owner_input", "attachment_ids", "state", "chat_id", "seq")
     ids = [row.id for row in (*db.dirty, *db.deleted) if isinstance(row, Message)
            and (row in db.deleted or any(inspect(row).attrs[key].history.has_changes() for key in fields))]
     attachment_fields = ("sha256", "name", "mime_type", "kind", "width", "height", "private_owner_input")
@@ -61,8 +60,8 @@ def invalidate_changed_messages(db):
         and row.message_id and (row in db.deleted or any(
             inspect(row).attrs[key].history.has_changes() for key in attachment_fields)))
     if ids:
-        # New checkpoints include transitive IDs. Legacy checkpoints still get
-        # their original direct-source invalidation behavior.
+        # Only snapshots and original references actually consumed by a checkpoint
+        # invalidate it; a message's audit ancestors are not live dependencies.
         db.execute(update(Summary).where(Summary.state == "valid", or_(
             *(cast(Summary.source_message_ids, JSONB).contains([source_id]) for source_id in ids)
         )).values(state="stale"), execution_options={"synchronize_session": False})
@@ -160,36 +159,11 @@ def message_source(db, message):
                 [[aid, row.sha256] for aid in (message.attachment_ids or []) if (row := db.get(ChatAttachment, aid))]])}
 
 
-def _authorized_page(service, db, member, query, *, limit, descending=False, cache=None):
-    """Page authorization metadata, fetching bodies only for the visible window.
-
-    A denied-only raw page is not an omission of authorized history. Such pages
-    must be skipped, otherwise a long hidden prefix can stall initial context.
-    """
-    cache = cache if cache is not None else {}
-    authorized, cursor = [], None
-    metadata = load_only(Message.id, Message.chat_id, Message.seq, Message.author_id,
-        Message.kind, Message.state, Message.source_floor_seq, Message.source_message_ids, Message.source_provenance)
-    while True:
-        page = query
-        if cursor is not None:
-            page = page.where(Message.seq < cursor if descending else Message.seq > cursor)
-        rows = list(db.scalars(page.options(metadata).order_by(
-            Message.seq.desc() if descending else Message.seq).limit(PAGE_MESSAGES)))
-        for row in rows:
-            if service.message_sources_visible(db, member, row, cache=cache):
-                authorized.append(row)
-                if len(authorized) > limit:
-                    return authorized[:limit], True
-        if len(rows) < PAGE_MESSAGES:
-            return authorized, False
-        cursor = rows[-1].seq
-
-
-def _load_bodies(db, rows):
-    if rows:
-        # Populate all deferred attributes in one bounded query, retaining order.
-        list(db.scalars(select(Message).where(Message.id.in_([row.id for row in rows]))))
+def _message_page(db, query, *, limit, descending=False):
+    from .service import DISPLAY_MESSAGE_FIELDS
+    rows = list(db.scalars(query.options(load_only(*DISPLAY_MESSAGE_FIELDS)).order_by(
+        Message.seq.desc() if descending else Message.seq).limit(limit + 1)))
+    return rows[:limit], len(rows) > limit
 
 
 def read_context(service, db, chat, member, scope, cache=None):
@@ -198,11 +172,7 @@ def read_context(service, db, chat, member, scope, cache=None):
     after = summary.coverage_end_seq if summary else member.lower_seq - 1
     limit = min(PAGE_MESSAGES, max(80, policy.after_messages * 2, policy.keep_messages * 2))
     checked, selected, tokens = cache if cache is not None else {}, [], estimate_tokens(summary_json(summary))
-    if summary:
-        checked[("covering_summary", member.chat_id)] = summary.id
-    authorized, incomplete = _authorized_page(service, db, member, _query(scope, after),
-        limit=limit, descending=True, cache=checked)
-    _load_bodies(db, authorized)
+    authorized, incomplete = _message_page(db, _query(scope, after), limit=limit, descending=True)
     projections = service.messages_json(db, authorized, member, cache=checked)
     selected_json = []
     for row, projected in zip(authorized, projections):
@@ -215,7 +185,8 @@ def read_context(service, db, chat, member, scope, cache=None):
         tokens += cost
     selected_json.reverse()
     selected.reverse()
-    sources = ([{"kind": "summary", "id": summary.id}] if summary else []) + [message_source(db, row) for row in selected]
+    sources = ([{"kind": "summary", "id": summary.id}] if summary else []) + [
+        source for row, projected in zip(selected, selected_json) for source in read_sources(db, row, projected)]
     return {"summary": summary_json(summary), "messages": selected_json,
             "_summary_scope": scope, "context_incomplete": incomplete}, sources, selected
 
@@ -265,10 +236,7 @@ def _prepare(service, db, chat, member, scope):
         if excluded is not None:
             query = query.where(Message.seq < excluded)
     checked = {"projection_hashes": {}, "projection_grants": {(member.owner_id, chat.id): (chat, member)}}
-    if previous:
-        checked[("covering_summary", member.chat_id)] = previous.id
-    rows, more = _authorized_page(service, db, member, query, limit=PAGE_MESSAGES, cache=checked)
-    _load_bodies(db, rows)
+    rows, more = _message_page(db, query, limit=PAGE_MESSAGES)
     projected, bounded, tokens = [], [], estimate_tokens(summary_json(previous))
     for row, value in zip(rows, service.messages_json(db, rows, member, cache=checked)):
         cost = estimate_tokens(value)
@@ -287,83 +255,43 @@ def _prepare(service, db, chat, member, scope):
     selected = [row for row in bounded if row.seq <= end]
     scope = {**scope, "previous_summary_id": previous.id if previous else None,
              "coverage_end_seq": end,
-             "batch_digest": digest([[message_source(db, row), row.source_message_ids, row.source_provenance, row.source_floor_seq] for row in selected])}
+             "batch_digest": digest([read_sources(db, row, value) for row, value in zip(selected, prefix)])}
     return {"previous_summary": summary_json(previous), "messages": prefix, "scope": scope}
 
 
-def _lineage(service, db, member, messages, previous):
-    """Flatten transitive source IDs once at maintenance, with compact ACL floors."""
+def read_sources(db, message, projection):
+    """Record exactly the delivered snapshot and any originals actually shown."""
+    sources = [message_source(db, message)]
+    quote = projection.get("reply_to")
+    if quote and not quote.get("unavailable"):
+        sources.append(message_source(db, db.get(Message, quote["id"])))
+    reference = projection.get("message_reference")
+    if reference and not reference.get("unavailable"):
+        original = db.get(Message, reference["message_id"])
+        origin = db.get(Chat, original.chat_id)
+        sources.append({"kind": "chat_context", "context_role": "owner_message_reference",
+            "chat_id": origin.id, "private_generation": origin.reset_generation,
+            "sources": [message_source(db, original)]})
+    return sources
+
+
+def _lineage(db, member, messages, projections, previous):
+    """Checkpoints retain their consumed snapshots and explicit original references."""
     from .service import digest
     ids = set(previous.source_message_ids if previous else [])
     requirements = {digest(source): source for source in (previous.source_provenance if previous else [])}
-    visited = set()
-    floors = {}
-    def floor(chat_id, seq):
-        floors[chat_id] = min(floors.get(chat_id, seq), seq)
-    def sources(items, origin_id):
-        for source in items or []:
-            kind = source.get("kind")
-            if kind == "message":
-                visit(source["id"])
-            elif kind == "summary":
-                checkpoint = db.get(Summary, source["id"])
-                if checkpoint:
-                    ids.update(checkpoint.source_message_ids)
-                    for requirement in checkpoint.source_provenance:
-                        requirements[digest(requirement)] = requirement
-            elif kind == "chat_context":
-                if source.get("context_role") == "owner_message_reference":
-                    # Keep the exact human message/attachment hash behind a quoted document after compaction.
-                    requirements[digest(source)] = source
-                # Even an empty origin context retains its membership/reset ACL.
-                preserved = {key: value for key, value in source.items() if key != "sources"}
-                origin = db.get(Chat, source["chat_id"])
-                if origin and origin.kind == "private":
-                    preserved["private_generation"] = origin.reset_generation
-                preserved["sources"] = []
-                requirements[digest(preserved)] = preserved
-                sources(source.get("sources", []), source["chat_id"])
-            elif kind == "history_range":
-                requirements[digest(source)] = source
+    for row, projected in zip(messages, projections):
+        for source in read_sources(db, row, projected):
+            if source["kind"] == "message":
+                ids.add(source["id"])
             else:
-                preserved = dict(source)
-                if kind == "tracking":
-                    for source_id in source.get("source_message_ids", []):
-                        visit(source_id)
-                    preserved["source_message_ids"] = []
-                if origin_id != member.chat_id:
-                    preserved = {"kind": "chat_context", "chat_id": origin_id, "sources": [preserved]}
-                requirements[digest(preserved)] = preserved
-    def visit(message_id):
-        if message_id in visited:
-            return
-        visited.add(message_id)
-        row = service._message_metadata(db, message_id)
-        if not row:
-            return
-        ids.add(row.id)
-        floor(row.chat_id, min(row.seq, row.source_floor_seq if row.source_floor_seq is not None else row.seq))
-        for source_id in row.source_message_ids or []:
-            visit(source_id)
-        sources(row.source_provenance, row.chat_id)
-    for row in messages:
-        visit(row.id)
-    for chat_id, lower in floors.items():
-        chat = db.get(Chat, chat_id)
-        requirement = {"kind": "history_range", "chat_id": chat_id, "lower_seq": lower,
-                       "private_generation": chat.reset_generation if chat.kind == "private" else None}
-        requirements[digest(requirement)] = requirement
-    # Merge previous and new floors for a stable number of chat dependencies.
-    ranges = {}
-    others = {}
-    for key, source in requirements.items():
-        if source.get("kind") == "history_range":
-            existing = ranges.get(source["chat_id"])
-            if not existing or source["lower_seq"] < existing["lower_seq"]:
-                ranges[source["chat_id"]] = source
-        else:
-            others[key] = source
-    return sorted(ids), [*ranges.values(), *others.values()]
+                requirements[digest(source)] = source
+                ids.update(item["id"] for item in source["sources"])
+    chat = db.get(Chat, member.chat_id)
+    requirement = {"kind": "history_range", "chat_id": chat.id, "lower_seq": member.lower_seq,
+        "private_generation": chat.reset_generation if chat.kind == "private" else None}
+    requirements[digest(requirement)] = requirement
+    return sorted(ids), list(requirements.values())
 
 
 def save(service, supplied, body):
@@ -396,7 +324,7 @@ def save(service, supplied, body):
         previous = db.get(Summary, supplied["previous_summary_id"]) if supplied.get("previous_summary_id") else None
         ids = [message["id"] for message in prepared["messages"]]
         messages = [db.get(Message, message_id) for message_id in ids]
-        source_ids, provenance = _lineage(service, db, member, messages, previous)
+        source_ids, provenance = _lineage(db, member, messages, prepared["messages"], previous)
         if existing:
             # A membership change retired eligibility without revoking sources.
             # Exact freshly recomputed batch validation above permits reusing the

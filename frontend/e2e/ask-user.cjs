@@ -39,6 +39,23 @@ async function resumed(page, inbox, value) {
 }
 const cases = [
   {
+    name: 'questions / withdrawn source keeps its published question but removes unavailable actions',
+    run: async t => {
+      const { page } = await t.session(); const inbox = await privateChat(page);
+      const value = await create(page, inbox, t.unique('withdrawn-source'));
+      await card(page, value.id).getByRole('button', { name: value.options[0], exact: true }).waitFor();
+      assert.equal(fixture('question-withdraw-source', ['--question-id', value.id]).test_only_source_withdrawal, true);
+      await page.reload();
+      const unavailable = card(page, value.id);
+      await unavailable.getByText('Question unavailable', { exact: true }).waitFor();
+      await unavailable.getByText(value.question, { exact: true }).waitFor();
+      assert.equal(await unavailable.locator('button,a').count(), 0, 'no answer, confirmation, dismissal or origin link can attempt an invalid action');
+      assert.equal(await unavailable.getByText('Reply in chat.', { exact: true }).count(), 0);
+      assert.equal(await page.locator('.composer textarea').isEnabled(), true);
+      t.record('withdrawn_source', { questionId: value.id, publishedMessageId: value.message_id, retainedText: true, unavailableActions: 0 });
+    },
+  },
+  {
     name: 'questions / canonical question preserves drafts, suggestions resume once, reload and answer replay converge',
     run: async t => {
       assert.equal(process.env.TWINTEAMS_E2E_SCENARIO, 'ask-user');

@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 from test_memory_dream import product as product  # noqa: PLC0414
 from test_send_ack import send_clients as send_clients  # noqa: PLC0414
 
@@ -80,7 +80,16 @@ def test_private_union_matches_api_runtime_and_tool_without_cross_owner_leaks(se
     _, context = origin(product)
     assert ids(context["tracking"]) == expected
     assert ids(call(product, context, "list_tracking", {})["tracking"]) == expected
-    assert ids(product.chat_detail("owner-alex", "private-alex")["tracking"]) == expected
+    from app.service import engine
+    statements = []
+    def before(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+    event.listen(engine, "before_cursor_execute", before)
+    try:
+        assert "tracking" not in product.chat_detail("owner-alex", "private-alex")
+    finally:
+        event.remove(engine, "before_cursor_execute", before)
+    assert not any("tt_tracking_topics" in statement for statement in statements)
     for row in rows:
         assert row["chat_id"] in {"private-alex", "group-alex-maya", "group-team"}
         assert row["chat_title"] and row["chat_kind"] in {"private", "group"}

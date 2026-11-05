@@ -65,22 +65,22 @@ def test_group_report_without_owner_reply_or_successful_origin_is_dream_evidence
     assert [ref["id"] for ref in automatic["messages"]] == [report["id"]]
 
 
-def test_bounded_message_windows_skip_hidden_gaps_without_losing_later_reports(product):
-    hidden = [append(product, "Withdrawn", state="withdrawn") for _ in range(105)]
+def test_bounded_message_windows_skip_withdrawn_gaps_and_keep_published_snapshots(product):
+    withdrawn = [append(product, "Withdrawn", state="withdrawn") for _ in range(105)]
     expected = []
     for index in range(47):
         expected.append(append(product, f"Published report {index}"))
         if index % 7 == 0:
-            hidden.append(append(product, "Unavailable by provenance", source_provenance=[{"kind": "unknown"}]))
+            expected.append(append(product, "Published report with audit metadata", source_provenance=[{"kind": "unknown"}]))
     seen = []
     for _ in range(12):
         dream_id = next_due(product)
         if not dream_id:
-            continue  # One bounded all-hidden scan is allowed to make cursor-only progress.
+            continue  # A bounded all-withdrawn scan can make cursor-only progress.
         context = product.get_runtime_context(dream_id)
         payload = context["memory_dream"]
         ids = [ref["id"] for ref in payload["messages"]]
-        assert 0 < len(ids) <= 20 and not set(ids) & set(hidden)
+        assert 0 < len(ids) <= 20 and not set(ids) & set(withdrawn)
         assert not set(seen) & set(ids)
         with product.transaction() as db:
             assert db.get(MemoryDreamState, "owner-alex").message_cursor_seq == payload["cursor_before"]
@@ -111,8 +111,13 @@ def test_queued_private_message_evidence_is_revalidated_before_use(product, chan
         else:
             chat = db.get(Chat, "private-alex")
             chat.reset_generation += 1
-    with pytest.raises(HTTPException):
-        product.get_runtime_context(dream_id)
+    if change == "provenance":
+        refreshed = product.get_runtime_context(dream_id)
+        assert refreshed["memory_dream_evidence"] == context["memory_dream_evidence"]
+        assert other not in json.dumps(refreshed)
+    else:
+        with pytest.raises(HTTPException):
+            product.get_runtime_context(dream_id)
 
 
 def test_legacy_recovery_cursor_is_not_reinterpreted_as_private_message_sequence(product):

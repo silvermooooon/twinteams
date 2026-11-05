@@ -36,13 +36,15 @@ Inspected `matrix-org/matrix-js-sdk@cc4ae934887a7157452dc332d5de0383197c98c8` an
 
 Duet already has keyset history pagination and a PostgreSQL unique `(chat_id, seq)` index. A duplicate index would not fix projection work; new indexes require query-plan evidence. Chat details should not calculate data the client does not consume.
 
-Presence view-interval records remain persisted for audit but do not advance chat content revisions or invalidate message windows. Actual read receipts, message changes and membership changes retain their normal notifications. Within one read-receipt request, source-validation results are shared across its message batch and discarded when the transaction ends.
+Presence view-interval records remain persisted for audit but do not advance chat content revisions or invalidate message windows. Actual read receipts, message changes and membership changes retain their normal notifications. A published message is a snapshot in its own conversation: displaying it or marking it read does not recursively inspect its audit ancestors. Viewing the original referenced message still checks its current state and access; an unavailable original becomes a quote placeholder without removing the published message.
+
+Tracking is a separate, lazy projection for both private and group chats. Opening a conversation does not query Tracking; opening its sidebar tab calls the existing Tracking endpoint. Sidebar refresh follows the server chat revision, so restoring a cached sidebar and receiving the same revision does not fetch Activity or workspace twice. Explicit workspace refresh and actual content changes still refresh their views.
 
 For switching chats, retain a small, same-login memory cache of visited windows and scroll positions. Display a valid cached window immediately, then refresh through authorized HTTP. The chosen bound is five conversations and up to 130 messages per conversation. If the loaded history exceeds that bound, retain the latest 30 and return to the bottom on revisit; preserving arbitrary old anchors would require a more complex history-window contract. Do not persist the whole transcript in IndexedDB or Redis for this change.
 
 Cache invalidation must reuse existing signals:
 
-- A newer `changed` revision invalidates that chat's stored window.
+- A newer `changed` revision discards that chat's cached content but keeps its bounded viewport metadata. If the user switches before synchronization finishes, reauthorize the same expanded window before displaying it and restore the scroll position. Only windows of 31–130 messages retain an earlier cursor; ordinary and trimmed windows reopen at the latest 30.
 - Account/authentication changes, logout, reset, access loss and disconnection clear incompatible cached state.
 - `personal_changed` for `tracking` or `chats` invalidates private windows conservatively. The transaction collector already emits `tracking` for withdrawn source messages and membership changes, including the owner losing membership. Ordinary read receipts do not emit this personal invalidation.
 - An invalidated cache must not be repopulated by an older in-flight request. A destination revision alone cannot detect a changed source in another conversation.

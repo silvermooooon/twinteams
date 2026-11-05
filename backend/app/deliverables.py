@@ -3,10 +3,10 @@ import mimetypes
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from .attachments import MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, inspect_upload
-from .models import Approval, Chat, ChatAttachment, Membership, Message, ProductOperation
+from .models import Actor, Approval, Chat, ChatAttachment, Membership, Message, ProductOperation
 
 
 def snapshot_destination(chat_id, operation_id, position, name):
@@ -154,28 +154,20 @@ def shared_files(service, db, owner_id, human_chat_id):
     operations = db.scalars(select(ProductOperation).where(ProductOperation.name == "present_files",
         ProductOperation.owner_id.in_(humans),
         ProductOperation.result["shared_files"][0]["attachment_id"].as_string().is_not(None)))
-    result, seen = [], set()
-    for operation in operations:
-        for share in operation.result.get("shared_files", []):
-            if owner_id not in {operation.owner_id, *share["peer_owner_ids"]}:
-                continue
-            if not (set(share["peer_owner_ids"]) & (humans - {operation.owner_id})):
-                continue
-            attachment = db.get(ChatAttachment, share["attachment_id"])
-            if not attachment or attachment.id in seen:
-                continue
-            message = db.get(Message, attachment.message_id)
-            if not message or message.state != "published":
-                continue
-            membership = db.scalar(select(Membership).where(Membership.chat_id == attachment.chat_id,
-                Membership.owner_id == owner_id, Membership.left_at.is_(None)))
-            if not membership:
-                continue
-            if not service.visible_message(db, membership, message.id, False):
-                continue
-            seen.add(attachment.id)
-            result.append(service.attachment_json(attachment) | {
-                "owner_id": attachment.owner_id, "shared_by_name": service.twin(db, attachment.owner_id).name,
-                "created_at": iso(attachment.created_at), "chat_id": attachment.chat_id, "message_id": message.id,
-            })
-    return sorted(result, key=lambda file: file["created_at"], reverse=True)
+    attachment_ids = {share["attachment_id"] for operation in operations
+        for share in operation.result.get("shared_files", [])
+        if owner_id in {operation.owner_id, *share["peer_owner_ids"]}
+        and set(share["peer_owner_ids"]) & (humans - {operation.owner_id})}
+    rows = db.execute(select(ChatAttachment, Message.id, Actor.name).join(Message,
+        Message.id == ChatAttachment.message_id).join(Chat, Chat.id == Message.chat_id)
+        .join(Membership, Membership.chat_id == Chat.id).join(Actor,
+            (Actor.owner_id == ChatAttachment.owner_id) & (Actor.kind == "twin"))
+        .where(ChatAttachment.id.in_(attachment_ids), Membership.owner_id == owner_id,
+            Membership.left_at.is_(None), Message.state == "published", Message.seq >= Membership.lower_seq,
+            or_(Chat.kind != "group", Message.kind == "human"),
+            or_(Chat.kind != "private", Chat.private_owner_id == owner_id))
+        .order_by(ChatAttachment.created_at.desc(), ChatAttachment.id))
+    return [service.attachment_json(attachment) | {
+        "owner_id": attachment.owner_id, "shared_by_name": name, "created_at": iso(attachment.created_at),
+        "chat_id": attachment.chat_id, "message_id": message_id,
+    } for attachment, message_id, name in rows]
