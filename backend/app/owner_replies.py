@@ -18,9 +18,9 @@ def reply_as_owner(service, db, args, context):
             or not request.session_id or context.get("runtime_session_id") != request.session_id):
         fail(403, "Replying as the owner requires a fresh instruction to their primary private Duet")
     anchor, original, target, instruction, files = reviewed_reply(service, db, args, request, twin, private, member)
-    question_id = "owner-reply:" + digest([instruction.id, anchor.id])
+    question_id = "owner-reply:" + digest([instruction.id, anchor.id if anchor else target.id])
     members = sorted(m.owner_id for m in service.members(db, target.id) if m.owner_id != twin.owner_id)
-    frozen = {"arguments": args, "chat_id": target.id, "message_id": original.id, "audience": members,
+    frozen = {"arguments": args, "chat_id": target.id, "message_id": original.id if original else None, "audience": members,
               "files": [[file.id, file.sha256, file.name] for file in files]}
     existing = db.get(QuestionRequest, question_id)
     if existing:
@@ -29,18 +29,21 @@ def reply_as_owner(service, db, args, context):
         questions.origin(service, db, existing)
         row = existing
     else:
-        visible_source_files = [db.get(ChatAttachment, identifier) for identifier in (original.attachment_ids or [])]
         preview = {"destination": service.chat_title(db, target, twin.owner_id),
                    "audience": [db.get(Actor, owner).name for owner in members],
-                   "author_name": db.get(Actor, original.author_id).name,
-                   "original_body": original.body,
-                   "original_files": [file.name for file in visible_source_files if file and not file.private_owner_input],
                    "body": args["body"], "files": [file.name for file in files]}
-        private_ids = {anchor.id, *(file.message_id for file in files if file.chat_id == private.id)}
+        if original:
+            visible_source_files = [db.get(ChatAttachment, identifier) for identifier in (original.attachment_ids or [])]
+            preview.update(author_name=db.get(Actor, original.author_id).name, original_body=original.body,
+                original_files=[file.name for file in visible_source_files if file and not file.private_owner_input])
+        private_ids = {file.message_id for file in files if file.chat_id == private.id}
+        if anchor:
+            private_ids.add(anchor.id)
         if args.get("review_message_id"):
             private_ids.add(args["review_message_id"])
         sources = [message_source(db, service.visible_message(db, member, mid)) for mid in private_ids]
-        row = questions.add_question(service, db, request, private, private, member, "Send this reply as you?",
+        row = questions.add_question(service, db, request, private, private, member,
+            "Send this reply as you?" if original else "Send this message as you?",
             ["Confirm send", "Cancel"], context, question_id=question_id, owner_reply={**frozen, "preview": preview},
             additional_sources=sources)
     return confirmation_result(service, db, row)
@@ -54,29 +57,38 @@ def confirmation_result(service, db, row):
 
 def reviewed_reply(service, db, args, request, twin, private, member):
     from .service import fail
-    reference_id = args.get("reference_message_id")
+    reference_id, target_id = args.get("reference_message_id"), args.get("chat_id")
     body, ids = args.get("body"), args.get("attachment_ids", [])
-    if (not isinstance(reference_id, str) or not isinstance(body, str)
+    if ((reference_id is not None and not isinstance(reference_id, str))
+            or (target_id is not None and not isinstance(target_id, str))
+            or (reference_id is None and not target_id) or not isinstance(body, str)
             or not isinstance(ids, list) or len(ids) > MAX_ATTACHMENTS
             or not all(isinstance(value, str) for value in ids) or len(set(ids)) != len(ids)
             or not (body.strip() or ids)):
-        fail(400, "Provide a reference, reply text or up to four distinct published attachments")
-    anchor = service.visible_message(db, member, reference_id)
-    original = referenced_human_message(db, anchor) if anchor.kind == "human" and anchor.author_id == twin.owner_id else None
-    if not original or original.kind != "human" or original.author_id == twin.owner_id:
-        fail(403, "Select a human message your owner referenced in their private conversation")
-    target, target_member = service.membership(db, twin.owner_id, original.chat_id)
+        fail(400, "Provide a reference or destination chat, and message text or up to four distinct published attachments")
+    anchor = original = None
+    if reference_id is not None:
+        anchor = service.visible_message(db, member, reference_id)
+        original = referenced_human_message(db, anchor) if anchor.kind == "human" and anchor.author_id == twin.owner_id else None
+        if not original or original.kind != "human" or original.author_id == twin.owner_id:
+            fail(403, "Select a human message your owner referenced in their private conversation")
+        if target_id is not None and target_id != original.chat_id:
+            fail(400, "The destination chat must match the referenced message")
+        target_id = original.chat_id
+    target, target_member = service.membership(db, twin.owner_id, target_id)
     if target.kind != "group":
-        fail(403, "The referenced message must belong to a human conversation")
-    service.visible_message(db, target_member, original.id)
+        fail(403, "Send as the owner only to a human conversation")
+    if original:
+        service.visible_message(db, target_member, original.id)
     instruction = service.visible_message(db, member, request.source_message_id)
-    if instruction.kind != "human" or instruction.command_owner_id != twin.owner_id or instruction.seq <= anchor.seq:
+    if (instruction.kind != "human" or instruction.command_owner_id != twin.owner_id
+            or (anchor and instruction.seq <= anchor.seq)):
         fail(403, "Review privately first; a later owner instruction is required to reply")
     if body.strip() and body not in instruction.body:
         review_id = args.get("review_message_id")
         review = service.visible_message(db, member, review_id) if isinstance(review_id, str) else None
         if (not review or review.kind != "twin" or review.author_id != twin.id
-                or not anchor.seq < review.seq < instruction.seq or body not in review.body):
+                or review.seq >= instruction.seq or (anchor and review.seq <= anchor.seq) or body not in review.body):
             fail(400, "Use the exact reply text already shown in a private review or supplied by the owner")
     files = []
     for identifier in ids:
@@ -85,10 +97,10 @@ def reviewed_reply(service, db, args, request, twin, private, member):
             fail(404, "Reply attachment is unavailable")
         if row.chat_id == private.id and row.owner_id == twin.owner_id:
             shown = service.visible_message(db, member, row.message_id)
-            if (not anchor.seq < shown.seq < instruction.seq or shown.kind != "twin"
+            if (shown.seq >= instruction.seq or (anchor and shown.seq <= anchor.seq) or shown.kind != "twin"
                     or shown.author_id != twin.id or row.id not in shown.attachment_ids):
                 fail(400, "Show the file to your owner before asking to send it")
-        elif (row.chat_id != target.id or row.message_id != original.id
+        elif (not original or row.chat_id != target.id or row.message_id != original.id
                 or identifier not in original.attachment_ids or row.private_owner_input):
             fail(403, "Attach a file shown in your private conversation or on the referenced message")
         files.append(row)
@@ -115,7 +127,7 @@ def decide(service, db, question, choice):
         twin = db.get(Actor, request.target_twin_id)
         _, original, target, _, files = reviewed_reply(service, db, args, request, twin, private, member)
         audience = sorted(m.owner_id for m in service.members(db, target.id) if m.owner_id != twin.owner_id)
-        if (original.id != frozen["message_id"] or target.id != frozen["chat_id"] or audience != frozen["audience"]
+        if ((original.id if original else None) != frozen["message_id"] or target.id != frozen["chat_id"] or audience != frozen["audience"]
                 or [[file.id, file.sha256, file.name] for file in files] != frozen["files"]):
             fail(409, "Recipients, original message or files changed; this reply cannot be sent")
         posted = publish(service, db, question, request, twin, original, target, files, args)
@@ -139,7 +151,7 @@ def publish(service, db, question, request, twin, original, target, files, args)
         snapshots.append((identifier, path, data, info, file))
     attached = save_snapshots(db, request, twin.owner_id, target, snapshots)
     msg = service.append_prepared_message(db, target, request, author_id=twin.owner_id, kind="human",
-        body=args["body"], reply_to_message_id=original.id, attachment_ids=[file.id for file in attached],
+        body=args["body"], reply_to_message_id=original.id if original else None, attachment_ids=[file.id for file in attached],
         sdk_output_key=question.id)
     for file in attached:
         file.message_id = msg.id

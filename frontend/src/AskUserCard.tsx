@@ -11,7 +11,7 @@ function OwnerReplyPreview({ preview }: { preview: ReplyPreview }) {
     <dl className="detail-fields">
       <dt>{t('questions.destination')}</dt><dd>{preview.destination}</dd>
       <dt>{t('questions.visibleTo')}</dt><dd>{preview.audience.join(', ')}</dd>
-      <dt>{t('questions.inReplyTo')}</dt><dd><strong>{preview.author_name}</strong>{preview.original_body && <div>{preview.original_body}</div>}{preview.original_files.map((name, i) => <div key={i}>{name}</div>)}</dd>
+      {preview.author_name && <><dt>{t('questions.inReplyTo')}</dt><dd><strong>{preview.author_name}</strong>{preview.original_body && <div>{preview.original_body}</div>}{preview.original_files?.map((name, i) => <div key={i}>{name}</div>)}</dd></>}
       {preview.body && <><dt>{t('questions.replyText')}</dt><dd>{preview.body}</dd></>}
       {!!preview.files.length && <><dt>{t('questions.replyFiles')}</dt><dd><ul>{preview.files.map((name, i) => <li key={i}>{name}</li>)}</ul></dd></>}
     </dl>

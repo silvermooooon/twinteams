@@ -4,7 +4,7 @@ Duet separates human conversation, owner assistance and coordination between Due
 
 ## Conversation modes
 
-- Human conversations use `kind=group`, for a pair or multiple people. Only humans publish messages and reactions there. Human members may manage names, membership and history grants directly or authorize their own Duet to use the existing chat-management tools. Those actions publish no agent message and trigger no Duet reply.
+- Human conversations use `kind=group`, for a pair or multiple people. Only humans publish messages and reactions there. Human members may manage names, membership and history grants directly or authorize their own Duet to use the existing chat-management tools. Those actions publish no agent message and trigger no Duet reply. From their primary private chat, an owner may ask Duet to prepare a message to an authorized human chat, with an optional original-message reference. Only the owner selecting **Confirm send** on the saved preview publishes that exact message as the owner.
 - An owner's private conversation uses `kind=private`. Only that owner can address their own Duet there. The Duet coordinates authorized work, delegates complex execution and reports useful outcomes privately.
 - Duet conversations use `kind=duet`. They are independent threads with their own messages, Tracking and workspace; they inherit the initiating task's shared causal chain. Participant owners can inspect them in the sidebar and approve, close or explicitly continue them. Their human accounts cannot send messages or reactions into these threads.
 

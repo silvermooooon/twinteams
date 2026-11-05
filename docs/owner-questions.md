@@ -51,16 +51,28 @@ Provision the table before API/worker startup. Existing installations may apply
 column; existing ordinary questions keep their original answers and no send action.
 Fresh installations provision it through `python -m app.init_db`.
 
-## Confirming a reply to a human message
+## Confirming a message sent as the owner
 
 A reply prepared by `reply_as_owner` uses the same private question card with a
-server-saved draft. It shows the original conversation, audience, exact reply
-and attachments. Selecting **Confirm send** delivers that draft as the owner;
+server-saved draft. Without a `reference_message_id`, an explicit `chat_id`
+selects an authorized human conversation and the result is an ordinary message
+with no quote. A `reference_message_id` instead selects the owner's private
+reference command, which fixes the original message and destination; an optional
+`chat_id` must match that destination. The card shows the destination, audience,
+exact text and attachments, plus the original message only when referenced.
+Selecting **Confirm send** delivers that draft as the owner;
 **Cancel** leaves the conversation unchanged. Only a selected answer from the
 authenticated owner on this specific card can send. Typing the same words,
 replying in chat, or choosing a similarly named option on an ordinary question
 does not authorize publication. Access to the source, file versions, and
 recipients are checked again on confirmation. A changed draft needs a new card.
+Both forms require an explicit instruction in the owner's current primary
+private conversation. Text must be exact wording supplied in that instruction
+or a visible earlier private Duet draft; files must already have been shown
+privately before it, or belong to the referenced original. When a reference is
+provided, the private draft, privately shown files and send instruction must follow
+the reference.
+Background work and delegated workers cannot request this owner-send action.
 
 ## Verification (2026-10-24)
 

@@ -37,9 +37,9 @@ def owner_turn(files, text, **kwargs):
         "runtime_run_id": "test-run-" + request["id"], "runtime_command_id": "test-command-" + request["id"]}
 
 
-def outgoing(product, context, anchor, *, operation=None, body="", **kwargs):
+def outgoing(product, context, anchor=None, *, operation=None, body="", **kwargs):
     return asyncio.run(product.runtime_tool("reply_as_owner",
-        {"reference_message_id": anchor, "body": body, **kwargs},
+        {**({"reference_message_id": anchor} if anchor is not None else {}), "body": body, **kwargs},
         {**context, "operation_id": operation or uuid4().hex}))
 
 
@@ -113,7 +113,9 @@ def test_exact_text_and_origin_boundaries(files):
     path.write_text("Check")
     reviewed = present(product, ctx, [path], caption="Run one pilot first.")["message"]
     _, current = owner_turn(files, "Yes, reply to them.")
-    pending = outgoing(product, current, anchor, body=reviewed["body"], review_message_id=reviewed["id"])
+    with pytest.raises(HTTPException, match="must match"):
+        outgoing(product, current, anchor, chat_id="group-alex-maya", body=reviewed["body"], review_message_id=reviewed["id"])
+    pending = outgoing(product, current, anchor, chat_id="group-team", body=reviewed["body"], review_message_id=reviewed["id"])
     q = pending["question"]
     assert q["reply_preview"]["body"] == reviewed["body"] and q["reply_preview"]["audience"]
     assert choose(client, q, "Cancel").json()["status"] == "cancelled"
@@ -157,3 +159,88 @@ def test_no_delivery_when_confirmation_is_no_longer_valid(files, change):
     with product.transaction() as db:
         assert not db.scalar(select(Message.id).where(Message.reply_to_message_id == received["id"]))
         assert db.get(QuestionRequest, q["id"]).status != "answered"
+
+
+@pytest.mark.parametrize("chat_id", ["group-alex-maya", "group-team"])
+def test_send_without_reference_requires_confirmation_and_publishes_once(files, chat_id):
+    product, client, _ = files
+    body = "Please confirm the pilot date."
+    _, context = owner_turn(files, f"Send this to the team: {body}")
+    operation = uuid4().hex
+    pending = outgoing(product, context, chat_id=chat_id, body=body, operation=operation)
+    question = pending["question"]
+    assert pending["status"] == "confirmation_required" and not pending["sent"]
+    assert set(question["reply_preview"]) == {"destination", "audience", "body", "files"}
+    assert question["reply_preview"]["body"] == body and question["reply_preview"]["audience"]
+    assert pending == outgoing(product, context, chat_id=chat_id, body=body, operation=operation)
+    assert question["id"] == outgoing(product, context, chat_id=chat_id, body=body)["question"]["id"]
+    with pytest.raises(HTTPException, match="different reply"):
+        outgoing(product, context, chat_id=chat_id, body="confirm the pilot date.")
+    with product.transaction() as db:
+        assert not db.scalar(select(Message.id).where(Message.chat_id == chat_id, Message.request_id == context["request_id"]))
+        requests_before = db.scalar(select(func.count()).select_from(ReplyRequest))
+    assert client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Confirm send"}).status_code == 422
+    assert choose(client, question, "Confirm send", headers={"x-test-owner": "owner-maya"}).status_code == 404
+    assert choose(client, question, "Confirm send").json()["status"] == "answered"
+    assert choose(client, question, "Confirm send").json()["status"] == "answered"
+    assert outgoing(product, context, chat_id=chat_id, body=body, operation=operation)["sent"]
+    with product.transaction() as db:
+        message, = db.scalars(select(Message).where(Message.chat_id == chat_id, Message.request_id == context["request_id"]))
+        assert message.kind == "human" and message.author_id == "owner-alex"
+        assert message.reply_to_message_id is None and message.body == body
+        assert db.scalar(select(func.count()).select_from(ReplyRequest)) == requests_before
+        assert db.get(QuestionRequest, question["id"]).owner_reply["message_id"] is None
+    received = client.get(f"/api/chats/{chat_id}", headers={"x-test-owner": "owner-maya"}).json()["messages"]
+    delivered = next(row for row in received if row["body"] == body)
+    assert delivered.get("reply_to") is None and delivered["request_id"] is None
+
+
+def test_send_without_reference_rejects_missing_or_unauthorized_destination_and_unreviewed_text(files):
+    product, _, _ = files
+    _, context = owner_turn(files, "Send this exact wording: Ready for review.")
+    with pytest.raises(HTTPException, match="destination chat"):
+        outgoing(product, context, body="Ready for review.")
+    for target in ("private-alex", "private-maya", "unknown-chat"):
+        with pytest.raises(HTTPException):
+            outgoing(product, context, chat_id=target, body="Ready for review.")
+    unrelated = product.create_chat("owner-maya", ["owner-jordan"], "Other team")
+    with pytest.raises(HTTPException):
+        outgoing(product, context, chat_id=unrelated["id"], body="Ready for review.")
+    with pytest.raises(HTTPException, match="exact reply text"):
+        outgoing(product, context, chat_id="group-team", body="Unreviewed private information.")
+    with pytest.raises(HTTPException, match="primary private Duet"):
+        outgoing(product, {**context, "runtime_session_id": "worker-session"}, chat_id="group-team", body="Ready for review.")
+    with product.transaction() as db:
+        assert not db.scalar(select(QuestionRequest.id))
+
+
+@pytest.mark.parametrize("change", ["membership", "bytes", "draft", "cancel"])
+def test_unquoted_send_revalidates_reviewed_files_draft_and_recipients(files, change):
+    product, client, root = files
+    _, review_context = owner_turn(files, "Prepare a short team plan.")
+    path = root / "private-alex" / "plan.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# Reviewed plan\nRun a small pilot.")
+    review = present(product, review_context, [path], caption="Run a small pilot.")["message"]
+    with pytest.raises(HTTPException, match="Show the file"):
+        outgoing(product, review_context, chat_id="group-team", attachment_ids=[review["attachments"][0]["id"]])
+    _, context = owner_turn(files, "Send the reviewed plan to the team.")
+    question = outgoing(product, context, chat_id="group-team", body=review["body"],
+        review_message_id=review["id"], attachment_ids=[review["attachments"][0]["id"]])["question"]
+    assert question["reply_preview"]["files"] == ["plan.md"]
+    if change == "bytes":
+        from pathlib import Path
+        Path(review["attachments"][0]["workspace_path"]).write_text("Different file")
+    elif change == "cancel":
+        assert choose(client, question, "Cancel").json()["status"] == "cancelled"
+    else:
+        with product.transaction() as db:
+            if change == "membership":
+                from app.models import now
+                db.scalar(select(Membership).where(Membership.chat_id == "group-team",
+                    Membership.owner_id == "owner-jordan")).left_at = now()
+            else:
+                db.get(Message, review["id"]).state = "withdrawn"
+    assert choose(client, question, "Confirm send").status_code in {404, 409}
+    with product.transaction() as db:
+        assert not db.scalar(select(Message.id).where(Message.chat_id == "group-team", Message.request_id == context["request_id"]))

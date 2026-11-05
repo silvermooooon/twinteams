@@ -179,6 +179,74 @@ const cases = [
       t.record("reference_review", { sourceId, anchorId, replyId: response.id, cancelledQuestion: first.id, confirmedQuestion: second.id, uploadedBytesRead: true, reviewedBytesDelivered: true });
     },
   })),
+  ...["direct", "group"].map(mode => ({
+    name: "owner send / confirm or cancel a new " + mode + " message without quoting an original",
+    run: async t => {
+      const { page: owner } = await t.session();
+      const { page: recipient } = await t.session("DEV-BBB", { baseURL: t.secondaryURL });
+      const bootstrap = await api(owner, "/bootstrap");
+      const ownerId = bootstrap.current_owner_id;
+      const ownerName = bootstrap.actors.find(actor => actor.id === ownerId).name;
+      const recipientId = (await api(recipient, "/auth/me")).current_owner_id;
+      const recipientName = bootstrap.actors.find(actor => actor.id === recipientId).name;
+      const teammate = bootstrap.actors.find(actor => actor.kind === "human" && actor.id !== ownerId && actor.id !== recipientId);
+      const label = t.unique("owner-send"), group = mode === "group";
+      const destinationName = group ? "Delivery team " + label : recipientName;
+      const target = await startChat(owner, group ? [recipientName, teammate.name] : [recipientName], group ? destinationName : undefined);
+      const originalHistory = (await detail(recipient, target)).messages.map(row => row.id);
+      const privateRoom = await privateChat(owner);
+      await sendMessage(owner, "E2E FILE_PREVIEW " + label);
+      const draft = await waitMessage(owner, privateRoom, row => row.attachments?.some(file => file.name === label + ".md"), "a privately presented draft");
+      const file = draft.attachments.find(file => file.name === label + ".md");
+      const expected = await (await owner.request.get(new URL(file.url, owner.url()).href)).body();
+      assert.ok([403, 404].includes((await recipient.request.get(new URL(file.url, recipient.url()).href)).status()), "private draft is not yet shared");
+      const body = "Here is the delivery plan for " + label + ".";
+      const instruction = "E2E OWNER_SEND " + label + "\n" + JSON.stringify({
+        chat_id: target.id, review_message_id: draft.id, body, attachment_ids: [file.id],
+      });
+      const pendingConfirmation = () => poll(async () => (await detail(owner, privateRoom)).questions.find(row =>
+        row.status === "pending" && row.reply_preview?.body === body), "private confirmation for a new message");
+      await sendMessage(owner, instruction);
+      const first = await pendingConfirmation();
+      const card = owner.locator(`[data-question-id="${first.id}"]`);
+      const preview = card.getByRole("region", { name: "Review your reply" });
+      assert.deepEqual([...first.reply_preview.audience].sort(), (group ? [recipientName, teammate.name] : [recipientName]).sort());
+      assert.equal(first.reply_preview.author_name, undefined);
+      assert.equal(first.reply_preview.original_body, undefined);
+      assert.equal(first.reply_preview.original_files, undefined);
+      await preview.getByText(destinationName, { exact: true }).first().waitFor();
+      await preview.getByText(first.reply_preview.audience.join(", "), { exact: true }).first().waitFor();
+      await preview.getByText(body, { exact: true }).waitFor();
+      await preview.getByText(file.name, { exact: true }).waitFor();
+      assert.equal(await preview.getByText("In reply to", { exact: true }).count(), 0, "new messages have no empty original-message section");
+      assert.deepEqual((await detail(recipient, target)).messages.map(row => row.id), originalHistory, "preparing a new message does not publish it");
+      await card.getByRole("button", { name: "Cancel", exact: true }).click();
+      await card.getByText("Not sent", { exact: true }).waitFor();
+      assert.deepEqual((await detail(recipient, target)).messages.map(row => row.id), originalHistory, "cancel leaves the target unchanged");
+      await sendMessage(owner, instruction);
+      const second = await pendingConfirmation();
+      assert.notEqual(second.id, first.id);
+      await owner.reload();
+      const confirm = owner.locator(`[data-question-id="${second.id}"]`);
+      await confirm.getByText(body, { exact: true }).waitFor();
+      assert.equal(await confirm.getByText("In reply to", { exact: true }).count(), 0);
+      await owner.screenshot({ path: path.join(t.artifactDir, "owner-send-" + mode + "-preview.png"), fullPage: true });
+      await confirm.getByRole("button", { name: "Confirm send", exact: true }).click();
+      await confirm.getByText("Sent in your name", { exact: true }).waitFor();
+      const response = await waitMessage(recipient, target, row => row.body === body, "owner-authorized new message");
+      assert.equal(response.author_id, ownerId); assert.equal(response.kind, "human");
+      assert.equal(response.reply_to, undefined, "new messages do not synthesize a quoted original");
+      assert.equal(response.message_reference, undefined);
+      assert.equal(response.attachments.length, 1); assert.equal(response.attachments[0].name, file.name);
+      assert.deepEqual(await (await recipient.request.get(new URL(response.attachments[0].url, recipient.url()).href)).body(), expected);
+      await recipient.reload(); await chooseChat(recipient, group ? destinationName : ownerName);
+      const received = recipient.locator(`article[data-message-id="${response.id}"]`);
+      await received.getByRole("link", { name: file.name, exact: true }).waitFor();
+      assert.equal(await received.locator(".source-quote,.message-reference").count(), 0);
+      assert.equal((await detail(recipient, target)).messages.filter(row => row.body === body).length, 1);
+      t.record("owner_send", { targetId: target.id, replyId: response.id, cancelledQuestion: first.id, confirmedQuestion: second.id, quoted: false, reviewedBytesDelivered: true });
+    },
+  })),
   {
     name: "auth / anonymous and invalid login are rejected; UI login/logout changes the real session",
     run: async (t) => {

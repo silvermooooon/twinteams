@@ -328,6 +328,10 @@ def install_fixture(root):
                     'body': review['body'], 'attachment_ids': [file['id'] for file in review['attachments']]}
             else:
                 final = 'E2E return review processed: ' + label
+        elif command == 'OWNER_SEND':
+            if 'reply_as_owner' not in names:
+                name, arguments = 'reply_as_owner', json.loads(info['body'].split('\n', 1)[1])
+            final = 'E2E owner send prepared: ' + label
         elif command == 'FILE_PREVIEW':
             documents = preview_documents(label)
             written = names.count('write')
