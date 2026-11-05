@@ -64,6 +64,10 @@ from .models import (
 )
 from .notifications import notifications
 
+SOURCE_MESSAGE_FIELDS = (Message.id, Message.chat_id, Message.seq, Message.author_id,
+    Message.kind, Message.state, Message.source_floor_seq, Message.source_message_ids,
+    Message.source_provenance)
+
 
 def iso(value):
     if value is None:
@@ -145,7 +149,7 @@ class ProductService:
                         scheduled_owners.add(row.owner_id)
                     if isinstance(row, Membership) and row in session.new:
                         new_members.add(row.owner_id)
-                    if isinstance(row, ChangeOutbox) or (isinstance(row, ProductOperation) and row.name == "set_message_reaction"):
+                    if isinstance(row, (ChangeOutbox, ViewInterval)) or (isinstance(row, ProductOperation) and row.name == "set_message_reaction"):
                         continue
                     if (isinstance(row, MemoryDreamState) and row not in session.new
                             and row.queued_request_id and
@@ -502,21 +506,19 @@ class ProductService:
         key = ("metadata", message_id)
         if cache is not None and key in cache:
             return cache[key]
-        row = db.get(Message, message_id, options=[load_only(
-            Message.id, Message.chat_id, Message.seq, Message.author_id, Message.kind, Message.state,
-            Message.source_floor_seq, Message.source_message_ids, Message.source_provenance)])
+        row = db.get(Message, message_id, options=[load_only(*SOURCE_MESSAGE_FIELDS)])
         if cache is not None:
             cache[key] = row
         return row
 
     def message_sources_visible(self, db, member, msg, seen=None, cache=None):
+        cache = {} if cache is None else cache
+        if msg.id in cache:
+            return cache[msg.id]
         chat = db.get(Chat, member.chat_id)
         if chat and chat.kind == "group" and msg.kind != "human":
             return False
         seen = set() if seen is None else seen
-        cache = {} if cache is None else cache
-        if msg.id in cache:
-            return cache[msg.id]
         if msg.id in seen:
             return False
         seen = seen | {msg.id}
@@ -541,6 +543,8 @@ class ProductService:
                 for source_id in dependencies:
                     if source_id not in uncovered:
                         cache[("covered_message", member.chat_id, source_id)] = True
+        if "projection_hashes" in cache:
+            self._prime_message_sources(db, msg, dependencies, cache)
         for source_id in msg.source_message_ids or []:
             if cache.get(("covered_message", member.chat_id, source_id)):
                 continue
@@ -550,6 +554,22 @@ class ProductService:
                 return False
         cache[msg.id] = self.provenance_allowed(db, member, msg.source_provenance, seen, cache)
         return cache[msg.id]
+
+    def _prime_message_sources(self, db, message, dependencies, cache):
+        from sqlalchemy.orm import load_only
+        missing = [identifier for identifier in dependencies
+            if ("metadata", identifier) not in cache
+            and not cache.get(("covered_message", message.chat_id, identifier))]
+        if not missing:
+            return
+        columns = SOURCE_MESSAGE_FIELDS
+        if any(source.get("kind") == "message" and source.get("hash") for source in message.source_provenance or []):
+            columns += (Message.body, Message.raw_owner_input, Message.attachment_ids)
+        # Keep the same per-source permission and content checks, but load a
+        # dependency batch instead of two round trips for each historical row.
+        rows = list(db.scalars(select(Message).options(load_only(*columns)).where(Message.id.in_(missing))))
+        cache.update({("metadata", identifier): None for identifier in missing})
+        cache.update({("metadata", row.id): row for row in rows})
 
     def sources_allowed(self, db, member, source_ids, source_floor=None, *, cache=None):
         if source_floor is not None and source_floor < member.lower_seq:
@@ -779,7 +799,8 @@ class ProductService:
         if chat.kind == "group":
             visible = visible.where(Message.kind == "human")
         last, cursor = None, None
-        checked = {} if cache is None else cache
+        checked = {"projection_hashes": {}, "projection_grants": {
+            (member.owner_id, chat.id): (chat, member)}} if cache is None else cache
         # Only authorization metadata is paged; fetch one body for the final preview.
         while last is None:
             query = visible.where(Message.seq < cursor) if cursor else visible
@@ -1295,8 +1316,9 @@ class ProductService:
     def read(self, owner_id, chat_id, message_ids):
         with self.transaction() as db:
             chat, member = self.membership(db, owner_id, chat_id, True)
+            checked = {"projection_hashes": {}, "projection_grants": {(owner_id, chat_id): (chat, member)}}
             for message_id in dict.fromkeys(message_ids):
-                self.visible_message(db, member, message_id)
+                self.visible_message(db, member, message_id, cache=checked)
                 if not db.get(Receipt, (message_id, owner_id)):
                     db.add(Receipt(message_id=message_id, owner_id=owner_id))
         self.publish_event(chat_id, {"type": "changed"})

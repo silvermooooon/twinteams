@@ -205,11 +205,12 @@ const cases = [
       const priorReads = loads.length;
       await privateChat(page);
       await page.locator(`article[data-message-id="${latestId}"]`).waitFor();
-      assert.equal(await card(page, value.id).count(), 0, 'reopening the conversation starts with current messages');
-      assert.equal(loads.length, priorReads, 'previously expanded pages do not delay the reopened conversation');
-      await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click();
+      assert.ok(await page.locator('article[data-message-id]').count() <= 130, 'reopened history uses only the bounded authorized window');
+      assert.equal(await page.locator('.composer textarea').inputValue(), draft, 'the main composer draft survives a chat round trip');
+      const cachedQuestion = await card(page, value.id).count() > 0;
+      if (!cachedQuestion) await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click();
       await card(page, value.id).getByText('Dismissed', { exact: true }).waitFor();
-      t.record('older_history', { reopenedLatestOnly: true, manualHistoryStillAvailable: true, questionId: value.id, explicitSeed: seeded, reauthorizedOlderPages: loads.length, sameInputElement: true, draftAndFocusPreserved: true });
+      t.record('older_history', { reopenedBoundedWindow: true, cachedQuestion, manualHistoryStillAvailable: true, questionId: value.id, explicitSeed: seeded, previousHistoryReads: priorReads, reauthorizedOlderPages: loads.length, sameInputElement: true, draftAndFocusPreserved: true });
     },
   },
 ];

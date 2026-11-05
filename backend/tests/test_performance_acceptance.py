@@ -5,6 +5,8 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
+from fastapi import HTTPException
 from sqlalchemy import event
 from test_chat_attachments_ui_acceptance import attachments as attachments  # noqa: PLC0414
 from test_chat_attachments_ui_acceptance import send, upload
@@ -169,3 +171,72 @@ def test_chat_page_rechecks_each_distinct_attachment_source_once(attachments):
     with product.transaction() as db:
         db.get(ChatAttachment, attachment["id"]).sha256 = "0" * 64
     assert set(derived_ids).isdisjoint(row["id"] for row in product.chat_detail("owner-alex", chat_id)["messages"])
+
+
+def test_long_dependent_history_is_batched_without_reusing_stale_authorization(attachments):
+    from checks.chat_history_fixture import seed_chat_history
+
+    product, _ = attachments
+    seeded = seed_chat_history(product, 1000)
+    statements = []
+    def before(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+    event.listen(service_module.engine, "before_cursor_execute", before)
+    try:
+        page = product.chat_detail("owner-alex", seeded["private_chat_id"], limit=30)
+        page_queries = len(statements)
+        statements.clear()
+        bootstrap = product.bootstrap("owner-alex")
+        bootstrap_queries = len(statements)
+        statements.clear()
+        product.read("owner-alex", seeded["private_chat_id"], [message["id"] for message in page["messages"]])
+        read_queries = len(statements)
+    finally:
+        event.remove(service_module.engine, "before_cursor_execute", before)
+    assert len(page["messages"]) == 30
+    assert page["messages"][-1]["id"] == seeded["latest_message_id"]
+    assert page_queries < 100 and bootstrap_queries < 100
+    assert read_queries < 150, "Read receipts must share the page's batched source validation"
+    preview = next(chat for chat in bootstrap["chats"] if chat["id"] == seeded["private_chat_id"])
+    assert preview["last_message"] == seeded["latest_message_body"] and preview["unread_count"] == 0
+
+    with product.transaction() as db:
+        db.get(Message, f"performance-message-{seeded['first_seq']}").body = "Changed original evidence"
+    refreshed = product.chat_detail("owner-alex", seeded["private_chat_id"], limit=30)
+    assert all(message["kind"] == "human" for message in refreshed["messages"])
+    assert seeded["latest_message_id"] not in {message["id"] for message in refreshed["messages"]}
+    with pytest.raises(HTTPException) as denied:
+        product.read("owner-alex", seeded["private_chat_id"], [seeded["latest_message_id"]])
+    assert denied.value.status_code == 404
+
+
+def test_presence_switch_keeps_audit_without_invalidating_chat_content(attachments):
+    from sqlalchemy import func, select
+
+    from app.models import ChangeOutbox, Presence, Receipt, ViewInterval, now
+
+    product, _ = attachments
+    ids = ["private-alex", "group-alex-maya"]
+    with product.transaction() as db:
+        message = product.append_message(db, db.get(Chat, ids[1]), author_id="owner-maya",
+            kind="human", body="Synthetic unread message")
+        message_id = message.id
+    with product.transaction() as db:
+        revisions = {chat.id: chat.revision for chat in db.scalars(select(Chat).where(Chat.id.in_(ids)))}
+        notices = db.scalar(select(func.count()).select_from(ChangeOutbox))
+    device = "presence-performance-fixture"
+    product.presence("owner-alex", device, ids[0], True)
+    product.presence("owner-alex", device, ids[1], True)
+    product.presence("owner-alex", device, None, False)
+    with product.transaction() as db:
+        intervals = list(db.scalars(select(ViewInterval).where(ViewInterval.device_id == device)))
+        assert {row.chat_id for row in intervals} == set(ids)
+        assert all(row.ended_at <= now() for row in intervals)
+        presence = db.get(Presence, ("owner-alex", device))
+        assert not presence.visible and presence.focused_chat_id is None
+        assert {chat.id: chat.revision for chat in db.scalars(select(Chat).where(Chat.id.in_(ids)))} == revisions
+        assert db.scalar(select(func.count()).select_from(ChangeOutbox)) == notices
+    product.read("owner-alex", ids[1], [message_id])
+    with product.transaction() as db:
+        assert db.get(Receipt, (message_id, "owner-alex"))
+        assert db.get(Chat, ids[1]).revision > revisions[ids[1]]

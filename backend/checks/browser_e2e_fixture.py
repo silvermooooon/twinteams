@@ -815,16 +815,76 @@ def question_history_fixture(question_id):
         'model_runs_added': 0}
 
 
+async def chat_cache_fixture(root, *, withdraw=False):
+    if os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline':
+        raise RuntimeError('Chat cache acceptance requires the offline fixture')
+    from app.conversation_context import message_source
+    from app.models import Chat, Message
+    from app.notifications import notifications
+    from app.service import service
+
+    path = root / 'chat-cache-fixture.json'
+    if not withdraw:
+        groups = [service.create_chat('owner-alex', ['owner-maya', 'owner-jordan'],
+            f'Cache acceptance {index + 1}') for index in range(6)]
+        with service.transaction() as db:
+            for group in groups:
+                message = service.append_message(db, db.get(Chat, group['id']), author_id='owner-maya',
+                    kind='human', body='E2E cache source: review this team update.')
+                group['latest_message_id'] = message.id
+            source = db.get(Message, groups[0]['latest_message_id'])
+            private = db.get(Chat, 'private-alex')
+            for index in range(5):
+                service.append_message(db, private, author_id='owner-alex', kind='human',
+                    body=f'E2E private cache note {index + 1}.')
+            output = service.append_message(db, private, author_id='twin-alex', kind='twin',
+                body='E2E cached review: the team update is ready for review.',
+                source_provenance=[{'kind': 'chat_context', 'chat_id': source.chat_id,
+                    'sources': [message_source(db, source)]}])
+            result = {'browser_e2e': True, 'test_only_cache_seed': True, 'model_runs_added': 0,
+                'private_chat_id': private.id, 'private_chat_title': service.chat_title(db, private, 'owner-alex'),
+                'source_chat_id': source.chat_id, 'source_chat_title': groups[0]['title'],
+                'source_message_id': source.id, 'private_output_id': output.id, 'private_output_body': output.body,
+                'groups': [{key: group[key] for key in ('id', 'title', 'latest_message_id')} for group in groups]}
+        with path.open('x') as target:
+            json.dump(result, target)
+        return result
+
+    saved = json.loads(path.read_text())
+    await notifications.start()
+    try:
+        async with notifications.redis.pubsub() as observed:
+            await observed.subscribe(notifications.channel)
+            with service.transaction() as db:
+                source = db.get(Message, saved['source_message_id'])
+                if not source or source.chat_id != saved['source_chat_id'] or source.state != 'published':
+                    raise RuntimeError('The isolated cache source must still be published')
+                source.state = 'withdrawn'
+            async with asyncio.timeout(5):
+                while True:
+                    event = await observed.get_message(ignore_subscribe_messages=True, timeout=1)
+                    if event:
+                        value = json.loads(event['data'])
+                        if (value.get('type'), value.get('owner_id'), value.get('section')) == ('personal_changed', 'owner-alex', 'tracking'):
+                            break
+        detail = service.chat_detail('owner-alex', saved['private_chat_id'], 30)
+        return {'browser_e2e': True, 'source_message_id': saved['source_message_id'],
+            'private_output_id': saved['private_output_id'], 'tracking_invalidation_published': True,
+            'private_output_visible': any(message['id'] == saved['private_output_id'] for message in detail['messages'])}
+    finally:
+        await notifications.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'fail-next-dream', 'continue-smoke-seed'])
+    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'chat-performance-history', 'chat-cache-seed', 'chat-cache-withdraw', 'fail-next-dream', 'continue-smoke-seed'])
     parser.add_argument('--port', type=int)
     parser.add_argument('--state', type=Path)
     parser.add_argument('--task-id')
     parser.add_argument('--question-id')
     parser.add_argument('--owner-id', choices=['owner-alex', 'owner-maya', 'owner-jordan'])
     args = parser.parse_args()
-    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'fail-next-dream', 'continue-smoke-seed'}:
+    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'chat-performance-history', 'chat-cache-seed', 'chat-cache-withdraw', 'fail-next-dream', 'continue-smoke-seed'}:
         if not args.state or args.state.is_symlink() or args.state.stat().st_mode & 0o077:
             raise RuntimeError('Inspect requires its private fixture state file')
         saved = json.loads(args.state.read_text())
@@ -833,6 +893,16 @@ def main():
     root = guard()
     if args.state and args.state.resolve().parent != root:
         raise RuntimeError('State file must belong to its disposable root')
+    if args.role in {'chat-cache-seed', 'chat-cache-withdraw'}:
+        print(json.dumps(asyncio.run(chat_cache_fixture(root, withdraw=args.role == 'chat-cache-withdraw'))))
+        return
+    if args.role == 'chat-performance-history':
+        if os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline':
+            raise RuntimeError('Performance history requires the offline fixture')
+        from app.service import service
+        from checks.chat_history_fixture import seed_chat_history
+        print(json.dumps(seed_chat_history(service)))
+        return
     if args.role == 'continue-smoke-seed':
         if os.environ.get('TWINTEAMS_E2E_SCENARIO') != 'continue-ui-smoke' or os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline':
             raise RuntimeError('Continue UI smoke seed is restricted to its offline fixture')

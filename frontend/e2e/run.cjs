@@ -138,6 +138,8 @@ async function main() {
     ? [require("./contacts.cjs")]
     : !live && report.scenario === "ask-user"
     ? [require("./ask-user.cjs")]
+    : !live && report.scenario === "chat-loading"
+    ? [require("./chat-performance.cjs"), require("./chat-cache.cjs")]
     : !live && report.scenario === "file-delivery-preview"
     ? [require("./file-preview.cjs")]
     : !live && report.scenario === "personal-onboarding"

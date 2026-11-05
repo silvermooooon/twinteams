@@ -105,9 +105,13 @@ export default function App() {
   const [drafts, setDrafts] = useState<Record<string, string>>({}); const [replyTo, setReplyTo] = useState<Message | null>(null); const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set()); const [liveText, setLiveText] = useState<Record<string, string>>({});
   const [referenceDraft, setReferenceDraft] = useState<{ key: string; value: MessageReference } | null>(null);
   const detailCurrent = useRef(detail); detailCurrent.current = detail;
+  const chatCache = useRef(new Map<string, { detail: ChatDetail; scrollTop: number; atBottom: boolean }>());
+  const observedRevisions = useRef(new Map<string, number>());
+  const cacheGeneration = useRef(0); const detailCacheGeneration = useRef(-1); const socketConnected = useRef(false);
+  const bootstrapLoad = useRef<{ api: ApiClient; pending: boolean; promise: Promise<void> } | null>(null);
   const chatVisit = useRef<AbortController | null>(null);
   const [loadingEarlier, setLoadingEarlier] = useState(false);
-  const chatLoads = useRef(new Map<string, { generation: number | undefined; signal: AbortSignal; pending: boolean; promise: Promise<void> }>());
+  const chatLoads = useRef(new Map<string, { generation: number | undefined; signal: AbortSignal; pending: boolean; revision: number; promise: Promise<void> }>());
   const [personCard, setPersonCard] = useState<Actor | null>(null);
   const [query, setQuery] = useState(''); const [people, setPeople] = useState<Actor[]>([]); const [searchOpen, setSearchOpen] = useState(false); const [peopleLoading, setPeopleLoading] = useState(false); const [renameChat, setRenameChat] = useState<Chat | null>(null); const [peopleModal, setPeopleModal] = useState<{ add: boolean; person?: Actor } | null>(null);  const [reminderOpen, setReminderOpen] = useState(false); const [trackingSeed, setTrackingSeed] = useState<string | null>(null);
   const [sidebarVisible, setSidebarVisible] = useState(true); const [sidebarWidth, setSidebarWidth] = useState(() => Math.min(480, Math.max(240, Number(localStorage.getItem('twinteams.chatPaneWidth')) || 360))); const [newChat, setNewChat] = useState(false); const [findOpen, setFindOpen] = useState(false); const [appMenuOpen, setAppMenuOpen] = useState(false); const [shortcutsOpen, setShortcutsOpen] = useState(false); const [composerMenu, setComposerMenu] = useState<'emoji' | 'attachments' | 'more' | null>(null); const [messageHighlight, setMessageHighlight] = useState(''); const [dragActive, setDragActive] = useState(false); const [expandedComposer, setExpandedComposer] = useState(false);
@@ -188,7 +192,7 @@ export default function App() {
   const attachmentsReady = attachmentDrafts.items.every(item => item.status === 'ready');
   const canSend = !!(draft.trim() || attachmentDrafts.items.length) && attachmentsReady;
   useEffect(() => { if (!input.current) return; input.current.style.height = 'auto'; input.current.style.height = `${Math.min(180, Math.max(expandedComposer ? 120 : 28, input.current.scrollHeight))}px`; }, [draft, expandedComposer, selected, newChat]);
-  const checkAuth = useCallback(async () => { setConfigLoading(true); setConfigError(''); const client = new ApiClient(); try { const config = await client.get<{ development_mode: boolean; acceptance_fixture?: boolean }>('/config'); setDevelopmentMode(config.development_mode); setAcceptanceFixture(config.acceptance_fixture === true); try { setSession(await client.get<AuthSession>('/auth/me')); } catch { setSession(null); } } catch (e) { setConfigError(e instanceof Error ? e.message : String(e)); } finally { setAuthChecked(true); setConfigLoading(false); } }, []);
+  const checkAuth = useCallback(async () => { setConfigLoading(true); setConfigError(''); const client = new ApiClient(); try { const [config, session] = await Promise.all([client.get<{ development_mode: boolean; acceptance_fixture?: boolean }>('/config'), client.get<AuthSession>('/auth/me').catch(() => null)]); setDevelopmentMode(config.development_mode); setAcceptanceFixture(config.acceptance_fixture === true); setSession(session); } catch (e) { setConfigError(e instanceof Error ? e.message : String(e)); } finally { setAuthChecked(true); setConfigLoading(false); } }, []);
   useEffect(() => { localStorage.removeItem('twinteams.developmentOwner'); void checkAuth(); }, [checkAuth]);
   useEffect(() => {
     setProviderConfigAvailable(false);
@@ -197,20 +201,34 @@ export default function App() {
     getLocalProviderConfig(controller.signal).then(config => { if (!controller.signal.aborted) setProviderConfigAvailable(config.available); }).catch(() => {});
     return () => controller.abort();
   }, [providerConfigAllowed]);
-  const onError = useCallback((e: unknown) => { if (currentApi.current !== api) return; if (e instanceof ApiError && [401, 403, 404].includes(e.status)) { localSends.clear(e.status === 401 ? undefined : current.current.selected); if (e.status === 401) { stopNotifications(); setSession(null); } } if (e instanceof DOMException && e.name === 'AbortError') return; setError(e instanceof Error ? e.message : String(e)); }, [api, localSends.clear, stopNotifications]);
-  useEffect(() => { api.onUnauthorized = () => { if (currentApi.current !== api) return; stopNotifications(); localSends.clear(); setSession(null); }; api.onAccessLost = () => { if (currentApi.current !== api) return; revokeNotifications(); localSends.clear(); setDetail(null); }; return () => { api.onUnauthorized = undefined; api.onAccessLost = undefined; }; }, [api, localSends.clear, stopNotifications, revokeNotifications]);
-  const loadBootstrap = useCallback(async () => { const sequence = ++bootstrapSequence.current; const result = await api.get<Bootstrap>('/bootstrap'); if (currentApi.current !== api || current.current.ownerId !== api.ownerId || sequence !== bootstrapSequence.current) return; result.actors = result.actors.map(actor => { const cached = actorCache.current.get(actor.id); if (cached && (cached.profile_revision || 0) > (actor.profile_revision || 0)) return cached; actorCache.current.set(actor.id, actor); return actor; }); result.chats = result.chats.filter(chat => chat.kind !== 'duet').map(chat => { const twin = result.actors.find(actor => actor.kind === 'twin' && chat.member_owner_ids.includes(actor.owner_id || '')); return chat.kind === 'private' && twin ? { ...chat, title: twin.name } : chat; }); observeNotificationBootstrap(result.chats, result.actors, result.server_time); setBootstrap(result); if (result.acceptance_fixture === true) setAcceptanceFixture(true); setSelected(previous => result.chats.some(chat => chat.id === previous) ? previous : result.chats.find(chat => chat.kind === 'private')?.id || result.chats[0]?.id || ''); }, [api, observeNotificationBootstrap]);
+  const onError = useCallback((e: unknown) => { if (currentApi.current !== api) return; if (e instanceof ApiError && [401, 403, 404].includes(e.status)) { chatCache.current.clear(); cacheGeneration.current++; localSends.clear(e.status === 401 ? undefined : current.current.selected); if (e.status === 401) { stopNotifications(); setSession(null); } } if (e instanceof DOMException && e.name === 'AbortError') return; setError(e instanceof Error ? e.message : String(e)); }, [api, localSends.clear, stopNotifications]);
+  useEffect(() => { api.onUnauthorized = () => { if (currentApi.current !== api) return; chatCache.current.clear(); cacheGeneration.current++; stopNotifications(); localSends.clear(); setSession(null); }; api.onAccessLost = () => { if (currentApi.current !== api) return; chatCache.current.clear(); cacheGeneration.current++; revokeNotifications(); localSends.clear(); setDetail(null); }; return () => { api.onUnauthorized = undefined; api.onAccessLost = undefined; }; }, [api, localSends.clear, stopNotifications, revokeNotifications]);
+  const loadBootstrap = useCallback((refresh = true): Promise<void> => {
+    const existing = bootstrapLoad.current;
+    if (existing?.api === api) { if (refresh) existing.pending = true; return existing.promise; }
+    const entry = { api, pending: false, promise: Promise.resolve() };
+    bootstrapLoad.current = entry;
+    entry.promise = (async () => {
+      do {
+        entry.pending = false;
+        const sequence = ++bootstrapSequence.current; const result = await api.get<Bootstrap>('/bootstrap'); if (currentApi.current !== api || current.current.ownerId !== api.ownerId || sequence !== bootstrapSequence.current) continue; result.actors = result.actors.map(actor => { const cached = actorCache.current.get(actor.id); if (cached && (cached.profile_revision || 0) > (actor.profile_revision || 0)) return cached; actorCache.current.set(actor.id, actor); return actor; }); result.chats = result.chats.filter(chat => chat.kind !== 'duet').map(chat => { const twin = result.actors.find(actor => actor.kind === 'twin' && chat.member_owner_ids.includes(actor.owner_id || '')); return chat.kind === 'private' && twin ? { ...chat, title: twin.name } : chat; }); observeNotificationBootstrap(result.chats, result.actors, result.server_time); setBootstrap(result); if (result.acceptance_fixture === true) setAcceptanceFixture(true); setSelected(previous => result.chats.some(chat => chat.id === previous) ? previous : result.chats.find(chat => chat.kind === 'private')?.id || result.chats[0]?.id || '');
+      } while (entry.pending && currentApi.current === api);
+    })().finally(() => { if (bootstrapLoad.current === entry) bootstrapLoad.current = null; });
+    return entry.promise;
+  }, [api, observeNotificationBootstrap]);
   const fetchChat = useCallback(async (chatId: string, signal: AbortSignal) => {
     if (!chatId) return;
     const sequence = ++chatSequence.current;
     const startedAt = performance.now();
     const key = `${api.ownerId}:${chatId}`;
     const generation = resetGenerations.current[key];
+    const authorizedGeneration = cacheGeneration.current;
+    const privateChat = bootstrapCurrent.current?.chats.some(chat => chat.id === chatId && chat.kind === 'private');
     const anchored = messageArea.current && !scrollBottom.current ? messageArea.current.scrollHeight - messageArea.current.scrollTop : null;
     const floor = historyFloor.current[key] ?? (anchored !== null && detailCurrent.current?.chat.id === chatId
       ? detailCurrent.current.before_seq ?? undefined : undefined);
     let latest: ChatDetail | undefined; let reauthorizingHistory = false;
-    const isCurrent = () => !signal.aborted && currentApi.current === api && current.current.selected === chatId && current.current.ownerId === api.ownerId && sequence === chatSequence.current && generation === resetGenerations.current[key];
+    const isCurrent = () => !signal.aborted && currentApi.current === api && current.current.selected === chatId && current.current.ownerId === api.ownerId && sequence === chatSequence.current && generation === resetGenerations.current[key] && (!privateChat || authorizedGeneration === cacheGeneration.current);
     try {
       const result = await api.get<ChatDetail>(`/chats/${chatId}?limit=30`, signal);
       if (!isCurrent() || detailCurrent.current?.chat.id === chatId && result.revision < detailCurrent.current.revision) return;
@@ -238,7 +256,7 @@ export default function App() {
         if (!page.before_seq || page.before_seq >= cursor) break;
         cursor = page.before_seq;
       }
-      if (currentApi.current !== api || current.current.selected !== chatId || current.current.ownerId !== api.ownerId || sequence !== chatSequence.current || generation !== resetGenerations.current[key]) return;
+      if (!isCurrent()) return;
       if (detailCurrent.current?.chat.id === chatId && result.revision < detailCurrent.current.revision) return;
       localSends.reconcile({ ...result, messages }, startedAt);
       result.members = result.members.map(member => { const cached = actorCache.current.get(member.id); if (cached && (cached.profile_revision || 0) > (member.profile_revision || 0)) return cached; actorCache.current.set(member.id, member); return member; });
@@ -251,11 +269,13 @@ export default function App() {
         const newer = previous?.chat.id === chatId ? previous.messages.filter(message => (message.reactions_revision || 0) > result.revision) : [];
         return { ...result, questions, messages: messages.map(message => { const reaction = newer.find(item => item.id === message.id); return reaction ? { ...message, reactions: reaction.reactions, reactions_revision: reaction.reactions_revision } : message; }), has_more: hasMore, before_seq: cursor, settings: { ...result.settings, ...pendingSettings.current.get(key) } };
       });
+      detailCacheGeneration.current = authorizedGeneration;
       setLiveText({}); if (!reauthorizingHistory) setVersion(value => value + 1);
       if (anchored !== null) requestAnimationFrame(() => { if (messageArea.current) messageArea.current.scrollTop = messageArea.current.scrollHeight - anchored; });
+      return result.revision;
     } catch (error) {
       if (isCurrent()) {
-        if (error instanceof ApiError && [401, 403, 404, 409].includes(error.status)) { revokeNotifications(chatId); localSends.clear(chatId); setDetail(null); }
+        if (error instanceof ApiError && [401, 403, 404, 409].includes(error.status)) { chatCache.current.delete(key); detailCacheGeneration.current = -1; revokeNotifications(chatId); localSends.clear(chatId); setDetail(null); }
         else if (reauthorizingHistory && latest) {
           // Failed reauthorization cannot leave old cached pages on screen indefinitely.
           delete historyFloor.current[key];
@@ -267,17 +287,18 @@ export default function App() {
       throw error;
     }
   }, [api, localSends.reconcile, localSends.clear, observeNotificationChat, revokeNotifications]);
-  const loadChat = useCallback((chatId = selected): Promise<void> => {
+  const loadChat = useCallback((chatId = selected, revision?: number): Promise<void> => {
     const signal = chatVisit.current?.signal;
     if (!signal || signal.aborted || !chatId || chatId !== current.current.selected || currentApi.current !== api) return Promise.resolve();
     const key = `${api.ownerId}:${chatId}`; const generation = resetGenerations.current[key];
     const existing = chatLoads.current.get(key);
-    if (existing && existing.signal === signal && existing.generation === generation) { existing.pending = true; return existing.promise; }
-    const entry = { generation, signal, pending: false, promise: Promise.resolve() };
+    if (existing && existing.signal === signal && existing.generation === generation) { if (revision === undefined) existing.pending = true; else existing.revision = Math.max(existing.revision, revision); return existing.promise; }
+    const entry = { generation, signal, pending: false, revision: -1, promise: Promise.resolve() };
     chatLoads.current.set(key, entry);
     entry.promise = (async () => {
-      do { entry.pending = false; await fetchChat(chatId, signal); }
-      while (entry.pending && !signal.aborted && currentApi.current === api && current.current.ownerId === api.ownerId && current.current.selected === chatId && resetGenerations.current[key] === generation);
+      let received = -1;
+      do { entry.pending = false; entry.revision = -1; received = await fetchChat(chatId, signal) ?? -1; }
+      while ((entry.pending || entry.revision > received) && !signal.aborted && currentApi.current === api && current.current.ownerId === api.ownerId && current.current.selected === chatId && resetGenerations.current[key] === generation);
     })().finally(() => { if (chatLoads.current.get(key) === entry) chatLoads.current.delete(key); });
     return entry.promise;
   }, [api, selected, fetchChat]);
@@ -285,6 +306,7 @@ export default function App() {
   const refreshAll = useCallback(async () => { try { await Promise.all([loadBootstrap(), loadChat()]); } catch (e) { onError(e); } }, [loadBootstrap, loadChat, onError]);
   const applyTwinReset = useCallback((status: TwinResetStatus) => {
     const chatId = status.private_chat_id; const key = `${api.ownerId}:${chatId}`;
+    chatCache.current.delete(key); cacheGeneration.current++;
     resetGenerations.current[key] = status.generation; bootstrapSequence.current++;
     localSends.clear(chatId);
     if (!bootstrapCurrent.current) void loadBootstrap().catch(onError);
@@ -305,17 +327,22 @@ export default function App() {
   }, [api, loadBootstrap, loadChat, onError, attachmentDrafts.clearScope, refreshCredentials, localSends.clear]);
   const twinReset = useTwinReset(api, applyTwinReset);
   const refreshTwinReset = twinReset.refresh;
-  useEffect(() => { setPersonCard(null); setDuetTarget(null); setReferenceDraft(null); destinationSequence.current++; if (!ownerId) { localSends.clear(); setBootstrap(null); setDetail(null); setSelected(''); setLiveText({}); setLoading(false); return; } let alive = true; chatLoads.current.clear(); setLoading(true); setDetail(null); setBootstrap(null); setSelected(''); setLiveText({}); setHasConnected(false); readSent.current.clear(); readPending.current.clear(); loadBootstrap().catch(e => { if (alive) onError(e); }).finally(() => { if (alive) setLoading(false); }); return () => { alive = false; }; }, [api]);
+  useEffect(() => { chatCache.current.clear(); observedRevisions.current.clear(); cacheGeneration.current++; detailCacheGeneration.current = -1; setPersonCard(null); setDuetTarget(null); setReferenceDraft(null); destinationSequence.current++; if (!ownerId) { localSends.clear(); setBootstrap(null); setDetail(null); setSelected(''); setLiveText({}); setLoading(false); return; } let alive = true; chatLoads.current.clear(); setLoading(true); setDetail(null); setBootstrap(null); setSelected(''); setLiveText({}); setHasConnected(false); readSent.current.clear(); readPending.current.clear(); loadBootstrap().catch(e => { if (alive) onError(e); }).finally(() => { if (alive) setLoading(false); }); return () => { alive = false; }; }, [api]);
   useEffect(() => {
     if (!selected) return;
     const visit = new AbortController(); chatVisit.current = visit;
     const key = `${api.ownerId}:${selected}`;
-    setChatLoading(true); setLoadingEarlier(false); setReplyTo(null); setTrackingSeed(null); scrollBottom.current = true;
-    setDetail(previous => previous?.chat.id === selected ? previous : null);
+    const cached = socketConnected.current ? chatCache.current.get(key) : undefined;
+    setChatLoading(!cached); setLoadingEarlier(false); setReplyTo(null); setTrackingSeed(null); scrollBottom.current = cached?.atBottom ?? true;
+    setDetail(previous => cached?.detail || (previous?.chat.id === selected ? previous : null));
+    if (cached) {
+      if (cached.detail.messages.length > 30 && cached.detail.before_seq) historyFloor.current[key] = cached.detail.before_seq;
+      if (messageArea.current) messageArea.current.scrollTop = cached.scrollTop;
+    }
     loadChat(selected).catch(e => { if (!visit.signal.aborted) onError(e); }).finally(() => { if (!visit.signal.aborted) setChatLoading(false); });
     return () => {
       visit.abort();
-      // Earlier pages belong to this visit. Reopening a chat starts at the latest messages.
+      // Only a bounded cached window can carry earlier pages into the next visit.
       delete historyFloor.current[key];
     };
   }, [selected, api]);
@@ -323,7 +350,7 @@ export default function App() {
   useEffect(() => { api.subscribeChats([selected, ...chatScopeKey.split('|')]); }, [api, selected, chatScopeKey]);
   useEffect(() => {
     if (!ownerId) return;
-    const controller = new AbortController(); let retryTimer: ReturnType<typeof setTimeout> | undefined; let reconnectDelay = 700; let trackingTimer: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController(); let retryTimer: ReturnType<typeof setTimeout> | undefined; let reconnectDelay = 700; let trackingTimer: ReturnType<typeof setTimeout> | undefined; let synchronized = false;
     const run = async () => {
       try {
         await api.events('', controller.signal, event => {
@@ -335,6 +362,12 @@ export default function App() {
           }
           if (event.type === 'personal_changed' || event.type === 'twin_changed' || event.type === 'credential_requests_changed') {
             if (event.section === 'scheduled_tasks') { setScheduledTasksRevision(value => value + 1); return; }
+            if (event.section === 'tracking' || event.section === 'chats') {
+              // These notices also cover withdrawn sources and membership changes.
+              cacheGeneration.current++;
+              for (const [key, entry] of chatCache.current) if (entry.detail.chat.kind === 'private') chatCache.current.delete(key);
+              if (detailCurrent.current?.chat.kind === 'private') void loadChat(selected).catch(onError);
+            }
             if (event.section === 'tracking') { clearTimeout(trackingTimer); trackingTimer = setTimeout(() => setTrackingVersion(value => value + 1), 80); return; }
             if (event.section === 'reset') { void refreshTwinReset(); return; }
             if (event.section === 'chats') { setTrackingVersion(value => value + 1); void loadBootstrap().catch(onError); return; }
@@ -343,18 +376,35 @@ export default function App() {
             return;
           }
           if (event.type === 'worker_status') { setTwinVersion(value => value + 1); return; }
+          if (event.chat_id && event.revision !== undefined) {
+            const key = `${api.ownerId}:${event.chat_id}`;
+            observedRevisions.current.set(key, Math.max(observedRevisions.current.get(key) ?? -1, event.revision));
+            const cached = chatCache.current.get(key);
+            if (cached && cached.detail.revision < event.revision) chatCache.current.delete(key);
+          }
           if (event.chat_id && event.chat_id !== selected) {
             const chatId = event.chat_id; const key = `${api.ownerId}:${chatId}`; const generation = resetGenerations.current[key];
-            void api.get<Chat>(`/chats/${chatId}/summary`).then(chat => { if (current.current.ownerId === api.ownerId && generation === resetGenerations.current[key]) { observeNotificationChat(chat, bootstrapCurrent.current?.actors || []); setBootstrap(previous => previous ? { ...previous, chats: previous.chats.map(old => old.id === chat.id ? chat : old) } : previous); } }).catch(failure => { if (current.current.ownerId === api.ownerId && generation === resetGenerations.current[key] && failure instanceof ApiError && [403, 404].includes(failure.status)) revokeNotifications(chatId); });
+            void api.get<Chat>(`/chats/${chatId}/summary`).then(chat => { if (current.current.ownerId === api.ownerId && generation === resetGenerations.current[key]) { observeNotificationChat(chat, bootstrapCurrent.current?.actors || []); setBootstrap(previous => previous ? { ...previous, chats: previous.chats.map(old => old.id === chat.id ? chat : old) } : previous); } }).catch(failure => { if (current.current.ownerId === api.ownerId && generation === resetGenerations.current[key] && failure instanceof ApiError && [403, 404].includes(failure.status)) { chatCache.current.delete(key); revokeNotifications(chatId); } });
             return;
           }
           if (event.type === 'changed') {
             const alreadyLoaded = () => event.revision !== undefined && detailCurrent.current?.chat.id === selected && event.revision <= detailCurrent.current.revision;
             if (alreadyLoaded()) return;
             if (refreshTimer.current) clearTimeout(refreshTimer.current);
-            refreshTimer.current = setTimeout(() => { if (current.current.selected === selected && !alreadyLoaded()) void loadChat(selected).catch(onError); }, 80);
+            refreshTimer.current = setTimeout(() => { if (current.current.selected === selected && !alreadyLoaded()) void loadChat(selected, event.revision).catch(onError); }, 80);
           }
-        }, state => { if (controller.signal.aborted || currentApi.current !== api) return; const selected = current.current.selected; setConnected(state); if (state) { setTrackingVersion(value => value + 1); setHasConnected(true); setScheduledTasksRevision(value => value + 1); reconnectDelay = 700; setLiveText({}); void loadBootstrap().catch(onError); if (selected) void loadChat(selected).catch(onError); setTwinVersion(value => value + 1); void refreshCredentials(); void refreshTwinReset(); void twinApi(api).profile().then(result => mergeActor(result.actor)).catch(() => {}); } });
+        }, state => {
+          if (controller.signal.aborted || currentApi.current !== api) return;
+          socketConnected.current = state; setConnected(state);
+          if (!state) { chatCache.current.clear(); cacheGeneration.current++; return; }
+          const selected = current.current.selected;
+          setHasConnected(true); reconnectDelay = 700; setLiveText({});
+          if (!synchronized) { synchronized = true; if (!bootstrapCurrent.current) void loadBootstrap(false).catch(onError); return; }
+          setTrackingVersion(value => value + 1); setScheduledTasksRevision(value => value + 1);
+          void loadBootstrap().catch(onError); if (selected) void loadChat(selected).catch(onError);
+          setTwinVersion(value => value + 1); void refreshCredentials(); void refreshTwinReset();
+          void twinApi(api).profile().then(result => mergeActor(result.actor)).catch(() => {});
+        });
       } catch { if (!controller.signal.aborted) setConnected(false); }
       if (!controller.signal.aborted) { setLiveText({}); retryTimer = setTimeout(() => { void run(); }, reconnectDelay); reconnectDelay = Math.min(reconnectDelay * 2, 10000); }
     };
@@ -389,6 +439,22 @@ export default function App() {
       if (currentApi.current !== api || current.current.ownerId !== api.ownerId || navigation !== destinationSequence.current) return;
       setDuetTarget({ chatId: destination.duetChatId, token: requestKey() });
       setDetail(previous => previous?.chat.id === destination.chatId ? { ...previous, settings: { ...previous.settings, sidebar_open: true, sidebar_tab: 'duets' } } : previous);
+    }
+    if (destination.chatId !== current.current.selected) {
+      const previous = detailCurrent.current; const cache = chatCache.current;
+      const previousKey = previous && `${api.ownerId}:${previous.chat.id}`;
+      if (socketConnected.current && previous && previousKey && detailCacheGeneration.current === cacheGeneration.current && previous.revision >= (observedRevisions.current.get(previousKey) ?? -1)) {
+        const trimmed = previous.messages.length > 130;
+        const messages = trimmed ? previous.messages.slice(-30) : previous.messages;
+        const snapshot = trimmed ? { ...previous, messages, questions: previous.questions?.filter(question => messages.some(message => message.id === question.message_id)), has_more: true, before_seq: messages[0]?.seq } : previous;
+        cache.delete(previousKey);
+        cache.set(previousKey, { detail: snapshot, scrollTop: trimmed ? 0 : messageArea.current?.scrollTop || 0, atBottom: trimmed || scrollBottom.current });
+        while (cache.size > 5) cache.delete(cache.keys().next().value!);
+      }
+      const nextKey = `${api.ownerId}:${destination.chatId}`;
+      const cached = socketConnected.current ? cache.get(nextKey) : undefined;
+      if (cached) { cache.delete(nextKey); cache.set(nextKey, cached); detailCacheGeneration.current = cacheGeneration.current; }
+      setDetail(cached?.detail || null);
     }
     if (matchMedia('(max-width:600px)').matches) setSidebarVisible(false);
     setSelected(destination.chatId); setFindOpen(false); navigate('chat');
