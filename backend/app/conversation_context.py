@@ -224,7 +224,7 @@ def get_context(service, supplied):
     from .service import digest, fail
     with service.transaction() as db:
         chat, member, scope = scope_for(service, db, supplied)
-        checked = {}
+        checked = {"projection_hashes": {}, "projection_grants": {(member.owner_id, chat.id): (chat, member)}}
         result, sources, _ = read_context(service, db, chat, member, scope, cache=checked)
         if chat.kind == "private" and scope.get("exclude_request_id"):
             request = db.get(ReplyRequest, scope["exclude_request_id"])
@@ -264,7 +264,7 @@ def _prepare(service, db, chat, member, scope):
             Message.seq <= scope["high_water_seq"]).order_by(Message.seq).limit(1))
         if excluded is not None:
             query = query.where(Message.seq < excluded)
-    checked = {}
+    checked = {"projection_hashes": {}, "projection_grants": {(member.owner_id, chat.id): (chat, member)}}
     if previous:
         checked[("covering_summary", member.chat_id)] = previous.id
     rows, more = _authorized_page(service, db, member, query, limit=PAGE_MESSAGES, cache=checked)

@@ -240,3 +240,59 @@ def test_presence_switch_keeps_audit_without_invalidating_chat_content(attachmen
     with product.transaction() as db:
         assert db.get(Receipt, (message_id, "owner-alex"))
         assert db.get(Chat, ids[1]).revision > revisions[ids[1]]
+
+
+def test_runtime_preparation_batches_history_and_rechecks_each_boundary(attachments):
+    from app.models import ReplyLane
+    from checks.chat_history_fixture import seed_chat_history
+
+    product, _ = attachments
+    seed = seed_chat_history(product, 1000)
+    with product.transaction() as db:
+        lane = db.get(ReplyLane, ("private-alex", "twin-alex"))
+        if lane is None:
+            lane = ReplyLane(chat_id="private-alex", twin_id="twin-alex")
+            db.add(lane)
+        lane.next_accept_seq = seed["completed_requests"] + 1
+    request = product.send_message("owner-alex", "private-alex", "Continue the plan", uuid4().hex)["request"]
+    statements = []
+    def before(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+    event.listen(service_module.engine, "before_cursor_execute", before)
+    try:
+        context = product.get_runtime_context(request["id"])
+        assert len(context["messages"]) == 80 and context["context_incomplete"]
+        assert context["messages"][-1]["body"] == "Continue the plan"
+        assert len(statements) < 180
+        statements.clear()
+        assert product.authorize_runtime_generation(context)
+        assert len(statements) < 200
+        statements.clear()
+        refreshed = product.get_conversation_context(context["_summary_scope"])
+        assert refreshed["messages"] == context["messages"]
+        assert len(statements) < 180
+        statements.clear()
+        prepared = product.prepare_conversation_summary(context["_summary_scope"])
+        assert prepared and prepared["messages"][0]["seq"] == seed["first_seq"]
+        assert len(statements) < 150
+    finally:
+        event.remove(service_module.engine, "before_cursor_execute", before)
+    while prepared:
+        product.save_conversation_summary(prepared["scope"], "Synthetic conversation checkpoint")
+        prepared = product.prepare_conversation_summary(context["_summary_scope"])
+    statements.clear()
+    event.listen(service_module.engine, "before_cursor_execute", before)
+    try:
+        checkpointed = product.get_conversation_context(context["_summary_scope"])
+        assert checkpointed["summary"] and not checkpointed["context_incomplete"]
+        assert checkpointed["messages"][-1] == context["messages"][-1]
+        assert len(statements) < 180
+    finally:
+        event.remove(service_module.engine, "before_cursor_execute", before)
+    with product.transaction() as db:
+        db.get(Message, f"performance-message-{seed['first_seq']}").body = "Original evidence corrected"
+    with pytest.raises(HTTPException) as denied:
+        product.authorize_runtime_generation(context)
+    assert denied.value.status_code == 409
+    with pytest.raises(HTTPException):
+        product.get_conversation_context(context["_summary_scope"])

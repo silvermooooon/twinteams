@@ -83,20 +83,24 @@ class ManagedGitMemoryStore(GitMemoryStore):
         with self._guard(write=True):
             return super()._publish(directory, changes, expected, operation_id)
 
+    def _check_generation(self):
+        with self._guard():
+            pass
+
     async def read(self, key):
         result = await super().read(key)
-        with self._guard():
-            return result
+        await settle(asyncio.to_thread(self._check_generation))
+        return result
 
     async def search(self, query, limit=10):
         result = await super().search(query, limit=limit)
-        with self._guard():
-            return result
+        await settle(asyncio.to_thread(self._check_generation))
+        return result
 
     async def list_entries(self, *, limit=20, after=None):
         result = await super().list_entries(limit=limit, after=after)
-        with self._guard():
-            return result
+        await settle(asyncio.to_thread(self._check_generation))
+        return result
 
     def mark_migration(self):
         with self._guard(write=True):

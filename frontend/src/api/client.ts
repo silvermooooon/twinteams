@@ -21,7 +21,7 @@ export type PendingDuetMessage = { id: string; chat_id: string; causal_chain_id:
 export type ChatDetail = { revision: number; has_more?: boolean; before_seq?: number | null; chat: Chat; messages: Message[]; requests: ReplyRequest[]; approvals: Approval[]; questions?: UserQuestion[]; tracking: Tracking[]; settings: ChatSettings; members: Actor[] };
 export type Bootstrap = { server_time?: string; current_owner_id: string; actors: Actor[]; chats: Chat[]; reminders: Reminder[]; model_configured: boolean; development_mode: boolean; acceptance_fixture?: boolean };
 export type LiveEvent = { revision?: number; type: 'changed' | 'actor_changed' | 'personal_changed' | 'twin_changed' | 'credential_requests_changed' | 'worker_status' | 'token' | 'status' | 'operation_started' | 'output_committed'; chat_id?: string; actor_id?: string; profile_revision?: number; section?: string; area?: string; request_id?: string; text?: string; event_id?: string; operation_id?: string };
-export type SendResult = { message?: Pick<Message, 'id' | 'chat_id' | 'seq' | 'created_at' | 'state' | 'client_request_key'> | null; request?: Pick<ReplyRequest, 'id' | 'chat_id' | 'status' | 'source' | 'source_message_id' | 'accepted_at' | 'client_request_key'> | null };
+export type SendResult = { message?: Pick<Message, 'id' | 'chat_id' | 'seq' | 'created_at' | 'state' | 'client_request_key'> | null; request?: Pick<ReplyRequest, 'id' | 'chat_id' | 'status' | 'source' | 'source_message_id' | 'accepted_at' | 'client_request_key' | 'background' | 'quiet_background' | 'can_cancel'> | null };
 export type SendAcknowledgment = SendResult & { result?: SendResult };
 export type HistoryPolicy = 'all' | 'fixed_7d' | 'no_prior';
 

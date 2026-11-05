@@ -719,31 +719,82 @@ const cases = [
     },
   },
   {
-    name: "requests / queued cancellation and real runtime Stop preserve messages; failure dismissal and Retry recover",
+    name: "requests / ACK typing precedes detail; concurrent responses share one icon and question waiting is quiet",
     run: async (t) => {
       const { page } = await t.session();
-      const chat = await privateChat(page),
-        slow = t.unique("slow"),
-        queued = t.unique("queued");
+      const chat = await privateChat(page), label = t.unique("typing");
+      let release, delayedReads = 0, finishedReads = 0;
+      const gate = new Promise(resolve => { release = resolve; });
+      const pattern = url => url.pathname === "/api/chats/" + chat.id;
+      await page.route(pattern, async route => { delayedReads++; await gate; await route.continue(); });
+      const onResponse = response => { if (new URL(response.url()).pathname === "/api/chats/" + chat.id) finishedReads++; };
+      page.on("response", onResponse);
+      const started = Date.now();
+      try {
+        await sendMessage(page, "E2E SLOW " + label, { waitCanonical: false });
+        await page.locator('.local-send.sent').waitFor();
+        await page.locator('.typing-row').waitFor();
+        assert.equal(await page.locator('.typing-row').count(), 1);
+        assert.match(await page.locator('.typing-row').innerText(), / is typing$/);
+        assert.equal(finishedReads, 0, 'Persisted ACK displays typing before canonical detail returns');
+        t.record("send_to_ack_typing_ms", Date.now() - started);
+        t.record("detail_responses_before_typing", finishedReads);
+        await page.screenshot({ path: path.join(t.artifactDir, "minimal-typing.png"), fullPage: true });
+      } finally { release(); }
+      await poll(() => finishedReads > 0, "canonical detail replaces ACK status");
+      await page.unroute(pattern); page.off("response", onResponse);
+      assert.ok(delayedReads > 0, "Real detail requests were held, not mocked");
+      await page.locator('.typing-row[data-reply-phase=running]').waitFor();
+      const second = t.unique("concurrent");
+      await sendMessage(page, "E2E SLOW " + second);
+      assert.equal(await page.locator('.typing-row').count(), 1, 'Two real accepted responses share one indicator');
+      const snapshot = await detail(page, chat);
+      const inputIds = snapshot.messages.filter(message => ["E2E SLOW " + label, "E2E SLOW " + second].includes(message.body)).map(message => message.id);
+      const requestIds = snapshot.requests.filter(request => inputIds.includes(request.source_message_id)).map(request => request.id);
+      assert.equal(requestIds.length, 2);
+      await page.getByRole("button", { name: "Stop responses", exact: true }).click();
+      await page.locator('.typing-row').waitFor({ state: 'hidden' });
+      const stopped = await poll(() => {
+        const rows = inspectFixture().requests.filter(request => requestIds.includes(request.id));
+        return rows.length === 2 && rows.every(request => request.status === 'cancelled') && rows;
+      }, 'both foreground commands cancelled');
+      t.record("stopped_request_ids", stopped.map(request => request.id));
+      const questionLabel = t.unique("question-wait");
+      await sendMessage(page, "E2E OPEN_QUESTION " + questionLabel);
+      const question = await poll(async () => (await detail(page, chat)).questions.find(row => row.question.includes(questionLabel)), "actual SDK question");
+      await page.locator(`[data-question-id="${question.id}"]`).waitFor();
+      await page.locator('.typing-row').waitFor({ state: 'hidden' });
+      assert.equal(question.status, 'pending');
+      const fresh = t.unique("switch");
+      await sendMessage(page, "E2E SLOW " + fresh);
+      await page.locator('.typing-row').waitFor();
+      const other = (await api(page, "/bootstrap")).chats.find(row => row.kind === "group");
+      await chooseChat(page, other.title);
+      assert.equal(await page.locator('.typing-row').count(), 0, 'Private status does not leak to another chat');
+      await privateChat(page);
+      await page.locator('.typing-row').waitFor();
+      const cdp = await page.context().newCDPSession(page);
+      const prototype = await cdp.send('Runtime.evaluate', { expression: 'WebSocket.prototype' });
+      const sockets = await cdp.send('Runtime.queryObjects', { prototypeObjectId: prototype.result.objectId });
+      await poll(async () => (await cdp.send('Runtime.callFunctionOn', { objectId: sockets.objects.objectId, returnByValue: true, functionDeclaration: 'function () { return this.some(socket => socket.readyState === WebSocket.OPEN); }' })).result.value, 'live socket before disconnect');
+      const closed = await cdp.send('Runtime.callFunctionOn', { objectId: sockets.objects.objectId, returnByValue: true, functionDeclaration: 'function () { const active = this.filter(socket => socket.readyState === WebSocket.OPEN); active.forEach(socket => socket.close(1000, "Isolated typing test")); return active.length; }' });
+      assert.ok(closed.result.value > 0, 'fault injection closes a real live socket');
+      await page.locator('.typing-row').waitFor({ state: 'hidden' });
+      await cdp.detach();
+      await page.locator('.typing-row').waitFor();
+      await logout(page);
+      assert.equal(await page.locator('.typing-row').count(), 0, 'Sign-out clears private response status');
+      t.record("question_pending_without_typing", question.id);
+    },
+  },
+  {
+    name: "requests / Stop responses preserves messages; failure dismissal and Retry recover",
+    run: async (t) => {
+      const { page } = await t.session();
+      const chat = await privateChat(page), slow = t.unique("slow");
       await sendMessage(page, `E2E SLOW ${slow}`);
       await page.locator(".typing-row[data-reply-phase=running]").waitFor();
-      await sendMessage(page, `E2E SLOW ${queued}`);
-      await page
-        .locator(".owner-queue")
-        .getByRole("button", { name: "Cancel this request", exact: true })
-        .click();
-      await poll(async () => {
-        const state = await detail(page, chat);
-        return !state.requests.some(
-          (r) =>
-            r.source_message_id ===
-            state.messages.find((m) => m.body === `E2E SLOW ${queued}`)?.id,
-        );
-      }, "queued cancellation");
-      await page
-        .locator(".typing-row")
-        .getByRole("button", { name: "Stop replying", exact: true })
-        .click();
+      await page.getByRole("button", { name: "Stop responses", exact: true }).click();
       await page.locator(".typing-row").waitFor({ state: "hidden" });
       const label = t.unique("fail");
       await sendMessage(page, `E2E FAIL_ONCE ${label}`);

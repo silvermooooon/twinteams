@@ -213,5 +213,50 @@ const cases = [
       t.record('older_history', { reopenedBoundedWindow: true, cachedQuestion, manualHistoryStillAvailable: true, questionId: value.id, explicitSeed: seeded, previousHistoryReads: priorReads, reauthorizedOlderPages: loads.length, sameInputElement: true, draftAndFocusPreserved: true });
     },
   },
+  {
+    name: 'questions / terminal status clears ACK typing before expanded older history finishes',
+    run: async t => {
+      const { page } = await t.session(), inbox = await privateChat(page), label = t.unique('status-history');
+      const original = await create(page, inbox, label);
+      const seeded = fixture('question-history', ['--question-id', original.id]);
+      await page.reload();
+      await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click();
+      await card(page, original.id).waitFor();
+      await page.locator('.typing-row').waitFor({ state: 'hidden' });
+      let releaseLatest, releaseOlder, oldReads = 0, oldFinished = 0;
+      const latestGate = new Promise(resolve => { releaseLatest = resolve; });
+      const olderGate = new Promise(resolve => { releaseOlder = resolve; });
+      const pattern = url => url.pathname === '/api/chats/' + inbox.id;
+      await page.route(pattern, async route => {
+        if (new URL(route.request().url()).searchParams.has('before_seq')) { oldReads++; await olderGate; oldFinished++; }
+        else await latestGate;
+        await route.continue();
+      });
+      try {
+        const input = 'E2E SLOW ' + t.unique('terminal');
+        await sendMessage(page, input, { waitCanonical: false });
+        await page.locator('.local-send.sent').waitFor();
+        await page.locator('.typing-row').waitFor();
+        await page.getByRole('button', { name: 'Stop responses', exact: true }).click();
+        const state = await poll(async () => {
+          const detail = await api(page, '/chats/' + inbox.id);
+          const human = detail.messages.find(message => message.body === input);
+          return human && !detail.requests.some(request => request.source_message_id === human.id) && detail;
+        }, 'real cancellation before latest browser snapshot');
+        const human = state.messages.find(message => message.body === input);
+        const cancelled = fixture().requests.find(request => request.source_message_id === human.id);
+        assert.equal(cancelled.status, 'cancelled');
+        releaseLatest();
+        await poll(() => oldReads > 0, 'expanded historical page genuinely waiting');
+        await page.locator('.typing-row').waitFor({ state: 'hidden' });
+        assert.equal(oldFinished, 0, 'Typing cleared without waiting for old history reauthorization');
+        assert.equal(await page.locator('.local-send.sent').count(), 1, 'Only provisional request metadata was cleared; the human echo still awaits history reconciliation');
+        t.record('terminal_before_old_history', { seededMessages: seeded.message_count, oldReads, oldFinished, latestRevision: state.revision, cancelledRequestId: cancelled.id });
+      } finally { releaseLatest(); releaseOlder(); }
+      await page.locator('.local-send').waitFor({ state: 'hidden' });
+      await page.unroute(pattern);
+      await card(page, original.id).waitFor();
+    },
+  },
 ];
 module.exports = { cases };

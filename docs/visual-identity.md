@@ -37,3 +37,24 @@ reset preferences or rename infrastructure resources.
 to Duet, synchronizes private-chat display titles, and updates only the managed
 SOUL.md name heading. Custom names and persona text are retained. The upgrade is
 repeatable and does not rewrite conversation history or Runtime journals.
+
+## Interface principles: the art of whitespace
+
+- Leave space around the conversation and its primary actions. Show the minimum
+  information needed for the user's current task; preserve the established layout.
+- Prefer completing work through conversation with Duet. Keep manual controls
+  secondary; use recognizable icons with accessible names and discoverable labels.
+  Use explicit text when an icon would make a decision or consequence unclear.
+- During a reply, the main chat shows only a simple typing indicator. Do not add
+  preparation, queue, worker, tool or model-stage explanations there, or imply that
+  a reply has finished merely because the indicator disappears.
+- Keep technical status and execution details in their existing inspection surfaces,
+  opened by the user. Do not automatically expand them, steal focus or repeat the
+  same progress explanation across the chat, banners and sidebar.
+- Preserve necessary confirmations, accessible controls and actionable failures.
+  State the user-visible consequence and next step briefly; never hide an unsent
+  message, a required decision or a failure that prevents the current action.
+  Reuse contextual controls rather than introducing technical warning banners.
+- Background maintenance stays quiet unless it changes something the owner needs
+  to know or decide. Recovered issues do not merit another warning. Follow the
+  existing Duet notification and review flow instead of adding technical banners.

@@ -1,6 +1,7 @@
 # Private task concurrency acceptance — 2026-10-27
 
 > Historical verification record. This describes the tested revision on its stated date, not the current peer-message contract. Current guidance: [interaction rules](interaction-rules.md) and [architecture](architecture.md).
+> The per-task status UI below was replaced by the [single response indicator verified on 2026-11-05](browser-e2e.md#minimal-response-indicator-2026-11-05).
 
 ## Scope and candidate
 

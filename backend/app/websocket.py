@@ -20,7 +20,7 @@ def send_ack_result(result):
     fields = {
         'message': ('id', 'chat_id', 'seq', 'created_at', 'state', 'client_request_key'),
         'request': ('id', 'chat_id', 'status', 'source', 'source_message_id',
-                    'accepted_at', 'client_request_key'),
+                    'accepted_at', 'client_request_key', 'background', 'quiet_background', 'can_cancel'),
     }
     metadata = {}
     for name, keys in fields.items():

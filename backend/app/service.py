@@ -528,21 +528,22 @@ class ProductService:
         covering = cache.get(("covering_summary", member.chat_id))
         dependencies = list(dict.fromkeys([*(msg.source_message_ids or []), *[
             item["id"] for item in (msg.source_provenance or []) if item.get("kind") == "message"]]))
-        if covering and dependencies:
+        unchecked = [identifier for identifier in dependencies
+            if ("covered_message", member.chat_id, identifier) not in cache]
+        if covering and unchecked:
             from sqlalchemy.dialects.postgresql import JSONB
             uncovered, count = db.execute(select(
                 func.array_agg(Message.id).filter(~cast(Summary.source_message_ids, JSONB).has_key(Message.id)),
                 func.count()).select_from(Message).join(Summary, Summary.id == covering).where(
-                    Summary.state == "valid", Message.id.in_(dependencies), Message.chat_id == member.chat_id,
+                    Summary.state == "valid", Message.id.in_(unchecked), Message.chat_id == member.chat_id,
                     Message.seq >= member.lower_seq, Message.state == "published")).one()
-            if count == len(dependencies):
+            if count == len(unchecked):
                 # PostgreSQL checks the storage-only covered set, returning only
                 # uncovered IDs from this tail. No historical metadata rows or
                 # historical source arrays leave the database.
                 uncovered = set(uncovered or [])
-                for source_id in dependencies:
-                    if source_id not in uncovered:
-                        cache[("covered_message", member.chat_id, source_id)] = True
+                for source_id in unchecked:
+                    cache[("covered_message", member.chat_id, source_id)] = source_id not in uncovered
         if "projection_hashes" in cache:
             self._prime_message_sources(db, msg, dependencies, cache)
         for source_id in msg.source_message_ids or []:
@@ -557,13 +558,15 @@ class ProductService:
 
     def _prime_message_sources(self, db, message, dependencies, cache):
         from sqlalchemy.orm import load_only
+        hashed = {source["id"] for source in message.source_provenance or []
+            if source.get("kind") == "message" and source.get("hash")}
         missing = [identifier for identifier in dependencies
             if ("metadata", identifier) not in cache
-            and not cache.get(("covered_message", message.chat_id, identifier))]
+            and (identifier in hashed or not cache.get(("covered_message", message.chat_id, identifier)))]
         if not missing:
             return
         columns = SOURCE_MESSAGE_FIELDS
-        if any(source.get("kind") == "message" and source.get("hash") for source in message.source_provenance or []):
+        if hashed:
             columns += (Message.body, Message.raw_owner_input, Message.attachment_ids)
         # Keep the same per-source permission and content checks, but load a
         # dependency batch instead of two round trips for each historical row.
@@ -1485,7 +1488,8 @@ class ProductService:
             continuation(self, db, answered)
         twin = db.get(Actor, request.target_twin_id)
         member = self.membership(db, twin.owner_id, chat.id)[1]
-        if not self.provenance_allowed(db, member, self.manifest_provenance(db, request.id)):
+        checked = {"projection_hashes": {}, "projection_grants": {(member.owner_id, chat.id): (chat, member)}}
+        if not self.provenance_allowed(db, member, self.manifest_provenance(db, request.id), cache=checked):
             fail(409, "Runtime sources are no longer authorized")
         if chat.kind == "private" and context.get("private_generation", 0) != chat.reset_generation:
             fail(409, "Private runtime generation is no longer authorized")
@@ -1496,7 +1500,7 @@ class ProductService:
             if chat.kind != "private" or chat.private_owner_id != context.get("owner_id") or twin.owner_id != chat.private_owner_id:
                 fail(403, "Scheduled execution requires the owner's private Duet")
             member = self.membership(db, twin.owner_id, chat.id)[1]
-            if not self.provenance_allowed(db, member, self.manifest_provenance(db, request.id)):
+            if not self.provenance_allowed(db, member, self.manifest_provenance(db, request.id), cache=checked):
                 fail(409, "Scheduled runtime sources are no longer authorized")
         return True
 
@@ -1539,7 +1543,7 @@ class ProductService:
             from .conversation_context import latest_summary, read_context, scope_for
             _, _, summary_scope = scope_for(self, db, {"chat_id": chat.id, "owner_id": twin.owner_id,
                 "high_water_seq": chat.next_message_seq - 1, "exclude_request_id": request.id})
-            checked = {}
+            checked = {"projection_hashes": {}, "projection_grants": {(member.owner_id, chat.id): (chat, member)}}
             covering = latest_summary(self, db, chat, member, summary_scope)
             if covering:
                 checked[("covering_summary", member.chat_id)] = covering.id

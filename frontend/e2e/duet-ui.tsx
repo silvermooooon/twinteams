@@ -33,8 +33,6 @@ function OriginLinkHarness() {
   return <div className="workspace"><main className="chat-main" data-main-chat-kind={chat.kind}><h1>{chat.title}</h1><button onClick={() => { void navigate('pair'); }}>Open human chat</button><AskUserCard api={api} question={{ id: 'origin-question', message_id: 'question-message', origin_chat_id: 'duet-1', origin_chat_title: 'Launch planning collaboration', question: 'Confirm the meeting?', options: [], status: 'answered', answer: 'Yes', answer_message_id: 'answer', created_at: '2026-10-26T08:00:00Z', answered_at: '2026-10-26T08:01:00Z' }} onChanged={async () => {}} onOrigin={id => { void navigate(id); }} /></main>{settings.sidebar_open && <DetailSidebar api={api} actors={actors} detail={detail} duetTarget={target} version={1} ownerId="owner-0" onSettings={patch => setSettings(previous => ({ ...previous, ...patch }))} onError={error => { throw error; }} onChange={() => {}} onClearCreate={() => {}} />}</div>;
 }
 function PrivateTaskHarness() {
-  const message = (id: string, body: string): Message => ({ id, body, chat_id: 'private-owner', seq: 1, author_id: 'owner-0', kind: 'human', created_at: '2026-10-27T08:00:00Z', read_by: [], state: 'published' });
-  const messages = [message('old-message', 'Prepare the report'), message('new-message', 'What is two plus two?'), message('waiting-message', 'Summarize the notes')];
   const make = (id: string, source: string, source_message_id: string | null, status: ReplyRequest['status'], quiet_background = false): ReplyRequest => ({ id, source, source_message_id, status, quiet_background, chat_id: 'private-owner', target_twin_id: 'twin-0', requester_id: 'owner-0', accepted_at: '2026-10-27T08:00:00Z', can_cancel: true, can_retry: false });
   const [requests, setRequests] = React.useState(() => [make('new-task', 'private', 'new-message', 'running'), make('old-task', 'private', 'old-message', 'running'), make('waiting-task', 'private', 'waiting-message', 'queued'), { ...make('background-continuation', 'approval', 'new-message', 'running'), background: true }, make('dream-task', 'memory_dream', null, 'running'), ...['scheduled_task', 'system_review', 'memory_dream'].map(source => make(source, source, null, 'running', true))]);
   const [busy, setBusy] = React.useState(new Set<string>());
@@ -43,7 +41,7 @@ function PrivateTaskHarness() {
     try { await api.post(`/reply-requests/${request.id}/cancel`); setRequests(previous => previous.map(item => item.id === request.id ? { ...item, status: 'cancelled' } : item)); }
     finally { setBusy(previous => { const next = new Set(previous); next.delete(request.id); return next; }); }
   }
-  return <main className="chat-main"><PrivateTaskStatuses requests={requests} messages={messages} actor={actors[1]} busy={busy} onCancel={request => { void cancel(request); }} /><textarea aria-label="Message" /><button onClick={() => setRequests(previous => [...previous].reverse())}>Reorder tasks</button></main>;
+  return <main className="chat-main"><PrivateTaskStatuses requests={requests} actor={actors[1]} busy={busy} onCancel={ids => { ids.forEach(id => { void cancel(requests.find(request => request.id === id)!); }); }} /><textarea aria-label="Message" /><button onClick={() => setRequests(previous => [...previous].reverse())}>Reorder tasks</button><button onClick={() => setRequests(previous => previous.map(request => request.id === "old-task" ? { ...request, status: "completed" } : request))}>Finish first response</button></main>;
 }
 function Harness() {
   const [version, refresh] = React.useState(0);

@@ -2,7 +2,7 @@ import { MessageReferenceQuote } from './MessageReferenceQuote';
 import { MessageMarkdown } from './MessageMarkdown';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from './api/client';
-import type { Actor, ApiClient, ChatDetail, Message, ReplyRequest, SendAcknowledgment } from './api/client';
+import type { Actor, ApiClient, ChatDetail, Message, ReplyRequest, SendAcknowledgment, SendResult } from './api/client';
 import { Avatar, Icon, time } from './ui';
 import { MessageAttachments } from './Attachments';
 import { t } from './i18n';
@@ -11,8 +11,12 @@ type Payload = { body: string; attachment_ids: string[]; client_request_key: str
 export type LocalSend = {
   key: string; ownerId: string; chatId: string; epoch: number; payload: Payload; message: Message;
   phase: 'sending' | 'sent' | 'failed'; error?: string; uncertain?: boolean; acceptedAt?: number;
-  messageId?: string; requestId?: string; requestFailed?: boolean;
+  messageId?: string; requestId?: string; requestFailed?: boolean; request?: SendResult['request'];
 };
+
+function containsEcho(messages: Message[], entry: LocalSend) {
+  return messages.some(item => item.client_request_key === entry.key || item.id === entry.messageId || !!entry.requestId && item.request_id === entry.requestId);
+}
 
 /** In-memory local echoes only. Canonical HTTP content always replaces an echo. */
 export function useLocalSends(api: ApiClient) {
@@ -41,7 +45,7 @@ export function useLocalSends(api: ApiClient) {
       if (!current(entry)) return;
       const result = ack.result || ack;
       if (result.message?.state === 'withdrawn') { update(previous => previous.filter(item => item.key !== entry.key)); return; }
-      update(previous => previous.map(item => item.key === entry.key ? { ...item, phase: 'sent', acceptedAt: performance.now(), messageId: result.message?.id || item.messageId, requestId: result.request?.id || item.requestId } : item));
+      update(previous => previous.map(item => item.key === entry.key ? { ...item, phase: 'sent', acceptedAt: performance.now(), messageId: result.message?.id || item.messageId, requestId: result.request?.id || item.requestId, request: result.request } : item));
       refresh.current(entry.chatId);
     } catch (error) {
       if (!current(entry) || error instanceof DOMException && error.name === 'AbortError') return;
@@ -64,16 +68,18 @@ export function useLocalSends(api: ApiClient) {
       if (entry.ownerId !== api.ownerId || entry.chatId !== detail.chat.id) return [entry];
       const quote = entry.message.reply_to;
       if (quote && !detail.messages.some(item => item.id === quote.id && item.state === 'published')) entry = { ...entry, message: { ...entry.message, reply_to: { ...quote, body: '', unavailable: true } } };
-      const message = detail.messages.find(item => item.client_request_key === entry.key || item.id === entry.messageId || !!entry.requestId && item.request_id === entry.requestId);
-      if (message) return []; // Never retain a second copy after an authorized canonical observation.
+      if (containsEcho(detail.messages, entry)) return []; // Never retain a second copy after an authorized canonical observation.
       // Only a read begun after persistence can revoke an accepted echo. Earlier reads
       // cannot erase an in-flight send or a later ACK; partial ACKs never add canonical content.
       if (entry.acceptedAt && entry.acceptedAt <= startedAt) return [];
       return [entry];
     }));
   }, [api, update]);
-  const followRetry = (requestId: string, request: ReplyRequest) => { update(previous => previous.map(entry => entry.requestId === requestId ? { ...entry, requestId: request.id, requestFailed: false, phase: 'sent', acceptedAt: performance.now(), error: undefined } : entry)); };
-  return { followRetry, items: items.filter(item => item.ownerId === api.ownerId), submit, retry: (entry: LocalSend) => { if (!entry.requestFailed) void transmit(entry); }, clear, reconcile, refresh };
+  const reconcileRequests = useCallback((detail: ChatDetail, startedAt: number) => {
+    update(previous => previous.map(entry => entry.chatId === detail.chat.id && (containsEcho(detail.messages, entry) || entry.acceptedAt && entry.acceptedAt <= startedAt) ? { ...entry, request: undefined } : entry));
+  }, [update]);
+  const followRetry = (requestId: string, request: ReplyRequest) => { update(previous => previous.map(entry => entry.requestId === requestId ? { ...entry, requestId: request.id, request, requestFailed: false, phase: 'sent', acceptedAt: performance.now(), error: undefined } : entry)); };
+  return { followRetry, items: items.filter(item => item.ownerId === api.ownerId), submit, retry: (entry: LocalSend) => { if (!entry.requestFailed) void transmit(entry); }, clear, reconcile, reconcileRequests, refresh };
 }
 
 export function LocalSendItem({ entry, referenceChatName, actor, onRetry }: { entry: LocalSend; referenceChatName?: string; actor?: Actor; onRetry: () => void }) {

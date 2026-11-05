@@ -1,9 +1,9 @@
 import type { Actor, Message, ReplyRequest } from './api/client';
 import { t } from './i18n';
-import { Avatar, Icon } from './ui';
+import { Avatar, IconButton } from './ui';
 import './PrivateTaskStatuses.css';
 
-export function isBackgroundPrivateTask(request: ReplyRequest) {
+export function isBackgroundPrivateTask(request: Pick<ReplyRequest, 'background' | 'source'>) {
   return request.background ?? ['system_review', 'scheduled_task', 'memory_dream'].includes(request.source);
 }
 
@@ -24,19 +24,17 @@ export function privateTaskLabel(request: ReplyRequest, messages: Message[]) {
   return body ? t('chat.replyTask', { message: body.length > 100 ? body.slice(0, 100) + '…' : body }) : t('chat.privateTask');
 }
 
-export function PrivateTaskStatuses({ requests, messages, actor, busy, onCancel }: { requests: ReplyRequest[]; messages: Message[]; actor?: Actor; busy: Set<string>; onCancel: (request: ReplyRequest) => void }) {
-  const active = requests.filter(request => !request.quiet_background && (request.status === 'queued' || request.status === 'running')).slice().reverse().sort((a, b) => a.accepted_at.localeCompare(b.accepted_at));
+type ResponseStatus = Pick<ReplyRequest, 'id' | 'source' | 'status' | 'can_cancel' | 'quiet_background' | 'background' | 'cancel_requested'>;
+
+export function PrivateTaskStatuses({ requests, actor, busy, onCancel }: { requests: ResponseStatus[]; actor?: Actor; busy: Set<string>; onCancel: (ids: string[]) => void }) {
+  const active = requests.filter(request => !request.quiet_background && !isBackgroundPrivateTask(request) && (request.status === 'queued' || request.status === 'running'));
   if (!active.length) return null;
-  return <div className="private-task-statuses" role="region" aria-label={t('chat.activeTasks')}>
-    {active.map(request => {
-      const queued = request.status === 'queued'; const stopping = busy.has(request.id) || request.cancel_requested === true;
-      const background = isBackgroundPrivateTask(request); const label = privateTaskLabel(request, messages);
-      return <div key={request.id} className={`private-task-status ${background ? 'background-task' : 'typing-row'}`} role="status" data-reply-phase={stopping ? 'stopping' : queued ? 'preparing' : 'running'} data-request-id={request.id}>
-        {background ? <Icon name="clock" size={20} /> : <span className="typing-avatars"><Avatar actor={actor} size={25} /></span>}
-        <span className="private-task-copy"><span className="private-task-label" title={label}>{label}</span><span className="private-task-phase">{t(stopping ? 'chat.stopping' : queued ? 'chat.acceptedWaiting' : 'chat.taskRunning')}</span></span>
-        {!queued && !stopping ? <span className="typing-dots" aria-hidden="true"><i /><i /><i /></span> : <Icon name="clock" size={14} />}
-        {request.can_cancel && <button type="button" className="stop-button" disabled={stopping} aria-label={t(queued ? 'chat.cancelRequest' : 'chat.stop')} title={label} onClick={() => onCancel(request)}>{t(queued ? 'common.cancel' : 'chat.stop')}</button>}
-      </div>;
-    })}
+  const cancellable = active.filter(request => request.can_cancel && !request.cancel_requested);
+  const stopping = active.every(request => busy.has(request.id) || request.cancel_requested);
+  const label = t('chat.typing', { name: actor?.name || t('chat.myTwin') });
+  return <div className="typing-row private-task-status" role="status" aria-label={`${label}…`} data-reply-phase={stopping ? 'stopping' : active.some(request => request.status === 'running') ? 'running' : 'preparing'}>
+    <span className="typing-avatars"><Avatar actor={actor} size={25} /></span>
+    <span>{label}</span><span className="typing-dots" aria-hidden="true"><i /><i /><i /></span>
+    {!!cancellable.length && <IconButton icon="stop" size={14} className="stop-responses" label={t('chat.stopResponses')} disabled={cancellable.some(request => busy.has(request.id))} onClick={() => onCancel(cancellable.map(request => request.id))} />}
   </div>;
 }

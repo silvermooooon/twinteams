@@ -53,13 +53,57 @@ def test_send_ack_is_bounded_metadata_not_content():
             'request': {'id': 'r', 'chat_id': 'c', 'status': 'queued', 'source': 'private',
                         'source_message_id': 'm', 'accepted_at': '2026-10-19T00:00:00Z',
                         'client_request_key': 'auto:m', 'error': 'private diagnostic',
+                        'background': True, 'quiet_background': True, 'can_cancel': False,
                         'session_id': 'runtime-session', 'run_id': 'runtime-run'}}
     reduced = websocket.send_ack_result(full)
     assert set(reduced['message']) == {'id', 'chat_id', 'seq', 'state', 'created_at', 'client_request_key'}
     assert set(reduced['request']) == {'id', 'chat_id', 'status', 'source', 'source_message_id',
-                                      'accepted_at', 'client_request_key'}
+                                      'accepted_at', 'client_request_key', 'background', 'quiet_background', 'can_cancel'}
+    assert {key: reduced['request'][key] for key in ('background', 'quiet_background', 'can_cancel')} == {
+        'background': True, 'quiet_background': True, 'can_cancel': False}
     assert len(json.dumps(reduced).encode()) < 1000
     assert websocket.send_ack_result({'message': None, 'request': None}) == {'message': None, 'request': None}
+
+
+@pytest.mark.parametrize('origin', ['private', 'duet', 'scheduled'])
+def test_question_answer_ack_retains_real_execution_scope(send_clients, origin):
+    from test_questions import pending
+    from test_scheduled_tasks import create, due
+
+    from app import personal, questions, scheduled_tasks
+
+    product, sender, _ = send_clients
+    if origin == 'scheduled':
+        task = create(product)
+        due(product, task['id'])
+        request_id = scheduled_tasks.process_due(product, [task['id']])[0]
+        session_id = product.get_request(request_id)['session_id']
+        product.bind_runtime_run(request_id, session_id, 'run-' + request_id)
+        personal.freeze_execution_config(request_id, {
+            'version': 1, 'skills': [], 'credentials': [], 'execution_enabled': False})
+        context = product.get_runtime_context(request_id)
+        context.update(operation_id=uuid4().hex, runtime_session_id=session_id,
+            runtime_run_id='run-' + request_id, runtime_command_id=request_id)
+        question = questions.create(product, {'question': 'Which update should I review?', 'options': []}, context)
+    else:
+        request, _, question, _ = pending(product, 'duet-alex-maya' if origin == 'duet' else 'private-alex')
+        request_id = request['id']
+    product.complete_request(request_id)
+    frame = command(uuid4().hex, body='Review the latest update.')
+    frame['payload']['reply_to_message_id'] = question['message_id']
+    with sender_socket(sender) as socket:
+        socket.send_json(frame)
+        ack = socket.receive_json()
+    assert ack['type'] == 'ack'
+    accepted = ack['result']['request']
+    with product.transaction() as db:
+        row = db.get(ReplyRequest, accepted['id'])
+        current = product.request_json(db, row, 'owner-alex')
+    assert accepted['source'] == 'question_result'
+    assert accepted['chat_id'] == ('duet-alex-maya' if origin == 'duet' else 'private-alex')
+    assert accepted['background'] is (origin != 'private')
+    assert accepted['quiet_background'] is (origin == 'scheduled')
+    assert accepted['can_cancel'] is current['can_cancel'] is True
 
 
 def test_http_and_get_expose_key_only_to_sender(send_clients):

@@ -2,7 +2,7 @@
  * No browser API interception, fake clock or asserted fabricated model reasoning.
  * Natural-language tool choice and autonomous notification belong to the live scenario.
  */
-const { assert, api, openTwinTab, poll, privateChat } = require('./helpers.cjs');
+const { assert, api, openTwinTab, poll, privateChat, sendMessage } = require('./helpers.cjs');
 const path = require('node:path');
 const button = (page, name) => page.getByRole('button', { name, exact: true });
 const dialog = page => page.locator('.modal[role="dialog"]');
@@ -165,9 +165,9 @@ const cases = [
       const observer = await t.session('DEV-AAA', { baseURL: t.secondaryURL });
       const chat = await privateChat(observer.page);
       await observer.page.evaluate(() => {
-        const audit = window.__scheduledStatusAudit = { typing: [], failures: [], queueSeen: false, liveSeen: false };
+        const audit = window.__scheduledStatusAudit = { typingSeen: false, failures: [], queueSeen: false, liveSeen: false };
         const scan = () => {
-          for (const row of document.querySelectorAll('.typing-row[data-request-id]')) if (!audit.typing.includes(row.dataset.requestId)) audit.typing.push(row.dataset.requestId);
+          audit.typingSeen ||= !!document.querySelector('.typing-row');
           for (const row of document.querySelectorAll('[data-failed-request]')) if (!audit.failures.includes(row.dataset.failedRequest)) audit.failures.push(row.dataset.failedRequest);
           audit.queueSeen ||= !!document.querySelector('.owner-queue');
           audit.liveSeen ||= !!document.querySelector('.live-message');
@@ -178,9 +178,21 @@ const cases = [
       });
       let task = await newTask(page, title, 'E2E SLOW ' + t.unique('scheduled-stop'), { kind: 'interval' });
       await card(page, task.id).getByRole('button', { name: `Run now ${title}`, exact: true }).click();
-      const active = await taskState(page, task.id, item => !!item.active_request_id);
+      let active = await taskState(page, task.id, item => !!item.active_request_id);
       assert.ok(['queued', 'running'].includes(active.last_status));
       await poll(async () => (await api(observer.page, '/chats/' + chat.id)).requests.some(request => request.id === active.active_request_id && request.quiet_background === true), 'background request remains in authorized API with quiet status metadata');
+      await observer.page.evaluate(() => window.__scheduledStatusObserver.disconnect());
+      await sendMessage(observer.page, 'E2E SLOW ' + t.unique('foreground-stop'));
+      await observer.page.getByRole('button', { name: 'Stop responses', exact: true }).click();
+      await observer.page.locator('.typing-row').waitFor({ state: 'hidden' });
+      const backgroundAfterStop = await taskState(page, task.id, item => item.active_request_id === active.active_request_id);
+      assert.ok(['queued', 'running'].includes(backgroundAfterStop.last_status), 'Main chat Stop responses leaves background work running');
+      await observer.page.evaluate(() => window.__scheduledStatusObserver.observe(document.body, { childList: true, subtree: true, attributes: true }));
+      const preserved = active.active_request_id;
+      await taskState(page, task.id, item => item.last_request_id === preserved && item.last_status === 'completed');
+      t.record('foreground_stop_preserved_background', { request_id: preserved, status: 'completed' });
+      await card(page, task.id).getByRole('button', { name: `Run now ${title}`, exact: true }).click();
+      active = await taskState(page, task.id, item => !!item.active_request_id);
       await card(page, task.id).getByRole('button', { name: `Pause future runs for ${title}`, exact: true }).click();
       const paused = await taskState(page, task.id, item => !item.enabled);
       assert.equal(paused.active_request_id, active.active_request_id, 'pausing future occurrences does not cancel the current request');
@@ -222,6 +234,29 @@ const cases = [
       await observer.page.locator('.approval-tabs button[title="E2E approval ' + approvalLabel + '"]').click();
       await observer.page.locator('.approval-card').filter({ hasText: approvalLabel }).getByRole('button', { name: 'Reject once', exact: true }).click();
       await taskState(page, task.id, item => !item.pending_work && !item.active_request_id);
+      const questionLabel = t.unique('background-question');
+      form = await edit(page, task);
+      await form.getByLabel('Instructions', { exact: true }).fill('E2E QUESTION ' + questionLabel);
+      await save(page);
+      await card(page, task.id).getByRole('button', { name: `Run now ${title}`, exact: true }).click();
+      const question = await poll(async () => (await api(observer.page, '/chats/' + chat.id)).questions.find(item => item.question.includes(questionLabel)), 'background owner question');
+      const message = observer.page.locator(`article[data-message-id="${question.message_id}"]`);
+      await message.hover(); await message.getByTitle('Reply', { exact: true }).click();
+      let releaseAnswerDetail;
+      const answerGate = new Promise(resolve => { releaseAnswerDetail = resolve; });
+      const answerPattern = url => url.pathname === '/api/chats/' + chat.id;
+      await observer.page.route(answerPattern, async route => { await answerGate; await route.continue(); });
+      try {
+        await sendMessage(observer.page, question.options[0], { waitCanonical: false });
+        await observer.page.locator('.local-send.sent').waitFor();
+        assert.equal(await observer.page.locator('.typing-row').count(), 0, 'ACK for an answer continuing background work stays quiet before detail refresh');
+        assert.equal(await observer.page.getByRole('button', { name: 'Stop responses', exact: true }).count(), 0);
+      } finally { releaseAnswerDetail(); }
+      await observer.page.locator('.local-send').waitFor({ state: 'hidden' });
+      await observer.page.unroute(answerPattern);
+      await observer.page.locator(`[data-question-id="${question.id}"]`).getByText('Answered', { exact: true }).waitFor();
+      await taskState(page, task.id, item => !item.pending_work && !item.active_request_id);
+      t.record('background_question_ack_kept_quiet', question.id);
       const journal = (await history(page, task.id)).items;
       assert.ok(journal.some(run => run.status === 'completed' && run.run_id));
       assert.ok(journal.some(run => run.status === 'failed' && run.error));
@@ -232,14 +267,14 @@ const cases = [
       assert.ok(quietRequests.every(request => request.quiet_background === true));
       const audit = await observer.page.evaluate(() => { window.__scheduledStatusObserver.disconnect(); return window.__scheduledStatusAudit; });
       const ids = new Set(journal.map(run => run.request_id));
-      assert.deepEqual(audit.typing.filter(id => ids.has(id)), [], 'no transient preparing/thinking banners for scheduled work');
+      assert.equal(audit.typingSeen, false, 'scheduled work never displays a typing indicator');
       assert.deepEqual(audit.failures.filter(id => ids.has(id)), [], 'scheduled failures remain in task UI, without chat failure banners');
       assert.equal(audit.queueSeen, false, 'background work does not add owner queue chips');
       assert.equal(audit.liveSeen, false, 'background work does not stream a transient chat bubble');
       const activity = await api(observer.page, '/chats/' + chat.id + '/activity');
-      assert.ok(activity.items.some(run => journal.some(item => item.run_id && item.run_id === run.run_id)), 'scheduled SDK runs remain inspectable in Activity');
+      assert.equal(activity.items.some(run => journal.some(item => item.run_id && item.run_id === run.run_id)), false, 'scheduled SDK runs stay out of ordinary Activity; task run history remains available');
       await remove(page, task);
-      t.record('quiet_background', { metadataConfirmed: true, transientTypingRequestIds: audit.typing.filter(id => ids.has(id)), failureBannerRequestIds: audit.failures.filter(id => ids.has(id)), ownerQueueSeen: audit.queueSeen, liveOutputSeen: audit.liveSeen, approvalsRetained: true, waitingWithoutBogusStop: true, activityRetained: true });
+      t.record('quiet_background', { metadataConfirmed: true, typingSeen: audit.typingSeen, failureBannerRequestIds: audit.failures.filter(id => ids.has(id)), ownerQueueSeen: audit.queueSeen, liveOutputSeen: audit.liveSeen, approvalsRetained: true, waitingWithoutBogusStop: true, ordinaryActivityHidden: true, taskRunHistoryRetained: true });
       t.record('offline_lifecycle', { model: 'deterministic-offline', assertedModelReasoning: false, taskId: task.id, requestIds: journal.map(run => run.request_id), statuses: journal.map(run => run.status), pauseKeptActiveRequest: true, stoppedViaExistingCancelEndpoint: true, failureVisible: true });
     },
   },

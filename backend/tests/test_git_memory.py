@@ -81,3 +81,37 @@ def test_soul_and_memory_http_versions_real_audit_and_owner_scope(monkeypatch, t
     assert client.delete("/api/me/twin/memory/entry", params={"key": key, "expected_version": "wrong"}).status_code == 409
     assert client.delete("/api/me/twin/memory/entry", params={"key": key, "expected_version": entry["version"]}).json()["deleted"]
     assert client.get("/api/me/twin/memory/status").json()["mode"] == "git"
+
+
+@pytest.mark.parametrize("operation", ["read", "search", "list_entries"])
+def test_memory_generation_check_stays_off_event_loop(operation, tmp_path):
+    from contextlib import contextmanager
+    from threading import get_ident
+
+    from sqlalchemy import text
+
+    from app.db import engine
+
+    async def run():
+        store = ManagedGitMemoryStore(SessionInfo("nonblocking-memory", "test", "owner"), tmp_path)
+        await store.write("MEMORY", "Synthetic fact", sources=[MemorySource("s", "e")], expected_version=None)
+        checked_threads = []
+        @contextmanager
+        def guard(**kwargs):
+            checked_threads.append(get_ident())
+            with engine.connect() as db:
+                db.execute(text("SELECT pg_sleep(0.05)"))
+            yield
+        store.generation_guard = guard
+        loop_thread = get_ident()
+        if operation == "read":
+            result = await store.read("MEMORY")
+            assert result.content == "Synthetic fact"
+        elif operation == "search":
+            assert await store.search("Synthetic")
+        else:
+            assert (await store.list_entries())["items"]
+        # Includes the final post-read check, not only the Git clone's guard.
+        assert len(checked_threads) >= 3
+        assert loop_thread not in checked_threads
+    asyncio.run(run())
