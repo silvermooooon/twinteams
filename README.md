@@ -111,6 +111,8 @@ manual tags and contact search still work.
 
 In human conversations, choose **Reference in Duet** on an incoming message to draft a private review request. Your Duet can prepare a reply in a private question card. Select **Confirm send** to post that exact text and those files as you in the original conversation, or **Cancel** to leave the draft unsent.
 
+For ordinary Duet questions, select a suggested answer or reply in the main chat composer. Open-ended and custom answers stay in the conversation; the question card has no separate input field.
+
 Workspace files and private memory remain separate persistent file components.
 In Duet settings, upload one Skill folder containing `SKILL.md`; its nested files are preserved in the owner's private workspace. Folder contents may total up to 20 MiB, and an existing folder with the same name is not overwritten. Newly uploaded Skills are disabled until enabled in settings.
 Duets can explicitly deliver finished workspace files into chat attachment cards with `present_files`; each delivery captures a snapshot. Markdown, text and PDF support in-app preview. HTML opens only after a user action in a separate sandboxed tab and remains downloadable.

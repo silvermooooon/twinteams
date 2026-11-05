@@ -124,8 +124,11 @@ def test_group_owner_only_question_revocation_never_resumes_or_leaks_known_id(pr
         assert row["message_id"] not in {m["id"] for m in detail["messages"]}
 
 
-@pytest.mark.parametrize("worker,dismiss,restart", [(False, False, False), (True, False, False), (True, True, True)])
-def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actual_parent(product, worker, dismiss, restart):
+@pytest.mark.parametrize("worker,dismiss,restart,unquoted", [
+    (False, False, False, False), (True, False, False, False), (True, True, True, False),
+    (False, False, False, True), (True, False, True, True),
+])
+def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actual_parent(product, worker, dismiss, restart, unquoted):
     async def run():
         runtime = RuntimeBridge(product)
         calls = []
@@ -136,6 +139,11 @@ def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actu
             calls.append((user, context))
             if user == "UNRELATED-NEW-TASK":
                 return response(model, [{"type": "text", "text": "UNRELATED-TASK-COMPLETED"}])
+            if user == "Detailed":
+                if not results:
+                    return response(model, call("answer_question", question_id=question_id, message_id=owner_answer_id))
+                assert not results[-1].get("isError"), results[-1]
+                return response(model, [])
             if user.startswith("The owner answered"):
                 assert any(text(message) == ("WORKER-ORIGINAL-TASK" if worker else "ROOT-ORIGINAL-TASK") for message in context.messages)
                 if worker:
@@ -187,7 +195,19 @@ def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actu
             unrelated = send_message(product, "owner-alex", "private-alex", "UNRELATED-NEW-TASK", uuid4().hex)["request"]
             await product.execute_request(unrelated["id"])
             assert product.get_request(unrelated["id"])["session_id"] != old_session
-            (questions.dismiss(product, "owner-alex", question_id) if dismiss else questions.answer(product, "owner-alex", question_id, "Detailed"))
+            with product.transaction() as db:
+                saved = db.get(QuestionRequest, question_id)
+                assert saved.status == "pending" and saved.continuation_request_id is None
+            if unquoted:
+                sent = send_message(product, "owner-alex", "private-alex", "Detailed", uuid4().hex)
+                owner_answer_id = sent["message"]["id"]
+                assert sent["message"].get("reply_to") is None and sent["request"]["source"] == "private"
+                await product.execute_request(sent["request"]["id"])
+                assert product.get_request(sent["request"]["id"])["status"] == "completed"
+                with product.transaction() as db:
+                    assert db.get(QuestionRequest, question_id).answer_message_id == owner_answer_id
+            else:
+                (questions.dismiss(product, "owner-alex", question_id) if dismiss else questions.answer(product, "owner-alex", question_id, "Detailed"))
             with product.transaction() as db:
                 continuation_id = db.get(QuestionRequest, question_id).continuation_request_id
             await product.execute_request(continuation_id)

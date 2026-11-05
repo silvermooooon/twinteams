@@ -2,22 +2,24 @@
 
 When a task needs an ordinary decision, the Duet uses `ask_question` with one
 clear question and two or three actionable alternatives where they are known.
-For missing information, it can ask an open-ended question without suggestions. A real question message and card appear in its owner's private chat,
-with a link to the originating conversation. An owner can select a suggestion
-directly or choose **Write my own answer**. Without suggestions, the text field
-is visible immediately.
+For missing information, it can ask an open-ended question without suggestions.
+A real question message and card appear in its owner's private chat, with a link
+to the originating conversation. An owner can select a suggestion directly or
+reply in the main chat composer. Open-ended and custom answers use that same
+composer; ordinary cards have no separate answer field.
 This is task input, not action approval or secret entry. Credentials continue
 to use their dedicated form.
 
 The tool returns immediately. Twins and subagents can continue independent
-authorized work and yield; no worker waits for the owner. Answer the card or
-send a human message explicitly replying to that question. Unquoted messages
-remain new requests. When a fresh owner message clearly answers a pending
-question, the Twin may associate its message ID using `answer_question`; the
+authorized work and yield; no worker waits for the owner. Quoting a question
+explicitly associates a composer answer, but a quote is not required. Unquoted
+messages start as new requests. When a fresh owner message clearly answers a
+pending question, the Twin may associate its message ID using `answer_question`; the
 server records the owner's actual text verbatim. It rejects stale messages,
 someone else's message, an unrelated existing quote or a message already used
 for another question. It never infers an answer from model-supplied text or
-silently consumes a new task because only one question is pending.
+silently consumes a new task because only one question is pending. The original
+task resumes separately; the associating turn must not duplicate its work.
 
 One durable continuation returns the answer to the original task. Main Twins
 retain their own SDK conversation; subagents resume their actual SDK session

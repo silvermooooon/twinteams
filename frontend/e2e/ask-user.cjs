@@ -1,6 +1,6 @@
 /** Actual SDK questions, canonical cards and real answer/resume APIs. Provider
  * choices are deterministic offline fixtures; business responses are not mocked. */
-const { assert, api, login, logout, questionAnswerInput, poll, privateChat, chooseChat, sendMessage } = require('./helpers.cjs');
+const { assert, api, login, logout, answerQuestionInChat, poll, privateChat, chooseChat, sendMessage } = require('./helpers.cjs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 function fixture(role = 'inspect', extra = []) {
@@ -55,8 +55,8 @@ const cases = [
       assert.equal(await composer.evaluate(element => element === document.activeElement), true, 'incoming question does not steal focus');
       assert.equal(await page.getByRole('button', { name: 'Send message', exact: true }).isEnabled(), true, 'normal composer remains usable');
       assert.equal(await page.locator('[aria-modal="true"]').count(), 0);
-      assert.equal(await active.getByRole('textbox').count(), 0, 'suggestions are offered before free text');
-      await (await questionAnswerInput(active)).fill('Unsent answer draft');
+      assert.equal(await active.getByRole('textbox').count(), 0, 'question cards never add a second input');
+      assert.equal(await active.getByRole('button', { name: 'Write my own answer', exact: true }).count(), 0);
       await second.page.reload();
       await card(second.page, value.id).waitFor();
       await card(second.page, value.id).getByRole('button', { name: value.options[0], exact: true }).click();
@@ -79,28 +79,34 @@ const cases = [
       const openQuestion = await question(page, inbox, openLabel);
       const openCard = card(page, openQuestion.id);
       assert.deepEqual(openQuestion.options, []);
-      await openCard.getByRole('textbox', { name: 'Your answer', exact: true }).fill('After the code freeze');
-      await openCard.getByRole('button', { name: 'Send answer', exact: true }).click();
+      await openCard.waitFor();
+      assert.equal(await openCard.getByRole('textbox').count(), 0, 'open questions use the main composer');
+      await openCard.getByText('Reply in chat.', { exact: true }).waitFor();
+      const answerText = 'E2E ANSWER ' + openLabel;
+      await sendMessage(page, answerText);
+      const openAnswered = await question(page, inbox, openLabel, 'answered');
+      const ownerInput = (await detail(page, inbox.id)).messages.find(message => message.id === openAnswered.answer_message_id);
+      assert.equal(ownerInput.body, answerText); assert.equal(ownerInput.reply_to, undefined, 'the owner answered without a quote');
       await openCard.getByText('Answered', { exact: true }).waitFor();
-      t.record('choice', { openEndedAnswerShownImmediately: true, questionId: value.id, canonicalMessageId: value.message_id, ownerAnswerMessageId: answered.answer_message_id, continuationId: continuation.id, exactReplay: true, conflictStatus: conflict.status(), focusPreserved: true, modelMode: 'deterministic-offline' });
+      await resumed(page, inbox, openQuestion);
+      assert.ok(fixture().tools.some(tool => tool.name === 'answer_question' && tool.success && tool.arguments.question_id === openQuestion.id && tool.arguments.message_id === openAnswered.answer_message_id), 'the actual SDK tool associates the unquoted owner input');
+      t.record('choice', { openQuestionUsesMainComposer: true, noSecondInput: true, unquotedAnswerUsesRealTool: true, openQuestionId: openQuestion.id, openAnswerMessageId: openAnswered.answer_message_id, questionId: value.id, canonicalMessageId: value.message_id, ownerAnswerMessageId: answered.answer_message_id, continuationId: continuation.id, exactReplay: true, conflictStatus: conflict.status(), focusPreserved: true, modelMode: 'deterministic-offline' });
     },
   },
   {
     name: 'questions / multiline free text, conversational reply, dismissal and account isolation use canonical state',
     run: async t => {
       const { page } = await t.session(); const inbox = await privateChat(page);
-      const label = t.unique('free'), value = await create(page, inbox, label), text = '  First line ' + label + '\nSecond line: keep this verbatim.  ';
-      await (await questionAnswerInput(card(page, value.id))).fill(text);
-      await card(page, value.id).getByRole('button', { name: 'Send answer', exact: true }).click();
+      const label = t.unique('free'), value = await create(page, inbox, label), text = 'First line ' + label + '\nSecond line: keep this verbatim.';
+      await answerQuestionInChat(page, value, text);
       const answered = await question(page, inbox, label, 'answered'); assert.equal(answered.answer, text);
       await card(page, value.id).getByText('Answered', { exact: true }).waitFor();
       assert.equal(await card(page, value.id).locator('.ask-user-saved-answer p').textContent(), text);
       await resumed(page, inbox, value);
       const naturalLabel = t.unique('reply'), natural = await create(page, inbox, naturalLabel);
-      const row = page.locator(`article[data-message-id="${natural.message_id}"]`); await card(page, natural.id).waitFor();
-      await row.getByTitle('Reply', { exact: true }).click();
+      await card(page, natural.id).waitFor();
       const naturalAnswer = 'Please use the later date ' + naturalLabel;
-      await sendMessage(page, naturalAnswer);
+      await answerQuestionInChat(page, natural, naturalAnswer);
       const replied = await question(page, inbox, naturalLabel, 'answered'); assert.equal(replied.answer, naturalAnswer);
       assert.ok((await detail(page, inbox.id)).messages.some(message => message.id === replied.answer_message_id && message.reply_to?.id === natural.message_id));
       await resumed(page, inbox, natural);
@@ -116,16 +122,17 @@ const cases = [
       await card(page, dismissed.id).getByText('Dismissed', { exact: true }).waitFor();
       await page.reload(); await card(page, dismissed.id).getByText('Dismissed', { exact: true }).waitFor();
       const privateLabel = t.unique('private'), privateQuestion = await create(page, inbox, privateLabel);
-      await (await questionAnswerInput(card(page, privateQuestion.id))).fill('Owner-only unsent draft');
+      await page.locator('.composer textarea').fill('Owner-only unsent draft');
       const other = await t.session('DEV-BBB', { baseURL: t.secondaryURL });
       const denied = await other.page.request.post(new URL('/api/questions/' + privateQuestion.id + '/answer', other.page.url()).href, { data: { answer: 'Foreign answer' } });
       assert.equal(denied.status(), 404);
       await logout(page); await login(page, 'DEV-BBB'); await privateChat(page);
       assert.equal(await card(page, privateQuestion.id).count(), 0);
       assert.equal(await page.getByRole('textbox', { name: 'Your answer', exact: true }).count(), 0);
+      assert.equal(await page.locator('.composer textarea').inputValue(), '', 'account switching clears the private draft');
       await logout(page); await login(page, 'DEV-AAA'); await privateChat(page);
       await card(page, privateQuestion.id).waitFor();
-      assert.equal(await (await questionAnswerInput(card(page, privateQuestion.id))).inputValue(), '', 'account switching clears unsent question input');
+      assert.equal(await page.locator('.composer textarea').inputValue(), '', 'account switching clears the private draft');
       await page.screenshot({ path: path.join(t.artifactDir, 'question-pending.png'), fullPage: true });
       await card(page, privateQuestion.id).getByRole('button', { name: 'Dismiss question', exact: true }).click();
       await question(page, inbox, privateLabel, 'cancelled');
@@ -170,7 +177,7 @@ const cases = [
     },
   },
   {
-    name: 'questions / older-page question keeps its answer draft and focus during canonical history reauthorization',
+    name: 'questions / older-page question keeps the main composer draft and focus during canonical history reauthorization',
     run: async t => {
       const { page } = await t.session(); const inbox = await privateChat(page), label = t.unique('history'), value = await create(page, inbox, label);
       const seeded = fixture('question-history', ['--question-id', value.id]);
@@ -178,7 +185,8 @@ const cases = [
       await page.reload(); await page.getByRole('button', { name: 'Load earlier messages', exact: true }).waitFor();
       assert.equal(await card(page, value.id).count(), 0, 'question starts outside the latest page');
       await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click(); await card(page, value.id).waitFor();
-      const input = await questionAnswerInput(card(page, value.id)); const draft = 'Earlier question draft ' + label; await input.fill(draft);
+      assert.equal(await card(page, value.id).getByRole('textbox').count(), 0);
+      const input = page.locator('.composer textarea'); const draft = 'Earlier question draft ' + label; await input.fill(draft);
       await input.evaluate(element => { window.__questionHistoryProbe = { element, disconnected: false }; const observer = new MutationObserver(() => { if (!element.isConnected) window.__questionHistoryProbe.disconnected = true; }); observer.observe(document.body, { childList: true, subtree: true }); window.__questionHistoryProbe.observer = observer; });
       const loads = [];
       page.on('requestfinished', request => { const url = new URL(request.url()); if (request.method() === 'GET' && url.pathname === '/api/chats/' + inbox.id && url.searchParams.has('before_seq')) loads.push(url.pathname + url.search); });

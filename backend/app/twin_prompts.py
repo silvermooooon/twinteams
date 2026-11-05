@@ -251,7 +251,7 @@ def conversation_system(context, *, worker=False):
         + "Current request references: " + safe_text(request_metadata) + "\n"
         + ("Other active tasks and workers (status only; do not duplicate their work): "
            + safe_text(context["active_requests"]) + "\n" if context.get("active_requests") else "")
-        + ("Pending owner questions (associate a fresh owner answer only when clear; unrelated input stays a new task): " + safe_text(context["pending_questions"]) + "\n" if context.get("pending_questions") else "")
+        + ("Pending owner questions (the owner can answer directly in chat without quoting; use answer_question only for a clear match. The original task then resumes separately: do not duplicate its work here. Unrelated or ambiguous input stays a new task): " + safe_text(context["pending_questions"]) + "\n" if context.get("pending_questions") else "")
         + ("Current server time (UTC): " + safe_text(context["current_time"]) + "\n"
            if context.get("current_time") else "")
         + ("Owner timezone for interpreting schedules: " + safe_text(context["schedule_timezone"]) + "\n"
