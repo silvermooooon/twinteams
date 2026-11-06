@@ -9,3 +9,10 @@ for (const weight of ["400", "500", "600", "700"]) {
     display: "block",
   });
 }
+
+void loadFont({
+  family: "Noto Sans SC",
+  url: staticFile("fonts/NotoSansSC.ttf"),
+  weight: "400",
+  display: "block",
+});

@@ -5,14 +5,20 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import narration from "../public/voiceover/manifest.json";
+import englishNarration from "../public/voiceover/manifest.json";
+import chineseNarration from "../public/voiceover-zh-CN/manifest.json";
 import { FilmVisuals } from "./Film";
 
-type FilmProps = { subtitles: boolean; ambience: boolean };
+type FilmProps = {
+  subtitles: boolean;
+  ambience: boolean;
+  language: "en" | "zh-CN";
+};
 
-const EnglishSubtitles = () => {
+const FilmSubtitles = ({ language }: Pick<FilmProps, "language">) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const narration = language === "zh-CN" ? chineseNarration : englishNarration;
   const cue = narration.cues.find(
     (item) =>
       frame >= Math.round(item.start * fps) &&
@@ -28,7 +34,10 @@ const EnglishSubtitles = () => {
         right: 130,
         display: "flex",
         justifyContent: "center",
-        fontFamily: "Inter, sans-serif",
+        fontFamily:
+          language === "zh-CN"
+            ? '"Noto Sans SC", sans-serif'
+            : "Inter, sans-serif",
       }}
     >
       <div
@@ -49,8 +58,13 @@ const EnglishSubtitles = () => {
   );
 };
 
-export const FilmComposition = ({ subtitles, ambience }: FilmProps) => {
+export const FilmComposition = ({
+  subtitles,
+  ambience,
+  language,
+}: FilmProps) => {
   const { fps } = useVideoConfig();
+  const narration = language === "zh-CN" ? chineseNarration : englishNarration;
   return (
     <AbsoluteFill>
       <FilmVisuals />
@@ -72,7 +86,7 @@ export const FilmComposition = ({ subtitles, ambience }: FilmProps) => {
           volume={0.65}
         />
       )}
-      {subtitles && <EnglishSubtitles />}
+      {subtitles && <FilmSubtitles language={language} />}
     </AbsoluteFill>
   );
 };

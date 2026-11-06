@@ -17,10 +17,13 @@ def main():
     parser.add_argument("--video", type=Path)
     parser.add_argument("--width", type=int, default=1920)
     parser.add_argument("--height", type=int, default=1080)
+    parser.add_argument("--language", choices=("en", "zh-CN"), default="en")
     args = parser.parse_args()
-    source = json.loads((ROOT / "script/narration.json").read_text())
-    manifest = json.loads((ROOT / "public/voiceover/manifest.json").read_text())
-    report = verify_narration(source, manifest)
+    suffix = "" if args.language == "en" else ".zh-CN"
+    directory = ROOT / "public" / ("voiceover" if args.language == "en" else "voiceover-zh-CN")
+    source = json.loads((ROOT / f"script/narration{suffix}.json").read_text())
+    manifest = json.loads((directory / "manifest.json").read_text())
+    report = verify_narration(source, manifest, directory / f"duet.{args.language}.srt", args.language)
     if args.video:
         report["video"] = verify_video(args.video, source, manifest, args.width, args.height)
     else:
@@ -28,14 +31,24 @@ def main():
     print(json.dumps(report, indent=2))
 
 
-def verify_narration(source, manifest):
+def verify_narration(source, manifest, srt_path, language):
     assert manifest["duration"] == source["duration"]
     assert manifest["fps"] == source["fps"]
     expected = [(i, line) for i, c in enumerate(source["chapters"]) for line in c["lines"]]
     cues = manifest["cues"]
     assert [(c["chapter"], c["text"]) for c in cues] == expected, "Narration differs from source"
     assert len({c["id"] for c in cues}) == len(cues), "Duplicate cue IDs"
-    srt = (ROOT / "public/voiceover/duet.en.srt").read_text().strip().split("\n\n")
+    if language == "zh-CN":
+        english = json.loads((ROOT / "public/voiceover/manifest.json").read_text())
+        english_source = json.loads((ROOT / "script/narration.json").read_text())
+        assert (source["duration"], source["fps"]) == (english["duration"], english["fps"]), "Review timeline differs from English final"
+        assert [(c["id"], c["start"], c["end"]) for c in source["chapters"]] == [
+            (c["id"], c["start"], c["end"]) for c in english_source["chapters"]
+        ], "Review chapter windows differ from English final"
+        assert [(c["id"], c["chapter"], c["start"]) for c in cues] == [
+            (c["id"], c["chapter"], c["start"]) for c in english["cues"]
+        ], "Review cue IDs, chapters or start times differ from English final"
+    srt = srt_path.read_text().strip().split("\n\n")
     assert len(srt) == len(cues), "Subtitle count differs from narration"
     previous_end = 0
     speech_seconds = 0
@@ -53,10 +66,12 @@ def verify_narration(source, manifest):
         start_text, end_text = lines[1].split(" --> ")
         assert abs(srt_seconds(start_text) - cue["start"]) <= 0.001
         assert abs(srt_seconds(end_text) - end) <= 0.001
-        assert " ".join(" ".join(lines[2:]).split()) == " ".join(cue["text"].split()), f"Subtitle wording differs: {cue['id']}"
+        separator = "" if language == "zh-CN" else " "
+        assert separator.join(" ".join(lines[2:]).split()) == separator.join(cue["text"].split()), f"Subtitle wording differs: {cue['id']}"
         previous_end = end
         speech_seconds += measured
     return {
+        "language": language,
         "narration": "verified against source, measured audio and SRT",
         "cue_count": len(cues),
         "speech_seconds": round(speech_seconds, 3),

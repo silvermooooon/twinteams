@@ -1,6 +1,8 @@
 # Duet — The AI-Native Business Loop
 
-A four-minute, English-narrated product film with English subtitles. React and
+A four-minute product film. **The final release uses English narration and English
+subtitles.** A separate Mandarin-narrated version with Simplified Chinese subtitles
+is for the owner's personal review. React and
 TypeScript are rendered by Remotion at **1920 × 1080, 30 fps, 7,200 frames**.
 This standalone media project does not connect to the running product, its
 database, or private conversations.
@@ -33,6 +35,18 @@ npm run render:final
 The outputs are `out/duet-preview-540p.mp4` and
 `out/duet-business-loop-1080p.mp4`. Render settings live in `package.json`.
 
+For the Chinese review version, select **DuetBusinessLoopZhReview** in Studio or run:
+
+```sh
+python3 scripts/generate-narration.py --language zh-CN
+npm run render:review:zh
+```
+
+Both versions share the same four-minute visuals, English scene labels and cue
+start times, so review comments refer to the same moments. Only the review
+narration and subtitles are Chinese. Generating or rendering the review version
+does not overwrite the English audio, subtitles or final MP4.
+
 Inspect the first, middle and last frames, plus every scene transition:
 
 ```sh
@@ -48,7 +62,8 @@ share the exported MP4 separately.
 
 | Change | Source |
 | --- | --- |
-| Spoken wording and matching subtitle text | `script/narration.json` |
+| English final wording and subtitle text | `script/narration.json` |
+| Chinese review wording and subtitle text | `script/narration.zh-CN.json` |
 | Scene copy, diagrams, cards and animation | `src/Film.tsx` |
 | Colours, typography and chapter timing | `src/theme.ts`, `src/film.css` |
 | Dimensions, frame rate and total frames | `src/Root.tsx` |
@@ -64,11 +79,17 @@ python3 scripts/generate-narration.py
 ```
 
 Generation requires macOS `say`, FFmpeg and FFprobe. The installed **Daniel**
-British-English synthetic voice is used; no cloned voice or paid voice service.
+British-English synthetic voice is used for the final, and **Tingting** Mandarin
+for the review version; no cloned voice or paid voice service.
 Choose an installed replacement with `--voice NAME`, or speaking speed with
 `--rate NUMBER`. The checked-in audio renders on other platforms. See
 [audio provenance](script/AUDIO.md). Do not hand-edit generated clips, the
 manifest or SRT; regenerate their measured timing together.
+
+Chinese assets are separate in `public/voiceover-zh-CN/`, including
+`duet.zh-CN.srt`. After changing English cue timing, regenerate the English assets
+first, then the Chinese review assets. Chinese speech must fit the corresponding
+English cue slots; the generator rejects overlaps rather than truncating speech.
 
 | Time | Chapter |
 | --- | --- |
@@ -80,8 +101,8 @@ manifest or SRT; regenerate their measured timing together.
 | 2:55–3:35 | Learning through experience |
 | 3:35–4:00 | An AI-native organisation |
 
-For a duration change, update chapter windows in both `src/theme.ts` and
-`script/narration.json`, scene beat timings in `src/Film.tsx`, and composition
+For a duration change, update chapter windows in `src/theme.ts` and
+both narration source files, scene beat timings in `src/Film.tsx`, and composition
 `durationInFrames` in `src/Root.tsx`. At 30 fps, one second is 30 frames.
 Regenerate narration and, if the length changes, run
 `python3 scripts/generate-ambience.py` to regenerate the score too. Inspect
@@ -94,6 +115,7 @@ silently cutting it off. Keep the subtitle area clear.
 python3 scripts/verify-delivery.py
 python3 scripts/verify-delivery.py --video out/duet-preview-540p.mp4 --width 960 --height 540
 python3 scripts/verify-delivery.py --video out/duet-business-loop-1080p.mp4
+python3 scripts/verify-delivery.py --language zh-CN --video out/duet-business-loop-zh-review-1080p.mp4
 ```
 
 The verifier checks source/cue/SRT consistency, measured audio, encoded dimensions,
@@ -102,6 +124,8 @@ spoken windows are louder than the quiet ambient score; this detects missing
 narration without claiming speech recognition. It does not judge visual quality. Inspect text,
 subtitles, clipping, transitions, first/last frames and percentage labels in the
 exported preview. Watch with sound to check pronunciation and scene alignment.
+Chinese checks also require matching English cue IDs, chapter windows and start
+times, while measuring the Chinese clips and subtitles independently.
 
 ## Scope and sources
 
@@ -114,7 +138,10 @@ exported preview. Watch with sound to check pronunciation and scene alignment.
 - Diagrams and UI illustrations are authored for this film. The Duet mark comes
   from `frontend/public/assets/duet-symbol.svg` in the parent product repository.
 - Inter fonts are bundled from `@fontsource/inter`; see their included
-  [license](public/fonts/LICENSE.txt). No paid visual assets were downloaded.
+  [license](public/fonts/LICENSE.txt). Chinese subtitles use bundled Noto Sans SC
+  from the official [Google Fonts repository](https://github.com/google/fonts/tree/main/ofl/notosanssc);
+  see its [license](public/fonts/NotoSansSC-LICENSE.txt). No system Chinese font is
+  required, and no paid visual assets were downloaded.
 - Prepared using the [official Remotion Agent Skills](https://www.remotion.dev/docs/ai/skills).
   Remotion retains its own [licensing terms](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
 - Visual reference: [HSBC creative principles](https://create.hsbc/external/newsfeed/why-creative-direction-matters.html).
