@@ -1,6 +1,6 @@
-# English narration and subtitles
+# Narration and subtitles
 
-The film uses **Daniel**, the installed macOS British-English synthetic voice,
+The final English film uses **Daniel**, the installed macOS British-English synthetic voice,
 at 148 words per minute. It is a local system narrator, not a recorded person or a
 cloned voice. No credentials, paid voice service or downloaded media were used.
 
@@ -35,6 +35,29 @@ and -2 dB true peak. There are no network dependencies at playback or render tim
 
 To use a different voice provider later, regenerate the clips and their measured
 manifest and SRT; do not change subtitle timings independently of the audio.
+
+## Chinese review version
+
+The separate Chinese review version uses the installed **Tingting** Mandarin
+synthetic voice at a `say` rate of 170. Its editable source is
+`narration.zh-CN.json`; regenerate it with:
+
+```sh
+python3 scripts/generate-narration.py --language zh-CN
+```
+
+Its clips, manifest, timing report and `duet.zh-CN.srt` are generated in
+`public/voiceover-zh-CN/`. The 49 cue starts match the English manifest exactly,
+so both versions follow the same four-minute picture edit. Chinese subtitles end
+with their own measured speech. Generation rejects a line that overruns the next
+cue or chapter; it does not cut or time-stretch the recording. If English cue
+timing changes, regenerate the Chinese version afterwards.
+
+The Mandarin script translates the English narration for personal review. The
+English version remains the final presentation version. Both use the same local
+ambient score, and generating Chinese assets does not rewrite English assets.
+
+## Ambient score
 
 The quiet optional ambience is generated from sine waves and a slow amplitude
 envelope. It contains no recording, licensed sample, borrowed tune or external

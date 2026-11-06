@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate local English narration and measured subtitles from the editable script."""
+"""Generate local narration and measured subtitles from the editable script."""
 
 import argparse
 import json
@@ -16,14 +16,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--language", choices=("en", "zh-CN"), default="en")
     parser.add_argument("--voice", help="An installed macOS say voice, e.g. Daniel")
     parser.add_argument("--rate", type=int, help="Narrator words per minute")
     args = parser.parse_args()
-    source = json.loads((ROOT / "script/narration.json").read_text())
+    suffix = "" if args.language == "en" else ".zh-CN"
+    source = json.loads((ROOT / f"script/narration{suffix}.json").read_text())
+    reference = None if args.language == "en" else json.loads(
+        (ROOT / "public/voiceover/manifest.json").read_text()
+    )
     voice = args.voice or source["voice"]
     rate = args.rate or source["rate"]
-    validate(source, rate)
-    output = ROOT / "public/voiceover"
+    validate(source, rate, reference)
+    audio_directory = "voiceover" if args.language == "en" else "voiceover-zh-CN"
+    output = ROOT / "public" / audio_directory
     output.mkdir(parents=True, exist_ok=True)
     cues, chapter_reports = [], []
     index = 0
@@ -53,7 +59,7 @@ def main():
                     "start": 0,
                     "duration": audio_duration(audio),
                     "text": line,
-                    "audio": f"voiceover/{cue_id}.mp3",
+                    "audio": f"{audio_directory}/{cue_id}.mp3",
                 })
             speech_seconds = sum(c["duration"] for c in chapter_cues)
             available = chapter["end"] - chapter["start"]
@@ -61,7 +67,7 @@ def main():
             trailing_pause = 1.2 if chapter_index == len(source["chapters"]) - 1 else 0.8
             between = len(chapter_cues) - 1
             free = available - speech_seconds - leading_pause - trailing_pause
-            if free < between * 0.2:
+            if reference is None and free < between * 0.2:
                 raise ValueError(
                     f"Chapter {chapter['id']} does not fit its {available}s window: "
                     f"{speech_seconds:.3f}s speech. Shorten its lines or increase --rate."
@@ -69,39 +75,53 @@ def main():
             gap = min(1.25, free / between) if between else 0
             current = chapter["start"] + leading_pause
             for cue in chapter_cues:
-                cue["start"] = round(current, 3)
-                current += cue["duration"] + gap
+                if reference is None:
+                    cue["start"] = round(current, 3)
+                    current += cue["duration"] + gap
+                else:
+                    position = int(cue["id"]) - 1
+                    cue["start"] = reference["cues"][position]["start"]
+                    next_start = reference["cues"][position + 1]["start"] if position + 1 < len(reference["cues"]) else source["duration"]
+                    latest_end = min(next_start - 0.15, chapter["end"] - trailing_pause)
+                    if cue["start"] + cue["duration"] > latest_end:
+                        raise ValueError(
+                            f"Cue {cue['id']} needs {cue['duration']:.3f}s but its English-aligned "
+                            f"window has {latest_end - cue['start']:.3f}s. Shorten the line or increase --rate."
+                        )
                 cues.append(cue)
             chapter_reports.append({
                 "chapter": chapter_index,
                 "id": chapter["id"],
                 "window": [chapter["start"], chapter["end"]],
                 "speech_seconds": round(speech_seconds, 3),
-                "gap_seconds": round(gap, 3),
-                "last_audio_end": round(current - gap, 3),
+                "gap_seconds": round(gap, 3) if reference is None else "aligned to English cue starts",
+                "last_audio_end": round(chapter_cues[-1]["start"] + chapter_cues[-1]["duration"], 3),
             })
-            print(f"{chapter['id']}: {speech_seconds:.2f}s speech, {gap:.2f}s gaps", flush=True)
+            timing = f"{gap:.2f}s gaps" if reference is None else "English-aligned cue starts"
+            print(f"{chapter['id']}: {speech_seconds:.2f}s speech, {timing}", flush=True)
     manifest = {
         "duration": source["duration"],
         "fps": source["fps"],
-        "voice": f"macOS {voice} (en_GB), {rate} words per minute",
+        "voice": f"macOS {voice} ({source.get('locale', 'en_GB')}), {rate} words per minute",
         "cues": cues,
     }
-    (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (output / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
     srt = []
     for i, cue in enumerate(cues, 1):
         srt.append(
             f"{i}\n{srt_time(cue['start'])} --> {srt_time(cue['start'] + cue['duration'])}\n"
             + "\n".join(textwrap.wrap(cue["text"], width=49)) + "\n"
         )
-    (output / "duet.en.srt").write_text("\n".join(srt))
+    (output / f"duet.{args.language}.srt").write_text("\n".join(srt))
     report = {
         "generated_by": "scripts/generate-narration.py",
         "engine": "macOS /usr/bin/say",
         "voice": voice,
         "rate": rate,
         "audio": "MP3, mono, 48 kHz, 160 kbit/s; loudnorm target -18 LUFS / -2 dBTP",
-        "word_count": sum(len(c["text"].split()) for c in cues),
+        "word_count" if reference is None else "character_count": sum(
+            len(c["text"].split()) if reference is None else len(c["text"]) for c in cues
+        ),
         "cue_count": len(cues),
         "chapters": chapter_reports,
         "last_audio_end": round(cues[-1]["start"] + cues[-1]["duration"], 3),
@@ -110,7 +130,7 @@ def main():
     print(json.dumps({"cues": len(cues), "last_audio_end": report["last_audio_end"]}))
 
 
-def validate(source, rate):
+def validate(source, rate, reference):
     for command in ("say", "ffmpeg", "ffprobe"):
         if not shutil.which(command):
             raise SystemExit(f"Required command not found: {command}")
@@ -120,11 +140,16 @@ def validate(source, rate):
     for chapter in source["chapters"]:
         if chapter["start"] != previous_end or chapter["end"] <= chapter["start"]:
             raise ValueError("Chapter windows must be positive and adjacent")
-        if not chapter["lines"] or any(not 20 <= len(line) <= 100 for line in chapter["lines"]):
-            raise ValueError("Each subtitle cue must contain 20–100 characters")
+        minimum = 8 if reference else 20
+        if not chapter["lines"] or any(not minimum <= len(line) <= 100 for line in chapter["lines"]):
+            raise ValueError(f"Each subtitle cue must contain {minimum}–100 characters")
         previous_end = chapter["end"]
     if previous_end != source["duration"]:
         raise ValueError("Chapter windows must match the film duration")
+    if reference:
+        expected = [i for i, chapter in enumerate(source["chapters"]) for _ in chapter["lines"]]
+        if [cue["chapter"] for cue in reference["cues"]] != expected:
+            raise ValueError("Chinese and English narration must have matching chapter/cue counts")
 
 
 def audio_duration(path):

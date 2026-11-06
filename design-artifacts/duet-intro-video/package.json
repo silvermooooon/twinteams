@@ -36,7 +36,9 @@
     "lint": "eslint src && tsc",
     "render:preview": "remotion render src/index.ts DuetBusinessLoop out/duet-preview-540p.mp4 --scale=0.5 --codec=h264 --crf=25 --concurrency=4",
     "render:final": "remotion render src/index.ts DuetBusinessLoop out/duet-business-loop-1080p.mp4 --codec=h264 --crf=18 --concurrency=4",
-    "narration": "python3 scripts/generate-narration.py"
+    "narration": "python3 scripts/generate-narration.py",
+    "narration:zh": "python3 scripts/generate-narration.py --language zh-CN",
+    "render:review:zh": "remotion render src/index.ts DuetBusinessLoopZhReview out/duet-business-loop-zh-review-1080p.mp4 --codec=h264 --crf=18 --concurrency=4"
   },
   "allowScripts": {
     "esbuild": false

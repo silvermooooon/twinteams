@@ -1,0 +1,89 @@
+{
+  "generated_by": "scripts/generate-narration.py",
+  "engine": "macOS /usr/bin/say",
+  "voice": "Tingting",
+  "rate": 170,
+  "audio": "MP3, mono, 48 kHz, 160 kbit/s; loudnorm target -18 LUFS / -2 dBTP",
+  "character_count": 877,
+  "cue_count": 49,
+  "chapters": [
+    {
+      "chapter": 0,
+      "id": "business-loop",
+      "window": [
+        0,
+        25
+      ],
+      "speech_seconds": 19.008,
+      "gap_seconds": "aligned to English cue starts",
+      "last_audio_end": 23.672
+    },
+    {
+      "chapter": 1,
+      "id": "personal-duet",
+      "window": [
+        25,
+        55
+      ],
+      "speech_seconds": 23.184,
+      "gap_seconds": "aligned to English cue starts",
+      "last_audio_end": 53.84
+    },
+    {
+      "chapter": 2,
+      "id": "signal-to-story",
+      "window": [
+        55,
+        95
+      ],
+      "speech_seconds": 30.096,
+      "gap_seconds": "aligned to English cue starts",
+      "last_audio_end": 92.568
+    },
+    {
+      "chapter": 3,
+      "id": "message-center",
+      "window": [
+        95,
+        125
+      ],
+      "speech_seconds": 22.056,
+      "gap_seconds": "aligned to English cue starts",
+      "last_audio_end": 123.288
+    },
+    {
+      "chapter": 4,
+      "id": "delivery-loop",
+      "window": [
+        125,
+        175
+      ],
+      "speech_seconds": 39.696,
+      "gap_seconds": "aligned to English cue starts",
+      "last_audio_end": 173.744
+    },
+    {
+      "chapter": 5,
+      "id": "growing-partnership",
+      "window": [
+        175,
+        215
+      ],
+      "speech_seconds": 30.816,
+      "gap_seconds": "aligned to English cue starts",
+      "last_audio_end": 213.6
+    },
+    {
+      "chapter": 6,
+      "id": "ai-native-organisation",
+      "window": [
+        215,
+        240
+      ],
+      "speech_seconds": 17.04,
+      "gap_seconds": "aligned to English cue starts",
+      "last_audio_end": 237.888
+    }
+  ],
+  "last_audio_end": 237.888
+}
