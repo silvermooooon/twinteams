@@ -1,0 +1,114 @@
+{
+  "title": "Duet — The AI-Native Business Loop",
+  "duration": 240,
+  "fps": 30,
+  "voice": "Daniel",
+  "rate": 148,
+  "chapters": [
+    {
+      "id": "business-loop",
+      "title": "The loop already exists",
+      "start": 0,
+      "end": 25,
+      "lines": [
+        "Every business moves through a loop of people, decisions, and learning.",
+        "A signal arrives from a customer, a market, or an operational team.",
+        "Someone turns it into a question worth answering.",
+        "Others shape a plan, deliver a change, and examine the outcome.",
+        "What they learn becomes the starting point for the next cycle."
+      ]
+    },
+    {
+      "id": "personal-duet",
+      "title": "A Duet for every person",
+      "start": 25,
+      "end": 55,
+      "lines": [
+        "Now imagine a Duet beside every person in that loop.",
+        "In our fictional example, customers find the next card activation step unclear.",
+        "A researcher asks their Duet to review the feedback.",
+        "It organises evidence, asks focused questions, and prepares a working summary.",
+        "The researcher brings judgment. Duet brings help that stays with the work.",
+        "Each colleague has their own Duet, with their own context."
+      ]
+    },
+    {
+      "id": "signal-to-story",
+      "title": "From signal to a decision",
+      "start": 55,
+      "end": 95,
+      "lines": [
+        "The researcher shares the finding with the business analysis team.",
+        "Together, the analyst and their Duet turn it into a clear user story.",
+        "Make the next activation step easy to understand.",
+        "They refine the scope, the customer journey, and the acceptance criteria.",
+        "The document evolves through conversation, review, and correction.",
+        "The business owner considers value, dependencies, and available capacity.",
+        "They decide what to take forward, and what to leave for later.",
+        "Duet keeps the decision, supporting material, and next action connected."
+      ]
+    },
+    {
+      "id": "message-center",
+      "title": "Make the handoff explicit",
+      "start": 95,
+      "end": 125,
+      "lines": [
+        "Message Center makes that handoff explicit.",
+        "The analyst's Duet publishes the agreed story to the selected audience.",
+        "One message carries its source, its files, and its delivery status.",
+        "The receiving Duets bring relevant updates to their owners.",
+        "Questions and feedback travel back, so the conversation can continue.",
+        "It connects information to people, and people to the next step."
+      ]
+    },
+    {
+      "id": "delivery-loop",
+      "title": "Connect the whole cycle",
+      "start": 125,
+      "end": 175,
+      "lines": [
+        "The Scrum Master's Duet brings the requirements together and highlights dependencies.",
+        "Through approved channels, it consults the developers' Duets.",
+        "Each person confirms the scope and commitments that belong to them.",
+        "Complex work can be delegated, with results returned for review.",
+        "Plans, files, and test evidence stay connected to the task.",
+        "People decide whether the outcome meets the agreed acceptance criteria.",
+        "Production integration is a future step, with release decisions kept under human control.",
+        "An update can then be published through Message Center.",
+        "Operational feedback returns to research: where does uncertainty remain?",
+        "The result of one cycle becomes the question for the next."
+      ]
+    },
+    {
+      "id": "growing-partnership",
+      "title": "Grow the partnership",
+      "start": 175,
+      "end": 215,
+      "lines": [
+        "Each cycle can deepen the partnership.",
+        "Corrections, preferences, and project context become reusable memory.",
+        "Duet reviews experience and brings that knowledge into future work.",
+        "Imagine its share of suitable work growing from ten, to fifty, to ninety-five percent.",
+        "An illustrative ambition, not measured performance.",
+        "Progress depends on proven capability and explicit authority.",
+        "People keep key decisions; Duet takes on more routine execution.",
+        "Each cycle begins with greater understanding."
+      ]
+    },
+    {
+      "id": "ai-native-organisation",
+      "title": "A business that keeps learning",
+      "start": 215,
+      "end": 240,
+      "lines": [
+        "Across the organisation, people lead.",
+        "Duets coordinate through approved connections.",
+        "Message Center carries signals and outcomes.",
+        "Every person, a Duet. Every handoff, a connection.",
+        "Every cycle, a better business.",
+        "Duet. A human-led, AI-native organisation."
+      ]
+    }
+  ]
+}

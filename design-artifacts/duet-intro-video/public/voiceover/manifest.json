@@ -1,0 +1,399 @@
+{
+  "duration": 240,
+  "fps": 30,
+  "voice": "macOS Daniel (en_GB), 148 words per minute",
+  "cues": [
+    {
+      "id": "001",
+      "chapter": 0,
+      "start": 1.0,
+      "duration": 4.632,
+      "text": "Every business moves through a loop of people, decisions, and learning.",
+      "audio": "voiceover/001.mp3"
+    },
+    {
+      "id": "002",
+      "chapter": 0,
+      "start": 6.212,
+      "duration": 4.752,
+      "text": "A signal arrives from a customer, a market, or an operational team.",
+      "audio": "voiceover/002.mp3"
+    },
+    {
+      "id": "003",
+      "chapter": 0,
+      "start": 11.544,
+      "duration": 3.168,
+      "text": "Someone turns it into a question worth answering.",
+      "audio": "voiceover/003.mp3"
+    },
+    {
+      "id": "004",
+      "chapter": 0,
+      "start": 15.292,
+      "duration": 4.776,
+      "text": "Others shape a plan, deliver a change, and examine the outcome.",
+      "audio": "voiceover/004.mp3"
+    },
+    {
+      "id": "005",
+      "chapter": 0,
+      "start": 20.648,
+      "duration": 3.552,
+      "text": "What they learn becomes the starting point for the next cycle.",
+      "audio": "voiceover/005.mp3"
+    },
+    {
+      "id": "006",
+      "chapter": 1,
+      "start": 26.0,
+      "duration": 3.288,
+      "text": "Now imagine a Duet beside every person in that loop.",
+      "audio": "voiceover/006.mp3"
+    },
+    {
+      "id": "007",
+      "chapter": 1,
+      "start": 29.629,
+      "duration": 5.712,
+      "text": "In our fictional example, customers find the next card activation step unclear.",
+      "audio": "voiceover/007.mp3"
+    },
+    {
+      "id": "008",
+      "chapter": 1,
+      "start": 35.682,
+      "duration": 3.216,
+      "text": "A researcher asks their Duet to review the feedback.",
+      "audio": "voiceover/008.mp3"
+    },
+    {
+      "id": "009",
+      "chapter": 1,
+      "start": 39.238,
+      "duration": 5.928,
+      "text": "It organises evidence, asks focused questions, and prepares a working summary.",
+      "audio": "voiceover/009.mp3"
+    },
+    {
+      "id": "010",
+      "chapter": 1,
+      "start": 45.507,
+      "duration": 4.656,
+      "text": "The researcher brings judgment. Duet brings help that stays with the work.",
+      "audio": "voiceover/010.mp3"
+    },
+    {
+      "id": "011",
+      "chapter": 1,
+      "start": 50.504,
+      "duration": 3.696,
+      "text": "Each colleague has their own Duet, with their own context.",
+      "audio": "voiceover/011.mp3"
+    },
+    {
+      "id": "012",
+      "chapter": 2,
+      "start": 56.0,
+      "duration": 3.672,
+      "text": "The researcher shares the finding with the business analysis team.",
+      "audio": "voiceover/012.mp3"
+    },
+    {
+      "id": "013",
+      "chapter": 2,
+      "start": 60.045,
+      "duration": 4.272,
+      "text": "Together, the analyst and their Duet turn it into a clear user story.",
+      "audio": "voiceover/013.mp3"
+    },
+    {
+      "id": "014",
+      "chapter": 2,
+      "start": 64.689,
+      "duration": 3.408,
+      "text": "Make the next activation step easy to understand.",
+      "audio": "voiceover/014.mp3"
+    },
+    {
+      "id": "015",
+      "chapter": 2,
+      "start": 68.47,
+      "duration": 5.088,
+      "text": "They refine the scope, the customer journey, and the acceptance criteria.",
+      "audio": "voiceover/015.mp3"
+    },
+    {
+      "id": "016",
+      "chapter": 2,
+      "start": 73.93,
+      "duration": 4.608,
+      "text": "The document evolves through conversation, review, and correction.",
+      "audio": "voiceover/016.mp3"
+    },
+    {
+      "id": "017",
+      "chapter": 2,
+      "start": 78.911,
+      "duration": 5.352,
+      "text": "The business owner considers value, dependencies, and available capacity.",
+      "audio": "voiceover/017.mp3"
+    },
+    {
+      "id": "018",
+      "chapter": 2,
+      "start": 84.635,
+      "duration": 3.768,
+      "text": "They decide what to take forward, and what to leave for later.",
+      "audio": "voiceover/018.mp3"
+    },
+    {
+      "id": "019",
+      "chapter": 2,
+      "start": 88.776,
+      "duration": 5.424,
+      "text": "Duet keeps the decision, supporting material, and next action connected.",
+      "audio": "voiceover/019.mp3"
+    },
+    {
+      "id": "020",
+      "chapter": 3,
+      "start": 96.0,
+      "duration": 2.832,
+      "text": "Message Center makes that handoff explicit.",
+      "audio": "voiceover/020.mp3"
+    },
+    {
+      "id": "021",
+      "chapter": 3,
+      "start": 99.437,
+      "duration": 4.536,
+      "text": "The analyst's Duet publishes the agreed story to the selected audience.",
+      "audio": "voiceover/021.mp3"
+    },
+    {
+      "id": "022",
+      "chapter": 3,
+      "start": 104.578,
+      "duration": 5.304,
+      "text": "One message carries its source, its files, and its delivery status.",
+      "audio": "voiceover/022.mp3"
+    },
+    {
+      "id": "023",
+      "chapter": 3,
+      "start": 110.486,
+      "duration": 3.6,
+      "text": "The receiving Duets bring relevant updates to their owners.",
+      "audio": "voiceover/023.mp3"
+    },
+    {
+      "id": "024",
+      "chapter": 3,
+      "start": 114.691,
+      "duration": 4.8,
+      "text": "Questions and feedback travel back, so the conversation can continue.",
+      "audio": "voiceover/024.mp3"
+    },
+    {
+      "id": "025",
+      "chapter": 3,
+      "start": 120.096,
+      "duration": 4.104,
+      "text": "It connects information to people, and people to the next step.",
+      "audio": "voiceover/025.mp3"
+    },
+    {
+      "id": "026",
+      "chapter": 4,
+      "start": 126.0,
+      "duration": 5.352,
+      "text": "The Scrum Master's Duet brings the requirements together and highlights dependencies.",
+      "audio": "voiceover/026.mp3"
+    },
+    {
+      "id": "027",
+      "chapter": 4,
+      "start": 131.732,
+      "duration": 3.96,
+      "text": "Through approved channels, it consults the developers' Duets.",
+      "audio": "voiceover/027.mp3"
+    },
+    {
+      "id": "028",
+      "chapter": 4,
+      "start": 136.071,
+      "duration": 3.84,
+      "text": "Each person confirms the scope and commitments that belong to them.",
+      "audio": "voiceover/028.mp3"
+    },
+    {
+      "id": "029",
+      "chapter": 4,
+      "start": 140.291,
+      "duration": 4.464,
+      "text": "Complex work can be delegated, with results returned for review.",
+      "audio": "voiceover/029.mp3"
+    },
+    {
+      "id": "030",
+      "chapter": 4,
+      "start": 145.134,
+      "duration": 4.848,
+      "text": "Plans, files, and test evidence stay connected to the task.",
+      "audio": "voiceover/030.mp3"
+    },
+    {
+      "id": "031",
+      "chapter": 4,
+      "start": 150.362,
+      "duration": 4.464,
+      "text": "People decide whether the outcome meets the agreed acceptance criteria.",
+      "audio": "voiceover/031.mp3"
+    },
+    {
+      "id": "032",
+      "chapter": 4,
+      "start": 155.205,
+      "duration": 5.904,
+      "text": "Production integration is a future step, with release decisions kept under human control.",
+      "audio": "voiceover/032.mp3"
+    },
+    {
+      "id": "033",
+      "chapter": 4,
+      "start": 161.489,
+      "duration": 3.144,
+      "text": "An update can then be published through Message Center.",
+      "audio": "voiceover/033.mp3"
+    },
+    {
+      "id": "034",
+      "chapter": 4,
+      "start": 165.012,
+      "duration": 5.136,
+      "text": "Operational feedback returns to research: where does uncertainty remain?",
+      "audio": "voiceover/034.mp3"
+    },
+    {
+      "id": "035",
+      "chapter": 4,
+      "start": 170.528,
+      "duration": 3.672,
+      "text": "The result of one cycle becomes the question for the next.",
+      "audio": "voiceover/035.mp3"
+    },
+    {
+      "id": "036",
+      "chapter": 5,
+      "start": 176.0,
+      "duration": 2.448,
+      "text": "Each cycle can deepen the partnership.",
+      "audio": "voiceover/036.mp3"
+    },
+    {
+      "id": "037",
+      "chapter": 5,
+      "start": 179.081,
+      "duration": 5.592,
+      "text": "Corrections, preferences, and project context become reusable memory.",
+      "audio": "voiceover/037.mp3"
+    },
+    {
+      "id": "038",
+      "chapter": 5,
+      "start": 185.306,
+      "duration": 4.344,
+      "text": "Duet reviews experience and brings that knowledge into future work.",
+      "audio": "voiceover/038.mp3"
+    },
+    {
+      "id": "039",
+      "chapter": 5,
+      "start": 190.283,
+      "duration": 6.048,
+      "text": "Imagine its share of suitable work growing from ten, to fifty, to ninety-five percent.",
+      "audio": "voiceover/039.mp3"
+    },
+    {
+      "id": "040",
+      "chapter": 5,
+      "start": 196.965,
+      "duration": 3.36,
+      "text": "An illustrative ambition, not measured performance.",
+      "audio": "voiceover/040.mp3"
+    },
+    {
+      "id": "041",
+      "chapter": 5,
+      "start": 200.958,
+      "duration": 4.224,
+      "text": "Progress depends on proven capability and explicit authority.",
+      "audio": "voiceover/041.mp3"
+    },
+    {
+      "id": "042",
+      "chapter": 5,
+      "start": 205.815,
+      "duration": 4.8,
+      "text": "People keep key decisions; Duet takes on more routine execution.",
+      "audio": "voiceover/042.mp3"
+    },
+    {
+      "id": "043",
+      "chapter": 5,
+      "start": 211.248,
+      "duration": 2.952,
+      "text": "Each cycle begins with greater understanding.",
+      "audio": "voiceover/043.mp3"
+    },
+    {
+      "id": "044",
+      "chapter": 6,
+      "start": 216.0,
+      "duration": 2.784,
+      "text": "Across the organisation, people lead.",
+      "audio": "voiceover/044.mp3"
+    },
+    {
+      "id": "045",
+      "chapter": 6,
+      "start": 219.509,
+      "duration": 2.952,
+      "text": "Duets coordinate through approved connections.",
+      "audio": "voiceover/045.mp3"
+    },
+    {
+      "id": "046",
+      "chapter": 6,
+      "start": 223.186,
+      "duration": 3.072,
+      "text": "Message Center carries signals and outcomes.",
+      "audio": "voiceover/046.mp3"
+    },
+    {
+      "id": "047",
+      "chapter": 6,
+      "start": 226.982,
+      "duration": 4.296,
+      "text": "Every person, a Duet. Every handoff, a connection.",
+      "audio": "voiceover/047.mp3"
+    },
+    {
+      "id": "048",
+      "chapter": 6,
+      "start": 232.003,
+      "duration": 2.4,
+      "text": "Every cycle, a better business.",
+      "audio": "voiceover/048.mp3"
+    },
+    {
+      "id": "049",
+      "chapter": 6,
+      "start": 235.128,
+      "duration": 3.672,
+      "text": "Duet. A human-led, AI-native organisation.",
+      "audio": "voiceover/049.mp3"
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "generated_by": "scripts/generate-narration.py",
+  "engine": "macOS /usr/bin/say",
+  "voice": "Daniel",
+  "rate": 148,
+  "audio": "MP3, mono, 48 kHz, 160 kbit/s; loudnorm target -18 LUFS / -2 dBTP",
+  "word_count": 460,
+  "cue_count": 49,
+  "chapters": [
+    {
+      "chapter": 0,
+      "id": "business-loop",
+      "window": [
+        0,
+        25
+      ],
+      "speech_seconds": 20.88,
+      "gap_seconds": 0.58,
+      "last_audio_end": 24.2
+    },
+    {
+      "chapter": 1,
+      "id": "personal-duet",
+      "window": [
+        25,
+        55
+      ],
+      "speech_seconds": 26.496,
+      "gap_seconds": 0.341,
+      "last_audio_end": 54.2
+    },
+    {
+      "chapter": 2,
+      "id": "signal-to-story",
+      "window": [
+        55,
+        95
+      ],
+      "speech_seconds": 35.592,
+      "gap_seconds": 0.373,
+      "last_audio_end": 94.2
+    },
+    {
+      "chapter": 3,
+      "id": "message-center",
+      "window": [
+        95,
+        125
+      ],
+      "speech_seconds": 25.176,
+      "gap_seconds": 0.605,
+      "last_audio_end": 124.2
+    },
+    {
+      "chapter": 4,
+      "id": "delivery-loop",
+      "window": [
+        125,
+        175
+      ],
+      "speech_seconds": 44.784,
+      "gap_seconds": 0.38,
+      "last_audio_end": 174.2
+    },
+    {
+      "chapter": 5,
+      "id": "growing-partnership",
+      "window": [
+        175,
+        215
+      ],
+      "speech_seconds": 33.768,
+      "gap_seconds": 0.633,
+      "last_audio_end": 214.2
+    },
+    {
+      "chapter": 6,
+      "id": "ai-native-organisation",
+      "window": [
+        215,
+        240
+      ],
+      "speech_seconds": 19.176,
+      "gap_seconds": 0.725,
+      "last_audio_end": 238.8
+    }
+  ],
+  "last_audio_end": 238.8
+}
