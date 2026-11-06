@@ -1,0 +1,44 @@
+{
+  "name": "duet-intro-video",
+  "version": "1.0.0",
+  "description": "Duet — a four-minute, human-led AI-native business loop film",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/silvermooooon/twinteams.git",
+    "directory": "design-artifacts/duet-intro-video"
+  },
+  "license": "UNLICENSED",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "private": true,
+  "dependencies": {
+    "@fontsource/inter": "5.3.0",
+    "@remotion/cli": "4.0.541",
+    "@remotion/fonts": "4.0.541",
+    "@remotion/media": "4.0.541",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.541"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config-flat": "4.0.541",
+    "@types/react": "19.3.0",
+    "@types/web": "0.0.166",
+    "eslint": "10.12.0",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion bundle",
+    "upgrade": "remotion upgrade",
+    "lint": "eslint src && tsc",
+    "render:preview": "remotion render src/index.ts DuetBusinessLoop out/duet-preview-540p.mp4 --scale=0.5 --codec=h264 --crf=25 --concurrency=4",
+    "render:final": "remotion render src/index.ts DuetBusinessLoop out/duet-business-loop-1080p.mp4 --codec=h264 --crf=18 --concurrency=4",
+    "narration": "python3 scripts/generate-narration.py"
+  },
+  "allowScripts": {
+    "esbuild": false
+  }
+}

@@ -1,0 +1,57 @@
+.film-root {
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  color: #161616;
+  background: #f5f4f1;
+  -webkit-font-smoothing: antialiased;
+}
+.film-root * {
+  box-sizing: border-box;
+}
+.film-scene {
+  background: #f5f4f1;
+  overflow: hidden;
+}
+.film-eyebrow {
+  font-size: 22px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #6c6c68;
+}
+.film-title {
+  font-size: 91px;
+  font-weight: 600;
+  letter-spacing: -5px;
+  line-height: 1.04;
+  margin: 0;
+}
+.film-body {
+  font-size: 32px;
+  line-height: 1.4;
+  color: #6c6c68;
+}
+.film-panel {
+  background: white;
+  border: 1px solid #d7d5cf;
+  box-shadow: 0 22px 65px rgba(22, 22, 22, 0.045);
+}
+.film-rule {
+  height: 3px;
+  background: #db0011;
+  width: 60px;
+}
+.film-label {
+  font-size: 22px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.film-small {
+  font-size: 25px;
+  line-height: 1.4;
+}
+.film-mono {
+  font-family: "Courier New", monospace;
+  font-size: 21px;
+  letter-spacing: 0.2px;
+}
