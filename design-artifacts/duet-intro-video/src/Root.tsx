@@ -1,4 +1,5 @@
 import { Composition } from "remotion";
+import { AiNativeFilm, aiNativeMetadata } from "./AiNativeFilm";
 import { FilmComposition } from "./Composition";
 import "./fonts";
 
@@ -22,6 +23,15 @@ export const RemotionRoot: React.FC = () => {
         width={1920}
         height={1080}
         defaultProps={{ subtitles: true, ambience: true, language: "zh-CN" }}
+      />
+      <Composition
+        id="DuetAiNativeZh"
+        component={AiNativeFilm}
+        durationInFrames={aiNativeMetadata.durationInFrames}
+        fps={aiNativeMetadata.fps}
+        width={1920}
+        height={1080}
+        defaultProps={{ subtitles: true, ambience: true }}
       />
     </>
   );

@@ -1,0 +1,210 @@
+{
+  "fps": 30,
+  "duration": 7006,
+  "chapters": [
+    {
+      "start": 0,
+      "duration": 1012
+    },
+    {
+      "start": 1012,
+      "duration": 1252
+    },
+    {
+      "start": 2264,
+      "duration": 927
+    },
+    {
+      "start": 3191,
+      "duration": 995
+    },
+    {
+      "start": 4186,
+      "duration": 933
+    },
+    {
+      "start": 5119,
+      "duration": 1073
+    },
+    {
+      "start": 6192,
+      "duration": 814
+    }
+  ],
+  "cues": [
+    {
+      "start": 23,
+      "duration": 116,
+      "text": "鲍勃发来一条消息，请我做一份报表。",
+      "audio": "voiceover-ai-native/001.mp3"
+    },
+    {
+      "start": 150,
+      "duration": 198,
+      "text": "我引用他的消息，对自己的 Duet 说，帮我做好报表，然后发给鲍勃。",
+      "audio": "voiceover-ai-native/002.mp3"
+    },
+    {
+      "start": 359,
+      "duration": 198,
+      "text": "Duet 完成报表，按这次任务的明确委托，替我把它发到原来的私聊。",
+      "audio": "voiceover-ai-native/003.mp3"
+    },
+    {
+      "start": 568,
+      "duration": 224,
+      "text": "鲍勃收到报表，继续手上的工作。一次个人委托，就这样接上了别人的下一步。",
+      "audio": "voiceover-ai-native/004.mp3"
+    },
+    {
+      "start": 803,
+      "duration": 173,
+      "text": "当这种交接一段段连起来，公司的部分业务就可以自己运转。",
+      "audio": "voiceover-ai-native/005.mp3"
+    },
+    {
+      "start": 1035,
+      "duration": 199,
+      "text": "每位员工都有一个自己的 Duet，可以教它自己的职责、偏好和做事方式。",
+      "audio": "voiceover-ai-native/006.mp3"
+    },
+    {
+      "start": 1245,
+      "duration": 235,
+      "text": "你每天面对同一个 Duet。最近几条问答保留原文，较早的对话持续压缩成摘要。",
+      "audio": "voiceover-ai-native/007.mp3"
+    },
+    {
+      "start": 1491,
+      "duration": 233,
+      "text": "每四小时，Dream 从主人可见的群聊和自己与 Duet 的对话中，增量整理长期记忆。",
+      "audio": "voiceover-ai-native/008.mp3"
+    },
+    {
+      "start": 1735,
+      "duration": 229,
+      "text": "Git 保留记忆的版本和差异，条目关联来源。以后改了决定，也能回查缘由。",
+      "audio": "voiceover-ai-native/009.mp3"
+    },
+    {
+      "start": 1975,
+      "duration": 253,
+      "text": "要跨天推进的事，Duet 创建一条 Tracking。首节点帮助找回事项，后续进度接着写入。",
+      "audio": "voiceover-ai-native/010.mp3"
+    },
+    {
+      "start": 2287,
+      "duration": 218,
+      "text": "群聊里始终是真人在对话。看到一条消息，你可以把它交给自己的 Duet 处理。",
+      "audio": "voiceover-ai-native/011.mp3"
+    },
+    {
+      "start": 2516,
+      "duration": 184,
+      "text": "只有自己的 Duet 接收这次快捷操作。它可以带着消息去完成任务。",
+      "audio": "voiceover-ai-native/012.mp3"
+    },
+    {
+      "start": 2711,
+      "duration": 211,
+      "text": "如果群聊绑定了主题，Duet 可以去主题留言。发起主题的 Duet 负责管理。",
+      "audio": "voiceover-ai-native/013.mp3"
+    },
+    {
+      "start": 2933,
+      "duration": 222,
+      "text": "Duet 在主题里邀请其他 Duet 异步接手。相关的文件和历史按群聊权限共享。",
+      "audio": "voiceover-ai-native/014.mp3"
+    },
+    {
+      "start": 3214,
+      "duration": 171,
+      "text": "一次代码改动提交后，GitHub 发出 PR 创建事件。",
+      "audio": "voiceover-ai-native/015.mp3"
+    },
+    {
+      "start": 3396,
+      "duration": 257,
+      "text": "Agent Loop 读取规则，把它交给评审负责人的 Duet。外圈按确定的规则运行，无需模型。",
+      "audio": "voiceover-ai-native/016.mp3"
+    },
+    {
+      "start": 3664,
+      "duration": 243,
+      "text": "评审 Duet 检查改动，返回结论。需要修改时，规则可以把意见写回 PR。",
+      "audio": "voiceover-ai-native/017.mp3"
+    },
+    {
+      "start": 3918,
+      "duration": 232,
+      "text": "原作者的 Duet 收到事件，修复问题并追加提交。新版本可以进入复审或验收。",
+      "audio": "voiceover-ai-native/018.mp3"
+    },
+    {
+      "start": 4209,
+      "duration": 175,
+      "text": "需要验收时，LoopLab 把需求和用例编排成可复用的测试。",
+      "audio": "voiceover-ai-native/019.mp3"
+    },
+    {
+      "start": 4395,
+      "duration": 206,
+      "text": "独立浏览器回放固定版本的流程，留下页面断言、执行步骤和截图。",
+      "audio": "voiceover-ai-native/020.mp3"
+    },
+    {
+      "start": 4612,
+      "duration": 224,
+      "text": "结果可以作为可读报告进入 Message Center，也能成为 Agent Loop 的下一条触发事件。",
+      "audio": "voiceover-ai-native/021.mp3"
+    },
+    {
+      "start": 4847,
+      "duration": 236,
+      "text": "失败就把证据交回负责修复的 Duet。通过后，按规则继续，或由负责人作决定。",
+      "audio": "voiceover-ai-native/022.mp3"
+    },
+    {
+      "start": 5142,
+      "duration": 280,
+      "text": "有些工作从一条资讯开始。爬虫发现银行业监管政策变化，把原文和摘要放进消息中心。",
+      "audio": "voiceover-ai-native/023.mp3"
+    },
+    {
+      "start": 5433,
+      "duration": 228,
+      "text": "市场同事的 Duet 定期查阅资讯，发现这条变化可能影响主人正在跟进的项目。",
+      "audio": "voiceover-ai-native/024.mp3"
+    },
+    {
+      "start": 5672,
+      "duration": 239,
+      "text": "市场同事判断值得跟进，就让 Duet 补充调研，整理报告，并把建议写成需求。",
+      "audio": "voiceover-ai-native/025.mp3"
+    },
+    {
+      "start": 5922,
+      "duration": 234,
+      "text": "团队可以建立真人群和对应主题，由相关 Duet 各自接手，把工作推进到验收。",
+      "audio": "voiceover-ai-native/026.mp3"
+    },
+    {
+      "start": 6215,
+      "duration": 174,
+      "text": "团队先把真实工作做顺，再把反复发生的交接写进规则。",
+      "audio": "voiceover-ai-native/027.mp3"
+    },
+    {
+      "start": 6400,
+      "duration": 219,
+      "text": "Agent Loop 调度，Message Center 汇集信息，Duet 执行，LoopLab 提供验收证据。",
+      "audio": "voiceover-ai-native/028.mp3"
+    },
+    {
+      "start": 6630,
+      "duration": 308,
+      "text": "人依然决定做什么、何时承诺，以及怎样判断完成。每个人交出一小段工作，就能接起一条业务闭环。",
+      "audio": "voiceover-ai-native/029.mp3"
+    }
+  ]
+}

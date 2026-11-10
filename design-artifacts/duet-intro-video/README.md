@@ -58,6 +58,20 @@ npx remotion still src/index.ts DuetBusinessLoop out/frame-7199.png --frame=7199
 `out/` is ignored by Git. Preserve source, narration, fonts and the lockfile;
 share the exported MP4 separately.
 
+## AI Native design film
+
+**DuetAiNativeZh** is a separate Mandarin film based on the
+[AI Native core design](../ai-native-vision/Duet-AI-Native-Core-Design.zh-CN.docx).
+The [editable script](script/ai-native.zh-CN.md) contains narration, matching
+Simplified Chinese captions and direction for each scene. The checked-in audio
+and measured cue timings render without a speech service. To change the script,
+regenerate them on macOS with Tingting, FFmpeg and FFprobe installed.
+
+```sh
+python3 scripts/generate-ai-native-narration.py
+npx remotion render src/index.ts DuetAiNativeZh out/duet-ai-native-zh-CN.mp4 --codec=h264 --crf=18 --concurrency=4
+```
+
 ## Change the film
 
 | Change | Source |
