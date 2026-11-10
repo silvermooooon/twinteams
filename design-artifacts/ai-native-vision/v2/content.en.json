@@ -1,0 +1,94 @@
+{
+  "language": "en",
+  "title": "Duet AI Native Design",
+  "subtitle": "From a personal request to a team deliverable",
+  "pages": [
+    {
+      "title": "Follow one piece of work",
+      "lead": "Each employee has a personal Duet and delegates part of their work to it. When the next person's Duet can use that output, work can continue across roles. People set goals, priorities and tradeoffs. The system carries agreed work through to a result they can inspect.",
+      "figure": "overview",
+      "sections": [
+        {"heading": "Four services with distinct jobs", "paragraphs": ["Duet understands tasks, uses tools and delivers work for its employee. Message Center collects information and business messages that people and Duets can find and use. Agent Loop is a separate scheduling service. Its policy files determine who receives an event and what follows a result. LoopLab runs repeatable tests and provides evidence against acceptance criteria."]},
+        {"heading": "How a business loop completes", "paragraphs": ["Consider a product improvement. Someone discovers a need, the team defines requirements, a developer submits changes, a reviewer checks them and tests verify the behavior. Issues return to the person responsible for fixing them. Passing evidence reaches the person who accepts the work. Each handoff has a recipient, a usable output and a completion condition.", "AI Native work can grow from a small beginning. One employee delegates a report, another uses it for analysis. As teams turn established handoffs into rules, more of their actual work can run automatically."]}
+      ]
+    },
+    {
+      "title": "Give a message to your own Duet",
+      "lead": "Bob sends me a private message asking for this week's application report and a copy when it is ready. The request reaches me as an employee. I then decide what to delegate to my own Duet.",
+      "figure": "handoff",
+      "sections": [
+        {"heading": "A complete delegation", "paragraphs": ["I quote Bob's message and tell my Duet, “Prepare this report and send it to Bob.” The reference identifies the original request and its recipient. I can also supply the reporting definitions, data sources and deadline.", "Duet reads the available data, prepares the report and checks it against the task. It then uses the sending tool to post the attachment as me in the original private conversation with Bob. Bob receives the report and continues his analysis. Preparing and sending are both part of this explicit request."]},
+        {"heading": "The shortcut always reaches your own Duet", "paragraphs": ["An employee can do the same from a message in a human group chat. They select the message, choose the shortcut to their own Duet and explain the work. The employee's own Duet receives the delegation even when a colleague wrote the original message.", "Sending on the employee's behalf is a capability they can request. “Prepare the report” brings the result back to their Duet. “Send it to Bob when it is ready” adds sending to this task. Collaboration between different employees' agents takes place through the shared topic board described later."]}
+      ]
+    },
+    {
+      "title": "How your Duet remembers ongoing work",
+      "lead": "Employees always return to the same Duet, without creating or switching chats for each task. They can teach it their responsibilities, reporting conventions, working habits and tools. Work started today can continue through this same entry point next week.",
+      "table": {"headers": ["Your question", "Memory used", "What it keeps"], "rows": [["Which report were we discussing", "Short term", "A rolling summary and recent exchanges verbatim"], ["Which reporting definition do I use", "Long term", "Curated facts, preferences and decisions"], ["Where did last week's request get to", "Tracking", "An item index and an expanding progress record"]]},
+      "sections": [
+        {"heading": "Recent context and lasting facts", "paragraphs": ["Older conversation content is progressively summarized while the latest exchanges remain verbatim. Several tasks can run in the background, with the same Duet bringing relevant results back to the employee.", "Every four hours, Dream incrementally reviews all group chats visible to the owner and their conversations with their own Duet. It extracts lasting facts, preferences and decisions. Git keeps versions and differences, and memory entries link to their sources. If a project date moves from Wednesday to Friday, Duet can update the fact and retrieve the reason. Duet uses the evidence to decide whether a fact should change."]},
+        {"heading": "Tracking carries a task across days", "paragraphs": ["Duet recognizes ongoing work from context and creates Tracking items proactively. For example, you delegate a requirement on Monday. The first node records the goal, summary and necessary details. Its metadata stays in everyday context. Tuesday's report, Wednesday's scope decision and Thursday's pending acceptance each add a node. The full chain is stored persistently and read through tools when needed.", "When you ask on Thursday how the request is progressing, the first node helps Duet find the item. It reads the later nodes to explain what is pending. Each employee tracks their own responsibilities within the shared project."]}
+      ]
+    },
+    {
+      "title": "Coordinate work through shared topics",
+      "lead": "People discuss goals and decisions in group chats. Each person can delegate work from that conversation to their own Duet. Duets leave asynchronous messages in shared topics, building a record of discussion and deliverables around the work.",
+      "figure": "topics",
+      "sections": [
+        {"heading": "A shared record for one piece of work", "paragraphs": ["The initiating Duet creates and manages the topic. It explains the purpose, organizes questions and brings answers together. A topic can stand alone or link to a human group chat or private conversation. Linked topics and conversations share access to relevant files and history, with each Duet participating under its owner's permissions.", "For example, Maya asks the product group to check the rules for displaying application status. Alex selects her message and delegates it to his own Duet. His Duet reads the linked topic and posts a technical proposal. When it needs testing advice, it mentions Sam's Duet in the topic. Sam's Duet can respond later in that same record."]},
+        {"heading": "Each participant brings its owner's responsibilities", "paragraphs": ["Maya's Duet focuses on scope and acceptance criteria, Alex's on implementation, and Sam's on verification. Each uses its owner's relevant memory and Tracking, then publishes the conclusions, files and evidence needed by this project.", "Employees interact directly with their own Duets. Within a topic, Duets mention other Duets to request their participation. Because the messages concern a shared piece of work, later participants can follow its history, understand the context and locate completed deliverables."]}
+      ]
+    },
+    {
+      "title": "Bring useful information to the right person",
+      "lead": "A fictional regulatory response project will connect the rest of this design. Suppose an update prompts the team to review how it tells customers about application progress. Nora, in market research, needs to assess its effect on the company's application product.",
+      "sections": [
+        {"heading": "Create information that others can find", "paragraphs": ["A crawler continuously collects public information. It records the update in Message Center with its source link, publication date, summary and category, creating an entry readable across the organization. Events from business systems, team publications and test reports can also enter this shared information layer.", "Message Center supports browsing, search, subscriptions and delivery. Once organized, the same information can serve several roles. Nora's Duet can query it proactively or check relevant subjects on a schedule."]},
+        {"heading": "Connect a recommendation to current work", "paragraphs": ["Nora's Duet knows she is researching the application journey and has a related Tracking item. It recommends checking the customer page and internal report because the update may affect progress information. The recommendation includes the original source and its reasoning.", "Nora decides whether to act. She can read the update or ask Duet to examine market practice, check the current product and prepare a report. Her decision turns information into work with a defined goal."]},
+        {"heading": "Deliver research someone else can use", "paragraphs": ["Duet produces an impact report with sources, current behavior, gaps, recommendations and open decisions. It might recommend clearer processing status on the customer page and the same status in internal exports. Maya can use that report to define product requirements.", "The information has different value for each role. Product considers the customer experience, development considers the changes, and testing considers observable behavior. Each Duet assesses relevance in its owner's working context."]}
+      ]
+    },
+    {
+      "title": "Turn the report into a buildable requirement",
+      "lead": "Nora decides the work needs several departments. She can ask her Duet to create a human group chat and a linked topic. The impact report becomes shared background that everyone can use.",
+      "table": {"headers": ["Person", "Their responsibility", "Output for the next person"], "rows": [["Nora  Research", "Explain the update and its business effect", "Impact report with sources"], ["Maya  Product", "Choose scope and define expected behavior", "Product requirement (story) and acceptance criteria"], ["Alex  Development", "Implement the chosen functionality", "Code change for review: a pull request (PR)"], ["Sam  Review and testing", "Review the change and verify behavior", "Review findings and test evidence"]]},
+      "sections": [
+        {"heading": "Define a result the team can complete", "paragraphs": ["Maya and her Duet read the report and choose the scope. A story could say that applicants see their current processing status on the detail page, and staff see the same value in the status column of an exported report. Those two expected behaviors tell development and testing what completion means.", "Maya confirms the scope in the human group. Each employee delegates their part to their own Duet, and the Duets discuss details in the linked topic. Alex's Duet works through the implementation and submits a PR linked to the story. Sam's Duet prepares its review and checks against the same acceptance criteria."]},
+        {"heading": "Shared progress and personal follow through", "paragraphs": ["The topic holds the report, story, technical discussions and files. Personal Tracking records each person's goals and progress. Nora can track whether the business impact has been addressed, while Alex tracks whether the change has passed verification. Both can refer to shared results.", "The team now has a working collaboration. Recurring handoffs such as PR creation, review results and test completion can be routed by rules, reducing repeated coordination work."]}
+      ]
+    },
+    {
+      "title": "Agent Loop routes each result using rules",
+      "lead": "Agent Loop is a separate project. It receives events, reads policy files and uses defined conditions to route requests or invoke existing actions. The scheduling core runs without a large language model (LLM). Duets handle code understanding, research and review judgments.",
+      "table": {"headers": ["Event and condition", "Action specified by policy", "Result available next"], "rows": [["A PR is created in this repository", "Assign the reviewer's Duet", "Review outcome and issue list"], ["Review requests changes", "Post the findings to the PR and assign the author's Duet", "A new commit containing fixes"], ["The PR receives a new commit", "Arrange review or acceptance tests for that version", "Updated review or test result"], ["Testing finishes", "Return failures for repair or advance a pass", "Repair task or acceptance decision"]]},
+      "sections": [
+        {"heading": "Give rules an explicit result", "paragraphs": ["Sam's Duet can return “changes requested” with the PR, commit version and issues. Agent Loop matches that outcome to a rule, posts the findings and assigns Alex's Duet. Alex's repair produces a new commit and another GitHub event, continuing the workflow.", "A written review explains the reasoning and accompanies a result that rules can read. Policy selects the next step and Duet carries out the work. Human scope choices and acceptance decisions can also supply inputs for the next step."]},
+        {"heading": "Rules can follow responsibility", "paragraphs": ["A policy can name the repository's reviewer or the current PR author, then find that employee's Duet. Teams first establish the handoff through real work. Duet can help draft the recurring rule, which the responsible person adopts for Agent Loop to execute.", "The configured GitHub integration posts rule driven updates to a PR. Sending as an employee in a human conversation follows that employee's explicit instruction for the particular task."]}
+      ]
+    },
+    {
+      "title": "LoopLab provides evidence for acceptance",
+      "lead": "This project has two concrete checks. Does the customer see the correct application status, and does the internal report export the same value? LoopLab turns these goals into repeatable browser tests.",
+      "figure": "testing",
+      "sections": [
+        {"heading": "Compose the test then replay it independently", "paragraphs": ["LoopLab can start from a written goal, existing cases, uploaded material or Jira requirements. An agent investigates real pages, turns operations into reusable nodes and assembles a flow with fixed versions. Here it opens the application details, reads the status, exports the report and checks the status column.", "An independent browser executes that flow and records steps, page assertions and screenshots. This deterministic replay uses no model. A pass requires at least one assertion and every step to pass, tying the result to an actual run."]},
+        {"heading": "Both failures and passes move the work forward", "paragraphs": ["Suppose the page is correct but the export lacks its status column. LoopLab reports the failed check with the environment, version and evidence. Agent Loop can send it to Alex's Duet for repair. The new commit enters the same acceptance flow.", "After both checks pass, the report reaches the shared topic and Message Center. A structured test result returns to Agent Loop. A rule can advance the work, or the responsible person can use the evidence to make an acceptance decision. Nora, Maya, Alex and Sam then update Tracking against their respective goals."]},
+        {"heading": "Make the result useful to its recipient", "paragraphs": ["Results passed between services should identify the work or change, the version checked, the outcome, the deliverable and where to find evidence. The next person can act and retrieve the specific report when they need context."]}
+      ]
+    },
+    {
+      "title": "How established collaboration becomes automatic",
+      "lead": "The project now connects external information, Nora's research decision, Maya's requirement, Alex's implementation, Sam's review and LoopLab's verification. Each Duet handles its employee's part, while events and results connect the work.",
+      "sections": [
+        {"heading": "Personal delegation creates the first working segment", "paragraphs": ["Employees begin by teaching their Duets familiar tasks. How to prepare a report, which information matters and what a requirement needs can become established practices. Memory carries those lessons into later work, while Tracking maintains continuity for ongoing items."]},
+        {"heading": "Shared topics carry outputs across roles", "paragraphs": ["When colleagues need to participate, employees ask their Duets to create or join a topic. Shared background, deliverables and discussion help the next person take over. Through actual collaboration, the team clarifies what each role produces and who is responsible for the next step."]},
+        {"heading": "Established handoffs become policy", "paragraphs": ["Recurring handoffs can become rules. A new PR reaches the reviewer, review findings return to the author, failed tests return for repair and passing results advance to acceptance. Agent Loop keeps these agreements running. People make judgments about goals, tradeoffs and significant commitments.", "A team can begin with a report handoff or one repository's review process, then expand to a complete response to a new requirement. It can assess readiness for automation by looking at how smoothly work transfers, whether the next person can use the output and whether the evidence supports acceptance."]}
+      ],
+      "references": [
+        ["Personal agent experience  OpenClaw and its continuous main session", "https://docs.openclaw.ai/concepts/main-session"],
+        ["Ongoing work  Scheduled tasks in Claude Cowork", "https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork"],
+        ["LoopLab test composition and independent replay", "https://github.com/silvermooooon/looplab-agent-testing/blob/main/docs/architecture.md"]
+      ]
+    }
+  ]
+}
