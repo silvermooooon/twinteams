@@ -1,0 +1,582 @@
+1
+00:00:01,000 --> 00:00:05,167
+A company runs through the connected
+responsibilities of many people.
+
+2
+00:00:05,533 --> 00:00:09,233
+Each person can begin by handing
+part of their work to an AI,
+
+3
+00:00:09,600 --> 00:00:12,000
+whether that means collecting information,
+
+4
+00:00:12,367 --> 00:00:15,367
+preparing a report
+or following an ongoing task.
+
+5
+00:00:15,733 --> 00:00:19,867
+In this design, each employee’s
+personal AI is called Duet.
+
+6
+00:00:20,233 --> 00:00:25,133
+When one Duet’s output becomes something
+the next person can use directly,
+
+7
+00:00:25,500 --> 00:00:28,467
+those individual delegations
+start to connect.
+
+8
+00:00:28,833 --> 00:00:33,267
+With a clear starting point,
+handoffs and acceptance conditions,
+
+9
+00:00:33,633 --> 00:00:37,600
+a business process can keep moving
+through rules and human judgment.
+
+10
+00:00:37,967 --> 00:00:40,667
+This is how we approach AI-native work.
+
+11
+00:00:43,167 --> 00:00:45,833
+Bob messages me and asks for a report.
+
+12
+00:00:46,200 --> 00:00:49,533
+I select his message,
+bring it to my own Duet,
+
+13
+00:00:49,900 --> 00:00:53,767
+and say, prepare this report,
+then send it to Bob.
+
+14
+00:00:54,133 --> 00:00:59,000
+The quotation carries the original request
+and the conversation it came from.
+
+15
+00:00:59,367 --> 00:01:03,033
+My Duet organizes the data,
+completes the report,
+
+16
+00:01:03,400 --> 00:01:08,267
+and uses a sending tool to post the file
+as me in that original conversation.
+
+17
+00:01:08,633 --> 00:01:11,800
+Sending is part of the task
+I have just assigned.
+
+18
+00:01:12,167 --> 00:01:15,367
+Bob receives what he needs
+and continues his work.
+
+19
+00:01:15,733 --> 00:01:19,800
+One small delegation has crossed
+a handoff between two roles.
+
+20
+00:01:22,300 --> 00:01:25,233
+Duet stays with the same employee over time.
+
+21
+00:01:25,600 --> 00:01:29,767
+You can teach it your
+responsibilities, preferred sources,
+
+22
+00:01:30,133 --> 00:01:33,000
+working standards and communication style.
+
+23
+00:01:33,367 --> 00:01:37,633
+During a day, you might assign
+a report, discuss a customer,
+
+24
+00:01:38,000 --> 00:01:40,600
+then ask about another piece of research.
+
+25
+00:01:40,967 --> 00:01:43,000
+You keep addressing the same Duet.
+
+26
+00:01:43,367 --> 00:01:47,167
+It works on the tasks separately
+and brings their results back.
+
+27
+00:01:47,533 --> 00:01:52,333
+As the conversation grows, older
+material is condensed into a summary
+
+28
+00:01:52,700 --> 00:01:56,133
+and the latest exchanges
+remain in their original form.
+
+29
+00:01:56,500 --> 00:02:00,933
+You can continue the immediate discussion
+and return to ongoing work later.
+
+30
+00:02:03,433 --> 00:02:08,200
+Imagine that, on Monday,
+a crawler finds a regulatory update
+
+31
+00:02:08,567 --> 00:02:12,567
+concerning customers’ visibility
+into application processing.
+
+32
+00:02:12,933 --> 00:02:16,533
+Message Center keeps the source
+link and publication date,
+
+33
+00:02:16,900 --> 00:02:20,367
+adds a readable summary
+and classifies the information.
+
+34
+00:02:20,733 --> 00:02:24,133
+Employees can browse, search and subscribe.
+
+35
+00:02:24,500 --> 00:02:27,500
+Their Duets can look for information relevant
+
+36
+00:02:27,867 --> 00:02:30,867
+to their responsibilities
+or check on a schedule.
+
+37
+00:02:31,233 --> 00:02:35,900
+This brings outside changes into
+the company’s shared information space.
+
+38
+00:02:36,267 --> 00:02:39,467
+An item can remain here
+until someone connects it
+
+39
+00:02:39,833 --> 00:02:42,933
+with work they are doing
+and decides how to respond.
+
+40
+00:02:45,433 --> 00:02:47,667
+Nora handles market research.
+
+41
+00:02:48,033 --> 00:02:52,400
+Her Duet knows she is following
+the customer application experience,
+
+42
+00:02:52,767 --> 00:02:58,500
+so it recommends this update and explains how
+it may affect the existing application page.
+
+43
+00:02:58,867 --> 00:03:02,800
+Nora decides to investigate
+and asks Duet for research,
+
+44
+00:03:03,167 --> 00:03:05,500
+a report and a requirements proposal.
+
+45
+00:03:05,867 --> 00:03:07,967
+The outputs become specific.
+
+46
+00:03:08,333 --> 00:03:10,233
+Which processes are affected?
+
+47
+00:03:10,600 --> 00:03:12,167
+What does the source say?
+
+48
+00:03:12,533 --> 00:03:17,433
+What should customers see, and what
+should internal staff be able to export?
+
+49
+00:03:17,800 --> 00:03:22,967
+Maya receives these materials and can turn
+the research into a product requirement.
+
+50
+00:03:25,467 --> 00:03:28,233
+Nora can ask her Duet to bring the product,
+
+51
+00:03:28,600 --> 00:03:31,767
+development and testing
+colleagues into a human group.
+
+52
+00:03:32,133 --> 00:03:35,033
+The people discuss scope
+and priorities there.
+
+53
+00:03:35,400 --> 00:03:39,500
+Maya can take a message that needs
+work and hand it to her own Duet.
+
+54
+00:03:39,867 --> 00:03:44,200
+Meanwhile, Nora’s Duet creates
+and manages a linked topic,
+
+55
+00:03:44,567 --> 00:03:48,533
+posts the research and invites
+the relevant Duets to contribute.
+
+56
+00:03:48,900 --> 00:03:53,200
+Each Duet brings its employee’s
+responsibilities and uses that
+
+57
+00:03:53,567 --> 00:03:57,533
+employee’s group access to read
+the shared history and files.
+
+58
+00:03:57,900 --> 00:03:59,667
+People address their own Duet.
+
+59
+00:04:00,033 --> 00:04:02,433
+The Duets coordinate through the topic,
+
+60
+00:04:02,800 --> 00:04:06,167
+leaving work and replies for
+one another asynchronously.
+
+61
+00:04:08,667 --> 00:04:13,667
+On Thursday, Nora asks where the
+application-status work has reached.
+
+62
+00:04:14,033 --> 00:04:17,800
+Duet uses several forms
+of memory to recover the work.
+
+63
+00:04:18,167 --> 00:04:22,167
+Recent context holds a summary
+and the latest exchanges.
+
+64
+00:04:22,533 --> 00:04:26,167
+Every four hours, Dream
+incrementally reviews all
+
+65
+00:04:26,533 --> 00:04:30,900
+group conversations visible to the
+employee and their conversations
+
+66
+00:04:31,267 --> 00:04:35,000
+with their own Duet,
+consolidating lasting information.
+
+67
+00:04:35,367 --> 00:04:37,733
+Git preserves versions and sources.
+
+68
+00:04:38,100 --> 00:04:40,967
+If Monday’s plan conflicts with Thursday’s,
+
+69
+00:04:41,333 --> 00:04:45,900
+Duet can trace the change and update
+memory from the applicable decision.
+
+70
+00:04:46,267 --> 00:04:50,933
+When Duet recognizes an ongoing
+matter, it creates a Tracking item.
+
+71
+00:04:51,300 --> 00:04:54,233
+Its first node describes
+the item and its goal.
+
+72
+00:04:54,600 --> 00:04:58,733
+That metadata stays in everyday
+context to help locate the work.
+
+73
+00:04:59,100 --> 00:05:01,733
+Detailed progress is retrieved when needed,
+
+74
+00:05:02,100 --> 00:05:05,300
+and new decisions
+and deliveries add further nodes.
+
+75
+00:05:05,667 --> 00:05:09,633
+Work can continue across many
+intervening conversations.
+
+76
+00:05:12,133 --> 00:05:15,433
+Maya writes the product
+requirement as a user story.
+
+77
+00:05:15,800 --> 00:05:19,267
+Alex’s Duet implements it
+and opens a pull request,
+
+78
+00:05:19,633 --> 00:05:23,033
+or PR, proposing its code changes for review.
+
+79
+00:05:23,400 --> 00:05:26,900
+GitHub emits an event
+identifying the PR and commit.
+
+80
+00:05:27,267 --> 00:05:33,033
+Agent Loop runs as a separate service and
+uses a policy file to send the review to Sam.
+
+81
+00:05:33,400 --> 00:05:37,400
+The outer loop follows deterministic
+rules without calling a model.
+
+82
+00:05:37,767 --> 00:05:42,000
+Sam’s Duet understands the code
+and checks it against the requirement.
+
+83
+00:05:42,367 --> 00:05:45,400
+It finds that customers can see the status,
+
+84
+00:05:45,767 --> 00:05:48,600
+while the internal report
+still lacks the field.
+
+85
+00:05:48,967 --> 00:05:53,733
+It returns specific feedback and a
+structured changes-requested result.
+
+86
+00:05:54,100 --> 00:05:58,500
+Agent Loop reads that outcome and routes
+the next task back to the author.
+
+87
+00:06:01,000 --> 00:06:05,833
+The rule writes the feedback to the PR
+and assigns the correction to Alex’s Duet.
+
+88
+00:06:06,200 --> 00:06:09,567
+It receives the missing requirement
+and the relevant version,
+
+89
+00:06:09,933 --> 00:06:12,767
+adds the report field
+and pushes another commit.
+
+90
+00:06:13,133 --> 00:06:16,500
+The updated version follows
+the same review policy.
+
+91
+00:06:16,867 --> 00:06:20,400
+Sam’s Duet checks it
+and returns an approved result.
+
+92
+00:06:20,767 --> 00:06:23,767
+Agent Loop can then send
+the change to LoopLab,
+
+93
+00:06:24,133 --> 00:06:27,500
+together with the requirement
+and the conditions to verify.
+
+94
+00:06:27,867 --> 00:06:32,667
+Each handoff carries context the
+next participant can use directly.
+
+95
+00:06:35,167 --> 00:06:38,267
+Sam has supplied two acceptance conditions.
+
+96
+00:06:38,633 --> 00:06:42,033
+The customer should see that
+the application is in review,
+
+97
+00:06:42,400 --> 00:06:46,433
+and the exported internal record
+should contain the same status.
+
+98
+00:06:46,800 --> 00:06:52,667
+LoopLab’s agent investigates the real pages
+and prepares reusable nodes and a test flow.
+
+99
+00:06:53,033 --> 00:06:57,167
+An independent browser then executes
+a fixed version of that flow,
+
+100
+00:06:57,533 --> 00:07:01,767
+checking the page and export while
+recording steps and screenshots.
+
+101
+00:07:02,133 --> 00:07:04,533
+Replay follows the defined steps.
+
+102
+00:07:04,900 --> 00:07:08,400
+A passing result returns
+to the workflow with evidence.
+
+103
+00:07:08,767 --> 00:07:13,167
+If a check fails, Agent Loop
+can send the failure location
+
+104
+00:07:13,533 --> 00:07:18,200
+and evidence back to Alex’s Duet for
+another correction and verification.
+
+105
+00:07:20,700 --> 00:07:26,033
+The acceptance report returns to the shared
+topic and can be found in Message Center.
+
+106
+00:07:26,400 --> 00:07:30,800
+Nora can see that the change she
+spotted has become a verified feature.
+
+107
+00:07:31,167 --> 00:07:35,933
+Maya has evidence that the requirement
+is satisfied and can arrange the release.
+
+108
+00:07:36,300 --> 00:07:39,933
+Alex’s and Sam’s Tracking
+records capture the correction,
+
+109
+00:07:40,300 --> 00:07:42,833
+verification and supporting evidence.
+
+110
+00:07:43,200 --> 00:07:47,167
+Each person follows the work
+from their own responsibilities,
+
+111
+00:07:47,533 --> 00:07:49,567
+referring to the same result.
+
+112
+00:07:49,933 --> 00:07:53,400
+When a decision is needed,
+Duet brings the progress,
+
+113
+00:07:53,767 --> 00:07:57,433
+materials and remaining choices
+together for its employee.
+
+114
+00:07:59,933 --> 00:08:03,833
+Looking back, Message Center
+made the change discoverable.
+
+115
+00:08:04,200 --> 00:08:08,233
+Duet understood and carried out
+the work each person delegated.
+
+116
+00:08:08,600 --> 00:08:11,400
+Agent Loop connected
+the handoffs through rules,
+
+117
+00:08:11,767 --> 00:08:14,733
+and LoopLab supplied acceptance evidence.
+
+118
+00:08:15,100 --> 00:08:19,133
+A team can first establish how
+a real piece of work should run,
+
+119
+00:08:19,500 --> 00:08:24,633
+then turn its recurring handoffs into
+policies defined by the responsible people.
+
+120
+00:08:25,000 --> 00:08:29,433
+Employees continue to decide goals,
+priorities and commitments.
+
+121
+00:08:29,800 --> 00:08:33,333
+As more outputs become usable
+inputs for the next role,
+
+122
+00:08:33,700 --> 00:08:38,267
+the company can build its AI-native
+workflows one process at a time.

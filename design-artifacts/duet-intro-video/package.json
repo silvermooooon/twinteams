@@ -1,7 +1,7 @@
 {
   "name": "duet-intro-video",
   "version": "1.0.0",
-  "description": "Duet — a four-minute, human-led AI-native business loop film",
+  "description": "Duet \u2014 bilingual films explaining personal AI and a complete business workflow",
   "repository": {
     "type": "git",
     "url": "https://github.com/silvermooooon/twinteams.git",
@@ -38,7 +38,10 @@
     "render:final": "remotion render src/index.ts DuetBusinessLoop out/duet-business-loop-1080p.mp4 --codec=h264 --crf=18 --concurrency=4",
     "narration": "python3 scripts/generate-narration.py",
     "narration:zh": "python3 scripts/generate-narration.py --language zh-CN",
-    "render:review:zh": "remotion render src/index.ts DuetBusinessLoopZhReview out/duet-business-loop-zh-review-1080p.mp4 --codec=h264 --crf=18 --concurrency=4"
+    "render:review:zh": "remotion render src/index.ts DuetBusinessLoopZhReview out/duet-business-loop-zh-review-1080p.mp4 --codec=h264 --crf=18 --concurrency=4",
+    "narration:v2": "python3 scripts/generate-v2-narration.py",
+    "render:v2:zh": "remotion render src/index.ts DuetExplainedZh out/v2/duet-ai-native-zh-CN-1080p.mp4 --codec=h264 --crf=18 --jpeg-quality=90 --x264-preset=fast --audio-codec=aac --audio-bitrate=192k --concurrency=4",
+    "render:v2:en": "remotion render src/index.ts DuetExplainedEn out/v2/duet-ai-native-en-1080p.mp4 --codec=h264 --crf=18 --jpeg-quality=90 --x264-preset=fast --audio-codec=aac --audio-bitrate=192k --concurrency=4"
   },
   "allowScripts": {
     "esbuild": false

@@ -8,8 +8,6 @@
 import { Config } from "@remotion/cli/config";
 
 Config.setRspack(true);
-// Headless Shell can stall macOS frame scheduling (Remotion issue #12633).
-Config.setChromeMode("chrome-for-testing");
 Config.setVideoImageFormat("jpeg");
 Config.setOverwriteOutput(true);
 Config.setDefaultPremountInSeconds(2);

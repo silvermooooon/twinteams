@@ -8,11 +8,14 @@ The two languages use the same roles, examples and interaction model.
 | --- | --- | --- |
 | Design document, nine pages | [中文设计文档](Duet-AI-Native-Design.zh-CN.docx) | [English design document](Duet-AI-Native-Design.en.docx) |
 | Video script, twelve scenes | [中文视频文案](video-script.zh-CN.md) | [English video script](video-script.en.md) |
+| Narrated 1080p film | [中文成片 · 9:11](../../duet-intro-video/out/v2/duet-ai-native-zh-CN-1080p.mp4) | [English film · 8:40](../../duet-intro-video/out/v2/duet-ai-native-en-1080p.mp4) |
 
 Each script includes the viewer takeaway, progressive screen action, full narration
 and transition. The scene guide totals 8 minutes 50 seconds; final timing follows
-the recorded narration and visual pauses. These scripts are the source for a new
-film edit. The earlier rendered film belongs to the preceding edition.
+the recorded narration and visual pauses. The completed films use independent
+language timings, with matching subtitles and progressive screen action. Their
+[Remotion source and reproduction instructions](../../duet-intro-video/README.md)
+are in the sibling media project. MP4 files are local exports, outside Git.
 
 The design documents use the editable `content.zh-CN.json` and `content.en.json`
 sources. `build_documents.py` generates both DOCX files and their embedded diagrams

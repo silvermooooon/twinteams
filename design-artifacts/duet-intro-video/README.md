@@ -1,162 +1,90 @@
-# Duet — The AI-Native Business Loop
+# Duet — AI Native, explained through work
 
-A four-minute product film. **The final release uses English narration and English
-subtitles.** A separate Mandarin-narrated version with Simplified Chinese subtitles
-is for the owner's personal review. React and
-TypeScript are rendered by Remotion at **1920 × 1080, 30 fps, 7,200 frames**.
-This standalone media project does not connect to the running product, its
-database, or private conversations.
+The current films follow an everyday report request, then a fictional project from
+an external update through research, product definition, development, review and
+acceptance. Both languages contain twelve scenes with their own narration timing.
+The design and [bilingual scripts](../ai-native-vision/v2/README.md) are the editorial sources.
 
-One fictional card-activation story follows people, their Duets, and Message
-Center around a recurring business loop. Red, white, graphite and angular geometry
-follow the approved HSBC-inspired direction, retaining Duet's name and mark.
+| Language | Composition | Duration | Local MP4 | Subtitles |
+| --- | --- | --- | --- | --- |
+| 中文 | `DuetExplainedZh` | 9:10.800 | [1080p film](out/v2/duet-ai-native-zh-CN-1080p.mp4) | [SRT](public/voiceover-v2/zh-CN/duet-ai-native-v2.srt) |
+| English | `DuetExplainedEn` | 8:39.767 | [1080p film](out/v2/duet-ai-native-en-1080p.mp4) | [SRT](public/voiceover-v2/en/duet-ai-native-v2.srt) |
 
-## Preview and render
+Both deliverables are H.264/AAC at 1920 × 1080 and 30 fps, with visible subtitles
+and a quiet ambient score. Each person delegates to their own Duet. The topic
+board carries agent collaboration; sending as the employee follows the explicit
+instruction in Bob's report task.
 
-Use Node **22.14+** and npm. Run from this directory:
+## Preview and export
+
+Use Node 22.14+ and npm, from this directory:
 
 ```sh
 npm ci
-npm run dev -- --port=3100
+npm run dev
 ```
 
-Open the printed Studio URL and select **DuetBusinessLoop**. Motion is driven by
-Remotion frames. Fonts and audio are local; Remotion may download its bundled
-rendering browser on the first export. `remotion.config.ts` selects Remotion's
-bundled Chrome-for-testing for compatibility with this macOS render environment;
-it does not depend on a system Chrome path.
+Open the printed Studio URL and select `DuetExplainedZh` or `DuetExplainedEn`.
+The compositions use local fonts and audio. Remotion uses its bundled browser.
 
 ```sh
 npm run lint
-npm run render:preview
-npm run render:final
+npm run render:v2:zh
+npm run render:v2:en
 ```
 
-The outputs are `out/duet-preview-540p.mp4` and
-`out/duet-business-loop-1080p.mp4`. Render settings live in `package.json`.
+`out/` holds exported video and visual QA frames and is ignored by Git. Source,
+fonts, measured narration and subtitles are checked in; share the MP4 separately.
 
-For the Chinese review version, select **DuetBusinessLoopZhReview** in Studio or run:
-
-```sh
-python3 scripts/generate-narration.py --language zh-CN
-npm run render:review:zh
-```
-
-Both versions share the same four-minute visuals, English scene labels and cue
-start times, so review comments refer to the same moments. Only the review
-narration and subtitles are Chinese. Generating or rendering the review version
-does not overwrite the English audio, subtitles or final MP4.
-
-Inspect the first, middle and last frames, plus every scene transition:
-
-```sh
-npx remotion still src/index.ts DuetBusinessLoop out/frame-0000.png --frame=0
-npx remotion still src/index.ts DuetBusinessLoop out/frame-3600.png --frame=3600
-npx remotion still src/index.ts DuetBusinessLoop out/frame-7199.png --frame=7199
-```
-
-`out/` is ignored by Git. Preserve source, narration, fonts and the lockfile;
-share the exported MP4 separately.
-
-## AI Native design film
-
-**DuetAiNativeZh** is a separate Mandarin film based on the
-[AI Native core design](../ai-native-vision/Duet-AI-Native-Core-Design.zh-CN.docx).
-The [editable script](script/ai-native.zh-CN.md) contains narration, matching
-Simplified Chinese captions and direction for each scene. The checked-in audio
-and measured cue timings render without a speech service. To change the script,
-regenerate them on macOS with Tingting, FFmpeg and FFprobe installed.
-
-```sh
-python3 scripts/generate-ai-native-narration.py
-npx remotion render src/index.ts DuetAiNativeZh out/duet-ai-native-zh-CN.mp4 --codec=h264 --crf=18 --concurrency=4
-```
-
-## Change the film
+## Editing the current films
 
 | Change | Source |
 | --- | --- |
-| English final wording and subtitle text | `script/narration.json` |
-| Chinese review wording and subtitle text | `script/narration.zh-CN.json` |
-| Scene copy, diagrams, cards and animation | `src/Film.tsx` |
-| Colours, typography and chapter timing | `src/theme.ts`, `src/film.css` |
-| Dimensions, frame rate and total frames | `src/Root.tsx` |
-| Subtitle and ambience switches | `subtitles` / `ambience` default props in `src/Root.tsx` |
-| Voice generation and measured cue placement | `scripts/generate-narration.py` |
-| Original, quiet ambient score | `scripts/generate-ambience.py` |
-| Bundled font loading | `src/fonts.ts` |
+| Narration and screen direction | `../ai-native-vision/v2/video-script.zh-CN.md`, `video-script.en.md` |
+| Scenes 1–6: delegation, messages and topics | `src/v2/PersonalScenes.tsx` |
+| Scenes 7–12: memory, routing and acceptance | `src/v2/DeliveryScenes.tsx` |
+| Visual primitives and narration cue matching | `src/v2/Shared.tsx` |
+| Scene timeline, subtitles and sound | `src/v2/Film.tsx` |
+| Composition registrations and controls | `src/Root.tsx` |
+| Speech and measured subtitle generation | `scripts/generate-v2-narration.py` |
 
-After editing spoken wording, regenerate the audio and subtitles:
+Narration uses the macOS synthetic voices Tingting (Mandarin) and Daniel (English),
+both at rate 160. Generate changed speech on macOS with `say`, FFmpeg and FFprobe:
 
 ```sh
-python3 scripts/generate-narration.py
+npm run narration:v2
 ```
 
-Generation requires macOS `say`, FFmpeg and FFprobe. The installed **Daniel**
-British-English synthetic voice is used for the final, and **Tingting** Mandarin
-for the review version; no cloned voice or paid voice service.
-Choose an installed replacement with `--voice NAME`, or speaking speed with
-`--rate NUMBER`. The checked-in audio renders on other platforms. See
-[audio provenance](script/AUDIO.md). Do not hand-edit generated clips, the
-manifest or SRT; regenerate their measured timing together.
-
-Chinese assets are separate in `public/voiceover-zh-CN/`, including
-`duet.zh-CN.srt`. After changing English cue timing, regenerate the English assets
-first, then the Chinese review assets. Chinese speech must fit the corresponding
-English cue slots; the generator rejects overlaps rather than truncating speech.
-
-| Time | Chapter |
-| --- | --- |
-| 0:00–0:25 | The business loop |
-| 0:25–0:55 | A Duet for every person |
-| 0:55–1:35 | From signal to decision |
-| 1:35–2:05 | Message Center |
-| 2:05–2:55 | Connected delivery |
-| 2:55–3:35 | Learning through experience |
-| 3:35–4:00 | An AI-native organisation |
-
-For a duration change, update chapter windows in `src/theme.ts` and
-both narration source files, scene beat timings in `src/Film.tsx`, and composition
-`durationInFrames` in `src/Root.tsx`. At 30 fps, one second is 30 frames.
-Regenerate narration and, if the length changes, run
-`python3 scripts/generate-ambience.py` to regenerate the score too. Inspect
-transitions. The narrator generator rejects speech that cannot fit rather than
-silently cutting it off. Keep the subtitle area clear.
+The generator extracts each scene's full narration, creates MP3 clips, measures
+their durations and writes a frame-based manifest, Caption JSON and SRT together.
+Regenerate these outputs from the source script. Existing clips render on other
+platforms without a speech service. Visual stages follow spoken phrases, including
+an estimated position when multiple stages occur inside one measured audio clip.
+The two languages have independent timing so neither voice is squeezed into the
+other's speaking slots.
 
 ## Verification
 
 ```sh
-python3 scripts/verify-delivery.py
-python3 scripts/verify-delivery.py --video out/duet-preview-540p.mp4 --width 960 --height 540
-python3 scripts/verify-delivery.py --video out/duet-business-loop-1080p.mp4
-python3 scripts/verify-delivery.py --language zh-CN --video out/duet-business-loop-zh-review-1080p.mp4
+python3 scripts/verify-v2-delivery.py --language zh-CN --video out/v2/duet-ai-native-zh-CN-1080p.mp4
+python3 scripts/verify-v2-delivery.py --language en --video out/v2/duet-ai-native-en-1080p.mp4
 ```
 
-The verifier checks source/cue/SRT consistency, measured audio, encoded dimensions,
-fps, duration and non-silent audio. It also checks the first, middle and last
-spoken windows are louder than the quiet ambient score; this detects missing
-narration without claiming speech recognition. It does not judge visual quality. Inspect text,
-subtitles, clipping, transitions, first/last frames and percentage labels in the
-exported preview. Watch with sound to check pronunciation and scene alignment.
-Chinese checks also require matching English cue IDs, chapter windows and start
-times, while measuring the Chinese clips and subtitles independently.
+Verification checks the complete narration against the editorial script, caption
+timing, audio lengths, chapter boundaries, encoded frames and an audible speech
+window in every chapter. Visual review covers all twelve scenes in both languages,
+intermediate delegation and topic states, subtitles, page assertions and the closing
+loop. These checks complement visual playback review; they do not transcribe speech.
 
-## Scope and sources
+## Earlier compositions and assets
 
-- The card-activation story is fictional; it contains no real bank customer data.
-- Owner assistance, files, approved Duet collaboration, Tracking, Memory and Message
-  Center reflect product capabilities. Production integration is a future step.
-- The 10% / 50% / 95% work-share progression is an illustrative ambition for suitable
-  work, not measured performance. People keep key decisions. Memory is retained
-  context and experience, not model retraining.
-- Diagrams and UI illustrations are authored for this film. The Duet mark comes
-  from `frontend/public/assets/duet-symbol.svg` in the parent product repository.
-- Inter fonts are bundled from `@fontsource/inter`; see their included
-  [license](public/fonts/LICENSE.txt). Chinese subtitles use bundled Noto Sans SC
-  from the official [Google Fonts repository](https://github.com/google/fonts/tree/main/ofl/notosanssc);
-  see its [license](public/fonts/NotoSansSC-LICENSE.txt). No system Chinese font is
-  required, and no paid visual assets were downloaded.
-- Prepared using the [official Remotion Agent Skills](https://www.remotion.dev/docs/ai/skills).
-  Remotion retains its own [licensing terms](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
-- Visual reference: [HSBC creative principles](https://create.hsbc/external/newsfeed/why-creative-direction-matters.html).
-  The film is branded Duet and does not claim HSBC deployment or endorsement.
+`DuetBusinessLoop`, `DuetBusinessLoopZhReview` and `DuetAiNativeZh` remain available
+with their original scripts and measured audio. They belong to earlier editions.
+The current twelve-scene films are under `src/v2/` and `public/voiceover-v2/`.
+
+Inter is bundled from `@fontsource/inter`; see its [license](public/fonts/LICENSE.txt).
+Noto Sans SC comes from the official Google Fonts distribution; see its
+[license](public/fonts/NotoSansSC-LICENSE.txt). The ambient score is generated by
+`scripts/generate-ambience.py`. All diagrams and illustrative interface views are
+authored in React. Remotion retains its own
+[licensing terms](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
