@@ -1,1143 +1,2057 @@
 {
   "fps": 30,
-  "duration": 18725,
+  "duration": 20110,
+  "narration": {
+    "provider": "openai",
+    "model": "gpt-4o-mini-tts",
+    "voice": "marin",
+    "speed": 1.0,
+    "language": "en",
+    "instructions": "Narrate a clear, thoughtful explainer about personal AI collaboration at work. Use a warm, professional conversational voice with a neutral English accent, steady timbre and a measured but flowing pace. Avoid an announcer voice, overacting, exaggerated pauses or dramatic emphasis. Read the input exactly; do not add introductions, explanations or closing remarks. Pronounce Duet as the ordinary English word duet, Agent Loop and LoopLab as their English words, PR as individual letters, and GitHub naturally."
+  },
   "chapters": [
     {
       "id": 0,
       "title": "Read the architecture before the story",
       "start": 0,
-      "duration": 3132
+      "duration": 3373
     },
     {
       "id": 1,
       "title": "Each person delegates part of their work",
-      "start": 3132,
-      "duration": 1265
+      "start": 3373,
+      "duration": 1355
     },
     {
       "id": 2,
       "title": "Bob needs a report",
-      "start": 4397,
-      "duration": 1174
+      "start": 4728,
+      "duration": 1231
     },
     {
       "id": 3,
       "title": "The same Duet stays with you",
-      "start": 5571,
-      "duration": 1234
+      "start": 5959,
+      "duration": 1336
     },
     {
       "id": 4,
       "title": "Message Center makes a change discoverable",
-      "start": 6805,
-      "duration": 1260
+      "start": 7295,
+      "duration": 1339
     },
     {
       "id": 5,
       "title": "Nora turns information into a research assignment",
-      "start": 8065,
-      "duration": 1201
+      "start": 8634,
+      "duration": 1284
     },
     {
       "id": 6,
       "title": "People discuss the work Duets coordinate in a topic",
-      "start": 9266,
-      "duration": 1296
+      "start": 9918,
+      "duration": 1463
     },
     {
       "id": 7,
       "title": "Remembering how the work has progressed",
-      "start": 10562,
-      "duration": 1904
+      "start": 11381,
+      "duration": 2010
     },
     {
       "id": 8,
       "title": "Agent Loop routes an event to the responsible person",
-      "start": 12466,
-      "duration": 1466
+      "start": 13391,
+      "duration": 1548
     },
     {
       "id": 9,
       "title": "The repaired version returns to the workflow",
-      "start": 13932,
-      "duration": 1025
+      "start": 14939,
+      "duration": 1075
     },
     {
       "id": 10,
       "title": "LoopLab verifies the result in a browser",
-      "start": 14957,
-      "duration": 1366
+      "start": 16014,
+      "duration": 1474
     },
     {
       "id": 11,
       "title": "Each person can see what their work has achieved",
-      "start": 16323,
-      "duration": 1177
+      "start": 17488,
+      "duration": 1307
     },
     {
       "id": 12,
       "title": "Repeatable handoffs become the next automated workflow",
-      "start": 17500,
-      "duration": 1225
+      "start": 18795,
+      "duration": 1315
     }
   ],
   "cues": [
     {
       "scene": 0,
       "start": 30,
-      "duration": 39,
+      "duration": 51,
       "text": "Start with this map.",
-      "audio": "voiceover-v2/en/intro-001.mp3"
+      "audio": "voiceover-v2/en/intro-001.mp3",
+      "provenance": {
+        "payload_sha256": "5b65a79bcddb5e8b00bfa4806f54e20a36d0d82859d8ddefd65a1df5dad290c3",
+        "audio_sha256": "367927349083bb563cfc1a92a345d090c1f7af72bc0855dd108c754cbdc416c9",
+        "request_id": "req_0f1b19c265c44f61bf6fd55ed9731127",
+        "source_sha256": "f0a094d12b665440128605d55c7d1e1ed59bd9eb3e470f1c2b2b8cb4b6596e95"
+      }
     },
     {
       "scene": 0,
-      "start": 80,
-      "duration": 85,
+      "start": 92,
+      "duration": 93,
       "text": "At the center, Agent Loop forms a ring.",
-      "audio": "voiceover-v2/en/intro-002.mp3"
+      "audio": "voiceover-v2/en/intro-002.mp3",
+      "provenance": {
+        "payload_sha256": "a54e428a8fbbc03ffaab56135c1d9981edf370766cd654963dfd02a59d780047",
+        "audio_sha256": "7d557b178451d47dad0005bce2b5c3ba098a1f472718110535675f0c5e9528cb",
+        "request_id": "req_7901a0e4f9bb4a2e9f98beee97ef251b",
+        "source_sha256": "0bc22b1329ed8296a2f1c6302d2cc35b76d8a378374883413ad6a8a80daa37a0"
+      }
     },
     {
       "scene": 0,
-      "start": 176,
-      "duration": 129,
+      "start": 196,
+      "duration": 114,
       "text": "It receives events, routes\ntasks by deterministic policy,",
-      "audio": "voiceover-v2/en/intro-003.mp3"
+      "audio": "voiceover-v2/en/intro-003.mp3",
+      "provenance": {
+        "payload_sha256": "93e9031f8f8706fa2d6909781afb053de889e3d831f2d3d35dcfd479a7b904a0",
+        "audio_sha256": "e7bb229d37f651eb1d1b5f81000b382c87bafa10c72a32d51ef0fa1372a34c60",
+        "request_id": "req_f87cd764025740baad9ac6d5171966c9",
+        "source_sha256": "9aa181ce61f412aea61b4d3d5f256e38bc9f163c236e1e48d2019c6b96fa95d9"
+      }
     },
     {
       "scene": 0,
-      "start": 316,
-      "duration": 75,
-      "text": "and connects results to the next step.",
-      "audio": "voiceover-v2/en/intro-004.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 402,
-      "duration": 89,
-      "text": "This routing core does\nnot call a language model.",
-      "audio": "voiceover-v2/en/intro-005.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 502,
-      "duration": 71,
-      "text": "Inside are two shared services.",
-      "audio": "voiceover-v2/en/intro-006.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 584,
-      "duration": 136,
-      "text": "Message Center gathers news,\nnotifications and work outputs",
-      "audio": "voiceover-v2/en/intro-007.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 731,
-      "duration": 110,
-      "text": "into readable information\nfor search and subscriptions.",
-      "audio": "voiceover-v2/en/intro-008.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 852,
-      "duration": 139,
-      "text": "LoopLab runs tests and produces\nacceptance results with evidence.",
-      "audio": "voiceover-v2/en/intro-009.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1002,
-      "duration": 63,
-      "text": "Around the ring are personal Duets.",
-      "audio": "voiceover-v2/en/intro-010.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1076,
-      "duration": 143,
-      "text": "Each understands assignments,\nuses tools, completes work,",
-      "audio": "voiceover-v2/en/intro-011.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1230,
-      "duration": 74,
-      "text": "and follows up through memory and Tracking.",
-      "audio": "voiceover-v2/en/intro-012.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1315,
-      "duration": 81,
-      "text": "Each Duet connects outward to its own Owner:",
-      "audio": "voiceover-v2/en/intro-013.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1407,
-      "duration": 93,
-      "text": "the employee who sets goals\nand makes judgments.",
-      "audio": "voiceover-v2/en/intro-014.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1511,
-      "duration": 53,
-      "text": "People address their own Duet.",
-      "audio": "voiceover-v2/en/intro-015.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1575,
-      "duration": 119,
-      "text": "Across roles, Duets\ncoordinate by leaving tasks,",
-      "audio": "voiceover-v2/en/intro-016.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1705,
-      "duration": 82,
-      "text": "materials and results in a shared topic.",
-      "audio": "voiceover-v2/en/intro-017.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1798,
-      "duration": 47,
-      "text": "Now follow one flow.",
-      "audio": "voiceover-v2/en/intro-018.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1856,
-      "duration": 144,
-      "text": "A Duet finds relevant information\nin Message Center and suggests an action.",
-      "audio": "voiceover-v2/en/intro-019.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2011,
-      "duration": 123,
-      "text": "The employee decides to proceed,\nand Duet starts work.",
-      "audio": "voiceover-v2/en/intro-020.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2145,
-      "duration": 77,
-      "text": "A task result returns to Agent Loop,",
-      "audio": "voiceover-v2/en/intro-021.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2233,
-      "duration": 121,
-      "text": "where policy passes it to the\nnext responsible person’s Duet.",
-      "audio": "voiceover-v2/en/intro-022.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2365,
-      "duration": 114,
-      "text": "When acceptance is needed,\nLoopLab runs the tests",
-      "audio": "voiceover-v2/en/intro-023.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2490,
-      "duration": 68,
-      "text": "and sends the result back into the loop.",
-      "audio": "voiceover-v2/en/intro-024.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2569,
-      "duration": 29,
-      "text": "People judge.",
-      "audio": "voiceover-v2/en/intro-025.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2609,
-      "duration": 45,
-      "text": "Duets do the work.",
-      "audio": "voiceover-v2/en/intro-026.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2665,
-      "duration": 74,
-      "text": "Message Center supplies information,",
-      "audio": "voiceover-v2/en/intro-027.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2750,
-      "duration": 156,
-      "text": "LoopLab supplies acceptance evidence,\nand Agent Loop connects the steps.",
-      "audio": "voiceover-v2/en/intro-028.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2917,
-      "duration": 170,
-      "text": "Next, we will see how this map works,\nstarting with one person’s delegation.",
-      "audio": "voiceover-v2/en/intro-029.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3162,
-      "duration": 125,
-      "text": "A company runs through the connected\nresponsibilities of many people.",
-      "audio": "voiceover-v2/en/001.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3298,
-      "duration": 111,
-      "text": "Each person can begin by handing\npart of their work to an AI,",
-      "audio": "voiceover-v2/en/002.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3420,
-      "duration": 72,
-      "text": "whether that means collecting information,",
-      "audio": "voiceover-v2/en/003.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3503,
-      "duration": 90,
-      "text": "preparing a report\nor following an ongoing task.",
-      "audio": "voiceover-v2/en/004.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3604,
-      "duration": 124,
-      "text": "In this design, each employee’s\npersonal AI is called Duet.",
-      "audio": "voiceover-v2/en/005.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3739,
-      "duration": 147,
-      "text": "When one Duet’s output becomes something\nthe next person can use directly,",
-      "audio": "voiceover-v2/en/006.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3897,
-      "duration": 89,
-      "text": "those individual delegations\nstart to connect.",
-      "audio": "voiceover-v2/en/007.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3997,
-      "duration": 133,
-      "text": "With a clear starting point,\nhandoffs and acceptance conditions,",
-      "audio": "voiceover-v2/en/008.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 4141,
-      "duration": 119,
-      "text": "a business process can keep moving\nthrough rules and human judgment.",
-      "audio": "voiceover-v2/en/009.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 4271,
-      "duration": 81,
-      "text": "This is how we approach AI-native work.",
-      "audio": "voiceover-v2/en/010.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 4427,
-      "duration": 80,
-      "text": "Bob messages me and asks for a report.",
-      "audio": "voiceover-v2/en/011.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 4518,
-      "duration": 100,
-      "text": "I select his message,\nbring it to my own Duet,",
-      "audio": "voiceover-v2/en/012.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 4629,
-      "duration": 116,
-      "text": "and say, prepare this report,\nthen send it to Bob.",
-      "audio": "voiceover-v2/en/013.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 4756,
-      "duration": 146,
-      "text": "The quotation carries the original request\nand the conversation it came from.",
-      "audio": "voiceover-v2/en/014.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 4913,
-      "duration": 110,
-      "text": "My Duet organizes the data,\ncompletes the report,",
-      "audio": "voiceover-v2/en/015.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 5034,
-      "duration": 146,
-      "text": "and uses a sending tool to post the file\nas me in that original conversation.",
-      "audio": "voiceover-v2/en/016.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 5191,
-      "duration": 95,
-      "text": "Sending is part of the task\nI have just assigned.",
-      "audio": "voiceover-v2/en/017.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 5297,
-      "duration": 96,
-      "text": "Bob receives what he needs\nand continues his work.",
-      "audio": "voiceover-v2/en/018.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 5404,
-      "duration": 122,
-      "text": "One small delegation has crossed\na handoff between two roles.",
-      "audio": "voiceover-v2/en/019.mp3"
-    },
-    {
-      "scene": 3,
-      "start": 5601,
-      "duration": 88,
-      "text": "Duet stays with the same employee over time.",
-      "audio": "voiceover-v2/en/020.mp3"
-    },
-    {
-      "scene": 3,
-      "start": 5700,
-      "duration": 125,
-      "text": "You can teach it your\nresponsibilities, preferred sources,",
-      "audio": "voiceover-v2/en/021.mp3"
-    },
-    {
-      "scene": 3,
-      "start": 5836,
-      "duration": 86,
-      "text": "working standards and communication style.",
-      "audio": "voiceover-v2/en/022.mp3"
-    },
-    {
-      "scene": 3,
-      "start": 5933,
-      "duration": 128,
-      "text": "During a day, you might assign\na report, discuss a customer,",
-      "audio": "voiceover-v2/en/023.mp3"
-    },
-    {
-      "scene": 3,
-      "start": 6072,
+      "start": 321,
       "duration": 78,
-      "text": "then ask about another piece of research.",
-      "audio": "voiceover-v2/en/024.mp3"
+      "text": "and connects results to the next step.",
+      "audio": "voiceover-v2/en/intro-004.mp3",
+      "provenance": {
+        "payload_sha256": "c1f40cfbd5abe459eff1594e6b8143f1ced23df3e810ad73f6ba168886f0f4ef",
+        "audio_sha256": "89c99fb9745ee86cc5f77d062e60987430eb03de2dadaf2547eba0cc4377b487",
+        "request_id": "req_9dbab441d579413aa85b81f4ca6ba8dc",
+        "source_sha256": "cc8dbeaeb8fb2c642a0a4d80a46da57d0d735d7639c0c8a5ab7be2a80a74cdf2"
+      }
     },
     {
-      "scene": 3,
-      "start": 6161,
-      "duration": 61,
-      "text": "You keep addressing the same Duet.",
-      "audio": "voiceover-v2/en/025.mp3"
-    },
-    {
-      "scene": 3,
-      "start": 6233,
-      "duration": 114,
-      "text": "It works on the tasks separately\nand brings their results back.",
-      "audio": "voiceover-v2/en/026.mp3"
-    },
-    {
-      "scene": 3,
-      "start": 6358,
-      "duration": 144,
-      "text": "As the conversation grows, older\nmaterial is condensed into a summary",
-      "audio": "voiceover-v2/en/027.mp3"
-    },
-    {
-      "scene": 3,
-      "start": 6513,
+      "scene": 0,
+      "start": 410,
       "duration": 103,
-      "text": "and the latest exchanges\nremain in their original form.",
-      "audio": "voiceover-v2/en/028.mp3"
+      "text": "This routing core does\nnot call a language model.",
+      "audio": "voiceover-v2/en/intro-005.mp3",
+      "provenance": {
+        "payload_sha256": "2a1ef2ed9edfeee7e3d5d2abd92bcad590188498e7514043070f63e1be552443",
+        "audio_sha256": "97a1d2f0f124ae1c79ddacfcbb6356a210cd915f06fc28ce772a91a0c50f4c22",
+        "request_id": "req_d1e8edd34f904e2b9ee9b0049b457844",
+        "source_sha256": "92d51732bb054c033b105db84dd3d04fe2417b0b9e7203b8619545cf7d324a92"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 524,
+      "duration": 81,
+      "text": "Inside are two shared services.",
+      "audio": "voiceover-v2/en/intro-006.mp3",
+      "provenance": {
+        "payload_sha256": "f210061f220c2b9f4914c83af1d32b071fb461dd2dff88d8dc28b4a0847a29ad",
+        "audio_sha256": "c0cb2b116134a451e323015ecdd2d97ee9c4d2ef56fa4aa242bc3d339cfa3893",
+        "request_id": "req_69d0a5f0dd8d4cd8a6749b85cf0800fa",
+        "source_sha256": "caac6e0ea945ef2bfc8191df8055293ff5e81dd6e83ed4608d9bad40358e2251"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 616,
+      "duration": 147,
+      "text": "Message Center gathers news,\nnotifications and work outputs",
+      "audio": "voiceover-v2/en/intro-007.mp3",
+      "provenance": {
+        "payload_sha256": "bcb225bd635bc98f867d334bbce6bfd616c2e1c38cd90e75fe1ee3c0b3af370f",
+        "audio_sha256": "9dd4f2949ce94d3326e3a7f8d80a518622dfa984974274e3e8257bba86825b36",
+        "request_id": "req_9d0bfbfc4f414d46a438f8b6a18c769a",
+        "source_sha256": "93bc084bfc568179baa278b6837175fefcf8fabc467eb35e247590f4eb7739c5"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 774,
+      "duration": 129,
+      "text": "into readable information\nfor search and subscriptions.",
+      "audio": "voiceover-v2/en/intro-008.mp3",
+      "provenance": {
+        "payload_sha256": "0fde95d1a288c88d40b8f3029a821fdf85337b6563c5b5f7d41ff8b9d8eae041",
+        "audio_sha256": "6e9478fc19c270e11c5a19b75e2c20bef0b22b046ac4bf6dfd47fb2ce5bf27a5",
+        "request_id": "req_fe4f990fb9274a0491878d2546728ffe",
+        "source_sha256": "113ce91d4b280709413adc4883744052014a8e67aa351000d5eb2f6b4fc0b9b0"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 914,
+      "duration": 121,
+      "text": "LoopLab runs tests and produces\nacceptance results with evidence.",
+      "audio": "voiceover-v2/en/intro-009.mp3",
+      "provenance": {
+        "payload_sha256": "061d543c2c3df0f29e0e3dc0997853f8686cb5e52aabc136b4cad2859d713c4a",
+        "audio_sha256": "fa5f528998aa5f46b4bff665bab58080b70fdd63bae4ec844ec6cb3d2e31f3dd",
+        "request_id": "req_a742218e067b4d7db29887f824ec9faa",
+        "source_sha256": "6b1b204746233a80706e97c2996bad54e82e5ae742eb8de23031f5758e72726b"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 1046,
+      "duration": 106,
+      "text": "Around the ring are personal Duets.",
+      "audio": "voiceover-v2/en/intro-010.mp3",
+      "provenance": {
+        "payload_sha256": "a4b044e2534e88741025ab3dc3493ccb7fec76505aa2337f372ee31f431b8ed9",
+        "audio_sha256": "49d4879f657ff49599b28fca8f01125721d527be9954ae8ec15d84c7e3d00eb0",
+        "request_id": "req_beb709bd9807474cb70edbfb7a336ae6",
+        "source_sha256": "9b6ff4302b6da9125e017d9a6d80a214b5d28c5ef3c8ce17fca466925763cabf"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 1163,
+      "duration": 119,
+      "text": "Each understands assignments,\nuses tools, completes work,",
+      "audio": "voiceover-v2/en/intro-011.mp3",
+      "provenance": {
+        "payload_sha256": "2c4a613e89a3ca3247a3385a394f11520ef3a90dc11e38524e360eb87c230972",
+        "audio_sha256": "4cc90f63108b01fc20b00c79273f6a904281c16b439a5bdd4502300819691999",
+        "request_id": "req_c5d0974d965540868eb00de1b16491e5",
+        "source_sha256": "2202feb58197b9011ff347bc28cf1ed83a9ee8862c9d2d9d9398587d3dcf7abd"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 1293,
+      "duration": 108,
+      "text": "and follows up through memory and Tracking.",
+      "audio": "voiceover-v2/en/intro-012.mp3",
+      "provenance": {
+        "payload_sha256": "3933e6a3d0614a563ebeb582f67a16ac8f32e45d53cf266a6849dd3f7894b240",
+        "audio_sha256": "80368867b47cfbbb4dd83012a6214a0d78519e6bf4b9afe2b6f1f61f38e8ad5e",
+        "request_id": "req_1c4f7b3a6c014c889b78501b0d3d15c8",
+        "source_sha256": "d912a986bf2dd79e8d11e9ddb174e4708531af5f0368e305afae27dfd9aabc03"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 1412,
+      "duration": 123,
+      "text": "Each Duet connects outward to its own Owner:",
+      "audio": "voiceover-v2/en/intro-013.mp3",
+      "provenance": {
+        "payload_sha256": "d01288b306c01861d99cfa4008aaa4cef7ca8c949fc6ae170b3882d21d0a1e7f",
+        "audio_sha256": "0fbead38d4662e43586ad3653e65b1510a1a060e23c1cbb781bd5438d0f21197",
+        "request_id": "req_098b99adf4814a27bdc67c340ce4f834",
+        "source_sha256": "9f40653a90133b545a38358d7e2a4ba40e789e74e3eb266da194f92affd95d5e"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 1546,
+      "duration": 134,
+      "text": "the employee who sets goals\nand makes judgments.",
+      "audio": "voiceover-v2/en/intro-014.mp3",
+      "provenance": {
+        "payload_sha256": "a750ac1d346b44c7ed241f41c15ec87f0570ab807e8734a7c6639817a6ef2dd6",
+        "audio_sha256": "e3dbb55f89659c480e722751b84575c26e0a4f4f1048b2594df0bbefaec9fd56",
+        "request_id": "req_4e73fa556fc84764a8f0c1e39602b40a",
+        "source_sha256": "6034b4b95b38bf602418af63c20102ce7e42773301fb8fcdb80431278672f235"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 1691,
+      "duration": 65,
+      "text": "People address their own Duet.",
+      "audio": "voiceover-v2/en/intro-015.mp3",
+      "provenance": {
+        "payload_sha256": "3ee77e817916cedb99e9db052b75e463733563b16a1c0f201b8142df78d09601",
+        "audio_sha256": "482e0c6af9ca5319c714ac5c3919107d761867bd7f2d19aa877dc0d36b103f5a",
+        "request_id": "req_873de96bf8ad43c3ac059873129d7fd0",
+        "source_sha256": "0830b512dbde6ab0d09215e944e42458382103f06212d1ad87633439eff55632"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 1767,
+      "duration": 121,
+      "text": "Across roles, Duets\ncoordinate by leaving tasks,",
+      "audio": "voiceover-v2/en/intro-016.mp3",
+      "provenance": {
+        "payload_sha256": "8884e3a92d8fce0ab04b98f03df9ef11df713067a5b87bbfdb9d0e5b28b6c91c",
+        "audio_sha256": "2809dda12e7bb0d070fb3b16b34f425703b846215fad8ecfcad01beffd6f7e74",
+        "request_id": "req_11f2abf0fc5c447798dc9a78be49bf97",
+        "source_sha256": "6d303cc66f599bbf1cca842f10a669703e70177613fc736f84022e55b73b0559"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 1899,
+      "duration": 83,
+      "text": "materials and results in a shared topic.",
+      "audio": "voiceover-v2/en/intro-017.mp3",
+      "provenance": {
+        "payload_sha256": "288f190090528a4941eb62499e33f822ad5f2b206c71eba0ed80b1db0f1a477c",
+        "audio_sha256": "8222c9e14457b6c8229c16371389cca797abf589a582c8974d9f760b899986e3",
+        "request_id": "req_58c3427c10434c38a7014ad5287eb5ba",
+        "source_sha256": "ace167d1955f13f3d51edcd8c9795058b93ab91339c98d45cf477c26e0725b86"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 1993,
+      "duration": 60,
+      "text": "Now follow one flow.",
+      "audio": "voiceover-v2/en/intro-018.mp3",
+      "provenance": {
+        "payload_sha256": "483ceddfa3152a52cdd299411c369ddc96fc3e78050a375e946ea13169eaa683",
+        "audio_sha256": "e62739010f385d78a837feb3e7f78e76657a64d8a6fc6eed28e01fd97d2e33ff",
+        "request_id": "req_dfc0952797044e7ab7517db0bfd1f3ec",
+        "source_sha256": "8d15a03c6ca5876b0fa0de04a65c1d013a3d11317b3428adc91993f255e88168"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 2064,
+      "duration": 168,
+      "text": "A Duet finds relevant information\nin Message Center and suggests an action.",
+      "audio": "voiceover-v2/en/intro-019.mp3",
+      "provenance": {
+        "payload_sha256": "be5923a98b907fad6e788523e290f6c51ddbc46a05cb56541ed5dfb72a78e755",
+        "audio_sha256": "ae8de29ab36deaa52e29f602a32a1493ab0e3c91c29e2a4d9094de567b475cd9",
+        "request_id": "req_cb226c6db7ff4fd4bcc2a36c5c6a9dc4",
+        "source_sha256": "577b75d93b7b2aa48528d50e1c9120c539666d06b30b0bb87829f5b456338dfb"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 2243,
+      "duration": 101,
+      "text": "The employee decides to proceed,\nand Duet starts work.",
+      "audio": "voiceover-v2/en/intro-020.mp3",
+      "provenance": {
+        "payload_sha256": "ab31fcf085603f51a3542b1813a72f455d13a4e704cc361dee7aefdb91542afa",
+        "audio_sha256": "66e9d5f4b273c28b34e3b8e604c007cedb8d86b77e927ab4d6235182e5667296",
+        "request_id": "req_243dcd662a3b4b2b8f4b365680025d2a",
+        "source_sha256": "23d8d305752c8a3df06c1480d7a108afc39ae9172bab58be6619dc3f4300a634"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 2355,
+      "duration": 91,
+      "text": "A task result returns to Agent Loop,",
+      "audio": "voiceover-v2/en/intro-021.mp3",
+      "provenance": {
+        "payload_sha256": "1ffdea11d9fd3ab9a6ad661340c37e47cb42e347e198a1f041e984ea4bf2c8a8",
+        "audio_sha256": "8c5f750d4f18b11bf8b1197a2ab32fd4643748ffc884c792154ba44669f2a55f",
+        "request_id": "req_89e0d1510ced42aab23814c08f06de62",
+        "source_sha256": "5fd1d4a5468582fc84783f612eb3e1564318ddde6d24651d27571c3b2ce75acd"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 2457,
+      "duration": 109,
+      "text": "where policy passes it to the\nnext responsible person’s Duet.",
+      "audio": "voiceover-v2/en/intro-022.mp3",
+      "provenance": {
+        "payload_sha256": "83bd475dc1e6813ba1749e069b7bb764bc9306bb5d819352316262acc46c032a",
+        "audio_sha256": "bacc40c77b1647c612a8b34a349cddd6af27a0ad6bcbb163d8e76b47465a3e16",
+        "request_id": "req_781fba834cbb41979956bba7003dcb3a",
+        "source_sha256": "b85dfd99c23b5fb91186529212e375c81a9b1eed264918fdedd60452ffaf71a4"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 2577,
+      "duration": 116,
+      "text": "When acceptance is needed,\nLoopLab runs the tests",
+      "audio": "voiceover-v2/en/intro-023.mp3",
+      "provenance": {
+        "payload_sha256": "f0a27e85934a3f1afaf65e87c3b45f1bbaf2771667df50828e9868d0fed55abc",
+        "audio_sha256": "49e13e730ff42b7637dfe50eb869b647be5dae3bf1d42c7a9dc5d1ec2208edfe",
+        "request_id": "req_ff6be1f5bf964a509673daf95333c9f6",
+        "source_sha256": "a5341fee25f16d55ad5ae6264611021e0acd480a4f936353ab59f4f7ac0caab4"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 2704,
+      "duration": 70,
+      "text": "and sends the result back into the loop.",
+      "audio": "voiceover-v2/en/intro-024.mp3",
+      "provenance": {
+        "payload_sha256": "50fa346881b4a7faf5374e0ff51b8f177541996da6fb5a410ffe8e203179e1f4",
+        "audio_sha256": "8cf34d41789d49d026c73f0e9c91612816ffb1e49ff988f989bd653c9b833342",
+        "request_id": "req_a7dd1cd44ac8438fa75f0edce601b394",
+        "source_sha256": "6ef0c3eb2be612042301d4a6ed92b56fabde87cc8064539ff27d5f61052c78f5"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 2785,
+      "duration": 39,
+      "text": "People judge.",
+      "audio": "voiceover-v2/en/intro-025.mp3",
+      "provenance": {
+        "payload_sha256": "951bb366cc938144e97b9913632f4a5642a37afe69404768269aa1cfb64f17f1",
+        "audio_sha256": "1612b0181bf1039092f9654597cbd905cc20df55d95f14fe60e95eec52523ec1",
+        "request_id": "req_0f1297a54b6f42e59f0b665b859c02d9",
+        "source_sha256": "24db9d79da07bb30d9370a5bff0d56bc5a0ad6b7605ec026177099101516fc5a"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 2835,
+      "duration": 60,
+      "text": "Duets do the work.",
+      "audio": "voiceover-v2/en/intro-026.mp3",
+      "provenance": {
+        "payload_sha256": "c3e51be0acdb20c63e87e6cc8e09d0cd32c7b1f858b2a0c9cac687b2fa780aad",
+        "audio_sha256": "aaf6cbd986176a2614a8b12c2bfbf6f0f629055bf7e4a31421dc07f233845dac",
+        "request_id": "req_62b1e26bd4164d5496b647f4917961d4",
+        "source_sha256": "392393d79e527d50af2ca698a9c8861f6292185fd9da81d676b43c61ff42ea1d"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 2906,
+      "duration": 70,
+      "text": "Message Center supplies information,",
+      "audio": "voiceover-v2/en/intro-027.mp3",
+      "provenance": {
+        "payload_sha256": "5af24de682b25b51cb5085c5acfcc684aa2b01378b2deddc0b280ee40960a12e",
+        "audio_sha256": "60395dd33cb976ee29bf7dbcc55842dbef80223bf138417af90d2eff415affe1",
+        "request_id": "req_f8a9407aaf36443183242c61889f284a",
+        "source_sha256": "85485cfc8653ab3d759af67c3bed7c73faa5f18e6a872a23b20c339af389ef63"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 2987,
+      "duration": 171,
+      "text": "LoopLab supplies acceptance evidence,\nand Agent Loop connects the steps.",
+      "audio": "voiceover-v2/en/intro-028.mp3",
+      "provenance": {
+        "payload_sha256": "c6828ed9b0e319dbdae40fb6509325687c2537ab4a34ab3e8a49ec6632b6368b",
+        "audio_sha256": "59f28bc2ffe15f91357c3840a81758bcec46c65942614c7ea7cd00d466bf15ad",
+        "request_id": "req_9cf306a3f9374db48b19feb6d911b0be",
+        "source_sha256": "e0565a9822d2213ebe1d9ad349b668238679fe96fd11080c5fc0c9ae322b913b"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 3169,
+      "duration": 159,
+      "text": "Next, we will see how this map works,\nstarting with one person’s delegation.",
+      "audio": "voiceover-v2/en/intro-029.mp3",
+      "provenance": {
+        "payload_sha256": "fb6386df48fb243ed4e8985c2fd01290b0ff355ee1cc8dc0949979729546c5da",
+        "audio_sha256": "6ec1a4f40b8c8ee4907cc138689a13705fcc25c1ebd498a075716484451aadb3",
+        "request_id": "req_3aabd240d80b4a0bba4eebbeff8c26eb",
+        "source_sha256": "d717699e65877d8b624e0db2aa7e7b5af86903cde96f0af14ef2c85a5e050db8"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 3403,
+      "duration": 129,
+      "text": "A company runs through the connected\nresponsibilities of many people.",
+      "audio": "voiceover-v2/en/001.mp3",
+      "provenance": {
+        "payload_sha256": "fc34ebd354e3014d1422168b38284d36442350a784cce86ab49d730f3b456f5f",
+        "audio_sha256": "d245c71a91bd28fdbabab50829aa880219367bd1f182df9eb627b40ea0604726",
+        "request_id": "req_aef7a71208154050a826e3939d21b2cb",
+        "source_sha256": "c27d8c0bdcad96528bc86d41e617b4f76a800d7e4a31b642e155c618b20797d1"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 3543,
+      "duration": 123,
+      "text": "Each person can begin by handing\npart of their work to an AI,",
+      "audio": "voiceover-v2/en/002.mp3",
+      "provenance": {
+        "payload_sha256": "413f0762da772f5d0a523f4e9267a24c1735d8f1aab85f17dcf51b4c9a6357a8",
+        "audio_sha256": "d4fcff79367fb1a3aa640c4134136f7537af8abf2430f58e1c6fa515850fe472",
+        "request_id": "req_fba2cb0b24104ec8ac4ce451a4a9b215",
+        "source_sha256": "9ebdf74d1342f1ac5fcc2809a5feaf24ab49ef4b133f9f73b5a52e09e8253357"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 3677,
+      "duration": 77,
+      "text": "whether that means collecting information,",
+      "audio": "voiceover-v2/en/003.mp3",
+      "provenance": {
+        "payload_sha256": "291cad9318a14e56694c0812f9604d7fab1542c60fbdde24efa692f5e49ce60b",
+        "audio_sha256": "c6f555a34b219b6efd4ab583a3882cc6f9b8023eea57945f83bd8af0dca17a13",
+        "request_id": "req_85166ed308144673aa4d6d5fceb21e91",
+        "source_sha256": "9bd55f0c0b8716f0461cf1cd7fe9bb8b97ff10422f071343f443d7d74bc05334"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 3765,
+      "duration": 132,
+      "text": "preparing a report\nor following an ongoing task.",
+      "audio": "voiceover-v2/en/004.mp3",
+      "provenance": {
+        "payload_sha256": "dcc2c78a4e86fd0ab8b9704cd4be9a8c21a3d8ecd680057230f68946f0f2617e",
+        "audio_sha256": "4d416076e16cd44778e919487965e5827992565ea76fc164d70f2bdf51bd21c4",
+        "request_id": "req_e27303a525e04d508e76690aa9753aed",
+        "source_sha256": "c63f26a90baae1d88f7a5daafa8adcff31f7b6383154cbbfedb45984b2ccd8c4"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 3908,
+      "duration": 127,
+      "text": "In this design, each employee’s\npersonal AI is called Duet.",
+      "audio": "voiceover-v2/en/005.mp3",
+      "provenance": {
+        "payload_sha256": "32104d32ed4d0907948fb43d08d230ad3c164094d1c83eecff6c1dbb512de4c0",
+        "audio_sha256": "9677e7208b4e25ebfe8e37d63bf790a1027b98ada86a09dcf50aabebbde3a0f2",
+        "request_id": "req_9a1c09112901430c8da832f40eae6c50",
+        "source_sha256": "3a761798ad1fe1f77d4389eaceeb73a47a7186ab1de30cba3a6d5d724451bf23"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 4046,
+      "duration": 135,
+      "text": "When one Duet’s output becomes something\nthe next person can use directly,",
+      "audio": "voiceover-v2/en/006.mp3",
+      "provenance": {
+        "payload_sha256": "60280af53d66268e50ef0c1cb083e29dcb9fbdd9a0424fca5bc9ce4565c7f03f",
+        "audio_sha256": "c195d75cd60fb18fcec577b9d4acbb36e64c3288d13f34da2d171388bcfffa69",
+        "request_id": "req_3979dd28973c4487aba3fc552a2e7d38",
+        "source_sha256": "b1572ed2360df6dcfa0e6f069ad0a534ec1e852cbf3ca3e7f48c4d4bd5e926ff"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 4192,
+      "duration": 90,
+      "text": "those individual delegations\nstart to connect.",
+      "audio": "voiceover-v2/en/007.mp3",
+      "provenance": {
+        "payload_sha256": "5c9d50c96041ec20e3e2c4aa33b56a26180c4caec3832ed251c2ed225fc0478c",
+        "audio_sha256": "8b459e402a142f4e50215a3bc3ddacec40230092c6451fe39e5027c97e063d45",
+        "request_id": "req_c59e4c98bbeb4420943d6e830e5b1d3f",
+        "source_sha256": "a928ed8a2f39a1d87b1c6cb013cf950802acb2364dd94dd156b07091252d3bb3"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 4293,
+      "duration": 142,
+      "text": "With a clear starting point,\nhandoffs and acceptance conditions,",
+      "audio": "voiceover-v2/en/008.mp3",
+      "provenance": {
+        "payload_sha256": "e99ccb97e18cc4bb8b13205067e2644e624ce6d61e0217b2e02c41f1d5b0739f",
+        "audio_sha256": "bb16779034e235f9824790af8ebb78d11aa56dad566ba8a515f285034aa64ea5",
+        "request_id": "req_d3a7be870e9f4a4490d30275cea325a8",
+        "source_sha256": "e351df754de237c9117a4e635579ba5f252a401a7fd0bb151988d9576d250328"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 4446,
+      "duration": 127,
+      "text": "a business process can keep moving\nthrough rules and human judgment.",
+      "audio": "voiceover-v2/en/009.mp3",
+      "provenance": {
+        "payload_sha256": "95b278cd6370b18c2555620d7a726139c42140e0e5fb8acf27bbf40dfe17e189",
+        "audio_sha256": "f3f9f4d0153e409781982c1b28b27f613c9e4a3fead352f6a82db6ec9569acb7",
+        "request_id": "req_3e5ed12c3a854e4cbd89fe40c5bd061e",
+        "source_sha256": "1677dc8234ac4f72961d4dccdc6277150429d9cdfdab75fc9134303e135d18ad"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 4584,
+      "duration": 99,
+      "text": "This is how we approach AI-native work.",
+      "audio": "voiceover-v2/en/010.mp3",
+      "provenance": {
+        "payload_sha256": "8b36d243ebc0166d4d8dcbdcb94368892e3d2692933cc0ce80045a958b40a898",
+        "audio_sha256": "242b94d7cdc8fc1bac4d5b5bc8861defd68976a1d881cfa0f78bec76b37c92f8",
+        "request_id": "req_7b551bff49fd4c63b7ea4a7d0bcbdce3",
+        "source_sha256": "58708563210d09ed7e9ad1d2e66805622196ae974890dbc58b017035f06c2b60"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 4758,
+      "duration": 93,
+      "text": "Bob messages me and asks for a report.",
+      "audio": "voiceover-v2/en/011.mp3",
+      "provenance": {
+        "payload_sha256": "767900741ffcfb170bfa7d767f2b103cb3ec600e0517c1f307b155a6bd101042",
+        "audio_sha256": "b4d7888e2de0d5d81ed8f7f09fa03b8e58cb1822cefd54b84f7631cfdbf69ca3",
+        "request_id": "req_5cac11eee56b4a75b1c3266865c5cbf1",
+        "source_sha256": "affbb9c61d44ef5a882c6ceacb879093a2c1fddde69b93209df241949da99873"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 4862,
+      "duration": 102,
+      "text": "I select his message,\nbring it to my own Duet,",
+      "audio": "voiceover-v2/en/012.mp3",
+      "provenance": {
+        "payload_sha256": "f7f4aa8f83a46aec326fd753f5ed672b410aef7d67a428a5255fffe4f38f01b7",
+        "audio_sha256": "1ee639c1d2fdd6afd1504ee8b5e2e0fe1c59918c8c234f33beff8f11e532f98a",
+        "request_id": "req_e492650b81104077853aea78b3c6c5cb",
+        "source_sha256": "16ce9c0487a4ea918c2a1f73a0b5e066bf7ee34467607947b1ebb3436f4f39fc"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 4975,
+      "duration": 117,
+      "text": "and say, prepare this report,\nthen send it to Bob.",
+      "audio": "voiceover-v2/en/013.mp3",
+      "provenance": {
+        "payload_sha256": "e717a9c2378d20204a392751291e8b9509fe6fe87b2a1ddc33e949e9c9e5b2f1",
+        "audio_sha256": "e3bba598551c3374e74e23b00d18f348f182db549f5d12deaef2fc21811e94d1",
+        "request_id": "req_1d71c67bb383453fadba7e225a89e2df",
+        "source_sha256": "973f271ea021a514f9641b618f362ecb7145cbf3c7188c8b19d4c1df7c71eea5"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5103,
+      "duration": 134,
+      "text": "The quotation carries the original request\nand the conversation it came from.",
+      "audio": "voiceover-v2/en/014.mp3",
+      "provenance": {
+        "payload_sha256": "6e0320b77295181dbe3c78b4f4e0e461bff7a14d7d807ed2eeefc6512e51d331",
+        "audio_sha256": "cfce749f634d2673765b7ab8898c0a6446b2c314c4d506e652d094a40a6093fb",
+        "request_id": "req_2d2936d1495c443c87b0e0fea135e304",
+        "source_sha256": "44dba3817274d1a56b47acaf1d67a7f637c635b8fef306d5164ac2757b696c50"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5248,
+      "duration": 105,
+      "text": "My Duet organizes the data,\ncompletes the report,",
+      "audio": "voiceover-v2/en/015.mp3",
+      "provenance": {
+        "payload_sha256": "5d468be5960734c7a43fdd9a96de66eba0cbdbef120062069d67366ce267f8b5",
+        "audio_sha256": "01f2da6fd73953e230f934fb9028b25fe8fc41e3c8aa76718f4107cd66d9e8f1",
+        "request_id": "req_6e9320357ebc4c189259bd806cb02f9f",
+        "source_sha256": "77ded9ca271e79583172ca0f8acb2df98ab315fd92740af32f9d8ab297762be6"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5364,
+      "duration": 185,
+      "text": "and uses a sending tool to post the file\nas me in that original conversation.",
+      "audio": "voiceover-v2/en/016.mp3",
+      "provenance": {
+        "payload_sha256": "5c4761a234c222b6a9d74f6dcf8fa0023531f20d82fa2cd8b102719ba0efc014",
+        "audio_sha256": "f9d68c04fc737af9449dcbdc1fcaad9c18484969cb5fec86b3ec614156ae5358",
+        "request_id": "req_2e83b79ef8eb454eb29df1e88e2cc2f5",
+        "source_sha256": "8294deb005c077c845ab450891adf3f20d62fe9e72f31ace083d804e3bf6c59e"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5560,
+      "duration": 105,
+      "text": "Sending is part of the task\nI have just assigned.",
+      "audio": "voiceover-v2/en/017.mp3",
+      "provenance": {
+        "payload_sha256": "16f1a6d76e8c40eeb39009e20c83c1bfe22bdfcfe5e7c2540d81f3b7040951dd",
+        "audio_sha256": "16d63095efdf9b4a523e2e35a9f03bf04bd82b32fbc8fa5305d49802fe336a42",
+        "request_id": "req_22bd9f9df0104c28b6a86e27b3bdfe3a",
+        "source_sha256": "7b01ba8fb912fb7064a978997cc4660a4451e32eac00e0b54e0db5f145f5b47b"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5676,
+      "duration": 103,
+      "text": "Bob receives what he needs\nand continues his work.",
+      "audio": "voiceover-v2/en/018.mp3",
+      "provenance": {
+        "payload_sha256": "8f2906e0037ff8739a6fde59a4da9937f7a753043b5d25dc8bdac89e6af7e8c2",
+        "audio_sha256": "3485d08aab80c7853c6b56df38ee6a66e93f749d301b0f47063c394739c8d86d",
+        "request_id": "req_d7d886bc4b684bba9e92d233283a23a5",
+        "source_sha256": "b09d0dff9567404567d21b2923a2b7229d02dca7e51022d643957eebca72a982"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5790,
+      "duration": 124,
+      "text": "One small delegation has crossed\na handoff between two roles.",
+      "audio": "voiceover-v2/en/019.mp3",
+      "provenance": {
+        "payload_sha256": "d00c72dc51d81b7f4fd6f25033bc1c68fb28f84100007af38cc18b2fef986276",
+        "audio_sha256": "c77ace982ed624b0d976e5d20cb0cf1ba2ba63f869b009d69c8c357ab4c95002",
+        "request_id": "req_2f7cbcd94aba4013a0aec1342a4fa7e0",
+        "source_sha256": "9615ce0eb4f5f5332f671ffc4edf280dfea2b6f33630c36cee599aeb175b1af7"
+      }
     },
     {
       "scene": 3,
-      "start": 6627,
-      "duration": 133,
-      "text": "You can continue the immediate discussion\nand return to ongoing work later.",
-      "audio": "voiceover-v2/en/029.mp3"
+      "start": 5989,
+      "duration": 111,
+      "text": "Duet stays with the same employee over time.",
+      "audio": "voiceover-v2/en/020.mp3",
+      "provenance": {
+        "payload_sha256": "5898a92745845ac822f5ae8f7449d2ad4d0112eb9d682c8c940f7edcfb7d006d",
+        "audio_sha256": "5d63eaa586bc1c9336f163e19d566a1d700e6effe86b761d957f3ef48fcb78d3",
+        "request_id": "req_a9a5ea78c9494d87859c9867231d3af7",
+        "source_sha256": "5f48492e2133d0685299d322b42dcad23e33b98b4db5653fb23326abe8091a22"
+      }
     },
     {
-      "scene": 4,
-      "start": 6835,
-      "duration": 143,
-      "text": "Imagine that, on Monday,\na crawler finds a regulatory update",
-      "audio": "voiceover-v2/en/030.mp3"
+      "scene": 3,
+      "start": 6111,
+      "duration": 126,
+      "text": "You can teach it your\nresponsibilities, preferred sources,",
+      "audio": "voiceover-v2/en/021.mp3",
+      "provenance": {
+        "payload_sha256": "a1ac3a8b87acbff96bcae39627c6ba8204efe86af4df235d4097c68de0c023fe",
+        "audio_sha256": "367501de2a4f64ed636082a872ff7396536a3c223f984f698eb74beddf42234c",
+        "request_id": "req_22666cccddac457eb129f80b9fb32eb1",
+        "source_sha256": "d946f124b2cda48135eb11b5d49a08da0bc1d1356d84216a64d44bf610da9371"
+      }
     },
     {
-      "scene": 4,
-      "start": 6989,
-      "duration": 120,
-      "text": "concerning customers’ visibility\ninto application processing.",
-      "audio": "voiceover-v2/en/031.mp3"
+      "scene": 3,
+      "start": 6248,
+      "duration": 81,
+      "text": "working standards and communication style.",
+      "audio": "voiceover-v2/en/022.mp3",
+      "provenance": {
+        "payload_sha256": "d40959e34ac56089ef309f3ef318ed8eaefff8e684c3a0bedde0d74263e18541",
+        "audio_sha256": "879323a1387785923403bf3416029158ef30945bc7bcfd4aa45e2d9f0ec2b426",
+        "request_id": "req_d93d5acbf57f458b9e3a94a4ac23abd6",
+        "source_sha256": "5ae5d28fda0d29a1b978116e06ab8829665ff0ba99071ca12e6f0f7f4afb51c4"
+      }
     },
     {
-      "scene": 4,
-      "start": 7120,
-      "duration": 108,
-      "text": "Message Center keeps the source\nlink and publication date,",
-      "audio": "voiceover-v2/en/032.mp3"
+      "scene": 3,
+      "start": 6340,
+      "duration": 119,
+      "text": "During a day, you might assign\na report, discuss a customer,",
+      "audio": "voiceover-v2/en/023.mp3",
+      "provenance": {
+        "payload_sha256": "f5535acce0860c530feb916f1823f704640d4fe936df14387168197c4412ba75",
+        "audio_sha256": "06eb6710835752f71b5ab3e413f11242f63d87958853f683e268d3cd83133329",
+        "request_id": "req_6961c477d2734f84b9ec3f4daa355ecb",
+        "source_sha256": "14ca2dbe4161015c0692ee2c79dd01ae8918e1acfbf219c4515d35a4c73530a0"
+      }
     },
     {
-      "scene": 4,
-      "start": 7239,
-      "duration": 104,
-      "text": "adds a readable summary\nand classifies the information.",
-      "audio": "voiceover-v2/en/033.mp3"
-    },
-    {
-      "scene": 4,
-      "start": 7354,
-      "duration": 102,
-      "text": "Employees can browse, search and subscribe.",
-      "audio": "voiceover-v2/en/034.mp3"
-    },
-    {
-      "scene": 4,
-      "start": 7467,
-      "duration": 90,
-      "text": "Their Duets can look for information relevant",
-      "audio": "voiceover-v2/en/035.mp3"
-    },
-    {
-      "scene": 4,
-      "start": 7568,
-      "duration": 90,
-      "text": "to their responsibilities\nor check on a schedule.",
-      "audio": "voiceover-v2/en/036.mp3"
-    },
-    {
-      "scene": 4,
-      "start": 7669,
-      "duration": 140,
-      "text": "This brings outside changes into\nthe company’s shared information space.",
-      "audio": "voiceover-v2/en/037.mp3"
-    },
-    {
-      "scene": 4,
-      "start": 7820,
+      "scene": 3,
+      "start": 6470,
       "duration": 96,
-      "text": "An item can remain here\nuntil someone connects it",
-      "audio": "voiceover-v2/en/038.mp3"
+      "text": "then ask about another piece of research.",
+      "audio": "voiceover-v2/en/024.mp3",
+      "provenance": {
+        "payload_sha256": "3b45b52fbe516d6c7efa952018e5e1a185b46061473107bcff4a1291a7a436f3",
+        "audio_sha256": "301743c62f8f22b539bfbf56a795823362d720564cdd3c66b75870235980879d",
+        "request_id": "req_347e7bf873424b09ab41c25f6b14ce61",
+        "source_sha256": "a81216572d9ecd07ad44b1e34ebb793a090718dafd10e4f3f83094ae9b350ee1"
+      }
     },
     {
-      "scene": 4,
-      "start": 7927,
-      "duration": 93,
-      "text": "with work they are doing\nand decides how to respond.",
-      "audio": "voiceover-v2/en/039.mp3"
+      "scene": 3,
+      "start": 6577,
+      "duration": 106,
+      "text": "You keep addressing the same Duet.",
+      "audio": "voiceover-v2/en/025.mp3",
+      "provenance": {
+        "payload_sha256": "9d064417b0e0cda705714b89583d80697ac9efe2522c968f7e38bf7baebff7ee",
+        "audio_sha256": "ad3841b02894d69450444593f0e49a798bed2607657c51f80c224aa3bcb0a1d7",
+        "request_id": "req_cb5511344a974e9f9df71d934827f11a",
+        "source_sha256": "102acf13fd9261f70bfb41002c5abd84600d2b8b2e886e9e795ea4be19d840ab"
+      }
     },
     {
-      "scene": 5,
-      "start": 8095,
-      "duration": 67,
-      "text": "Nora handles market research.",
-      "audio": "voiceover-v2/en/040.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8173,
-      "duration": 131,
-      "text": "Her Duet knows she is following\nthe customer application experience,",
-      "audio": "voiceover-v2/en/041.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8315,
-      "duration": 172,
-      "text": "so it recommends this update and explains how\nit may affect the existing application page.",
-      "audio": "voiceover-v2/en/042.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8498,
-      "duration": 118,
-      "text": "Nora decides to investigate\nand asks Duet for research,",
-      "audio": "voiceover-v2/en/043.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8627,
-      "duration": 70,
-      "text": "a report and a requirements proposal.",
-      "audio": "voiceover-v2/en/044.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8708,
-      "duration": 63,
-      "text": "The outputs become specific.",
-      "audio": "voiceover-v2/en/045.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8782,
-      "duration": 57,
-      "text": "Which processes are affected?",
-      "audio": "voiceover-v2/en/046.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8850,
-      "duration": 47,
-      "text": "What does the source say?",
-      "audio": "voiceover-v2/en/047.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8908,
-      "duration": 147,
-      "text": "What should customers see, and what\nshould internal staff be able to export?",
-      "audio": "voiceover-v2/en/048.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 9066,
-      "duration": 155,
-      "text": "Maya receives these materials and can turn\nthe research into a product requirement.",
-      "audio": "voiceover-v2/en/049.mp3"
-    },
-    {
-      "scene": 6,
-      "start": 9296,
-      "duration": 83,
-      "text": "Nora can ask her Duet to bring the product,",
-      "audio": "voiceover-v2/en/050.mp3"
-    },
-    {
-      "scene": 6,
-      "start": 9390,
-      "duration": 95,
-      "text": "development and testing\ncolleagues into a human group.",
-      "audio": "voiceover-v2/en/051.mp3"
-    },
-    {
-      "scene": 6,
-      "start": 9496,
-      "duration": 87,
-      "text": "The people discuss scope\nand priorities there.",
-      "audio": "voiceover-v2/en/052.mp3"
-    },
-    {
-      "scene": 6,
-      "start": 9594,
+      "scene": 3,
+      "start": 6694,
       "duration": 123,
-      "text": "Maya can take a message that needs\nwork and hand it to her own Duet.",
-      "audio": "voiceover-v2/en/053.mp3"
+      "text": "It works on the tasks separately\nand brings their results back.",
+      "audio": "voiceover-v2/en/026.mp3",
+      "provenance": {
+        "payload_sha256": "1cf3f61631e2c281b79cdd99e1a924f1a81127fd8f643f6a0bed65c4a3f1a433",
+        "audio_sha256": "f8abdf4062e1610eb62fe6a288cd3f97268d0f0c455a5d03cbff0878b022a83d",
+        "request_id": "req_a5ce42d1e2e04320b4b1c58b864409e2",
+        "source_sha256": "d777a06022124ece81e6797ab5e15497c52295e10a3e4ce80ad72cb9a097b3a4"
+      }
     },
     {
-      "scene": 6,
-      "start": 9728,
-      "duration": 130,
-      "text": "Meanwhile, Nora’s Duet creates\nand manages a linked topic,",
-      "audio": "voiceover-v2/en/054.mp3"
+      "scene": 3,
+      "start": 6828,
+      "duration": 141,
+      "text": "As the conversation grows, older\nmaterial is condensed into a summary",
+      "audio": "voiceover-v2/en/027.mp3",
+      "provenance": {
+        "payload_sha256": "311075e1e8d6cba426fe6ec4f2f2c7b0194d55cd78cc67bc8d297cde3d4a62a0",
+        "audio_sha256": "4a7222eaac83394bb710a6ad8e38599e10377330188cc082d862f7b7aac2f7b1",
+        "request_id": "req_90a4441ffc5c449cb98e18a20b19a14d",
+        "source_sha256": "0f04de3dce0b04296bd292bcd0714b3902b18e0173307203ad0f039f664280a1"
+      }
     },
     {
-      "scene": 6,
-      "start": 9869,
-      "duration": 119,
-      "text": "posts the research and invites\nthe relevant Duets to contribute.",
-      "audio": "voiceover-v2/en/055.mp3"
+      "scene": 3,
+      "start": 6980,
+      "duration": 106,
+      "text": "and the latest exchanges\nremain in their original form.",
+      "audio": "voiceover-v2/en/028.mp3",
+      "provenance": {
+        "payload_sha256": "3a44bc1020a0a97b9f63ea00b0851b69c71b42ba379773ea6118786b2e521028",
+        "audio_sha256": "afa427896c1192aa32a62b34ef6c8e651d3829c7e45638e60ae30313fd1a780f",
+        "request_id": "req_9b32cd9f9b0d46b9990f290a6210ebce",
+        "source_sha256": "a39910142a881cc23a5a14f0333dd6bf59cf18d25fb23ab3790cdfea18f56e5b"
+      }
     },
     {
-      "scene": 6,
-      "start": 9999,
-      "duration": 129,
-      "text": "Each Duet brings its employee’s\nresponsibilities and uses that",
-      "audio": "voiceover-v2/en/056.mp3"
+      "scene": 3,
+      "start": 7097,
+      "duration": 153,
+      "text": "You can continue the immediate discussion\nand return to ongoing work later.",
+      "audio": "voiceover-v2/en/029.mp3",
+      "provenance": {
+        "payload_sha256": "c1678483f04a6ba5577fb83e111c7bc7df0c7f04683137203b5a7a688b541a8c",
+        "audio_sha256": "db1167503b34c010c20fa66c4f534c26a3829ebdfc274cf54316cf2ddd334c14",
+        "request_id": "req_c37cced08af849bf91bde8ee2b6a1a49",
+        "source_sha256": "d20fcff94a497182702bbdeeab0baf3c79ece7567559c801307655028973dc11"
+      }
     },
     {
-      "scene": 6,
-      "start": 10139,
-      "duration": 119,
-      "text": "employee’s group access to read\nthe shared history and files.",
-      "audio": "voiceover-v2/en/057.mp3"
+      "scene": 4,
+      "start": 7325,
+      "duration": 147,
+      "text": "Imagine that, on Monday,\na crawler finds a regulatory update",
+      "audio": "voiceover-v2/en/030.mp3",
+      "provenance": {
+        "payload_sha256": "27f26b9112476ce8e36516019e6c919cba0d2517c41543a6eabf2dc5bd621480",
+        "audio_sha256": "2c1da2c5dda67f3071c9b2e7aefb8492a0ca68ce09dab0d2f37d676a3ea01499",
+        "request_id": "req_b584842a072642e197e74e3f35f32d22",
+        "source_sha256": "e0ce3025704ee98cbb0a5730519441c4a23e7adaec061d131555caa82a486fc6"
+      }
     },
     {
-      "scene": 6,
-      "start": 10269,
-      "duration": 53,
-      "text": "People address their own Duet.",
-      "audio": "voiceover-v2/en/058.mp3"
+      "scene": 4,
+      "start": 7483,
+      "duration": 127,
+      "text": "concerning customers’ visibility\ninto application processing.",
+      "audio": "voiceover-v2/en/031.mp3",
+      "provenance": {
+        "payload_sha256": "b7a61b73334b77373dd652b694af5f4ba713396cb24d6fb71598aa17965ece4d",
+        "audio_sha256": "6e38bc15b85aabd698299a80a5adc16cbfa5b96ae2e2a820aa297f986c419d16",
+        "request_id": "req_9ceef8d37054432fb7374f46bd91b776",
+        "source_sha256": "462e30f7a315178ebc0aed0c953dfae44a9b71d6de3fd3017ac0b3360092ca85"
+      }
     },
     {
-      "scene": 6,
-      "start": 10333,
-      "duration": 72,
-      "text": "The Duets coordinate through the topic,",
-      "audio": "voiceover-v2/en/059.mp3"
+      "scene": 4,
+      "start": 7621,
+      "duration": 111,
+      "text": "Message Center keeps the source\nlink and publication date,",
+      "audio": "voiceover-v2/en/032.mp3",
+      "provenance": {
+        "payload_sha256": "ed230c41fce664ceb5cd0a31ea59fc43c9ced8d4b43eb7b7bc54629bea8a82e3",
+        "audio_sha256": "f9ca3ff9c149e78207885470de7e0a5872aea7b23b6b979fe6f5534b19198c3e",
+        "request_id": "req_833590832e5741f18ee83085831f9e47",
+        "source_sha256": "95faae7ddac3540245608b62172f5071edfe23ca0e57bc92a67dfbd377d70062"
+      }
     },
     {
-      "scene": 6,
-      "start": 10416,
-      "duration": 101,
-      "text": "leaving work and replies for\none another asynchronously.",
-      "audio": "voiceover-v2/en/060.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 10592,
-      "duration": 150,
-      "text": "On Thursday, Nora asks where the\napplication-status work has reached.",
-      "audio": "voiceover-v2/en/061.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 10753,
-      "duration": 113,
-      "text": "Duet uses several forms\nof memory to recover the work.",
-      "audio": "voiceover-v2/en/062.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 10877,
-      "duration": 120,
-      "text": "Recent context holds a summary\nand the latest exchanges.",
-      "audio": "voiceover-v2/en/063.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11008,
-      "duration": 109,
-      "text": "Every four hours, Dream\nincrementally reviews all",
-      "audio": "voiceover-v2/en/064.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11128,
+      "scene": 4,
+      "start": 7743,
       "duration": 131,
-      "text": "group conversations visible to the\nemployee and their conversations",
-      "audio": "voiceover-v2/en/065.mp3"
+      "text": "adds a readable summary\nand classifies the information.",
+      "audio": "voiceover-v2/en/033.mp3",
+      "provenance": {
+        "payload_sha256": "23bb9c840885b0a933cb975df61498f6c16bce75803dc8792eeaeab496a9c0dc",
+        "audio_sha256": "f70ded4e2a9a34aaf8a4e3901c0c263325bc251804d123ac24c97ec68c2a2516",
+        "request_id": "req_3133e9f8967f49e4824b399d55ade11f",
+        "source_sha256": "c7da5167ecdc4831ecd014754116d9d1a917c7871cf9fef80acbd6b716f89660"
+      }
     },
     {
-      "scene": 7,
-      "start": 11270,
-      "duration": 112,
-      "text": "with their own Duet,\nconsolidating lasting information.",
-      "audio": "voiceover-v2/en/066.mp3"
+      "scene": 4,
+      "start": 7885,
+      "duration": 117,
+      "text": "Employees can browse, search and subscribe.",
+      "audio": "voiceover-v2/en/034.mp3",
+      "provenance": {
+        "payload_sha256": "c50de35946c60c5c0967b85b667adfdffe63fd63172395d44be31729baf6bf9f",
+        "audio_sha256": "fb707b6cf6b3aad8980312d942596af62ec2448c74a757b91d2c052239654c42",
+        "request_id": "req_ef721ecf6a684eb591a5bd3eb1967fb3",
+        "source_sha256": "48592d2f6e2a33867ce314f180b78922596a605cd5c4e94ebd09ef8770dc94c4"
+      }
     },
     {
-      "scene": 7,
-      "start": 11393,
-      "duration": 71,
-      "text": "Git preserves versions and sources.",
-      "audio": "voiceover-v2/en/067.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11475,
-      "duration": 86,
-      "text": "If Monday’s plan conflicts with Thursday’s,",
-      "audio": "voiceover-v2/en/068.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11572,
-      "duration": 137,
-      "text": "Duet can trace the change and update\nmemory from the applicable decision.",
-      "audio": "voiceover-v2/en/069.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11720,
-      "duration": 140,
-      "text": "When Duet recognizes an ongoing\nmatter, it creates a Tracking item.",
-      "audio": "voiceover-v2/en/070.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11871,
-      "duration": 88,
-      "text": "Its first node describes\nthe item and its goal.",
-      "audio": "voiceover-v2/en/071.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11970,
-      "duration": 124,
-      "text": "That metadata stays in everyday\ncontext to help locate the work.",
-      "audio": "voiceover-v2/en/072.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 12105,
-      "duration": 79,
-      "text": "Detailed progress is retrieved when needed,",
-      "audio": "voiceover-v2/en/073.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 12195,
-      "duration": 96,
-      "text": "and new decisions\nand deliveries add further nodes.",
-      "audio": "voiceover-v2/en/074.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 12302,
-      "duration": 119,
-      "text": "Work can continue across many\nintervening conversations.",
-      "audio": "voiceover-v2/en/075.mp3"
-    },
-    {
-      "scene": 8,
-      "start": 12496,
+      "scene": 4,
+      "start": 8013,
       "duration": 99,
+      "text": "Their Duets can look for information relevant",
+      "audio": "voiceover-v2/en/035.mp3",
+      "provenance": {
+        "payload_sha256": "a57d180d31103399c4acdc26f535e418d5bba2606543ff34f1aeb79877a1fcff",
+        "audio_sha256": "d5e5bc698b9bd731034e01b1413e90b67c94e2eb08890b530bfba71494be2a2e",
+        "request_id": "req_e3e05b1794a641f6a3c567041622f122",
+        "source_sha256": "ba3836814b606829ca88bda37bbe2559fa8eee24314b7e8022ddbb6daf7fc8c5"
+      }
+    },
+    {
+      "scene": 4,
+      "start": 8123,
+      "duration": 99,
+      "text": "to their responsibilities\nor check on a schedule.",
+      "audio": "voiceover-v2/en/036.mp3",
+      "provenance": {
+        "payload_sha256": "0aaa4d799082ccef6c605c12432f82a580537919b6c87a6fccea4ef4ab0b1e48",
+        "audio_sha256": "7172759b7a5cf4a120145dcb9d44734693ecb18dd26f6302deaced90327ac82f",
+        "request_id": "req_f1e4a0434a5d4b53bc08e26a3a39796d",
+        "source_sha256": "a022b52a3a076f9c372d863023046bf022709c8e121b184b1682c1f273d9a776"
+      }
+    },
+    {
+      "scene": 4,
+      "start": 8233,
+      "duration": 141,
+      "text": "This brings outside changes into\nthe company’s shared information space.",
+      "audio": "voiceover-v2/en/037.mp3",
+      "provenance": {
+        "payload_sha256": "f749af31afdea7d7a3eddafbb60abd31982902e3475de5cfbe3848ccea690deb",
+        "audio_sha256": "122ebd37f5195f9ebfab49c7cf69f761484eca5dea87da4ca0a5f2d1c714a241",
+        "request_id": "req_486b3bbe300f4d819c069ddef931b9e1",
+        "source_sha256": "dcc355b58b1f1212dcdd340edf877e8889ab9330cb46e37ecd08f7aa365040d0"
+      }
+    },
+    {
+      "scene": 4,
+      "start": 8385,
+      "duration": 98,
+      "text": "An item can remain here\nuntil someone connects it",
+      "audio": "voiceover-v2/en/038.mp3",
+      "provenance": {
+        "payload_sha256": "0274c13811d7d40956885d6880efb78738d2bb2962f68be51461cc8fb945c48c",
+        "audio_sha256": "fced3f3428846d7a8a000a25dba4f757f9f14d0df8073d92c7f4b1e70fe6fec4",
+        "request_id": "req_ee3342cf634749c3842c3b9c7073155a",
+        "source_sha256": "73346ff90051e865191c471f880d92a341bdcdc89048dbf3308f5e098351f709"
+      }
+    },
+    {
+      "scene": 4,
+      "start": 8494,
+      "duration": 95,
+      "text": "with work they are doing\nand decides how to respond.",
+      "audio": "voiceover-v2/en/039.mp3",
+      "provenance": {
+        "payload_sha256": "c4d6d0784931650f1352e3f6b1d5ad81331309993eeced2836dd4bb6cb1a7671",
+        "audio_sha256": "00825824086c14044bc840cba9c24a2f38c0bfc80b4732d6167be6458be1fc3c",
+        "request_id": "req_9710ceb778d4498990995256193b1bd4",
+        "source_sha256": "e7fe121ed59e83bbc5ac9071a60077358e8301a7907f80c6857cd33cbcf2dd7b"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 8664,
+      "duration": 60,
+      "text": "Nora handles market research.",
+      "audio": "voiceover-v2/en/040.mp3",
+      "provenance": {
+        "payload_sha256": "cf6bd919263422c0da4092ac8e219aca957ee100e0ec023f9cefb34bbb90d52c",
+        "audio_sha256": "e7428c4d951a4aaded40c7679405ffb194c39b1d67d71093fc346aed180aade6",
+        "request_id": "req_95f6ed4bf3c24d4e95e3d05857dce336",
+        "source_sha256": "d43cc7e3e360e6ef36853affcc713afea7b529cfae238bbf1cfa0e37f659bfa5"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 8735,
+      "duration": 152,
+      "text": "Her Duet knows she is following\nthe customer application experience,",
+      "audio": "voiceover-v2/en/041.mp3",
+      "provenance": {
+        "payload_sha256": "828ab8ebe1d125235b50a3e10f47ffbbb3373527a6f10de4a20674eca6a020b0",
+        "audio_sha256": "3365454506cf0c0cbac68eb83722b068f518f00014be065a3182b8a1b46a0776",
+        "request_id": "req_093fa617310449e6a67b04af28c4a1f1",
+        "source_sha256": "fb8bc54fa55166707d3fcae9f8873c36a66636b9f5aa33c83c631a80a68ef57f"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 8898,
+      "duration": 173,
+      "text": "so it recommends this update and explains how\nit may affect the existing application page.",
+      "audio": "voiceover-v2/en/042.mp3",
+      "provenance": {
+        "payload_sha256": "35464946e36839123be4868478566095e91f9e173b8a62e9a5c1b3e651fb442a",
+        "audio_sha256": "59b7d624a83e6c46ea5707ab58edfaa918e26777a7cf116e3181b164b103ddb4",
+        "request_id": "req_571eafdc8bd04f2b8466d6b65828d924",
+        "source_sha256": "b52716c60fe0f5c409d910b6f8ca711740e3d8aeb92cc5c61e4a1d8858a5312f"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9082,
+      "duration": 127,
+      "text": "Nora decides to investigate\nand asks Duet for research,",
+      "audio": "voiceover-v2/en/043.mp3",
+      "provenance": {
+        "payload_sha256": "e44a96110a1bdab06e115e698fdb9683de474373fb545449db7ec95673112edf",
+        "audio_sha256": "22ab46acb99675a67a5260eabe5ac573b39295f687ec2c497b130ce1face997f",
+        "request_id": "req_c4ac376f993847fa8325f59f338a00ad",
+        "source_sha256": "a4d6e7069cfa2cc1a312e4cd3208c5e7e0adf5167d02317813074eae6d927e5b"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9220,
+      "duration": 101,
+      "text": "a report and a requirements proposal.",
+      "audio": "voiceover-v2/en/044.mp3",
+      "provenance": {
+        "payload_sha256": "e545b888d161ab5b6f816431214ed4f825ee62f21233d990697fa5c06357e430",
+        "audio_sha256": "fe5184f7efb12fb7a0a294c67f947281c7184c6b0c82d67dc39ae2eae974cae9",
+        "request_id": "req_0b8db272f2d44078988fc2897877f266",
+        "source_sha256": "a20f18c7a9d8bb7642cdb0fc4d082dc29ee581e46b9e4d181cda16a6c2ba05bb"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9332,
+      "duration": 73,
+      "text": "The outputs become specific.",
+      "audio": "voiceover-v2/en/045.mp3",
+      "provenance": {
+        "payload_sha256": "f516478d1e4334bf9034850db1480d2a018212a47854b5c017c45701bd07c4c4",
+        "audio_sha256": "13394eb8dcd995e8af84b04751fe41116fd5e7e294facf9a6cfea971c772c323",
+        "request_id": "req_54339c398f6746ff9c5cf6db2f1fc829",
+        "source_sha256": "7167c2cdf8f69fe91e44b61a41103eb7780f94f20e19577a1d482036589abedd"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9416,
+      "duration": 73,
+      "text": "Which processes are affected?",
+      "audio": "voiceover-v2/en/046.mp3",
+      "provenance": {
+        "payload_sha256": "e2301d479ff14d78c235bf32323f02a0d0720a087fd974ad1ee90a81df0eaccd",
+        "audio_sha256": "3ea556f5f4fe37593c71ad8efc263b947263defbdb6eb16fbf48ae98713229bb",
+        "request_id": "req_452f7592f01541e8b40124aa4a100224",
+        "source_sha256": "c9cabcad0d6546e07b744fef2c8a9d307e18c341d8fce356de1cac90814e47ea"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9500,
+      "duration": 70,
+      "text": "What does the source say?",
+      "audio": "voiceover-v2/en/047.mp3",
+      "provenance": {
+        "payload_sha256": "81cfa5e1649d3b553aae754047561ae67b640b6e77ac128ad574d8e27e939e68",
+        "audio_sha256": "e942205722145aa85e0fcd38f26e78eacab0b6ebcda2f8ac20273510644d86d7",
+        "request_id": "req_7eeec75b90b84631ba0f4970fbcceab9",
+        "source_sha256": "1e8ee6751be4d28729a16bbe64207f8e9f1595be6bc90ecbf442d7e23b4d7f19"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9581,
+      "duration": 142,
+      "text": "What should customers see, and what\nshould internal staff be able to export?",
+      "audio": "voiceover-v2/en/048.mp3",
+      "provenance": {
+        "payload_sha256": "a2c809942085da66d35e3586d429e16d020724ae44b26dc553b47c33837d3031",
+        "audio_sha256": "c3e10b0c10d883218ffc55a8c55573895f4fcedad4b361bc5d8cfdef8bbbed44",
+        "request_id": "req_2027e8927d2f44ca88a6d2693270a3d3",
+        "source_sha256": "e8c1fed1726c9ea0895b11ca8cca053dd13784c54d2c139c09fbfe9c132a247f"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9734,
+      "duration": 139,
+      "text": "Maya receives these materials and can turn\nthe research into a product requirement.",
+      "audio": "voiceover-v2/en/049.mp3",
+      "provenance": {
+        "payload_sha256": "0f19c10d7d15cf90887cad42c8a0a25467744f2d3e05b6206a5cd3153404228c",
+        "audio_sha256": "8e9fc33ddcefa18eb9670e1d28dba2bfd440260d5c56d9d1b118c32fa15f4a4d",
+        "request_id": "req_084eb0b18acf4bfc852e92aa94089e5c",
+        "source_sha256": "6036e755b6c521be7214f92d61e00ff7565386e1c498a75b80ed88b7371e90b7"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 9948,
+      "duration": 105,
+      "text": "Nora can ask her Duet to bring the product,",
+      "audio": "voiceover-v2/en/050.mp3",
+      "provenance": {
+        "payload_sha256": "14c35cc346bc82e289f21766a18df648e4b2849d23b5bbe9e31e8cb0160ff3b1",
+        "audio_sha256": "2dd80c3f429184497c7a4da3e2a92d1933c6eeac0d27337757fdbbf144dba16a",
+        "request_id": "req_62d18367137c460ab5634b2ec6f04264",
+        "source_sha256": "e8c8f57b4ff3430d2956fcf4eb46cee281aa14443027be709fe6cff181a25443"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10064,
+      "duration": 134,
+      "text": "development and testing\ncolleagues into a human group.",
+      "audio": "voiceover-v2/en/051.mp3",
+      "provenance": {
+        "payload_sha256": "f324ae2b6dec71d99d28fb74a36266d960878c63dae5ac3739d20e7c7cc67326",
+        "audio_sha256": "9f0b8458cd3aab5b0a6050f73f195e7726e6c893b589c4fddd079ba22986f0c9",
+        "request_id": "req_586037fc2f9c460a8d4b72ff6e0c1624",
+        "source_sha256": "2e69a2adc9375a0eb74befd4c90c14b7655afe30861250eb95ef269fc35a8fce"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10209,
+      "duration": 101,
+      "text": "The people discuss scope\nand priorities there.",
+      "audio": "voiceover-v2/en/052.mp3",
+      "provenance": {
+        "payload_sha256": "a206f429afc2fdde8a736d5271c182f96123bc85d3e75d7dd4b6cdd6f619f774",
+        "audio_sha256": "01181d3f361d5432a04bda82a2eee7804405d0bee0b3b8637df6a928ce0f1a76",
+        "request_id": "req_a7c0c3ce101f441d8b6ca8c965f38e32",
+        "source_sha256": "cdd067aac2b0715e6544b4b7bc9cf9d868adf0ef42d976544bb393de0833029b"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10321,
+      "duration": 145,
+      "text": "Maya can take a message that needs\nwork and hand it to her own Duet.",
+      "audio": "voiceover-v2/en/053.mp3",
+      "provenance": {
+        "payload_sha256": "2631ca0688d118c74015bd9dc8167544c0ceece8c355c3058d571058f18d1adf",
+        "audio_sha256": "fbf61bdf30ee872ddf020869a24a73acfb5b52f919ba33c53c5744d3d748acf2",
+        "request_id": "req_47c9dcfd03f84cc19b162e7d14865142",
+        "source_sha256": "444db8705dbfc97c7e41956783744b348b1aaad8f3cc925567187a02b53c7875"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10477,
+      "duration": 134,
+      "text": "Meanwhile, Nora’s Duet creates\nand manages a linked topic,",
+      "audio": "voiceover-v2/en/054.mp3",
+      "provenance": {
+        "payload_sha256": "9c020389d20a3023b01299c6be67fe31f32fdb0bb980d93d4fe9426925fb75a1",
+        "audio_sha256": "2b027a9936fc4c18fb97281a99e6d10667b03b7aaa5d47c0e1275bc1d6e8f8fe",
+        "request_id": "req_f5c8c5223ede4af28e91ab19c8630d26",
+        "source_sha256": "ca4a7a7cec2fcd162a5e112a51900e2ba8872461ec67488abdfb090b4c184eda"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10622,
+      "duration": 153,
+      "text": "posts the research and invites\nthe relevant Duets to contribute.",
+      "audio": "voiceover-v2/en/055.mp3",
+      "provenance": {
+        "payload_sha256": "be4b1efe8e019ecc2805058103205cf80c7c8b83015507064a116cee45ce6993",
+        "audio_sha256": "c8ef070896b904bf18d721ab47c1e2c3e4d5f30ffd5fe601f943139d5e39683b",
+        "request_id": "req_3643355190e941cda7d75925297e9558",
+        "source_sha256": "485f01ba4af6b8ebaa0f8fbd98519ff328511fc4e661d8285e88b932b270842e"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10786,
+      "duration": 117,
+      "text": "Each Duet brings its employee’s\nresponsibilities and uses that",
+      "audio": "voiceover-v2/en/056.mp3",
+      "provenance": {
+        "payload_sha256": "69b039385beb191c457d56fc7d2f300a0ba7cdba4df313d3a4fbeb85d6f3d921",
+        "audio_sha256": "97c38fc53e33c667f767068db623d3f75de3df2a8c92ac793fa1f22ae332fa33",
+        "request_id": "req_905868bf1fab4a3ebdf8848748dc5552",
+        "source_sha256": "7a1d366331bd4b78561139b87c1882e194a5e3f76296daabd2a23fcce01133c2"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10914,
+      "duration": 124,
+      "text": "employee’s group access to read\nthe shared history and files.",
+      "audio": "voiceover-v2/en/057.mp3",
+      "provenance": {
+        "payload_sha256": "186b54730025479a287f026098e81f947ad0442a3d5f66db2efadf783465b7ab",
+        "audio_sha256": "4860bd7d6af5f7c1b919b00effb2940994db4882f69f4a5c927935cc2f769115",
+        "request_id": "req_796fc3ed222b4072872e029f8509d8bb",
+        "source_sha256": "edcbf779e6314ca78ab1095be4fac12faf2553c0b62f1e27652762efe1bdfd87"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 11049,
+      "duration": 65,
+      "text": "People address their own Duet.",
+      "audio": "voiceover-v2/en/058.mp3",
+      "provenance": {
+        "payload_sha256": "3ee77e817916cedb99e9db052b75e463733563b16a1c0f201b8142df78d09601",
+        "audio_sha256": "482e0c6af9ca5319c714ac5c3919107d761867bd7f2d19aa877dc0d36b103f5a",
+        "request_id": "req_873de96bf8ad43c3ac059873129d7fd0",
+        "source_sha256": "0830b512dbde6ab0d09215e944e42458382103f06212d1ad87633439eff55632"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 11125,
+      "duration": 87,
+      "text": "The Duets coordinate through the topic,",
+      "audio": "voiceover-v2/en/059.mp3",
+      "provenance": {
+        "payload_sha256": "9bfdcbd61d67e7e0eb1b7ab2e59c9ccf1dad61fb563fce321fc071ab88e08a8f",
+        "audio_sha256": "f16bee5ff3a22e5a75115570e050f325ad8b2062d66ecb2cf90c27354e9c5bf0",
+        "request_id": "req_2004f746671f4f09b75209216034c104",
+        "source_sha256": "4353c69b68ef50b42febe9396f498861a48e7d4b2929f6fc9af758888d79620f"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 11223,
+      "duration": 113,
+      "text": "leaving work and replies for\none another asynchronously.",
+      "audio": "voiceover-v2/en/060.mp3",
+      "provenance": {
+        "payload_sha256": "3264cb213f8c2206dcce95a366efad453c51e38942c6013ad4935ccf2a143eb6",
+        "audio_sha256": "adb6a14fe150082e2d72f1d5c922eb1de3d117ce41ce3ddce1dc0a2bc311cc56",
+        "request_id": "req_d1a6044eddf14a83b325ed5d9a9ff375",
+        "source_sha256": "7b9c18d4bb04e7ccd2da54ada09fccdb7030bb071e4c9e9ff130d3730bb0bb4f"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 11411,
+      "duration": 137,
+      "text": "On Thursday, Nora asks where the\napplication-status work has reached.",
+      "audio": "voiceover-v2/en/061.mp3",
+      "provenance": {
+        "payload_sha256": "4316ffeb090cb09f0a1eef1ebdc8c89302a806bf1e50530bd21eb98cbf811756",
+        "audio_sha256": "98ffeb0a37579128afbf55cc4647f360759a2045d71d3f228b3f3774651f125d",
+        "request_id": "req_30b9ea6a8c6448d08377d6ab83afa38c",
+        "source_sha256": "1f3757456c7a60832f8879c035ffb82a49acd5e29beb529803d273acdf240e03"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 11559,
+      "duration": 116,
+      "text": "Duet uses several forms\nof memory to recover the work.",
+      "audio": "voiceover-v2/en/062.mp3",
+      "provenance": {
+        "payload_sha256": "3400149a12fccf3354237acc343ad273624554c689c8097c8f1c59b36f6c9f07",
+        "audio_sha256": "606bc6ff81b40e5a28045f9b33d0cc93ca3703d0032b6bb4e094121ac3e29e7c",
+        "request_id": "req_6439dec2eb9b4efe8af2e1e2b1fa8042",
+        "source_sha256": "f0af5a075ab89e423fbd2eb9c1c578fa91db8302736f6097a604183555c79966"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 11686,
+      "duration": 109,
+      "text": "Recent context holds a summary\nand the latest exchanges.",
+      "audio": "voiceover-v2/en/063.mp3",
+      "provenance": {
+        "payload_sha256": "63a6449d2f405a0d33bedd6b996dba2a1101e05d5734af7239b9850736592f89",
+        "audio_sha256": "a411b2116baff4176617e5371cbf07c22ca30ce5b9721b61351c3ddda275edc7",
+        "request_id": "req_7e4c29f70dc1487787deca86d137109d",
+        "source_sha256": "2c4c70e98e1f20334715e342d0f074c2a10d12df93561ffaeec5ee4045188749"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 11806,
+      "duration": 131,
+      "text": "Every four hours, Dream\nincrementally reviews all",
+      "audio": "voiceover-v2/en/064.mp3",
+      "provenance": {
+        "payload_sha256": "8004f32d44e4ed3ba39dada9dd3ba648ee9443b836bc324c33228f31d057c93b",
+        "audio_sha256": "f9aab7348f740244b9a1f6c2f2cd6b464fcec2874b4e78f1af0116546270ac18",
+        "request_id": "req_2757196d5dca461584b4cc1b560a4554",
+        "source_sha256": "d5a642644a8036b13ee5823e0cdc3194bea729dba0985e31366a0129fa065b42"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 11948,
+      "duration": 149,
+      "text": "group conversations visible to the\nemployee and their conversations",
+      "audio": "voiceover-v2/en/065.mp3",
+      "provenance": {
+        "payload_sha256": "95f53caf3d99dcf5e6a9312797ee47c30103da7651df9d70703931169b7daaa3",
+        "audio_sha256": "c4993bf5799a940473885a336fa5d1af2c31f483100cc71601b488a727a63b39",
+        "request_id": "req_74d5e4cad7324c16b07763df51ed7321",
+        "source_sha256": "96ccb4d430f7049677b5675a7eb01deb5237d7c0b1c423cf549ff482baa705ac"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12108,
+      "duration": 124,
+      "text": "with their own Duet,\nconsolidating lasting information.",
+      "audio": "voiceover-v2/en/066.mp3",
+      "provenance": {
+        "payload_sha256": "2b09edd7c304103ebc50f0c1009454c8fbc8ef183ca429708cb1c371f0803223",
+        "audio_sha256": "ae77267167f2975b1f921aa849c950243e15d25b3538bc6fb46c9cdc45d9c665",
+        "request_id": "req_128f6efae5b744608de3bae184cf4c94",
+        "source_sha256": "6c749d985a60a34e5b537d29f77c868a8dad100a205e408b59c33d0c34ea1170"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12243,
+      "duration": 91,
+      "text": "Git preserves versions and sources.",
+      "audio": "voiceover-v2/en/067.mp3",
+      "provenance": {
+        "payload_sha256": "abac07a0b604555b0eeebfc6e10b2eda1d954d552cba8b9c355853fb439812b5",
+        "audio_sha256": "523b021aeb477a889293890cb15eabeebf94fe39bdf813b512a4b19242d843dc",
+        "request_id": "req_a50aea550898438e947d4415116cf242",
+        "source_sha256": "d66a58b28c006c9500192bf0b802012b4769be37f098240dcb18b4b6f51667b3"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12345,
+      "duration": 81,
+      "text": "If Monday’s plan conflicts with Thursday’s,",
+      "audio": "voiceover-v2/en/068.mp3",
+      "provenance": {
+        "payload_sha256": "107928222fb44ebb0efd49361830472ed55b72d81b48fb2f0067c0637205977c",
+        "audio_sha256": "294ca09c06c96232a30f451c3459491f5b1068a2afd0aa6d2311457362545ddf",
+        "request_id": "req_549e1b2a809f45e18e6ea04f78fa49b0",
+        "source_sha256": "6c13244430d0ff176ac58149df1e73050b4da846730bd5f38259e88b63ca8344"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12437,
+      "duration": 141,
+      "text": "Duet can trace the change and update\nmemory from the applicable decision.",
+      "audio": "voiceover-v2/en/069.mp3",
+      "provenance": {
+        "payload_sha256": "a48e8a6aa93f56843e83c8795067e5262259c4b4377944f208622ccf84e50d87",
+        "audio_sha256": "fcda6c5475b4f7a98903dfd2dcb6f756528cc01c9a44c32c75f258cecb237d4a",
+        "request_id": "req_4fee95efc60f47c9ade9b254da2dcde9",
+        "source_sha256": "09e28a3af4fc2ca8396d758c371d20b306298dd7687a88ab97aaee7559619995"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12589,
+      "duration": 137,
+      "text": "When Duet recognizes an ongoing\nmatter, it creates a Tracking item.",
+      "audio": "voiceover-v2/en/070.mp3",
+      "provenance": {
+        "payload_sha256": "b2b64864f3c54febc5fe0adf2f3ede77b76fdb967bf7aa99b9c40fb75ed10b6a",
+        "audio_sha256": "877f67ac3aedcb8a1ba766250b2c381072801ccba27daeb697815d70e8a332c2",
+        "request_id": "req_9228aba0d176437fb8ab3b33db848d8e",
+        "source_sha256": "a01425b9f1554fed0bfc17c46311e41d8949b011b7143b6c0d2819e09063317b"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12737,
+      "duration": 120,
+      "text": "Its first node describes\nthe item and its goal.",
+      "audio": "voiceover-v2/en/071.mp3",
+      "provenance": {
+        "payload_sha256": "6b967b1d2e209fab52c69bd4043a3152d88237d3d4c257a66d73f07b04cccb5a",
+        "audio_sha256": "79c64f7153f0174b6463b5af7aa9d6e0b8e63de18839501b85dbd8b71c48a9de",
+        "request_id": "req_b3d08dc0fa1640e48a27a33c6928f126",
+        "source_sha256": "d082b286a13c967684977ef4ea06668345a810c0f91a80c9a490b651c4e60f39"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12868,
+      "duration": 135,
+      "text": "That metadata stays in everyday\ncontext to help locate the work.",
+      "audio": "voiceover-v2/en/072.mp3",
+      "provenance": {
+        "payload_sha256": "6f7561167c4b76451a1a176ac91390b07be13c82607b065ecbccd13e0d3f4935",
+        "audio_sha256": "8b0b484a4c836f989f58719979a0825abb1e53a89e89ddc8184cfc20b3b039f7",
+        "request_id": "req_cc107f5d8b2844c59468ec01ad41d7c1",
+        "source_sha256": "32534f66a274b22ebf7566420e6d5a50759e5aa8936dcfe9fce2b4c33f5de385"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 13014,
+      "duration": 90,
+      "text": "Detailed progress is retrieved when needed,",
+      "audio": "voiceover-v2/en/073.mp3",
+      "provenance": {
+        "payload_sha256": "b81e08c1b93cf08da191261596be4776121ce2dcc4f5fcf486e818ab46593f7a",
+        "audio_sha256": "ef190267a1f272c7ca0ebbaf88ba89f2c2f841f654afe5c6371b218934bf3f1c",
+        "request_id": "req_82627417e73d4b9fa00d141d617bb3ee",
+        "source_sha256": "c7406b66a67bb4371f4bcba422de19b6950fba90b9f58f3f7c55cf7ff9372ca2"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 13115,
+      "duration": 114,
+      "text": "and new decisions\nand deliveries add further nodes.",
+      "audio": "voiceover-v2/en/074.mp3",
+      "provenance": {
+        "payload_sha256": "88fb12131546b236e1d3972392122af6be4b9da55e01a33325fd5b26ae164062",
+        "audio_sha256": "6fad29afe0900caf0832198abb41b73a0b1f76ecd51ea85ace7cdaee98fd1a2a",
+        "request_id": "req_eb622168fd3645589c573628fde53471",
+        "source_sha256": "ee6de43932356424a89e7009ac1beb16aca3d8c5d064b5088368e105327e2f63"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 13240,
+      "duration": 106,
+      "text": "Work can continue across many\nintervening conversations.",
+      "audio": "voiceover-v2/en/075.mp3",
+      "provenance": {
+        "payload_sha256": "93ab4b70f338698be19f9a2731f6958b7ca1f096c2cd66f75fae1c7ffcd66fa5",
+        "audio_sha256": "0308635a0dbf20a5d80d4836e2e234e92cc4229ce2d6aea519511f4fc17e8a8c",
+        "request_id": "req_711a15f6347c461da071381d17620d51",
+        "source_sha256": "3dd6e422b1e999f27a3c02ad7b8357ca4a4c8405391ba1d2dd60f8b743685fce"
+      }
+    },
+    {
+      "scene": 8,
+      "start": 13421,
+      "duration": 105,
       "text": "Maya writes the product\nrequirement as a user story.",
-      "audio": "voiceover-v2/en/076.mp3"
+      "audio": "voiceover-v2/en/076.mp3",
+      "provenance": {
+        "payload_sha256": "93f28bc5d37ef378459190ba81bb1490f4873de8071bf420a25508563605740f",
+        "audio_sha256": "679ddf3a6d8b747e84fb08aec56dacdd7f73b576c21e956385b9230dd1567a3c",
+        "request_id": "req_15a122b6bb344ea8aab48f4fab9b2fd4",
+        "source_sha256": "e40cb218edd30da08af72e0989d1b4842e4ac115afe9d437fe8ee05bd0d847e6"
+      }
     },
     {
       "scene": 8,
-      "start": 12606,
-      "duration": 104,
+      "start": 13537,
+      "duration": 111,
       "text": "Alex’s Duet implements it\nand opens a pull request,",
-      "audio": "voiceover-v2/en/077.mp3"
+      "audio": "voiceover-v2/en/077.mp3",
+      "provenance": {
+        "payload_sha256": "03af780775d2ccea62aba0d7973c44d7208dcdb74ca39d7162318d718e0ab716",
+        "audio_sha256": "aed4f13c97562b5e0fdc4d695e80c41609520583b26960288cfcd31b55e122c9",
+        "request_id": "req_e9d4a4f842834501b065c41ea3851b20",
+        "source_sha256": "1b2f4e30643a6162fe7c8a6eccbd98800cac2fb2098e13179ea0264cc9600193"
+      }
     },
     {
       "scene": 8,
-      "start": 12721,
-      "duration": 102,
+      "start": 13659,
+      "duration": 99,
       "text": "or PR, proposing its code changes for review.",
-      "audio": "voiceover-v2/en/078.mp3"
+      "audio": "voiceover-v2/en/078.mp3",
+      "provenance": {
+        "payload_sha256": "16c60240a2719d463b7f16c9207132bbd413f7e4c666d275c524b130e4dbe4be",
+        "audio_sha256": "0ed287390e2526887509d25faac5dec4748b9ddb540adfcf495ac777b1275b03",
+        "request_id": "req_454f4436897643a58c090196c438c34a",
+        "source_sha256": "ac524143fcfbaaafc561fa76d965c553874dad87f23db47438ebb35a034d0d68"
+      }
     },
     {
       "scene": 8,
-      "start": 12834,
+      "start": 13769,
       "duration": 105,
       "text": "GitHub emits an event\nidentifying the PR and commit.",
-      "audio": "voiceover-v2/en/079.mp3"
+      "audio": "voiceover-v2/en/079.mp3",
+      "provenance": {
+        "payload_sha256": "3717cee5026265a5d2fb63e651da80aa08a2cb8b1f691f6981ffcc1013cf536b",
+        "audio_sha256": "28d906f78eab56b0fe18f22a04e53d575251bc176b371b68f647f2422d4e5f1c",
+        "request_id": "req_1ade54f18c1144bea94f6526b7b3f2f3",
+        "source_sha256": "e133860b0a64aac1a1bf6bb336fbb646eb1f45c2249b4f7ba4d3fe7784ecf716"
+      }
     },
     {
       "scene": 8,
-      "start": 12950,
-      "duration": 173,
+      "start": 13885,
+      "duration": 181,
       "text": "Agent Loop runs as a separate service and\nuses a policy file to send the review to Sam.",
-      "audio": "voiceover-v2/en/080.mp3"
+      "audio": "voiceover-v2/en/080.mp3",
+      "provenance": {
+        "payload_sha256": "b8da732de61b65e970d6a1c11995d8e34eddf479573a87c5266d95ac6be1bbec",
+        "audio_sha256": "16c8d6d147b5bbbb116f2af8baae4172df1e903dea83a527cc4ead19519f2f16",
+        "request_id": "req_8016af78ac73458f92fcd710034f59ed",
+        "source_sha256": "57b9389cc86bd75c35459b16f31394d7e3ac4b1e640cb60d841cdecd2e483f66"
+      }
     },
     {
       "scene": 8,
-      "start": 13134,
-      "duration": 120,
+      "start": 14077,
+      "duration": 129,
       "text": "The outer loop follows deterministic\nrules without calling a model.",
-      "audio": "voiceover-v2/en/081.mp3"
+      "audio": "voiceover-v2/en/081.mp3",
+      "provenance": {
+        "payload_sha256": "4aba752838dea1b3fe0ecca1a1206b04cff75c51d6deb994df9bb871c7175735",
+        "audio_sha256": "18a3e21baaaa5354221d82f5d8a83c11020331e527f1aa6f133e4e576745406d",
+        "request_id": "req_4f6dfbd142f2439e876eee88aaa22f91",
+        "source_sha256": "e1ef00ebf23068c338ab7e75ec9a8323f5c785fa36a07c08acf6b216d6273a1a"
+      }
     },
     {
       "scene": 8,
-      "start": 13265,
-      "duration": 127,
+      "start": 14217,
+      "duration": 174,
       "text": "Sam’s Duet understands the code\nand checks it against the requirement.",
-      "audio": "voiceover-v2/en/082.mp3"
+      "audio": "voiceover-v2/en/082.mp3",
+      "provenance": {
+        "payload_sha256": "93952dd3bbe305a81e4568e3c828c6c7ad9fcec3ff483405c5ab39d718b72876",
+        "audio_sha256": "1eff8009edde89097f2744b2323ef67aec9585093812ac82654a55f216ea517b",
+        "request_id": "req_3fa1644fda1c42948ce87ae89a98dc55",
+        "source_sha256": "62aecd4ca240c6658fa1e7173bcfff8980e160aeb3d580fe8d68f46fba23a061"
+      }
     },
     {
       "scene": 8,
-      "start": 13403,
-      "duration": 91,
+      "start": 14402,
+      "duration": 85,
       "text": "It finds that customers can see the status,",
-      "audio": "voiceover-v2/en/083.mp3"
+      "audio": "voiceover-v2/en/083.mp3",
+      "provenance": {
+        "payload_sha256": "5f83806358f289beab0d2760ff4973d79b782c406ab4005fa710d16417b5aa56",
+        "audio_sha256": "df455f7c9e26ffcafb601192f6bae61934b1a8819994053a53d4058220ff563f",
+        "request_id": "req_3f518e1dffc645d4850dbbf56bbc89ec",
+        "source_sha256": "7cc2498a0892bc927298272ce75a006c595a8dcd09d9c299a1e815882be70b8f"
+      }
     },
     {
       "scene": 8,
-      "start": 13505,
-      "duration": 85,
-      "text": "while the internal report\nstill lacks the field.",
-      "audio": "voiceover-v2/en/084.mp3"
-    },
-    {
-      "scene": 8,
-      "start": 13601,
-      "duration": 143,
-      "text": "It returns specific feedback and a\nstructured changes-requested result.",
-      "audio": "voiceover-v2/en/085.mp3"
-    },
-    {
-      "scene": 8,
-      "start": 13755,
-      "duration": 132,
-      "text": "Agent Loop reads that outcome and routes\nthe next task back to the author.",
-      "audio": "voiceover-v2/en/086.mp3"
-    },
-    {
-      "scene": 9,
-      "start": 13962,
-      "duration": 145,
-      "text": "The rule writes the feedback to the PR\nand assigns the correction to Alex’s Duet.",
-      "audio": "voiceover-v2/en/087.mp3"
-    },
-    {
-      "scene": 9,
-      "start": 14118,
+      "start": 14498,
       "duration": 101,
+      "text": "while the internal report\nstill lacks the field.",
+      "audio": "voiceover-v2/en/084.mp3",
+      "provenance": {
+        "payload_sha256": "732f449882c2eacc5c31850e7ffd73de8036149d1dc604683e7cc867da7add56",
+        "audio_sha256": "afe97d5131b3b919202271fe897fb637213e87f2d4323b46e116298621c66570",
+        "request_id": "req_575cea5b80f2419db3ca2d9802c00a7e",
+        "source_sha256": "246b142b0c62464a480887e27bdd2b6393fcd32c6a24d630d7b3d657b515b01d"
+      }
+    },
+    {
+      "scene": 8,
+      "start": 14610,
+      "duration": 131,
+      "text": "It returns specific feedback and a\nstructured changes-requested result.",
+      "audio": "voiceover-v2/en/085.mp3",
+      "provenance": {
+        "payload_sha256": "c048ccdcaaf1f29ba9981e4268bce6f8160b3d1de3ceb07edbcd61352c47c512",
+        "audio_sha256": "c6806e12c1f19bf5a7bded2578d6e3f4f5077ee2f6deb3f7d742398e8e855d58",
+        "request_id": "req_c63184827bd544aa9c1b5a24746936f3",
+        "source_sha256": "06d9b761f0a39b6e2233d33b42579b3db31b768b583b5b210553c0c5d824582e"
+      }
+    },
+    {
+      "scene": 8,
+      "start": 14752,
+      "duration": 142,
+      "text": "Agent Loop reads that outcome and routes\nthe next task back to the author.",
+      "audio": "voiceover-v2/en/086.mp3",
+      "provenance": {
+        "payload_sha256": "59058314e8da53ddb3ce6e4d98ec6f836494dcb891fbb345c0616cc27302c24c",
+        "audio_sha256": "a7332f1581b698009de97b476d047b69a9bf19d4feef867650e22e16987e1b02",
+        "request_id": "req_1cc4bd187c8043ea84facd0a9a3f7f2a",
+        "source_sha256": "a88fe921f173e9a8650fe128d31093072f7599d6889bf82426fd263c527b44bd"
+      }
+    },
+    {
+      "scene": 9,
+      "start": 14969,
+      "duration": 160,
+      "text": "The rule writes the feedback to the PR\nand assigns the correction to Alex’s Duet.",
+      "audio": "voiceover-v2/en/087.mp3",
+      "provenance": {
+        "payload_sha256": "6e5245d14143359b5bd68fcdb322b77f033b52d2d8b63b22bf623cfe17b948a1",
+        "audio_sha256": "123edf8e06e66b9dabe7661105e5e8068d81a17f40e8eabcfa1c95e11bb48e12",
+        "request_id": "req_96b56dcc7f454361b6380a84d13b7d3f",
+        "source_sha256": "e605b2d2471939818461608f50024473ca296cac362dc27f1b89f1efdce2c597"
+      }
+    },
+    {
+      "scene": 9,
+      "start": 15140,
+      "duration": 95,
       "text": "It receives the missing requirement\nand the relevant version,",
-      "audio": "voiceover-v2/en/088.mp3"
+      "audio": "voiceover-v2/en/088.mp3",
+      "provenance": {
+        "payload_sha256": "d846335b0a0cc23754c07f2537a57156425e766fae44a1e601f5c29f35a40053",
+        "audio_sha256": "6d7d84b35269be645b1b8ae5efe3e990f8ff26327dd9609c143604d389993c88",
+        "request_id": "req_ee9f86d85be14b11ba550601398799a6",
+        "source_sha256": "dd44bcc702d5177dae8bc47eebde2e4c24224e6fc6bb61899741277eb709b519"
+      }
     },
     {
       "scene": 9,
-      "start": 14230,
-      "duration": 85,
+      "start": 15246,
+      "duration": 114,
       "text": "adds the report field\nand pushes another commit.",
-      "audio": "voiceover-v2/en/089.mp3"
+      "audio": "voiceover-v2/en/089.mp3",
+      "provenance": {
+        "payload_sha256": "d7b7d3c0d6397e781c0bfd22924f9d187299d1c1c8c370d07afe45fe9f646190",
+        "audio_sha256": "8cf2ea74a8e1d590c0e85912856b8fc8f618fe8124f07c67fa512231bf0fc62f",
+        "request_id": "req_f339cfdbde3f40ad9aeb70aa294a85b2",
+        "source_sha256": "2d4a5c4dd76bd73d5af32ec38784f5d9315a1b584f71ff44448449e0a9e567c6"
+      }
     },
     {
       "scene": 9,
-      "start": 14326,
+      "start": 15371,
       "duration": 101,
       "text": "The updated version follows\nthe same review policy.",
-      "audio": "voiceover-v2/en/090.mp3"
+      "audio": "voiceover-v2/en/090.mp3",
+      "provenance": {
+        "payload_sha256": "0465ec7b5585883398f97f045099b14ac552fa27071d840867fcb5ae7f58d860",
+        "audio_sha256": "8f25f72fdeb196d0330b7f638741200c37d024e6f061423edc7e290b82d3cba7",
+        "request_id": "req_ada18e5b8c49493fb03d3d6feecf6021",
+        "source_sha256": "33c76aa84d974b75af6689212f040153aecdcddc2b8aee8ad213191c1ba45d11"
+      }
     },
     {
       "scene": 9,
-      "start": 14438,
-      "duration": 106,
+      "start": 15483,
+      "duration": 119,
       "text": "Sam’s Duet checks it\nand returns an approved result.",
-      "audio": "voiceover-v2/en/091.mp3"
+      "audio": "voiceover-v2/en/091.mp3",
+      "provenance": {
+        "payload_sha256": "521834c8d6ae056a25d279738241b6615d3fa18766ccabc8efd818cac4cdd4d4",
+        "audio_sha256": "dfb1cab89633c53f7306437bd0f993c703ee003222e83a5618ee44ff6ceba0ef",
+        "request_id": "req_d7982f31e5cf4c1fbb0deda31d080132",
+        "source_sha256": "62eeac2b13b10cfada63da21b54a3364aa77d991f05d95a72c10e1f40eec47c0"
+      }
     },
     {
       "scene": 9,
-      "start": 14555,
-      "duration": 90,
+      "start": 15613,
+      "duration": 91,
       "text": "Agent Loop can then send\nthe change to LoopLab,",
-      "audio": "voiceover-v2/en/092.mp3"
+      "audio": "voiceover-v2/en/092.mp3",
+      "provenance": {
+        "payload_sha256": "463848426bd9f61760326740fe33008a4d65f0dbdeba69ab0feb246d41e54593",
+        "audio_sha256": "c9dc66d358617054fe171a83f0c0a401f8882645001ed803c56adebb467f51bc",
+        "request_id": "req_e53463efff134e7e863cf006b874cc23",
+        "source_sha256": "af4ea2dc2f34f48048e7851687f46e4b4c0ee3ef83ba88027b5fff124410650a"
+      }
     },
     {
       "scene": 9,
-      "start": 14656,
-      "duration": 101,
+      "start": 15715,
+      "duration": 108,
       "text": "together with the requirement\nand the conditions to verify.",
-      "audio": "voiceover-v2/en/093.mp3"
+      "audio": "voiceover-v2/en/093.mp3",
+      "provenance": {
+        "payload_sha256": "767217f310251936f81371f866df104250a1be8eda53b286ff63ca76f5c97d8f",
+        "audio_sha256": "d5d1e128a25d1f634d3e3d9cf80b5d8b345408e17d8c1e9e70983f5e9248ad3c",
+        "request_id": "req_882b0fda86d748258410a2395abfe377",
+        "source_sha256": "7a64160a5dc49a5f923531409c9069e0b2eb41e0b58e5f9eca1a25ef5ed22e7b"
+      }
     },
     {
       "scene": 9,
-      "start": 14768,
-      "duration": 144,
+      "start": 15834,
+      "duration": 135,
       "text": "Each handoff carries context the\nnext participant can use directly.",
-      "audio": "voiceover-v2/en/094.mp3"
+      "audio": "voiceover-v2/en/094.mp3",
+      "provenance": {
+        "payload_sha256": "a8cadb907d7b40f5fb81724ebfd46dac26205247be125cbcc72427923c0881f1",
+        "audio_sha256": "1c8c87934aeb6bc41600555ad219940c780aef9564710b527c357e5e448c109d",
+        "request_id": "req_4a5d34153c1c4813909faa24de1d945c",
+        "source_sha256": "bdfa03442d775512bfe9eaf868013226bbaefc09d0df11218bdf5efb2015c731"
+      }
     },
     {
       "scene": 10,
-      "start": 14987,
+      "start": 16044,
       "duration": 93,
       "text": "Sam has supplied two acceptance conditions.",
-      "audio": "voiceover-v2/en/095.mp3"
+      "audio": "voiceover-v2/en/095.mp3",
+      "provenance": {
+        "payload_sha256": "a5b3ed86f53d20ade022317fc25750a5ad4a22b165a37e3f6817c9e699deac57",
+        "audio_sha256": "15d368df87f976599a784b6285a59d5f1663083cbc915c199a183c24031f55a4",
+        "request_id": "req_ea610685e4134d3398efeda946ffa15c",
+        "source_sha256": "54383d5b09989a19ba06bf9d9a57dd6a6240e699b071838456133ff7f35ed7eb"
+      }
     },
     {
       "scene": 10,
-      "start": 15091,
-      "duration": 102,
+      "start": 16148,
+      "duration": 116,
       "text": "The customer should see that\nthe application is in review,",
-      "audio": "voiceover-v2/en/096.mp3"
+      "audio": "voiceover-v2/en/096.mp3",
+      "provenance": {
+        "payload_sha256": "a7b28fd7d79bfcd55076ce7cd60d58862599c0e5d6196081c90fd27341091b8d",
+        "audio_sha256": "b294d71311417381e7feff0c45cb8d25402c151fdcf747797304c93446a389f8",
+        "request_id": "req_01a2825445514d979b311c36c1f661fb",
+        "source_sha256": "4cf0ed6971f40e2de9cce9761388cba74ff20dc8c69a3c880b7643af1307b674"
+      }
     },
     {
       "scene": 10,
-      "start": 15204,
-      "duration": 121,
+      "start": 16275,
+      "duration": 132,
       "text": "and the exported internal record\nshould contain the same status.",
-      "audio": "voiceover-v2/en/097.mp3"
+      "audio": "voiceover-v2/en/097.mp3",
+      "provenance": {
+        "payload_sha256": "82fe8b73f613f4a032ac666b9b867ed8a0985527bc7f0dbd7027e066ed4da226",
+        "audio_sha256": "16f1362d8b251e3f4a7bd4dff5c18041510e92a870bfb5d93dcca1a8102ceda4",
+        "request_id": "req_39a187fc3b3846649fceae43a700c483",
+        "source_sha256": "f98b2518d636ccad13a1d0a6aecdce349af9072a6ad157f0ecb1b8496f240afb"
+      }
     },
     {
       "scene": 10,
-      "start": 15336,
-      "duration": 176,
+      "start": 16418,
+      "duration": 171,
       "text": "LoopLab’s agent investigates the real pages\nand prepares reusable nodes and a test flow.",
-      "audio": "voiceover-v2/en/098.mp3"
+      "audio": "voiceover-v2/en/098.mp3",
+      "provenance": {
+        "payload_sha256": "f2dee4e832791706e7790e8c642f229a38be664d343411aef691fa0f996c6fc4",
+        "audio_sha256": "621b63964a0f7fcb2e0ff3dea9100178a032e6b9e4ad3425186e2dcdf6f33c75",
+        "request_id": "req_9c843183eaeb4850809c855824f33555",
+        "source_sha256": "2838d62797ce32896cd4d47e78532270450c79aefd2ac79187f2f0b55df85ec0"
+      }
     },
     {
       "scene": 10,
-      "start": 15523,
-      "duration": 124,
+      "start": 16600,
+      "duration": 152,
       "text": "An independent browser then executes\na fixed version of that flow,",
-      "audio": "voiceover-v2/en/099.mp3"
+      "audio": "voiceover-v2/en/099.mp3",
+      "provenance": {
+        "payload_sha256": "98489ba11fce040a2aca4873e3fa57e96114ed0274868726340b9a0193f86dce",
+        "audio_sha256": "537eba1c0b2ffd5a239f024b04f71befb46dac4589190816d94bd14c82ef1b9f",
+        "request_id": "req_f4c3acedcfb74209a14092a20dcdf4e3",
+        "source_sha256": "c1a11cedbe9fde2b5f424b3aa6acf4185afcc769d4fe4b9ff01f0e3281034cfc"
+      }
     },
     {
       "scene": 10,
-      "start": 15658,
+      "start": 16763,
       "duration": 127,
       "text": "checking the page and export while\nrecording steps and screenshots.",
-      "audio": "voiceover-v2/en/100.mp3"
+      "audio": "voiceover-v2/en/100.mp3",
+      "provenance": {
+        "payload_sha256": "a27f55be8e9ed49d64fd25419ae0208e65c6c062429c0cd47de46ed0d9d2369a",
+        "audio_sha256": "ba530376777c3930998ff28a81865c04c0f0ec0661275eb6ffc27aa21cefeb00",
+        "request_id": "req_31ef819f3484472eb55c411897c52931",
+        "source_sha256": "2907be5ef8b1bb682ae7ceb90672b8539ffb989ee0a04b709884492dc45c81d2"
+      }
     },
     {
       "scene": 10,
-      "start": 15796,
-      "duration": 72,
+      "start": 16901,
+      "duration": 111,
       "text": "Replay follows the defined steps.",
-      "audio": "voiceover-v2/en/101.mp3"
+      "audio": "voiceover-v2/en/101.mp3",
+      "provenance": {
+        "payload_sha256": "b20374f50154bc9412ad45c8017f9032958a24bd6019de77760a6a1ad1344e04",
+        "audio_sha256": "2a73079e398e70399973f4eb99969c1d689b45474ed90d9cf83b15d9e3e20811",
+        "request_id": "req_5c1c054ea33b42beac828b082c6e1a26",
+        "source_sha256": "b38ee6acc6da82b96f9e29edd2e6f264a738b22e074bba0884ff7cb7aa74569f"
+      }
     },
     {
       "scene": 10,
-      "start": 15879,
-      "duration": 105,
+      "start": 17023,
+      "duration": 114,
       "text": "A passing result returns\nto the workflow with evidence.",
-      "audio": "voiceover-v2/en/102.mp3"
+      "audio": "voiceover-v2/en/102.mp3",
+      "provenance": {
+        "payload_sha256": "a99131fe2a52499930a4e4d4d6cce4f9ee1fc47c664c684b48024c9032e1a2dd",
+        "audio_sha256": "6f4ef124dc58e2205411bb2097ab488dff1d3afdac428bf0d7fc82b3d16c16a6",
+        "request_id": "req_35c98322d0a143808eb1dad0ace99584",
+        "source_sha256": "a329b426981514ef298d7dac2b4ccf659ca14a792382b56dbedcb99921cc8c9e"
+      }
     },
     {
       "scene": 10,
-      "start": 15995,
-      "duration": 132,
+      "start": 17148,
+      "duration": 134,
       "text": "If a check fails, Agent Loop\ncan send the failure location",
-      "audio": "voiceover-v2/en/103.mp3"
+      "audio": "voiceover-v2/en/103.mp3",
+      "provenance": {
+        "payload_sha256": "f90750b4106a2a56846b288a375fafa895c4d440cd8f791f5052d40779f68bf9",
+        "audio_sha256": "780b1df480955e2199343e0941966b79e9114c29ec9b4f20036720da6df5864c",
+        "request_id": "req_8183781fa5154de091ef421fa8e95543",
+        "source_sha256": "067b6a050a944e99d9416c13e4f19596db761104ea809b4e3f45f435d5edc91e"
+      }
     },
     {
       "scene": 10,
-      "start": 16138,
-      "duration": 140,
+      "start": 17293,
+      "duration": 150,
       "text": "and evidence back to Alex’s Duet for\nanother correction and verification.",
-      "audio": "voiceover-v2/en/104.mp3"
+      "audio": "voiceover-v2/en/104.mp3",
+      "provenance": {
+        "payload_sha256": "965f0a2f249791ad57a0e7b819b50cbe6a6c1757dd26199df63ca69c592509b9",
+        "audio_sha256": "cc1758910c4dc1355947908cc91d45e993bee67a1d962db0a2d625007ccb1e3e",
+        "request_id": "req_b19d804ec8454fd4bb7f83926baed972",
+        "source_sha256": "8b0156899c0af8498dfe6af568a310c195e3416a17d3014a465e81ae668bbffa"
+      }
     },
     {
       "scene": 11,
-      "start": 16353,
-      "duration": 160,
+      "start": 17518,
+      "duration": 144,
       "text": "The acceptance report returns to the shared\ntopic and can be found in Message Center.",
-      "audio": "voiceover-v2/en/105.mp3"
+      "audio": "voiceover-v2/en/105.mp3",
+      "provenance": {
+        "payload_sha256": "8cb1993fe6df88d8de126ad577647898335dfd6450c9a41d980aa917a04a045e",
+        "audio_sha256": "e8ad290d41a441d3587d92d2e106ca2a5f4b81661908f7e08f58daa72113d969",
+        "request_id": "req_698714d6511b494db296329caea90df0",
+        "source_sha256": "a4752999e944655278dbff9a2e39317d897b75e8c9d80b90571c7a863d4de10a"
+      }
     },
     {
       "scene": 11,
-      "start": 16524,
-      "duration": 132,
+      "start": 17673,
+      "duration": 141,
       "text": "Nora can see that the change she\nspotted has become a verified feature.",
-      "audio": "voiceover-v2/en/106.mp3"
+      "audio": "voiceover-v2/en/106.mp3",
+      "provenance": {
+        "payload_sha256": "4a2ca27518525cd458e6dcb2e7b3eead9f43fbe6f7cf1a48e116cd0bf6fde72c",
+        "audio_sha256": "9af85175453a8d02c29dba7a8bb02f84de3241488600aeb6bb28f63fa6c149f0",
+        "request_id": "req_613189b889b44eb4a358e82d4b65eb05",
+        "source_sha256": "fee28c2dbca8c5de8951d67c047ab571a76de731e65e1caa4f67b3588bcbc5fd"
+      }
     },
     {
       "scene": 11,
-      "start": 16667,
-      "duration": 143,
+      "start": 17825,
+      "duration": 174,
       "text": "Maya has evidence that the requirement\nis satisfied and can arrange the release.",
-      "audio": "voiceover-v2/en/107.mp3"
+      "audio": "voiceover-v2/en/107.mp3",
+      "provenance": {
+        "payload_sha256": "ea5f06a54d0570dd103c4c259fc67b5b5f4afd6bd7c626946a6acd0126c4ce75",
+        "audio_sha256": "ad9094cb884f51905adc5c78fa1d8731ae0120bb0dfefc07a926e09910740986",
+        "request_id": "req_9e0f18f1edea446193747086b005cea8",
+        "source_sha256": "726e87ec5df5966692596d1c829775b197a1cfa2e399f7d8a8443849cd861bef"
+      }
     },
     {
       "scene": 11,
-      "start": 16821,
-      "duration": 109,
+      "start": 18010,
+      "duration": 149,
       "text": "Alex’s and Sam’s Tracking\nrecords capture the correction,",
-      "audio": "voiceover-v2/en/108.mp3"
+      "audio": "voiceover-v2/en/108.mp3",
+      "provenance": {
+        "payload_sha256": "4c5e5ab22844e86bf05ecbafb562976fc818a2aae13116521360564b0cb00b2a",
+        "audio_sha256": "9abd4c27f70fa2cb033d2b18e09b8c9fa13fafd3bfe1d1bd7a5608d3f84093a3",
+        "request_id": "req_ca081248830d40b489f0c88f5819f2c5",
+        "source_sha256": "aa2b9d48a787d9b089a8d32e3275dc16e08ea4c81c3434edfca987b1a2c3e017"
+      }
     },
     {
       "scene": 11,
-      "start": 16941,
-      "duration": 76,
+      "start": 18170,
+      "duration": 88,
       "text": "verification and supporting evidence.",
-      "audio": "voiceover-v2/en/109.mp3"
+      "audio": "voiceover-v2/en/109.mp3",
+      "provenance": {
+        "payload_sha256": "c301ed84338c52f026de04df2ff095824c08a82dd88a657b03869cbfd41eb67b",
+        "audio_sha256": "7c77b459ab6191f9d41dabde2691adc647a3dcb96a4e3a6157a4f74ef638fb01",
+        "request_id": "req_c499664be48540f79f9fc2fb72f23ebd",
+        "source_sha256": "b4547fd38ae75b5e9eb8cb43530ea34912989ae44a6a0294c7d138aca24361b4"
+      }
     },
     {
       "scene": 11,
-      "start": 17028,
-      "duration": 119,
+      "start": 18269,
+      "duration": 126,
       "text": "Each person follows the work\nfrom their own responsibilities,",
-      "audio": "voiceover-v2/en/110.mp3"
+      "audio": "voiceover-v2/en/110.mp3",
+      "provenance": {
+        "payload_sha256": "c42479eb0e1759771c45b9ed530925deb2c386daadfe93e65c7276350cfd6e5b",
+        "audio_sha256": "e65aff5692e2fae50ebfabcc4709024c2a620295685dd121eedf65c8a3bdb815",
+        "request_id": "req_e3aad7caa42946c2ab6bca652b73de0f",
+        "source_sha256": "7260ad7a2b17886cedd95bd39afbcd1969faca7a3238aea8f3190dbe41906f43"
+      }
     },
     {
       "scene": 11,
-      "start": 17158,
-      "duration": 61,
+      "start": 18406,
+      "duration": 80,
       "text": "referring to the same result.",
-      "audio": "voiceover-v2/en/111.mp3"
+      "audio": "voiceover-v2/en/111.mp3",
+      "provenance": {
+        "payload_sha256": "9e5811e2b5d9fb344b10281b1c908663bb818b5fcbd0365c0dd7a7901769d6be",
+        "audio_sha256": "8fa58b3e40f48ec8a43337eefe39a425378c882867544bc46234cfc1e8c0a714",
+        "request_id": "req_676a80bb6c524dffbe6ed180a91132a7",
+        "source_sha256": "2c2fc64da7f30ceea6f595aaf90cb2a22a6a3f9ba6b69fd4d57837b761827472"
+      }
     },
     {
       "scene": 11,
-      "start": 17230,
-      "duration": 104,
+      "start": 18497,
+      "duration": 113,
       "text": "When a decision is needed,\nDuet brings the progress,",
-      "audio": "voiceover-v2/en/112.mp3"
+      "audio": "voiceover-v2/en/112.mp3",
+      "provenance": {
+        "payload_sha256": "d171eb4e2e7011537d086849d2263e35802b0265f7956679ecfcbac0e46aa117",
+        "audio_sha256": "3b6d8069b4ce6eb6a8024edf90605495829e0320d8d79b4bbd92c59be5634941",
+        "request_id": "req_7e23c9499716421db0c7c90b8708cd9e",
+        "source_sha256": "8fc27834a633d4215fd9fe2e99e79ccbb3384dcf5db9e2f7430bb7011b6edcf4"
+      }
     },
     {
       "scene": 11,
-      "start": 17345,
-      "duration": 110,
+      "start": 18621,
+      "duration": 129,
       "text": "materials and remaining choices\ntogether for its employee.",
-      "audio": "voiceover-v2/en/113.mp3"
+      "audio": "voiceover-v2/en/113.mp3",
+      "provenance": {
+        "payload_sha256": "f59519cc3dec4d92bf990eee8e77defc2d5e457e0ce20b1cb99842a4049cae02",
+        "audio_sha256": "ae50b5074c436c0ed75b3fc8cf21a405938da441224dcba788d30b1a50d1599b",
+        "request_id": "req_aed14bd30d8b4c778a552cafb89dc1ef",
+        "source_sha256": "78188b2408de3b87a6b04bd0a65747f10b1c2b78ded568c2867510dfe179ef35"
+      }
     },
     {
       "scene": 12,
-      "start": 17530,
-      "duration": 117,
+      "start": 18825,
+      "duration": 119,
       "text": "Looking back, Message Center\nmade the change discoverable.",
-      "audio": "voiceover-v2/en/114.mp3"
+      "audio": "voiceover-v2/en/114.mp3",
+      "provenance": {
+        "payload_sha256": "18faed967f6087510505f1cff97378c45fa7da843735ecf87b7ef71a01f05690",
+        "audio_sha256": "5f08cd7756921232ad9e658fd625e1a5ce615e345b69648bc080a812ae560a45",
+        "request_id": "req_e9d7a13b433f4b79908352357f30fc03",
+        "source_sha256": "cf0678c1e7120b4f2e11e6936aae910ede391698c92e3c09359cddba722f5863"
+      }
     },
     {
       "scene": 12,
-      "start": 17658,
-      "duration": 121,
+      "start": 18955,
+      "duration": 120,
       "text": "Duet understood and carried out\nthe work each person delegated.",
-      "audio": "voiceover-v2/en/115.mp3"
+      "audio": "voiceover-v2/en/115.mp3",
+      "provenance": {
+        "payload_sha256": "5584c9b2414858c6d9c08080b358b6a690946401152d8b4f140d34d64e924527",
+        "audio_sha256": "4cf59e19591e28bfa56d47c177c5d7c572d3a980ffd5de3903ac202517766557",
+        "request_id": "req_0333d54451ad4a118e55a9cbf0565718",
+        "source_sha256": "91c1c43da00c6223d9a989c354544ba93e65d9c525b0b71bb868e751db3a2c04"
+      }
     },
     {
       "scene": 12,
-      "start": 17790,
-      "duration": 84,
+      "start": 19086,
+      "duration": 109,
       "text": "Agent Loop connected\nthe handoffs through rules,",
-      "audio": "voiceover-v2/en/116.mp3"
+      "audio": "voiceover-v2/en/116.mp3",
+      "provenance": {
+        "payload_sha256": "2fbbec9ff790e36c70926897f6c22ead59f9933705a1ce78065ff5a9d101eb47",
+        "audio_sha256": "0441cf9474832e69d022a8b3f4aa469e6568468fb09339b245b0166266c8f205",
+        "request_id": "req_2bb17e32aaba4b24b3ce18d0ddeabfb9",
+        "source_sha256": "87ca1e4653219ced455d938f5c87223f06a7f123cf054e21025679043d2c2ed1"
+      }
     },
     {
       "scene": 12,
-      "start": 17885,
-      "duration": 89,
-      "text": "and LoopLab supplied acceptance evidence.",
-      "audio": "voiceover-v2/en/117.mp3"
-    },
-    {
-      "scene": 12,
-      "start": 17985,
-      "duration": 121,
-      "text": "A team can first establish how\na real piece of work should run,",
-      "audio": "voiceover-v2/en/118.mp3"
-    },
-    {
-      "scene": 12,
-      "start": 18117,
-      "duration": 154,
-      "text": "then turn its recurring handoffs into\npolicies defined by the responsible people.",
-      "audio": "voiceover-v2/en/119.mp3"
-    },
-    {
-      "scene": 12,
-      "start": 18282,
-      "duration": 133,
-      "text": "Employees continue to decide goals,\npriorities and commitments.",
-      "audio": "voiceover-v2/en/120.mp3"
-    },
-    {
-      "scene": 12,
-      "start": 18426,
+      "start": 19206,
       "duration": 106,
-      "text": "As more outputs become usable\ninputs for the next role,",
-      "audio": "voiceover-v2/en/121.mp3"
+      "text": "and LoopLab supplied acceptance evidence.",
+      "audio": "voiceover-v2/en/117.mp3",
+      "provenance": {
+        "payload_sha256": "94ebd2bbf04edf8299ea332b8fd7d6291320c7150348b459000615f34f5cd1eb",
+        "audio_sha256": "003da940fb178969266693e24b8033c46417520095103180ff41cd46333b884e",
+        "request_id": "req_059b6c53a9a148b2b62ca0e8d6e3a4de",
+        "source_sha256": "a46870c7d708f3cd8d209da4fba32d0fbd6efa79c566f0b9fe71bb72e6a02835"
+      }
     },
     {
       "scene": 12,
-      "start": 18543,
+      "start": 19323,
+      "duration": 132,
+      "text": "A team can first establish how\na real piece of work should run,",
+      "audio": "voiceover-v2/en/118.mp3",
+      "provenance": {
+        "payload_sha256": "d4271ed5b952d98216f063decb7997108b1c32264d8a5b6c2834cb66423d52ba",
+        "audio_sha256": "2856025378d574c09d4876fbde10971af3a02866492ed530574f3f295192099e",
+        "request_id": "req_c217df8a4616443bb40e36a7968db5fb",
+        "source_sha256": "a84bfb9e441bd20390c243673706745b54168c47a350efb1e3df2d1544101e1c"
+      }
+    },
+    {
+      "scene": 12,
+      "start": 19466,
+      "duration": 155,
+      "text": "then turn its recurring handoffs into\npolicies defined by the responsible people.",
+      "audio": "voiceover-v2/en/119.mp3",
+      "provenance": {
+        "payload_sha256": "323713258f28b6614406dcbc4eaed5b7a73623ac5a5d448b35a95eb8fd8a5cf0",
+        "audio_sha256": "30e3f95908b2855418a9e021c7a32c0f299664ec13e10043608dfa1332480c72",
+        "request_id": "req_fd28a7f1e65f44d18fc98c76fa704b9d",
+        "source_sha256": "02662a8552f28d7aff9923a01e89cce7c1d5432c345bba40f0f77d0ce0b8448a"
+      }
+    },
+    {
+      "scene": 12,
+      "start": 19632,
+      "duration": 139,
+      "text": "Employees continue to decide goals,\npriorities and commitments.",
+      "audio": "voiceover-v2/en/120.mp3",
+      "provenance": {
+        "payload_sha256": "6f7566bb4379a12d34fe4ac819201ca30683206a6127a8793c29a65f512b6367",
+        "audio_sha256": "a8e65f11dfdb74c7fde22f99520c58173e2f59ccbcc76fc3f2d8fdbb7b2f4c16",
+        "request_id": "req_97d24157153b4be785ff68b092d02232",
+        "source_sha256": "7706288799a58d42febd6d0e150b14b6d8ac8336a3228d4428cb46fc8da7b4db"
+      }
+    },
+    {
+      "scene": 12,
+      "start": 19782,
+      "duration": 135,
+      "text": "As more outputs become usable\ninputs for the next role,",
+      "audio": "voiceover-v2/en/121.mp3",
+      "provenance": {
+        "payload_sha256": "cc638455dc002282845639a0eee29d52ccb6f939a1c66caa625bf5e014e593ec",
+        "audio_sha256": "d735b14ef94b445a373c3992c7b191af3e523350f3e0bc5fbb3559f8ee4111d1",
+        "request_id": "req_c29a9b6840504d59a8162987a94c16eb",
+        "source_sha256": "8034db06bbd16f792165bb47c8684c2ab163ac17024fb6677ab4c312828aefdb"
+      }
+    },
+    {
+      "scene": 12,
+      "start": 19928,
       "duration": 137,
       "text": "the company can build its AI-native\nworkflows one process at a time.",
-      "audio": "voiceover-v2/en/122.mp3"
+      "audio": "voiceover-v2/en/122.mp3",
+      "provenance": {
+        "payload_sha256": "2ab5bcec3bffb81e8b05f3d78143cb0e16811e076d14089630d8879ff7f7fa8b",
+        "audio_sha256": "fddb980ef23061836c5132935266aafb45aafa85dc11e5764eb3a69f79a1f413",
+        "request_id": "req_5faab28a11804497a6772e645d51b28a",
+        "source_sha256": "17115dfe4751e9bad0aee1f493f34b040f9cdf64c32e9ae9375d3d4a6a9605ff"
+      }
     }
   ]
 }

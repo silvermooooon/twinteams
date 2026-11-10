@@ -2,665 +2,665 @@
   {
     "text": "先看这张架构图。",
     "startMs": 1000,
-    "endMs": 3067,
+    "endMs": 3767,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "中间的圆环，是 Agent Loop。",
-    "startMs": 3433,
-    "endMs": 6433,
+    "startMs": 4133,
+    "endMs": 7833,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "它根据确定的 policy 接收事件、分发任务，把结果接到下一步；",
-    "startMs": 6800,
-    "endMs": 13467,
+    "startMs": 8200,
+    "endMs": 14733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "这一层调度不调用大模型。",
-    "startMs": 13833,
-    "endMs": 16667,
+    "startMs": 15100,
+    "endMs": 18533,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "圆环内部有两个公共服务。",
-    "startMs": 17033,
-    "endMs": 19633,
+    "startMs": 18900,
+    "endMs": 22333,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "消息中心汇集新闻、业务通知和工作产出，整理成可阅读、搜索和订阅的信息。",
-    "startMs": 20000,
-    "endMs": 29233,
+    "startMs": 22700,
+    "endMs": 30500,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "LoopLab 负责测试与验收，产出结果和证据。",
-    "startMs": 29600,
-    "endMs": 34333,
+    "startMs": 30867,
+    "endMs": 35967,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "圆环外围，是每位员工自己的 Duet。",
-    "startMs": 34700,
-    "endMs": 38400,
+    "startMs": 36333,
+    "endMs": 40567,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "它理解任务、调用工具、完成工作，并用记忆和 Tracking 持续跟进。",
-    "startMs": 38767,
-    "endMs": 45767,
+    "startMs": 40933,
+    "endMs": 48133,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "每个 Duet 再向外连接自己的 Owner，也就是那位员工。",
-    "startMs": 46133,
-    "endMs": 51167,
+    "startMs": 48500,
+    "endMs": 54333,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "人决定目标和取舍，始终把任务交给自己的 Duet。",
-    "startMs": 51533,
-    "endMs": 56667,
+    "startMs": 54700,
+    "endMs": 60000,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "需要跨岗位协作时，Duet 在共享主题中留下任务、资料和结果。",
-    "startMs": 57033,
-    "endMs": 64333,
+    "startMs": 60367,
+    "endMs": 67600,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "现在看信息怎样流动。",
-    "startMs": 64700,
-    "endMs": 67167,
+    "startMs": 67967,
+    "endMs": 70667,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Duet 从消息中心找到相关信息，结合员工的职责提出行动。",
-    "startMs": 67533,
-    "endMs": 73867,
-    "timestampMs": null,
-    "confidence": null
-  },
-  {
-    "text": "人决定推进后，Duet 开始工作。",
-    "startMs": 74233,
+    "startMs": 71033,
     "endMs": 77633,
     "timestampMs": null,
     "confidence": null
   },
   {
-    "text": "任务结果回到 Agent Loop，\n按 policy 交给下一位负责人的 Duet；",
+    "text": "人决定推进后，Duet 开始工作。",
     "startMs": 78000,
-    "endMs": 84000,
+    "endMs": 81967,
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "text": "任务结果回到 Agent Loop，\n按 policy 交给下一位负责人的 Duet；",
+    "startMs": 82333,
+    "endMs": 88000,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "需要验收时，LoopLab 执行测试，结果再回到循环。",
-    "startMs": 84367,
-    "endMs": 90300,
+    "startMs": 88367,
+    "endMs": 94400,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "人做判断，Duet 做事，消息中心提供信息，\nLoopLab 提供验收，Agent Loop 连接各个环节。",
-    "startMs": 90667,
-    "endMs": 100433,
+    "startMs": 94767,
+    "endMs": 106600,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "接下来，从每个人的一次委托，看这张图怎样运转。",
-    "startMs": 100800,
-    "endMs": 106467,
+    "startMs": 106967,
+    "endMs": 112733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "一家公司的工作，由很多人的职责接在一起。",
-    "startMs": 108967,
-    "endMs": 113533,
+    "startMs": 115233,
+    "endMs": 119867,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "每个人都可以先把一部分事情交给自己的 AI，\n比如收集资料、做报表，或者持续跟进一项任务。",
-    "startMs": 113900,
-    "endMs": 124100,
+    "startMs": 120233,
+    "endMs": 131233,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "这里，每位员工的个人 AI 叫作 Duet。",
-    "startMs": 124467,
-    "endMs": 128067,
+    "startMs": 131600,
+    "endMs": 135600,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "当一个 Duet 交出的结果能被下一位负\n责人直接使用，这些个人委托就开始连起来。",
-    "startMs": 128433,
-    "endMs": 136800,
+    "startMs": 135967,
+    "endMs": 144633,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "等一条业务有了明确的起点、交接和验收条件，\n它就可以在规则与人的判断下持续推进。",
-    "startMs": 137167,
-    "endMs": 146767,
+    "startMs": 145000,
+    "endMs": 155233,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "这是我们理解的 AI Native。",
-    "startMs": 147133,
-    "endMs": 149500,
+    "startMs": 155600,
+    "endMs": 159733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "鲍勃给我发来一条消息，请我做一份报表。",
-    "startMs": 152000,
-    "endMs": 156633,
+    "startMs": 162233,
+    "endMs": 167067,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "我选中他的消息，交给自己的 Duet，\n并告诉它，帮我做好这份报表，然后发给鲍勃。",
-    "startMs": 157000,
-    "endMs": 166367,
+    "startMs": 167433,
+    "endMs": 176333,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "引用带来了原始要求，也带来了要回复的那段对话。",
-    "startMs": 166733,
-    "endMs": 172133,
+    "startMs": 176700,
+    "endMs": 182267,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "我的 Duet 整理数据，完成报表，再调用\n发送工具，以我的身份把文件发回与鲍勃的私聊。",
-    "startMs": 172500,
-    "endMs": 181900,
+    "startMs": 182633,
+    "endMs": 192633,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "这个发送动作来自我刚才的明确委托。",
-    "startMs": 182267,
-    "endMs": 186233,
+    "startMs": 193000,
+    "endMs": 199033,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "鲍勃收到材料，就能继续他的工作。",
-    "startMs": 186600,
-    "endMs": 190367,
+    "startMs": 199400,
+    "endMs": 203400,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "一次小任务已经跨过了一个岗位交接点。",
-    "startMs": 190733,
-    "endMs": 194767,
+    "startMs": 203767,
+    "endMs": 208667,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Duet 会长期跟随同一位员工。",
-    "startMs": 197267,
-    "endMs": 200300,
+    "startMs": 211167,
+    "endMs": 214567,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "你可以教它自己的职责、常用资料、工作标准和表达习惯。",
-    "startMs": 200667,
-    "endMs": 207033,
+    "startMs": 214933,
+    "endMs": 221100,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "一天里，你可能先交代报表，再讨论客户问题，然后问起另一项研究。",
-    "startMs": 207400,
-    "endMs": 215400,
+    "startMs": 221467,
+    "endMs": 228467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "眼前始终是同一个 Duet，它在后台分别处理这些事情，并把结果带回来。",
-    "startMs": 215767,
-    "endMs": 223900,
+    "startMs": 228833,
+    "endMs": 237500,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "对话持续变长时，较早内容会压缩成摘要，最近几条问答保留原文。",
-    "startMs": 224267,
-    "endMs": 232233,
+    "startMs": 237867,
+    "endMs": 246367,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "你能接着刚才的话说，也能在之后重新找回一项持续中的工作。",
-    "startMs": 232600,
-    "endMs": 239300,
+    "startMs": 246733,
+    "endMs": 253000,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "设想周一，爬虫发现了一条监管变化，提出客户需要了解申请的处理状态。",
-    "startMs": 241800,
-    "endMs": 250167,
+    "startMs": 255500,
+    "endMs": 264400,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "消息中心保存原文链接和发布时间，将内容整理成可阅读的摘要并分类。",
-    "startMs": 250533,
-    "endMs": 258433,
+    "startMs": 264767,
+    "endMs": 272167,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "员工可以浏览、搜索和订阅，Duet 也可以按职责主动查找或定期拉取。",
-    "startMs": 258800,
-    "endMs": 266467,
-    "timestampMs": null,
-    "confidence": null
-  },
-  {
-    "text": "消息中心让外部变化进入公司的共同信息范围。",
-    "startMs": 266833,
-    "endMs": 272000,
-    "timestampMs": null,
-    "confidence": null
-  },
-  {
-    "text": "一条资讯可以先留在这里，等它与某个人手上的工作发生联系，再进入后续行动。",
-    "startMs": 272367,
+    "startMs": 272533,
     "endMs": 281200,
     "timestampMs": null,
     "confidence": null
   },
   {
+    "text": "消息中心让外部变化进入公司的共同信息范围。",
+    "startMs": 281567,
+    "endMs": 287833,
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "text": "一条资讯可以先留在这里，等它与某个人手上的工作发生联系，再进入后续行动。",
+    "startMs": 288200,
+    "endMs": 297300,
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
     "text": "Nora 负责市场研究。",
-    "startMs": 283700,
-    "endMs": 285767,
+    "startMs": 299800,
+    "endMs": 302000,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "她的 Duet 知道，她正在关注客户申请体验，\n于是把这条变化推荐给她，并解释可能影响现有申请页面。",
-    "startMs": 286133,
-    "endMs": 297633,
+    "startMs": 302367,
+    "endMs": 313967,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Nora 判断值得投入，委托 Duet 调研影响，整理报告，并形成需求建议。",
-    "startMs": 298000,
-    "endMs": 305900,
+    "startMs": 314333,
+    "endMs": 322333,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "交付物逐渐具体起来。",
-    "startMs": 306267,
-    "endMs": 308667,
+    "startMs": 322700,
+    "endMs": 325467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "哪些流程受影响，原文依据在哪里，客户应该看见什么，内部人员又需要导出什么。",
-    "startMs": 309033,
-    "endMs": 317933,
+    "startMs": 325833,
+    "endMs": 336133,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Maya 收到这些材料后，就能把研究结论继续整理成产品需求。",
-    "startMs": 318300,
-    "endMs": 325167,
+    "startMs": 336500,
+    "endMs": 343633,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Nora 可以请自己的 Duet 建立一\n个真人群，把产品、开发和测试同事拉进来。",
-    "startMs": 327667,
-    "endMs": 335533,
+    "startMs": 346133,
+    "endMs": 354467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "大家在群里讨论范围和优先级。",
-    "startMs": 335900,
-    "endMs": 339400,
+    "startMs": 354833,
+    "endMs": 359533,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Maya 看到一条需要处理的消息，就把它交给自己的 Duet。",
-    "startMs": 339767,
-    "endMs": 345467,
+    "startMs": 359900,
+    "endMs": 366100,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "与此同时，Nora 的 Duet 创建并管理一个绑定\n主题，将报告放进去，再邀请相关 Duet 留言协作。",
-    "startMs": 345833,
-    "endMs": 356100,
+    "startMs": 366467,
+    "endMs": 377433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "每个 Duet 带着自己主人的职责参与，\n按主人在群里的权限读取共享历史和文件。",
-    "startMs": 356467,
-    "endMs": 364667,
+    "startMs": 377800,
+    "endMs": 386700,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "人直接联系自己的 Duet，Duet 之间的工作则围绕主题异步展开。",
-    "startMs": 365033,
-    "endMs": 371433,
+    "startMs": 387067,
+    "endMs": 394200,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "到了周四，Nora 只要问，申请状态那件事到哪了。",
-    "startMs": 373933,
-    "endMs": 379333,
+    "startMs": 396700,
+    "endMs": 401900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Duet 会用几层记忆找回工作。",
-    "startMs": 379700,
-    "endMs": 382633,
+    "startMs": 402267,
+    "endMs": 406500,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "短期上下文保存摘要和最近问答。",
-    "startMs": 383000,
-    "endMs": 386600,
+    "startMs": 406867,
+    "endMs": 411933,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "每四小时，Dream 从主人可见的所有群聊及其与 Duet\n的对话中增量整理长期信息，Git 留下版本和来源。",
-    "startMs": 386967,
-    "endMs": 398133,
+    "startMs": 412300,
+    "endMs": 423900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "若周一与周四的计划有出入，Duet 能查证据，依据有效决定更新记忆。",
-    "startMs": 398500,
-    "endMs": 405900,
+    "startMs": 424267,
+    "endMs": 431633,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Duet 识别到持续事项后，会主动建立 Tracking 记录。",
-    "startMs": 406267,
-    "endMs": 411433,
+    "startMs": 432000,
+    "endMs": 437700,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "首节点写下事项、目标和简述，这些元数据留在日常上下文里，帮助定位工作。",
-    "startMs": 411800,
-    "endMs": 420767,
+    "startMs": 438067,
+    "endMs": 447567,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "详细进度按需读取，新的决定和交付继续追加节点。",
-    "startMs": 421133,
-    "endMs": 426867,
+    "startMs": 447933,
+    "endMs": 454833,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "于是，任务可以跨过很多次对话继续推进。",
-    "startMs": 427233,
-    "endMs": 431967,
+    "startMs": 455200,
+    "endMs": 459767,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Maya 把需求写成产品需求条目，也就是 story。",
-    "startMs": 434467,
-    "endMs": 439700,
+    "startMs": 462267,
+    "endMs": 467700,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Alex 的 Duet 开始实现，并提交\n供团队评审的代码变更请求，也就是 PR。",
-    "startMs": 440067,
-    "endMs": 448733,
+    "startMs": 468067,
+    "endMs": 476133,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "GitHub 发出一个带有 PR 和提交版本的事件。",
-    "startMs": 449100,
-    "endMs": 454300,
+    "startMs": 476500,
+    "endMs": 481600,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "独立运行的 Agent Loop 根据规则文件\npolicy，把评审交给负责这项工作的 Sam。",
-    "startMs": 454667,
-    "endMs": 462467,
+    "startMs": 481967,
+    "endMs": 490067,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "外圈执行确定的规则，无需调用模型。",
-    "startMs": 462833,
-    "endMs": 467133,
+    "startMs": 490433,
+    "endMs": 495167,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Sam 的 Duet 才负责理解代码和检查需求。",
-    "startMs": 467500,
-    "endMs": 471633,
+    "startMs": 495533,
+    "endMs": 499667,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "它发现，客户页面已经展示状态，但内部报表还没有对应字段。",
-    "startMs": 472000,
-    "endMs": 478967,
+    "startMs": 500033,
+    "endMs": 506667,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "它提交具体意见，并给出明确的需要修改结论。",
-    "startMs": 479333,
-    "endMs": 484533,
+    "startMs": 507033,
+    "endMs": 511433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Agent Loop 读取这个结构化结果，知道下一棒该回到作者那里。",
-    "startMs": 484900,
-    "endMs": 491033,
+    "startMs": 511800,
+    "endMs": 519633,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "规则把意见写回 PR，并把修改任务交给 Alex 的 Duet。",
-    "startMs": 493533,
-    "endMs": 499900,
+    "startMs": 522133,
+    "endMs": 528567,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "它拿到具体缺项和对应版本，补上报表字段，再追加提交。",
-    "startMs": 500267,
-    "endMs": 507000,
+    "startMs": 528933,
+    "endMs": 536033,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "新版本进入同一套评审规则，Sam 的 Duet 检查后给出通过结论。",
-    "startMs": 507367,
-    "endMs": 514267,
+    "startMs": 536400,
+    "endMs": 543433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "接下来，Agent Loop 可以把本次变更交给\nLoopLab，连同要验证的需求和条件一起送过去。",
-    "startMs": 514633,
-    "endMs": 524000,
+    "startMs": 543800,
+    "endMs": 551900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "每次交付都带着下一位执行者能直接使用的上下文。",
-    "startMs": 524367,
-    "endMs": 529867,
+    "startMs": 552267,
+    "endMs": 557767,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Sam 给出了两条验收条件。",
-    "startMs": 532367,
-    "endMs": 535300,
+    "startMs": 560267,
+    "endMs": 563900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "客户应该看到申请正在审核，内部导出的同一条记录也应该包含这个状态。",
-    "startMs": 535667,
-    "endMs": 543667,
+    "startMs": 564267,
+    "endMs": 572600,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "LoopLab 的 Agent 调查真\n实页面，把操作编排成可复用的节点和流程。",
-    "startMs": 544033,
-    "endMs": 551500,
+    "startMs": 572967,
+    "endMs": 580100,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "随后，独立浏览器执行固定版本的流程，逐条检查页面和导出结果，留下步骤与截图。",
-    "startMs": 551867,
-    "endMs": 561667,
+    "startMs": 580467,
+    "endMs": 590067,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "回放按确定的步骤执行。",
-    "startMs": 562033,
-    "endMs": 564533,
+    "startMs": 590433,
+    "endMs": 593633,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "测试通过时，结果带着证据回到流程。",
-    "startMs": 564900,
-    "endMs": 569200,
-    "timestampMs": null,
-    "confidence": null
-  },
-  {
-    "text": "若有检查失败，Agent Loop 可以把失败位置\n和证据交回 Alex 的 Duet，继续修复和复验。",
-    "startMs": 569567,
-    "endMs": 578500,
-    "timestampMs": null,
-    "confidence": null
-  },
-  {
-    "text": "验收报告回到共享主题，也能在消息中心里查到。",
-    "startMs": 581000,
-    "endMs": 586667,
-    "timestampMs": null,
-    "confidence": null
-  },
-  {
-    "text": "Nora 知道，最初发现的变化已经推进成了经过验证的功能。",
-    "startMs": 587033,
-    "endMs": 593200,
-    "timestampMs": null,
-    "confidence": null
-  },
-  {
-    "text": "Maya 看见需求的验收结果，继续安排发布。",
-    "startMs": 593567,
+    "startMs": 594000,
     "endMs": 598233,
     "timestampMs": null,
     "confidence": null
   },
   {
-    "text": "Alex 和 Sam 的 Tracking 则记录改动、复验和证据。",
+    "text": "若有检查失败，Agent Loop 可以把失败位置\n和证据交回 Alex 的 Duet，继续修复和复验。",
     "startMs": 598600,
-    "endMs": 603400,
+    "endMs": 607900,
     "timestampMs": null,
     "confidence": null
   },
   {
-    "text": "每个人从自己的职责出发跟踪同一项工作，并引用同一份结果。",
-    "startMs": 603767,
-    "endMs": 610300,
+    "text": "验收报告回到共享主题，也能在消息中心里查到。",
+    "startMs": 610400,
+    "endMs": 616167,
     "timestampMs": null,
     "confidence": null
   },
   {
-    "text": "人需要做决定时，Duet 能把进度、材料和剩余选择一起带到面前。",
-    "startMs": 610667,
-    "endMs": 618067,
+    "text": "Nora 知道，最初发现的变化已经推进成了经过验证的功能。",
+    "startMs": 616533,
+    "endMs": 622933,
     "timestampMs": null,
     "confidence": null
   },
   {
-    "text": "回看这条路径，消息中心让变化被发现，Duet 理解并完成每个人交出去的\n工作，Agent Loop 按规则交接，LoopLab 提供验收证据。",
-    "startMs": 620567,
+    "text": "Maya 看见需求的验收结果，继续安排发布。",
+    "startMs": 623300,
+    "endMs": 627767,
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "text": "Alex 和 Sam 的 Tracking 则记录改动、复验和证据。",
+    "startMs": 628133,
     "endMs": 634400,
     "timestampMs": null,
     "confidence": null
   },
   {
-    "text": "团队可以先把一段真实工作做顺，再将反复发生\n的交接写成 policy，由负责人确定规则。",
+    "text": "每个人从自己的职责出发跟踪同一项工作，并引用同一份结果。",
     "startMs": 634767,
-    "endMs": 644467,
+    "endMs": 641900,
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "text": "人需要做决定时，Duet 能把进度、材料和剩余选择一起带到面前。",
+    "startMs": 642267,
+    "endMs": 649500,
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "text": "回看这条路径，消息中心让变化被发现，Duet 理解并完成每个人交出去的\n工作，Agent Loop 按规则交接，LoopLab 提供验收证据。",
+    "startMs": 652000,
+    "endMs": 667400,
+    "timestampMs": null,
+    "confidence": null
+  },
+  {
+    "text": "团队可以先把一段真实工作做顺，再将反复发生\n的交接写成 policy，由负责人确定规则。",
+    "startMs": 667767,
+    "endMs": 676267,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "人继续决定目标、优先级和承诺。",
-    "startMs": 644833,
-    "endMs": 648500,
+    "startMs": 676633,
+    "endMs": 680767,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "随着更多岗位的交付可以互相接住，公司就能逐\n条建立自己的 AI Native 业务闭环。",
-    "startMs": 648867,
-    "endMs": 657267,
+    "startMs": 681133,
+    "endMs": 689633,
     "timestampMs": null,
     "confidence": null
   }

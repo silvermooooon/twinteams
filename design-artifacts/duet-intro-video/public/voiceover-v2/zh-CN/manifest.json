@@ -1,751 +1,1329 @@
 {
   "fps": 30,
-  "duration": 19763,
+  "duration": 20734,
+  "narration": {
+    "provider": "openai",
+    "model": "gpt-4o-mini-tts",
+    "voice": "marin",
+    "speed": 1.0,
+    "language": "zh-CN",
+    "instructions": "用标准普通话，为一部介绍企业个人 AI 协作的视频配音。声音自然、清晰、温和专业，像向同事解释一个容易理解的设计，语速适中而连贯，不要播音腔或夸张表演。保持同一位讲述者的稳定音色。严格朗读输入文字，不增添开场白、解释或结束语。英文产品名自然读出：Duet 按英文 duet 发音，Agent Loop 和 LoopLab 按英文词组发音；PR 逐个字母读出，GitHub、Tracking、Dream 按英文发音。"
+  },
   "chapters": [
     {
       "id": 0,
       "title": "先看懂这张架构图",
       "start": 0,
-      "duration": 3239
+      "duration": 3427
     },
     {
       "id": 1,
       "title": "每个人先交出一部分工作",
-      "start": 3239,
-      "duration": 1291
+      "start": 3427,
+      "duration": 1410
     },
     {
       "id": 2,
       "title": "鲍勃要一份报表",
-      "start": 4530,
-      "duration": 1358
+      "start": 4837,
+      "duration": 1468
     },
     {
       "id": 3,
       "title": "始终面对自己的 Duet",
-      "start": 5888,
-      "duration": 1336
+      "start": 6305,
+      "duration": 1330
     },
     {
       "id": 4,
       "title": "消息中心先让变化被看见",
-      "start": 7224,
-      "duration": 1257
+      "start": 7635,
+      "duration": 1329
     },
     {
       "id": 5,
       "title": "Nora 决定把消息变成需求",
-      "start": 8481,
-      "duration": 1319
+      "start": 8964,
+      "duration": 1390
     },
     {
       "id": 6,
       "title": "人在群聊里沟通 Duet 在主题里协作",
-      "start": 9800,
-      "duration": 1388
+      "start": 10354,
+      "duration": 1517
     },
     {
       "id": 7,
       "title": "跨天以后它怎样接着做",
-      "start": 11188,
-      "duration": 1816
+      "start": 11871,
+      "duration": 1967
     },
     {
       "id": 8,
       "title": "Agent Loop 把明确的事件交给负责人",
-      "start": 13004,
-      "duration": 1772
+      "start": 13838,
+      "duration": 1796
     },
     {
       "id": 9,
       "title": "修复结果重新进入同一条流程",
-      "start": 14776,
-      "duration": 1165
+      "start": 15634,
+      "duration": 1144
     },
     {
       "id": 10,
       "title": "LoopLab 用浏览器运行给出证据",
-      "start": 15941,
-      "duration": 1459
+      "start": 16778,
+      "duration": 1504
     },
     {
       "id": 11,
       "title": "每个人知道自己的事推进到了哪里",
-      "start": 17400,
-      "duration": 1187
+      "start": 18282,
+      "duration": 1248
     },
     {
       "id": 12,
       "title": "成熟的交接成为下一条自动流程",
-      "start": 18587,
-      "duration": 1176
+      "start": 19530,
+      "duration": 1204
     }
   ],
   "cues": [
     {
       "scene": 0,
       "start": 30,
-      "duration": 62,
+      "duration": 83,
       "text": "先看这张架构图。",
-      "audio": "voiceover-v2/zh-CN/intro-001.mp3"
+      "audio": "voiceover-v2/zh-CN/intro-001.mp3",
+      "provenance": {
+        "payload_sha256": "c3b46695ca2e5370d8fa56de2a31fd92bca242de4ca4fd11fd28d71c82b8389e",
+        "audio_sha256": "7ec3b5d7d0a23ab5efbdba7ed735c8efb82c2207edbedb0ff1af3b23abff1659",
+        "request_id": "req_349db69da93747cb8b67ecb4d9f23dbb",
+        "source_sha256": "e85aeff7953e9af8c2944a85087358b8063836dea24a35a2dfb03330d4ac7e61"
+      }
     },
     {
       "scene": 0,
-      "start": 103,
-      "duration": 90,
-      "text": "中间的圆环，是 Agent Loop。",
-      "audio": "voiceover-v2/zh-CN/intro-002.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 204,
-      "duration": 200,
-      "text": "它根据确定的 policy 接收事件、分发任务，把结果接到下一步；",
-      "audio": "voiceover-v2/zh-CN/intro-003.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 415,
-      "duration": 85,
-      "text": "这一层调度不调用大模型。",
-      "audio": "voiceover-v2/zh-CN/intro-004.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 511,
-      "duration": 78,
-      "text": "圆环内部有两个公共服务。",
-      "audio": "voiceover-v2/zh-CN/intro-005.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 600,
-      "duration": 277,
-      "text": "消息中心汇集新闻、业务通知和工作产出，整理成可阅读、搜索和订阅的信息。",
-      "audio": "voiceover-v2/zh-CN/intro-006.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 888,
-      "duration": 142,
-      "text": "LoopLab 负责测试与验收，产出结果和证据。",
-      "audio": "voiceover-v2/zh-CN/intro-007.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 1041,
+      "start": 124,
       "duration": 111,
+      "text": "中间的圆环，是 Agent Loop。",
+      "audio": "voiceover-v2/zh-CN/intro-002.mp3",
+      "provenance": {
+        "payload_sha256": "8274a93d4f1ffc10e6947093b3284f5a7391cb8d8a57e6c1313160f37e7b19ca",
+        "audio_sha256": "3066c66bfd691adabf074a76410206240c5d82db8d73798a2cf863d220e6c85c",
+        "request_id": "req_995c58ebb2f24ec8a0628e151b2cf960",
+        "source_sha256": "0f1280f31ac0886fd865eae21bfdef9065305c37ed0694123792c4ef32a8e128"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 246,
+      "duration": 196,
+      "text": "它根据确定的 policy 接收事件、分发任务，把结果接到下一步；",
+      "audio": "voiceover-v2/zh-CN/intro-003.mp3",
+      "provenance": {
+        "payload_sha256": "013a0a8b87c4b1ce8e4207b10c5738755a79213e929eaaa396c9aa8f9def6aca",
+        "audio_sha256": "6d7f9ec8c7b420140e1681193ff07307394cf6fe88cf4442f5714fc8f9176582",
+        "request_id": "req_332d0f69402b45358f0b456760664271",
+        "source_sha256": "76564c7b899cf120c49a14b388762b1287d0f2ba49067a893f22f95a60fa11c1"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 453,
+      "duration": 103,
+      "text": "这一层调度不调用大模型。",
+      "audio": "voiceover-v2/zh-CN/intro-004.mp3",
+      "provenance": {
+        "payload_sha256": "330f3404b5c6e76b089061c2d259fd5e6e0710bc9d6cb8930b141df85a9d75fb",
+        "audio_sha256": "2f2eca7ceac2c9791400934e5b2be31b6580a130af3b08db07c14073c3e736ca",
+        "request_id": "req_46b17f0200bc406f9a9ca73ec58b8051",
+        "source_sha256": "a256287b447ea423414166348e6060f1e57d0cadf2b065b0848089e005e61171"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 567,
+      "duration": 103,
+      "text": "圆环内部有两个公共服务。",
+      "audio": "voiceover-v2/zh-CN/intro-005.mp3",
+      "provenance": {
+        "payload_sha256": "f638db1d9732af9972490961b6423bb0329520f42f35e1238186e2e363f3cac8",
+        "audio_sha256": "f36c484325609d782eac1a12faab1ff7e043f352e4553032c1c9e882b18c6667",
+        "request_id": "req_ea1febbc3a55426ebfe2b49b667d21a7",
+        "source_sha256": "0759c2892f1e91fd31612699719dcc33be92af4c6f892a30f9aa64865c6298c1"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 681,
+      "duration": 234,
+      "text": "消息中心汇集新闻、业务通知和工作产出，整理成可阅读、搜索和订阅的信息。",
+      "audio": "voiceover-v2/zh-CN/intro-006.mp3",
+      "provenance": {
+        "payload_sha256": "c4ed6f5379db8fde7779e83a826e3b4b0e07d0bc70da4466c0416b7328477f70",
+        "audio_sha256": "3f9ca0dcaea517255bafe6ecdd81a341d15cc81441411a5e594ebaaf4866ba19",
+        "request_id": "req_7e437f43c7f248a995d7eb9d1e5912d6",
+        "source_sha256": "4465acf0a88dc6c2320c1f97d5391dc404160cdfc7bcee1f47b2b612316825c6"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 926,
+      "duration": 153,
+      "text": "LoopLab 负责测试与验收，产出结果和证据。",
+      "audio": "voiceover-v2/zh-CN/intro-007.mp3",
+      "provenance": {
+        "payload_sha256": "ade8c803a0c843bddb9cdebda4d2e664648cf82dbd77822120cda9d97abd7aa5",
+        "audio_sha256": "05046477317a803bf1e7579ab1a3dd397dfa1d7e70bb7a41c90655733a7ed312",
+        "request_id": "req_1f58a779857d4062893d3198f705af54",
+        "source_sha256": "e23bc5dd714e835ed05fb9c910ec01d2cc2641c4bf5332f3f56c34a929350fbf"
+      }
+    },
+    {
+      "scene": 0,
+      "start": 1090,
+      "duration": 127,
       "text": "圆环外围，是每位员工自己的 Duet。",
-      "audio": "voiceover-v2/zh-CN/intro-008.mp3"
+      "audio": "voiceover-v2/zh-CN/intro-008.mp3",
+      "provenance": {
+        "payload_sha256": "235e3c5c87d963863f4a9e4cc5f4c4689808e95f3d327bdd7c26da1263399763",
+        "audio_sha256": "5434713a0374ee94ef96a829196b7c6318e6bfb96a97f6867a4c76e028b81819",
+        "request_id": "req_84ca227dbaf841078f79267bb5c6920f",
+        "source_sha256": "258df4ea997b0453f3cbf2f9091389abde944d2bacbbf76f65ae3eedcbe932ba"
+      }
     },
     {
       "scene": 0,
-      "start": 1163,
-      "duration": 210,
+      "start": 1228,
+      "duration": 216,
       "text": "它理解任务、调用工具、完成工作，并用记忆和 Tracking 持续跟进。",
-      "audio": "voiceover-v2/zh-CN/intro-009.mp3"
+      "audio": "voiceover-v2/zh-CN/intro-009.mp3",
+      "provenance": {
+        "payload_sha256": "32744f33969cd895a123a5258742765b34df3f3b41451cb4ffc17952c9a3cca7",
+        "audio_sha256": "a634f22a823f0cfdbfbe99351986a27707145ef8e9cec5130f2aeebe9a7d926b",
+        "request_id": "req_0d1b4a4be926491cb0233fedb2be5c35",
+        "source_sha256": "ca826b857070494c487b0d38806b59641c27e4ca59837046feaa24497208f042"
+      }
     },
     {
       "scene": 0,
-      "start": 1384,
-      "duration": 151,
+      "start": 1455,
+      "duration": 175,
       "text": "每个 Duet 再向外连接自己的 Owner，也就是那位员工。",
-      "audio": "voiceover-v2/zh-CN/intro-010.mp3"
+      "audio": "voiceover-v2/zh-CN/intro-010.mp3",
+      "provenance": {
+        "payload_sha256": "23280298aa9905cb175ebe47d1513d03d0e7acaf856a3572b18369aa9b93798f",
+        "audio_sha256": "433831aa9e15a883a1283eb3cf4eff1ce8646de30afebc68fc340cdcaa874f4b",
+        "request_id": "req_156389b9570c47879a4ca98df443c365",
+        "source_sha256": "b06eaa75dd2f908416a630f9c11e9adb129cc2f9ba98d78685e713c9c4b6c1f0"
+      }
     },
     {
       "scene": 0,
-      "start": 1546,
-      "duration": 154,
+      "start": 1641,
+      "duration": 159,
       "text": "人决定目标和取舍，始终把任务交给自己的 Duet。",
-      "audio": "voiceover-v2/zh-CN/intro-011.mp3"
+      "audio": "voiceover-v2/zh-CN/intro-011.mp3",
+      "provenance": {
+        "payload_sha256": "a7f1cedb5bc2707bbd08fde9502d2c03ca41ca094a2178ca9221fa7ef96ff020",
+        "audio_sha256": "800f00ae9d82e7a1e1e321094d32ece5be8cec8f2aead660b147cab47c314fd1",
+        "request_id": "req_7715c3cda6b2421aad33950d16474834",
+        "source_sha256": "1ec4543fdffba895ec434aa3de454c1bb4f8aa360867a05553ea150fe908bac7"
+      }
     },
     {
       "scene": 0,
-      "start": 1711,
-      "duration": 219,
+      "start": 1811,
+      "duration": 217,
       "text": "需要跨岗位协作时，Duet 在共享主题中留下任务、资料和结果。",
-      "audio": "voiceover-v2/zh-CN/intro-012.mp3"
+      "audio": "voiceover-v2/zh-CN/intro-012.mp3",
+      "provenance": {
+        "payload_sha256": "1168c146395870bf32a1f0f5bcc1735b4b3f2b71c1460a60cd4cbf6a8d4f6d29",
+        "audio_sha256": "8e9920dd089e3f0de21607e1e18d36fcb6a7ec6cb40b3efca4340fd4cca34691",
+        "request_id": "req_f68ec0825f3c4456bb6c610725936600",
+        "source_sha256": "926b90b6dc3287768cf378357542bd7e6ed9f357e3b9bc9004bac0b9ae082e5a"
+      }
     },
     {
       "scene": 0,
-      "start": 1941,
-      "duration": 74,
+      "start": 2039,
+      "duration": 81,
       "text": "现在看信息怎样流动。",
-      "audio": "voiceover-v2/zh-CN/intro-013.mp3"
+      "audio": "voiceover-v2/zh-CN/intro-013.mp3",
+      "provenance": {
+        "payload_sha256": "0c7afac43bed00c382236e8cda860bc237f774b09af144e86de215f8a30e9f0a",
+        "audio_sha256": "b24e61e8ed93813e375c3e834d13f03f95343fde81864032c99c80da9e644019",
+        "request_id": "req_28623a34ef304961a484ad09324cdb63",
+        "source_sha256": "4183c0ffe4ad976286c822c25410d994cd2169b54e589f974c32280352165a4f"
+      }
     },
     {
       "scene": 0,
-      "start": 2026,
-      "duration": 190,
+      "start": 2131,
+      "duration": 198,
       "text": "Duet 从消息中心找到相关信息，结合员工的职责提出行动。",
-      "audio": "voiceover-v2/zh-CN/intro-014.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2227,
-      "duration": 102,
-      "text": "人决定推进后，Duet 开始工作。",
-      "audio": "voiceover-v2/zh-CN/intro-015.mp3"
+      "audio": "voiceover-v2/zh-CN/intro-014.mp3",
+      "provenance": {
+        "payload_sha256": "f094e441d415212faa910a2dabc9026d9e2b98a951a341ef9d81cacd826e9ff4",
+        "audio_sha256": "b3ffc72917d433be345aa3fd8e844fd8111be2e492e92289c2d7bc8f714841f1",
+        "request_id": "req_1d598d47320f4c9cb001d0ad43d28e15",
+        "source_sha256": "938e2ebfcbd9bebe32b4b5f87303576f1a64dce3ae1be8fbbafc58accdf3493a"
+      }
     },
     {
       "scene": 0,
       "start": 2340,
-      "duration": 180,
-      "text": "任务结果回到 Agent Loop，\n按 policy 交给下一位负责人的 Duet；",
-      "audio": "voiceover-v2/zh-CN/intro-016.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2531,
-      "duration": 178,
-      "text": "需要验收时，LoopLab 执行测试，结果再回到循环。",
-      "audio": "voiceover-v2/zh-CN/intro-017.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 2720,
-      "duration": 293,
-      "text": "人做判断，Duet 做事，消息中心提供信息，\nLoopLab 提供验收，Agent Loop 连接各个环节。",
-      "audio": "voiceover-v2/zh-CN/intro-018.mp3"
-    },
-    {
-      "scene": 0,
-      "start": 3024,
-      "duration": 170,
-      "text": "接下来，从每个人的一次委托，看这张图怎样运转。",
-      "audio": "voiceover-v2/zh-CN/intro-019.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3269,
-      "duration": 137,
-      "text": "一家公司的工作，由很多人的职责接在一起。",
-      "audio": "voiceover-v2/zh-CN/001.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3417,
-      "duration": 306,
-      "text": "每个人都可以先把一部分事情交给自己的 AI，\n比如收集资料、做报表，或者持续跟进一项任务。",
-      "audio": "voiceover-v2/zh-CN/002.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3734,
-      "duration": 108,
-      "text": "这里，每位员工的个人 AI 叫作 Duet。",
-      "audio": "voiceover-v2/zh-CN/003.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 3853,
-      "duration": 251,
-      "text": "当一个 Duet 交出的结果能被下一位负\n责人直接使用，这些个人委托就开始连起来。",
-      "audio": "voiceover-v2/zh-CN/004.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 4115,
-      "duration": 288,
-      "text": "等一条业务有了明确的起点、交接和验收条件，\n它就可以在规则与人的判断下持续推进。",
-      "audio": "voiceover-v2/zh-CN/005.mp3"
-    },
-    {
-      "scene": 1,
-      "start": 4414,
-      "duration": 71,
-      "text": "这是我们理解的 AI Native。",
-      "audio": "voiceover-v2/zh-CN/006.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 4560,
-      "duration": 139,
-      "text": "鲍勃给我发来一条消息，请我做一份报表。",
-      "audio": "voiceover-v2/zh-CN/007.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 4710,
-      "duration": 281,
-      "text": "我选中他的消息，交给自己的 Duet，\n并告诉它，帮我做好这份报表，然后发给鲍勃。",
-      "audio": "voiceover-v2/zh-CN/008.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 5002,
-      "duration": 162,
-      "text": "引用带来了原始要求，也带来了要回复的那段对话。",
-      "audio": "voiceover-v2/zh-CN/009.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 5175,
-      "duration": 282,
-      "text": "我的 Duet 整理数据，完成报表，再调用\n发送工具，以我的身份把文件发回与鲍勃的私聊。",
-      "audio": "voiceover-v2/zh-CN/010.mp3"
-    },
-    {
-      "scene": 2,
-      "start": 5468,
       "duration": 119,
-      "text": "这个发送动作来自我刚才的明确委托。",
-      "audio": "voiceover-v2/zh-CN/011.mp3"
+      "text": "人决定推进后，Duet 开始工作。",
+      "audio": "voiceover-v2/zh-CN/intro-015.mp3",
+      "provenance": {
+        "payload_sha256": "c74a05fb5fe759756254d5613b587436c7a28dbbcc644423bebee7878f5fd842",
+        "audio_sha256": "0aa4fb4b6b3336a8e1a8ac3d7ca792b1983d02364ec794ef4d97d9a4c65ac815",
+        "request_id": "req_2e619e2dd022454d958440ffaf474f17",
+        "source_sha256": "94dd2c7b5ea31a05b8409043729ac721cb5749bf66caef934ee9a5d1a4bfe25a"
+      }
     },
     {
-      "scene": 2,
-      "start": 5598,
-      "duration": 113,
-      "text": "鲍勃收到材料，就能继续他的工作。",
-      "audio": "voiceover-v2/zh-CN/012.mp3"
+      "scene": 0,
+      "start": 2470,
+      "duration": 170,
+      "text": "任务结果回到 Agent Loop，\n按 policy 交给下一位负责人的 Duet；",
+      "audio": "voiceover-v2/zh-CN/intro-016.mp3",
+      "provenance": {
+        "payload_sha256": "fc83c09b096a887d544cef9d9da9c3643be03793e15b79c37e77cb193d069fa7",
+        "audio_sha256": "929a30c400d65273cc367810cb4b81688f916c9b9562fadbf7ff68aefa8d458a",
+        "request_id": "req_3414511a12694468ac1780349458a2c7",
+        "source_sha256": "b3e229f985abf1ff0124c24be448af1933ea7ed1ce7043068e77106308cf8439"
+      }
     },
     {
-      "scene": 2,
-      "start": 5722,
-      "duration": 121,
-      "text": "一次小任务已经跨过了一个岗位交接点。",
-      "audio": "voiceover-v2/zh-CN/013.mp3"
+      "scene": 0,
+      "start": 2651,
+      "duration": 181,
+      "text": "需要验收时，LoopLab 执行测试，结果再回到循环。",
+      "audio": "voiceover-v2/zh-CN/intro-017.mp3",
+      "provenance": {
+        "payload_sha256": "f8729345f16419b78ad5f73b017f33ba4fed9e5bd3adbe294d932b988f73067e",
+        "audio_sha256": "39b3939c36573ff443622413b1942eafa589f73670273b9ab620b7d29204f0cd",
+        "request_id": "req_1360671e427d43c09d93247eca6d5c60",
+        "source_sha256": "9d9516eab9cdc5e21396c7d02c822af51f54f41a64ac3fafff974df85d684e8e"
+      }
     },
     {
-      "scene": 3,
-      "start": 5918,
-      "duration": 91,
-      "text": "Duet 会长期跟随同一位员工。",
-      "audio": "voiceover-v2/zh-CN/014.mp3"
+      "scene": 0,
+      "start": 2843,
+      "duration": 355,
+      "text": "人做判断，Duet 做事，消息中心提供信息，\nLoopLab 提供验收，Agent Loop 连接各个环节。",
+      "audio": "voiceover-v2/zh-CN/intro-018.mp3",
+      "provenance": {
+        "payload_sha256": "66b57da287def790813de80cf66791d6415c049c4e0e1ae8f1595e72c57573f6",
+        "audio_sha256": "2713ca3b0f1ebc9202c9c1b904b0933696e7c1d669e960a2a4a042ebac6ae9ff",
+        "request_id": "req_2fa2a64ae5ee4e44bda4abf230d2f6af",
+        "source_sha256": "070dd5139e2b5785ebe7cea3c59f38853d6dc5e7022c816cd7f63797aed91990"
+      }
     },
     {
-      "scene": 3,
-      "start": 6020,
-      "duration": 191,
-      "text": "你可以教它自己的职责、常用资料、工作标准和表达习惯。",
-      "audio": "voiceover-v2/zh-CN/015.mp3"
+      "scene": 0,
+      "start": 3209,
+      "duration": 173,
+      "text": "接下来，从每个人的一次委托，看这张图怎样运转。",
+      "audio": "voiceover-v2/zh-CN/intro-019.mp3",
+      "provenance": {
+        "payload_sha256": "f06b9074ea861efbca208c5f9cc4e9379411fae3d6ea34eadae8fb0dd48110ac",
+        "audio_sha256": "6443240473a352b4edd128bf4c8df652e0a3fcabe8df5c0e2bab42300ea18beb",
+        "request_id": "req_533434f0e375400489ff181a75b53253",
+        "source_sha256": "23f67568f61379c9b9b4bfb2712e3fec7e30cfe923be2d5c352bbd7a57b02bc0"
+      }
     },
     {
-      "scene": 3,
-      "start": 6222,
-      "duration": 240,
-      "text": "一天里，你可能先交代报表，再讨论客户问题，然后问起另一项研究。",
-      "audio": "voiceover-v2/zh-CN/016.mp3"
+      "scene": 1,
+      "start": 3457,
+      "duration": 139,
+      "text": "一家公司的工作，由很多人的职责接在一起。",
+      "audio": "voiceover-v2/zh-CN/001.mp3",
+      "provenance": {
+        "payload_sha256": "9d43609fd6c6f4fb3007173ddcd9a6dc4ec7a71de10c04f3a50cf1e4437a4775",
+        "audio_sha256": "4998fda006cec5ced2d90a6bb498a7488d190c0b11283eb69bf7531350e22ff3",
+        "request_id": "req_0fc021443d454f2abfda4525cee624c8",
+        "source_sha256": "2b7a7be57bca37b78a6f4358628170bcc684a376e1bf2507df3b786e24a34e63"
+      }
     },
     {
-      "scene": 3,
-      "start": 6473,
-      "duration": 244,
-      "text": "眼前始终是同一个 Duet，它在后台分别处理这些事情，并把结果带回来。",
-      "audio": "voiceover-v2/zh-CN/017.mp3"
+      "scene": 1,
+      "start": 3607,
+      "duration": 330,
+      "text": "每个人都可以先把一部分事情交给自己的 AI，\n比如收集资料、做报表，或者持续跟进一项任务。",
+      "audio": "voiceover-v2/zh-CN/002.mp3",
+      "provenance": {
+        "payload_sha256": "2fe4c447fe396903b83816e4a96600d29a8600dabda6b03b37f2d429f4d25a04",
+        "audio_sha256": "97ecd9bda45825e3cf4ff57fa243d9ea2cdb04b960287bd746f294cdc7cb6777",
+        "request_id": "req_75427c872c1045a992365efa4cb22b16",
+        "source_sha256": "6977bf8a88d4a312efe4ac5335724a96b931b46fc2448401202f393b66abdbc8"
+      }
     },
     {
-      "scene": 3,
-      "start": 6728,
-      "duration": 239,
-      "text": "对话持续变长时，较早内容会压缩成摘要，最近几条问答保留原文。",
-      "audio": "voiceover-v2/zh-CN/018.mp3"
+      "scene": 1,
+      "start": 3948,
+      "duration": 120,
+      "text": "这里，每位员工的个人 AI 叫作 Duet。",
+      "audio": "voiceover-v2/zh-CN/003.mp3",
+      "provenance": {
+        "payload_sha256": "a81b50253fb47245cc3659b5eebbd1226a8c73a609664f9522b9bfa7a3fed025",
+        "audio_sha256": "4b5931db6863bbd38e39a44172251afbe68f5d0c1b074f4e152c3bd51f9e0c57",
+        "request_id": "req_bb51aee25923422aab140d83b02a1652",
+        "source_sha256": "332ab5a474bf618aed54d362d62ea45d5f992864ecdadb9e5cfcaf64b7735660"
+      }
     },
     {
-      "scene": 3,
-      "start": 6978,
-      "duration": 201,
-      "text": "你能接着刚才的话说，也能在之后重新找回一项持续中的工作。",
-      "audio": "voiceover-v2/zh-CN/019.mp3"
-    },
-    {
-      "scene": 4,
-      "start": 7254,
-      "duration": 251,
-      "text": "设想周一，爬虫发现了一条监管变化，提出客户需要了解申请的处理状态。",
-      "audio": "voiceover-v2/zh-CN/020.mp3"
-    },
-    {
-      "scene": 4,
-      "start": 7516,
-      "duration": 237,
-      "text": "消息中心保存原文链接和发布时间，将内容整理成可阅读的摘要并分类。",
-      "audio": "voiceover-v2/zh-CN/021.mp3"
-    },
-    {
-      "scene": 4,
-      "start": 7764,
-      "duration": 230,
-      "text": "员工可以浏览、搜索和订阅，Duet 也可以按职责主动查找或定期拉取。",
-      "audio": "voiceover-v2/zh-CN/022.mp3"
-    },
-    {
-      "scene": 4,
-      "start": 8005,
-      "duration": 155,
-      "text": "消息中心让外部变化进入公司的共同信息范围。",
-      "audio": "voiceover-v2/zh-CN/023.mp3"
-    },
-    {
-      "scene": 4,
-      "start": 8171,
-      "duration": 265,
-      "text": "一条资讯可以先留在这里，等它与某个人手上的工作发生联系，再进入后续行动。",
-      "audio": "voiceover-v2/zh-CN/024.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8511,
-      "duration": 62,
-      "text": "Nora 负责市场研究。",
-      "audio": "voiceover-v2/zh-CN/025.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8584,
-      "duration": 345,
-      "text": "她的 Duet 知道，她正在关注客户申请体验，\n于是把这条变化推荐给她，并解释可能影响现有申请页面。",
-      "audio": "voiceover-v2/zh-CN/026.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 8940,
-      "duration": 237,
-      "text": "Nora 判断值得投入，委托 Duet 调研影响，整理报告，并形成需求建议。",
-      "audio": "voiceover-v2/zh-CN/027.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 9188,
-      "duration": 72,
-      "text": "交付物逐渐具体起来。",
-      "audio": "voiceover-v2/zh-CN/028.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 9271,
-      "duration": 267,
-      "text": "哪些流程受影响，原文依据在哪里，客户应该看见什么，内部人员又需要导出什么。",
-      "audio": "voiceover-v2/zh-CN/029.mp3"
-    },
-    {
-      "scene": 5,
-      "start": 9549,
-      "duration": 206,
-      "text": "Maya 收到这些材料后，就能把研究结论继续整理成产品需求。",
-      "audio": "voiceover-v2/zh-CN/030.mp3"
-    },
-    {
-      "scene": 6,
-      "start": 9830,
-      "duration": 236,
-      "text": "Nora 可以请自己的 Duet 建立一\n个真人群，把产品、开发和测试同事拉进来。",
-      "audio": "voiceover-v2/zh-CN/031.mp3"
-    },
-    {
-      "scene": 6,
-      "start": 10077,
-      "duration": 105,
-      "text": "大家在群里讨论范围和优先级。",
-      "audio": "voiceover-v2/zh-CN/032.mp3"
-    },
-    {
-      "scene": 6,
-      "start": 10193,
-      "duration": 171,
-      "text": "Maya 看到一条需要处理的消息，就把它交给自己的 Duet。",
-      "audio": "voiceover-v2/zh-CN/033.mp3"
-    },
-    {
-      "scene": 6,
-      "start": 10375,
-      "duration": 308,
-      "text": "与此同时，Nora 的 Duet 创建并管理一个绑定\n主题，将报告放进去，再邀请相关 Duet 留言协作。",
-      "audio": "voiceover-v2/zh-CN/034.mp3"
-    },
-    {
-      "scene": 6,
-      "start": 10694,
-      "duration": 246,
-      "text": "每个 Duet 带着自己主人的职责参与，\n按主人在群里的权限读取共享历史和文件。",
-      "audio": "voiceover-v2/zh-CN/035.mp3"
-    },
-    {
-      "scene": 6,
-      "start": 10951,
-      "duration": 192,
-      "text": "人直接联系自己的 Duet，Duet 之间的工作则围绕主题异步展开。",
-      "audio": "voiceover-v2/zh-CN/036.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11218,
-      "duration": 162,
-      "text": "到了周四，Nora 只要问，申请状态那件事到哪了。",
-      "audio": "voiceover-v2/zh-CN/037.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11391,
-      "duration": 88,
-      "text": "Duet 会用几层记忆找回工作。",
-      "audio": "voiceover-v2/zh-CN/038.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11490,
-      "duration": 108,
-      "text": "短期上下文保存摘要和最近问答。",
-      "audio": "voiceover-v2/zh-CN/039.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11609,
-      "duration": 335,
-      "text": "每四小时，Dream 从主人可见的所有群聊及其与 Duet\n的对话中增量整理长期信息，Git 留下版本和来源。",
-      "audio": "voiceover-v2/zh-CN/040.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 11955,
-      "duration": 222,
-      "text": "若周一与周四的计划有出入，Duet 能查证据，依据有效决定更新记忆。",
-      "audio": "voiceover-v2/zh-CN/041.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 12188,
-      "duration": 155,
-      "text": "Duet 识别到持续事项后，会主动建立 Tracking 记录。",
-      "audio": "voiceover-v2/zh-CN/042.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 12354,
-      "duration": 269,
-      "text": "首节点写下事项、目标和简述，这些元数据留在日常上下文里，帮助定位工作。",
-      "audio": "voiceover-v2/zh-CN/043.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 12634,
-      "duration": 172,
-      "text": "详细进度按需读取，新的决定和交付继续追加节点。",
-      "audio": "voiceover-v2/zh-CN/044.mp3"
-    },
-    {
-      "scene": 7,
-      "start": 12817,
-      "duration": 142,
-      "text": "于是，任务可以跨过很多次对话继续推进。",
-      "audio": "voiceover-v2/zh-CN/045.mp3"
-    },
-    {
-      "scene": 8,
-      "start": 13034,
-      "duration": 157,
-      "text": "Maya 把需求写成产品需求条目，也就是 story。",
-      "audio": "voiceover-v2/zh-CN/046.mp3"
-    },
-    {
-      "scene": 8,
-      "start": 13202,
+      "scene": 1,
+      "start": 4079,
       "duration": 260,
-      "text": "Alex 的 Duet 开始实现，并提交\n供团队评审的代码变更请求，也就是 PR。",
-      "audio": "voiceover-v2/zh-CN/047.mp3"
+      "text": "当一个 Duet 交出的结果能被下一位负\n责人直接使用，这些个人委托就开始连起来。",
+      "audio": "voiceover-v2/zh-CN/004.mp3",
+      "provenance": {
+        "payload_sha256": "b210a1b6ddbba73359853c11188741c1c6afc8221ddf0d34d783e752caa188ec",
+        "audio_sha256": "c9663812e9c98dfce0046efb6d2d6361e25f339fb3ee7ca1bc885520f0a3297d",
+        "request_id": "req_72d702a76d20450c8860c1dc0fa589bf",
+        "source_sha256": "1a54cb2b21fe74163b68654e1d74bfa9b33bcfeb4c77ac1fed9f90ff4fd0904d"
+      }
     },
     {
-      "scene": 8,
-      "start": 13473,
+      "scene": 1,
+      "start": 4350,
+      "duration": 307,
+      "text": "等一条业务有了明确的起点、交接和验收条件，\n它就可以在规则与人的判断下持续推进。",
+      "audio": "voiceover-v2/zh-CN/005.mp3",
+      "provenance": {
+        "payload_sha256": "594294632fc72b541eea9e98ffcc0c993bbece4d4b3e4842637abb7fe3a094bb",
+        "audio_sha256": "8304cd175e93f73fdaeb690f5e39c467b136dd61285162a64a9c959a927561c5",
+        "request_id": "req_ad1ace52c98f4104a16fab27e84f0f8e",
+        "source_sha256": "c31e6af4b2d68ebc83df14a108ec2f6ed21908849234864a8f498d0a6e8974f9"
+      }
+    },
+    {
+      "scene": 1,
+      "start": 4668,
+      "duration": 124,
+      "text": "这是我们理解的 AI Native。",
+      "audio": "voiceover-v2/zh-CN/006.mp3",
+      "provenance": {
+        "payload_sha256": "517d5c662693a868c58d0873fbc8984f541e641cfaec71cd6cef05a617fe7064",
+        "audio_sha256": "7179e9a2d644007c1a65798faa628fa76d8547c1149567683007e33078c5e03c",
+        "request_id": "req_cc90b86a0ba14f909606bfc56134d6bf",
+        "source_sha256": "7d7ab333b14754aecf8cc751873c15b4676ece1444405d0bb536da85f1ef4ee6"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 4867,
+      "duration": 145,
+      "text": "鲍勃给我发来一条消息，请我做一份报表。",
+      "audio": "voiceover-v2/zh-CN/007.mp3",
+      "provenance": {
+        "payload_sha256": "e2c4db47c91399aa48c67480728c4076d918b2c067fd4d31a878597f549aa909",
+        "audio_sha256": "58cb05e3edc2ca9b33eb6b7e505ad678b1d4d52ee57f5ad21660981dd41f27cf",
+        "request_id": "req_e65bd94786954c5f8712a58f6ddac482",
+        "source_sha256": "c470ba3faa7b796300ca4e76465433cce3610e5c7eb57e89f5e85beec793e210"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5023,
+      "duration": 267,
+      "text": "我选中他的消息，交给自己的 Duet，\n并告诉它，帮我做好这份报表，然后发给鲍勃。",
+      "audio": "voiceover-v2/zh-CN/008.mp3",
+      "provenance": {
+        "payload_sha256": "59a3a09249c119bb034164edfb99f459e4f5adfd028ba0fc2e61284ab05f7876",
+        "audio_sha256": "ef217af46d58bf131940be4d45c06f8eff3ea9574abcf0807936f197ba888ce1",
+        "request_id": "req_d5570256806c4aa1926e2696c0f12de1",
+        "source_sha256": "e5ececaacfff91c5b0c7425518423fb336f32b72613e227dd29eace87f232040"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5301,
+      "duration": 167,
+      "text": "引用带来了原始要求，也带来了要回复的那段对话。",
+      "audio": "voiceover-v2/zh-CN/009.mp3",
+      "provenance": {
+        "payload_sha256": "6a12eedac0cbbb771d08c2ede1217c03c9b45176c6bcc0854ddb37752423bdd4",
+        "audio_sha256": "631de87e680a6f89a04573054815f879556291bc15bf3e1f0d97a41305619e72",
+        "request_id": "req_9e170a7cb8504055b1ed3b1f6de0347e",
+        "source_sha256": "140cb91626c3069508469e6892e69288e4ae51e45ad872783a3665d25c19b4de"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5479,
+      "duration": 300,
+      "text": "我的 Duet 整理数据，完成报表，再调用\n发送工具，以我的身份把文件发回与鲍勃的私聊。",
+      "audio": "voiceover-v2/zh-CN/010.mp3",
+      "provenance": {
+        "payload_sha256": "78c726c19b08bdd1bede3199dbe00f853eb0744b2064e9282e75e7aee7b13a06",
+        "audio_sha256": "6bbb86f1b0544490a85c743715646ff91465473795576d79ee333f457674ee32",
+        "request_id": "req_8faae8904b494059b4a4949ded7a88df",
+        "source_sha256": "c930acdf8708dd1508104faf86a6544929c1a11df69e15579717dd9a5c907174"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5790,
+      "duration": 181,
+      "text": "这个发送动作来自我刚才的明确委托。",
+      "audio": "voiceover-v2/zh-CN/011.mp3",
+      "provenance": {
+        "payload_sha256": "a2a596601eb2ac7bc83a86ae0d258c375b3cb470f088693d44d24a30f3122ee4",
+        "audio_sha256": "1ee91b7058f175f3cff5148c1c60188746013f37c984e77a58437573b5ed22e1",
+        "request_id": "req_17bbb1cc02004abeadb46ebf7a901a04",
+        "source_sha256": "803991201884e60e90df7ff93ef20f9e5809291b977926341ec635cfe2d1ef5d"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 5982,
+      "duration": 120,
+      "text": "鲍勃收到材料，就能继续他的工作。",
+      "audio": "voiceover-v2/zh-CN/012.mp3",
+      "provenance": {
+        "payload_sha256": "544a2339e5667d5084e74e228056ba02945b17049bc1821a5a65bea01d665157",
+        "audio_sha256": "32aecc4c0f77f7718aa8c9afbba171d66b278b3d61719999393a0ad105ce7dc1",
+        "request_id": "req_73ac036b73444ee5bb3e41e4796c4caa",
+        "source_sha256": "7ba7c6093debfb1c15d35f5046545b5aef5adb770f6c6584baf3bed7edbab69d"
+      }
+    },
+    {
+      "scene": 2,
+      "start": 6113,
+      "duration": 147,
+      "text": "一次小任务已经跨过了一个岗位交接点。",
+      "audio": "voiceover-v2/zh-CN/013.mp3",
+      "provenance": {
+        "payload_sha256": "6b5b3cc88d56293c8c1a7c1567efe82377a55541ab189f59e88b0efe7f5580bb",
+        "audio_sha256": "758b7613281e6c2c64eb202006af810cec422462684d59351daa666cbf9c01a7",
+        "request_id": "req_8afa8bc1be004f0bbf46731afa705879",
+        "source_sha256": "ae5444b8c7313438b11c8ed533b8171330354bad2f998d5f359aa9c0c32b8b44"
+      }
+    },
+    {
+      "scene": 3,
+      "start": 6335,
+      "duration": 102,
+      "text": "Duet 会长期跟随同一位员工。",
+      "audio": "voiceover-v2/zh-CN/014.mp3",
+      "provenance": {
+        "payload_sha256": "014a32e047709a26416dee8e9f7a1aa14fe6242fced54b8488a901d41f40c33c",
+        "audio_sha256": "e52e74b940a3edaec1bffb7d36aa6b6c829f289a76ca3044f1b2336467042771",
+        "request_id": "req_c44286aa205f4321bea63b1e03166278",
+        "source_sha256": "8f86cd77b6c83ff2e5df8829a1aca2466837b6522cdcb85b5bfbffe6037ac77e"
+      }
+    },
+    {
+      "scene": 3,
+      "start": 6448,
+      "duration": 185,
+      "text": "你可以教它自己的职责、常用资料、工作标准和表达习惯。",
+      "audio": "voiceover-v2/zh-CN/015.mp3",
+      "provenance": {
+        "payload_sha256": "2b0cc5f426994fdc6148767da839ad995cb33d66193c3efc06d7f01bb8300c65",
+        "audio_sha256": "51a1b6402a78c582594038c0f090d3f19fdd17d694596f29c9a693ef5edc7aa9",
+        "request_id": "req_78bdbaa8e4b14a2d89ba2605e9f9ac95",
+        "source_sha256": "00612462e7e4c64a0375c8b49faeb5bf2bdef46dd6cfd0d2c0bd4bff3e409624"
+      }
+    },
+    {
+      "scene": 3,
+      "start": 6644,
+      "duration": 210,
+      "text": "一天里，你可能先交代报表，再讨论客户问题，然后问起另一项研究。",
+      "audio": "voiceover-v2/zh-CN/016.mp3",
+      "provenance": {
+        "payload_sha256": "51aa11707ba4c31dc1a58ea2ff08a2d934f601f09a2180ce2f4716d995ccd75c",
+        "audio_sha256": "76a77c3c2b4ce59663c6203e8897c5fbe7d4f931a63713b69b0f4143937e8780",
+        "request_id": "req_4f8e5dd6b4b94a6784f62962b147af2a",
+        "source_sha256": "4e89b47c8bdab6eca08c8d67513d13a62ce327c30099b841cb017c6dcd8d9830"
+      }
+    },
+    {
+      "scene": 3,
+      "start": 6865,
+      "duration": 260,
+      "text": "眼前始终是同一个 Duet，它在后台分别处理这些事情，并把结果带回来。",
+      "audio": "voiceover-v2/zh-CN/017.mp3",
+      "provenance": {
+        "payload_sha256": "8556caa838d6aa6dbd1b45d33ab4aa5dcc79f618063cfac9c10fd119de8eefab",
+        "audio_sha256": "0ea9365b80efcf59f66289e7894a3626b2c035bb17d8e0a42c37fa915db772b9",
+        "request_id": "req_926f5dfa53b543319c7dc1b3086d4803",
+        "source_sha256": "47e24d386563599ed3a159d25beff6c7d7f9dd7e3803bd0ad39b41e3d52a07b7"
+      }
+    },
+    {
+      "scene": 3,
+      "start": 7136,
+      "duration": 255,
+      "text": "对话持续变长时，较早内容会压缩成摘要，最近几条问答保留原文。",
+      "audio": "voiceover-v2/zh-CN/018.mp3",
+      "provenance": {
+        "payload_sha256": "2f95bd6f24d5413d4ed4fb7a09101978b1bc27d328e728fc0a2a69cab10d9878",
+        "audio_sha256": "f80828308b5b578828a166523e437ba54173a5a3d98062f51c20fbe5b64361eb",
+        "request_id": "req_5c39d64d3c824bd0ab062ac2a5da4cf3",
+        "source_sha256": "cf81efe4fd42ec3462d3edc1b9e853db47451dbf2e595ab97c30af09a431c4cc"
+      }
+    },
+    {
+      "scene": 3,
+      "start": 7402,
+      "duration": 188,
+      "text": "你能接着刚才的话说，也能在之后重新找回一项持续中的工作。",
+      "audio": "voiceover-v2/zh-CN/019.mp3",
+      "provenance": {
+        "payload_sha256": "812d53d80cec056ccf403e275b4c074f0e9e438fd7a891abe731f390d4a3d3c6",
+        "audio_sha256": "dfb0a15835871de4c7d0aa361b597729830fe9ec214dbecf8f12c46014e508d9",
+        "request_id": "req_b97adfecc6154d3fa95fc8227c28243a",
+        "source_sha256": "3959582e06fc23f102c4e22c7077336ef0438aca61c052e8228e5200b0623480"
+      }
+    },
+    {
+      "scene": 4,
+      "start": 7665,
+      "duration": 267,
+      "text": "设想周一，爬虫发现了一条监管变化，提出客户需要了解申请的处理状态。",
+      "audio": "voiceover-v2/zh-CN/020.mp3",
+      "provenance": {
+        "payload_sha256": "54472dc6db77f0d6d1d3f5b28e3b180870f57bf4cafaf7b4c8e82b3c8431ef60",
+        "audio_sha256": "b91569e3c328113b11fe6e1640aefe361f9ab30b92c7fdfe711b0ed8c63b2662",
+        "request_id": "req_e2707aadf773422db795b868bdb36a8c",
+        "source_sha256": "abe8cc5951fe5156919df36eec8bf71e7798b308aabb364b343e181f8dcab8ec"
+      }
+    },
+    {
+      "scene": 4,
+      "start": 7943,
+      "duration": 222,
+      "text": "消息中心保存原文链接和发布时间，将内容整理成可阅读的摘要并分类。",
+      "audio": "voiceover-v2/zh-CN/021.mp3",
+      "provenance": {
+        "payload_sha256": "a70fa33cfdd015cf85590409a3bbbee7bf84dee660d52f186c43cff8b9fd35cc",
+        "audio_sha256": "5984c166fa84fb7d8c2591096177e2bfe4d98da5116815bd135da81093c4e4fb",
+        "request_id": "req_4c22cb6195044ec2bdeef1ea9d24ad65",
+        "source_sha256": "d1d30675414e116ae4514733005a5743a81840c97cd307854236127a22d9aff3"
+      }
+    },
+    {
+      "scene": 4,
+      "start": 8176,
+      "duration": 260,
+      "text": "员工可以浏览、搜索和订阅，Duet 也可以按职责主动查找或定期拉取。",
+      "audio": "voiceover-v2/zh-CN/022.mp3",
+      "provenance": {
+        "payload_sha256": "4f5cd128dec9b0335ecd626f922495379aa636e91f12377ccae087caf8f32420",
+        "audio_sha256": "f18d7c0f73e5ccd8488c5f3e3f4718483c6c24a55a09304287afdcc24f492889",
+        "request_id": "req_c6c8086619924dceb0fb28a412333688",
+        "source_sha256": "c321eed67027210bfccb8013c2344652990919ed78bbdca61bbd5831eeb09ac4"
+      }
+    },
+    {
+      "scene": 4,
+      "start": 8447,
+      "duration": 188,
+      "text": "消息中心让外部变化进入公司的共同信息范围。",
+      "audio": "voiceover-v2/zh-CN/023.mp3",
+      "provenance": {
+        "payload_sha256": "fe66c24deca7833888e93fa7b42ec2ef6f4682b125ceee4ef16b62cc711adb8e",
+        "audio_sha256": "6dd71ff5396d37f5107ba6cb301b79de793929d7a84eb2367ee3393c257b8a16",
+        "request_id": "req_76cc1d80371e40acbcc6eae60bfbaec7",
+        "source_sha256": "f4548e2991aaf8745aec203429499c1c74658fc49872f15637ce83a334aaf2da"
+      }
+    },
+    {
+      "scene": 4,
+      "start": 8646,
+      "duration": 273,
+      "text": "一条资讯可以先留在这里，等它与某个人手上的工作发生联系，再进入后续行动。",
+      "audio": "voiceover-v2/zh-CN/024.mp3",
+      "provenance": {
+        "payload_sha256": "93f8eeb9e395ad5b7bebcb70818ef3c734667f5ffe0983e9ef4af0f0ec227d80",
+        "audio_sha256": "fbbd1feb9711e7ae15f16def82d8f1c59d076a84313743b71d7a40313d3eb324",
+        "request_id": "req_09b9798875634a3e8d9dd40c57cc86ff",
+        "source_sha256": "ef31a11a07a37db66c29eaf577e8123aee854f930cd9c2ee4e5a6f193889971b"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 8994,
+      "duration": 66,
+      "text": "Nora 负责市场研究。",
+      "audio": "voiceover-v2/zh-CN/025.mp3",
+      "provenance": {
+        "payload_sha256": "157dd77ad2c33ed1e0b7921e74b0ff8912aece502ba5e89b6eec9e8a509cdf82",
+        "audio_sha256": "393cbdd71319e6ead25d809f9ff9ea46946b3f080a6481279676f67257b937bf",
+        "request_id": "req_0bdbc15d09444b5a8837843bf97f1afe",
+        "source_sha256": "5cb63fc24675a0cc4dd0f959f0fa2cdf3709ced1071be8b4a7b871819347b845"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9071,
+      "duration": 348,
+      "text": "她的 Duet 知道，她正在关注客户申请体验，\n于是把这条变化推荐给她，并解释可能影响现有申请页面。",
+      "audio": "voiceover-v2/zh-CN/026.mp3",
+      "provenance": {
+        "payload_sha256": "105b61270ebfa8cf9ae361c51cc24ca5d035f404d047ed311d8e6e93a88af532",
+        "audio_sha256": "40900cf3d10397a7bf436a7d7508cfc7c2bd3c6a16fc7c1a3eeb21f07be5e341",
+        "request_id": "req_5b3d5f1bccec48328954dccac18183ee",
+        "source_sha256": "9abd5c4dc14a7eac0faaca7f11e9a216154a57071b304623331ad1321e9a7112"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9430,
+      "duration": 240,
+      "text": "Nora 判断值得投入，委托 Duet 调研影响，整理报告，并形成需求建议。",
+      "audio": "voiceover-v2/zh-CN/027.mp3",
+      "provenance": {
+        "payload_sha256": "b97a70cc2a25d937a2440b4de31de9c0395943ef2dff896df54abd378100d08c",
+        "audio_sha256": "a2127c510a101fff9badc46c8b43c75aca810f0690992c004c5993ace42d39f9",
+        "request_id": "req_241b3c6d7497464d9135b8e715870121",
+        "source_sha256": "cdf4f19de3d6f01412c9044fdcb28a1355ac40780224215a5f9139243c1fd473"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9681,
+      "duration": 83,
+      "text": "交付物逐渐具体起来。",
+      "audio": "voiceover-v2/zh-CN/028.mp3",
+      "provenance": {
+        "payload_sha256": "ffbbfb1d036d5777786e3834e4f2ecf18f2354b0cd6b1cc6ca7b21bf75756b31",
+        "audio_sha256": "afe3d170c02e61b367be1ede8699d5d99889e68dab9659a1cda57c131952cd49",
+        "request_id": "req_c9defe2ecda34b2fb9cf942445eca11d",
+        "source_sha256": "d39d5b6d2b546823e89c4763b6623d69724e2e3407d0dbd20a218726335a73c8"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 9775,
+      "duration": 309,
+      "text": "哪些流程受影响，原文依据在哪里，客户应该看见什么，内部人员又需要导出什么。",
+      "audio": "voiceover-v2/zh-CN/029.mp3",
+      "provenance": {
+        "payload_sha256": "ec34795964e067feddca0f2eee1865dbb19ef534c0118650ed2330b634b0edf2",
+        "audio_sha256": "2c537dcff2be786746b5fe6cbcda46ad318ae291d090d43d87d6446e8f950063",
+        "request_id": "req_efb723a54eff4de6830686609e6fe77a",
+        "source_sha256": "35a61a8983bb683895173838a82c8d036337f4d015114e92a1a0e5125d1d27d6"
+      }
+    },
+    {
+      "scene": 5,
+      "start": 10095,
+      "duration": 214,
+      "text": "Maya 收到这些材料后，就能把研究结论继续整理成产品需求。",
+      "audio": "voiceover-v2/zh-CN/030.mp3",
+      "provenance": {
+        "payload_sha256": "894ab667a0ed413279869e5ca52c05106f5ba47998affd94e17be9f3ede7173a",
+        "audio_sha256": "25763b85aa51aeb4c670c7d2649507b300e6a53fbd75cd4e061b036307c480ee",
+        "request_id": "req_99a2ab436fe645a9a89ee75e9bf478ff",
+        "source_sha256": "4355f09ba561b93189613717aafd71f9d30b82e26762eb0f9edc01ad63108406"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10384,
+      "duration": 250,
+      "text": "Nora 可以请自己的 Duet 建立一\n个真人群，把产品、开发和测试同事拉进来。",
+      "audio": "voiceover-v2/zh-CN/031.mp3",
+      "provenance": {
+        "payload_sha256": "f95bd51c50dbdb6100c2ba725cc67ef8311204c2d78cd2282700ed4d80572c53",
+        "audio_sha256": "c87e167756b88cdea4234a271e83cc93367a1b1e485c058a4a610644a1100a02",
+        "request_id": "req_7db925b487484854af89fa79e4c1c05e",
+        "source_sha256": "feeddd27612b9d0ffad05022bd5316330eb1f887ad245137b4d724966dcabf7b"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10645,
+      "duration": 141,
+      "text": "大家在群里讨论范围和优先级。",
+      "audio": "voiceover-v2/zh-CN/032.mp3",
+      "provenance": {
+        "payload_sha256": "60eb3cedb2a825b961cfb935a2c7227b9a4f9e99d5eca97e0bc72bb792e8d9ed",
+        "audio_sha256": "5efb244bafa78a02f77ceb5383594645cfcdcc3d2591bbbf617beeacc9c29587",
+        "request_id": "req_de2718bc7e394708938a94f0611818e0",
+        "source_sha256": "8d281bee72f64ff70550561beae9780ddb3f3f9eaf9a9dd42acf5eaaf73ace58"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10797,
+      "duration": 186,
+      "text": "Maya 看到一条需要处理的消息，就把它交给自己的 Duet。",
+      "audio": "voiceover-v2/zh-CN/033.mp3",
+      "provenance": {
+        "payload_sha256": "e89e7ca687b4703f01686301173f27fa6ced80c956cd797d67a0924c8e5f2bbb",
+        "audio_sha256": "585bb6eeb63b6659c5fe3c395077bda41edc07326cf2923b2207eb6c6366b877",
+        "request_id": "req_348775bb1b1e439484beec4bd0ea0a14",
+        "source_sha256": "728e5431d7367ec26964406b00336934f4d40e56e8f681f838882591c6087541"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 10994,
+      "duration": 329,
+      "text": "与此同时，Nora 的 Duet 创建并管理一个绑定\n主题，将报告放进去，再邀请相关 Duet 留言协作。",
+      "audio": "voiceover-v2/zh-CN/034.mp3",
+      "provenance": {
+        "payload_sha256": "9edc74c2e55ddf9d07fb871770e4b2f3a6f383cc09bddb7ced44eb7c2ab487c8",
+        "audio_sha256": "a3107e3afeb814b5ad71a32a9c0f309b568133947d9e7816e8809eac3cc33d11",
+        "request_id": "req_dcc5160958f742179a902965a08d9407",
+        "source_sha256": "4405e605f4c18002870087bf86a681c9c327d1644ad697dde458fda71efa72dc"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 11334,
+      "duration": 267,
+      "text": "每个 Duet 带着自己主人的职责参与，\n按主人在群里的权限读取共享历史和文件。",
+      "audio": "voiceover-v2/zh-CN/035.mp3",
+      "provenance": {
+        "payload_sha256": "0356b2c57f302ee6beb41e843bbc6c089e3cbcd9724f6bbea6d705d65d1dd91c",
+        "audio_sha256": "54e8d76290c28fae88b1cf69625b43610f96cfdcbda8fbd874965925cf515932",
+        "request_id": "req_9e5ea883e7dd49e1a7e5837929ab68b2",
+        "source_sha256": "4d013c5b4565ff43f6a3f9e52316f97f7280f98d60116a5622307d66f6d348e1"
+      }
+    },
+    {
+      "scene": 6,
+      "start": 11612,
+      "duration": 214,
+      "text": "人直接联系自己的 Duet，Duet 之间的工作则围绕主题异步展开。",
+      "audio": "voiceover-v2/zh-CN/036.mp3",
+      "provenance": {
+        "payload_sha256": "fd02a4cea95e9f6fe4da3afcf49794afd27daa88e507e89328cef31d3fd8fb5e",
+        "audio_sha256": "ccfa060850fc679d8b616b9aac0662f61e94c5d81b134aad6e066799cc22fc03",
+        "request_id": "req_7715b6c0748d4159840453b7ab6a6ea5",
+        "source_sha256": "6dfad5d4b0f6670468029fafcfe88b8c6deeffa5bbd487c1e657f839d0c98a9c"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 11901,
       "duration": 156,
+      "text": "到了周四，Nora 只要问，申请状态那件事到哪了。",
+      "audio": "voiceover-v2/zh-CN/037.mp3",
+      "provenance": {
+        "payload_sha256": "7875458765ba3a95c117842caa1da763b7bcb8fd7b09f7c21f7d8b620c3a9e25",
+        "audio_sha256": "32fa5bbedc1ce4838f0d406f998d8ac1450319baf0a05421c125174ccdcb40f1",
+        "request_id": "req_99e1b6380910441a9b18583594063b72",
+        "source_sha256": "0d8edbcbe3d8262226c2e7604a54738c72bb545baadfcd74e0cd66c145fa0370"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12068,
+      "duration": 127,
+      "text": "Duet 会用几层记忆找回工作。",
+      "audio": "voiceover-v2/zh-CN/038.mp3",
+      "provenance": {
+        "payload_sha256": "82599c557a13467d82d6c77bb363e90b1dca37cff6d1513e6f45f00e99f4ce7b",
+        "audio_sha256": "e85e92eca2535f75b0c26fde97764c70002d7033be4b9423801286e59d448968",
+        "request_id": "req_b6389deb32314d62aaef48abbf8b1987",
+        "source_sha256": "d3e4d7308852f8db2797c0fa6b095d764727c1b323953b27f848473fc0faa02f"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12206,
+      "duration": 152,
+      "text": "短期上下文保存摘要和最近问答。",
+      "audio": "voiceover-v2/zh-CN/039.mp3",
+      "provenance": {
+        "payload_sha256": "fbfbf13173fff143c1ec25bff2967a0b9b568ce4d6e66e02f70ab3917a762590",
+        "audio_sha256": "df236c0f143ea23e3301e38ac75645d66790db3fc4e0b4f3646ebfa2468143d9",
+        "request_id": "req_fb1564bd884e4b4db83c18d68d7d658e",
+        "source_sha256": "e7f2b7f01d6529f547718af56643512eaad81068eae3763b22381c4508f52a9e"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12369,
+      "duration": 348,
+      "text": "每四小时，Dream 从主人可见的所有群聊及其与 Duet\n的对话中增量整理长期信息，Git 留下版本和来源。",
+      "audio": "voiceover-v2/zh-CN/040.mp3",
+      "provenance": {
+        "payload_sha256": "4d6236008e3a6cc3be714767cab5c875cd881c42d319cf703e5752a9af730813",
+        "audio_sha256": "5728b88cb6f9438820852af3e40a7c890cfe5a57744697d16ed944d00345b371",
+        "request_id": "req_be3ac54c8ff84e8896e1c42aa506db30",
+        "source_sha256": "7c55b0664d82bfa456ad9c5b6f6318b3438923f04fa5426470d1de2eb668d9f3"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12728,
+      "duration": 221,
+      "text": "若周一与周四的计划有出入，Duet 能查证据，依据有效决定更新记忆。",
+      "audio": "voiceover-v2/zh-CN/041.mp3",
+      "provenance": {
+        "payload_sha256": "71e379f9b7df15ce2723018c66efcfe2a7a8eb9470440f4310292d8991501646",
+        "audio_sha256": "a0fff909c5b55877d67667e898fcc2eeb08e9916c03d0119a432ab11ad60e7ba",
+        "request_id": "req_690a47cd36fe42e2951ec80b8b79b147",
+        "source_sha256": "dfe6b512867ef39ea62f82f5b749863b13fef9b7628abf7a62e6ddfe17d2195d"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 12960,
+      "duration": 171,
+      "text": "Duet 识别到持续事项后，会主动建立 Tracking 记录。",
+      "audio": "voiceover-v2/zh-CN/042.mp3",
+      "provenance": {
+        "payload_sha256": "b1c85e802149776e3b545766ebe1490f659513e5053f965ca4c7c8f44491a939",
+        "audio_sha256": "171756ffe285244eb93ab7324879ecdce03bb2e256a3818f3bf0bc270780cf98",
+        "request_id": "req_2bbc249348de4e97a9bd6828f77072b1",
+        "source_sha256": "4aa0f603ef1af58af244358897091c41033ac42b642b5a021448bc848011aa78"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 13142,
+      "duration": 285,
+      "text": "首节点写下事项、目标和简述，这些元数据留在日常上下文里，帮助定位工作。",
+      "audio": "voiceover-v2/zh-CN/043.mp3",
+      "provenance": {
+        "payload_sha256": "0972408ea43ebad7eb9e6033188e3c25d0860075788f5fc2945dbb340a2f1230",
+        "audio_sha256": "52908fb6b08b56b87f4fd573a82a6b2d1947e66875f4416bd0e64ced3f24618d",
+        "request_id": "req_65a911d0ab41422ba5a2908b074e3900",
+        "source_sha256": "76a87ffebc00c6d2bea58ce39c743e91a5d6c4afd899e266810c4c97f5e19cd3"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 13438,
+      "duration": 207,
+      "text": "详细进度按需读取，新的决定和交付继续追加节点。",
+      "audio": "voiceover-v2/zh-CN/044.mp3",
+      "provenance": {
+        "payload_sha256": "1dd98fc8f920165f449dae211c0a0f15e14dc82af5f35217b7aaa8d98f9963fe",
+        "audio_sha256": "8c7964760ec5d964e07a3047497c527e29819261f98096a99ae763ce20746fe3",
+        "request_id": "req_2e3d844a3a6d4ad3a31f9eb13a1a39d7",
+        "source_sha256": "d02937a1cee1a67076fbc7b66db67138e92405eed427bb05205c04280a5020f1"
+      }
+    },
+    {
+      "scene": 7,
+      "start": 13656,
+      "duration": 137,
+      "text": "于是，任务可以跨过很多次对话继续推进。",
+      "audio": "voiceover-v2/zh-CN/045.mp3",
+      "provenance": {
+        "payload_sha256": "23ef3cf39f2b3a4a173bbbe99ec110fc70399266e449225e3df7863af7afec7f",
+        "audio_sha256": "a81e33489a176765fe70dc2c51495ab0f3082f3060be39ac07a158a45f98d7bb",
+        "request_id": "req_764e065503aa4895b2357d6800d1421d",
+        "source_sha256": "2ee78aa726df5e70f073af99f3d531ddcb79d48a2d0d07f186fa7d597a1dcfa8"
+      }
+    },
+    {
+      "scene": 8,
+      "start": 13868,
+      "duration": 163,
+      "text": "Maya 把需求写成产品需求条目，也就是 story。",
+      "audio": "voiceover-v2/zh-CN/046.mp3",
+      "provenance": {
+        "payload_sha256": "e709035417b00d0425cd1db0157e81ffbe9a80d178d12822feeb7811e7b3a823",
+        "audio_sha256": "cb6ac5af049ed9b1ccc0d17c5fecd3a7edff8a50117439f1e7fd5fd018ee81dc",
+        "request_id": "req_b9b335c8c96d4a48ae52cbc69858a3f1",
+        "source_sha256": "e26decb874720b8efe24095b389e8c5a580679eebce3313a6a2690dd35c24d1f"
+      }
+    },
+    {
+      "scene": 8,
+      "start": 14042,
+      "duration": 242,
+      "text": "Alex 的 Duet 开始实现，并提交\n供团队评审的代码变更请求，也就是 PR。",
+      "audio": "voiceover-v2/zh-CN/047.mp3",
+      "provenance": {
+        "payload_sha256": "1737781edf4e9023ffd2c4bf813591cb8e32190190e747dcdd591df5efb12f57",
+        "audio_sha256": "f5db217581aac69ab81d39f0c06e4918448c11aa77f076c87ef41078e93dc7e5",
+        "request_id": "req_ed92c824bb224b8abfaed521fafc894e",
+        "source_sha256": "86feca33d02fb8012b093790f013ecc925aebcf3f46eef557378b11c495791f6"
+      }
+    },
+    {
+      "scene": 8,
+      "start": 14295,
+      "duration": 153,
       "text": "GitHub 发出一个带有 PR 和提交版本的事件。",
-      "audio": "voiceover-v2/zh-CN/048.mp3"
+      "audio": "voiceover-v2/zh-CN/048.mp3",
+      "provenance": {
+        "payload_sha256": "380c7774c6a797ced241c3c99ec19427a8b855f1d4808a004cc5bd462a8a2bba",
+        "audio_sha256": "4ded0daef29f0acea41d77460cdc2cdceeb1b2815ccba70e542cdf2bd35551b9",
+        "request_id": "req_cd42cb1472c54b2080f4570a0b61e177",
+        "source_sha256": "cb13ee0aa52dd82da6d6e7220c35dee4c04157bf1fb1bde3cb57959a807d1a64"
+      }
     },
     {
       "scene": 8,
-      "start": 13640,
-      "duration": 234,
+      "start": 14459,
+      "duration": 243,
       "text": "独立运行的 Agent Loop 根据规则文件\npolicy，把评审交给负责这项工作的 Sam。",
-      "audio": "voiceover-v2/zh-CN/049.mp3"
+      "audio": "voiceover-v2/zh-CN/049.mp3",
+      "provenance": {
+        "payload_sha256": "466392077ec6facb0ca686f64f35d72a07b26f3f57e787c7e876dac282a54c3f",
+        "audio_sha256": "820ebccde8352d1f45ca497597adb255fe29c32022258a6d7ae92f524f5ffb3e",
+        "request_id": "req_58d93d9290f649838c772f42f096eccf",
+        "source_sha256": "20d9179e0249e6284af5d105b11b3f2bde021108717d7e6bbeb10483a622e7a6"
+      }
     },
     {
       "scene": 8,
-      "start": 13885,
-      "duration": 129,
+      "start": 14713,
+      "duration": 142,
       "text": "外圈执行确定的规则，无需调用模型。",
-      "audio": "voiceover-v2/zh-CN/050.mp3"
+      "audio": "voiceover-v2/zh-CN/050.mp3",
+      "provenance": {
+        "payload_sha256": "dbc58a32372ce22168efd77fccac5069d3a23e3804105e121aa89766e564317b",
+        "audio_sha256": "fe5b806b4e29c5261604e6ab2022ecc641bb101ef8ffc2f2dc0357041427abac",
+        "request_id": "req_0a0203138f63457a852f347690e8e134",
+        "source_sha256": "d542f015a0c01d1c2504c4f66e9fb94be8854387773dcac0d8f8e1c8008f0720"
+      }
     },
     {
       "scene": 8,
-      "start": 14025,
+      "start": 14866,
       "duration": 124,
       "text": "Sam 的 Duet 才负责理解代码和检查需求。",
-      "audio": "voiceover-v2/zh-CN/051.mp3"
+      "audio": "voiceover-v2/zh-CN/051.mp3",
+      "provenance": {
+        "payload_sha256": "ffef7a82dcdbf7c47e85ecbca4739288233143bf7ca9249488957694d9f7f2fd",
+        "audio_sha256": "ec4eab7d8a4c7a3d55cebbdbdfb3733fbad3fc91aeca84e25464e15b0e5554d2",
+        "request_id": "req_b8024daad4dd44c49cf4be00fab3ce66",
+        "source_sha256": "3c46148df2095ea8cd3bf9c7294285490795beddd46b002505ce0864ca788a1e"
+      }
     },
     {
       "scene": 8,
-      "start": 14160,
-      "duration": 209,
+      "start": 15001,
+      "duration": 199,
       "text": "它发现，客户页面已经展示状态，但内部报表还没有对应字段。",
-      "audio": "voiceover-v2/zh-CN/052.mp3"
+      "audio": "voiceover-v2/zh-CN/052.mp3",
+      "provenance": {
+        "payload_sha256": "f2b89c32df608f60e054683cb7c5ad33d9e0098a184a507557db7da30b75c3ea",
+        "audio_sha256": "600807492175000bef3830e94bb0f6733f1f4360418c35ee30661290195014af",
+        "request_id": "req_c40320afb214489cb867c936e1ba93e0",
+        "source_sha256": "256cbd940b74abf6cbcf3c9e0cdfca29fae62cf0059690370aaa1cd7975a6a7c"
+      }
     },
     {
       "scene": 8,
-      "start": 14380,
-      "duration": 156,
+      "start": 15211,
+      "duration": 132,
       "text": "它提交具体意见，并给出明确的需要修改结论。",
-      "audio": "voiceover-v2/zh-CN/053.mp3"
+      "audio": "voiceover-v2/zh-CN/053.mp3",
+      "provenance": {
+        "payload_sha256": "044817d5f58003fbd99bdc757402c8443ca9d63075b25368f39940ea6acd1b85",
+        "audio_sha256": "bfe2f69ac6c389efeaa95074629cd62428107bd23bbb7592c60eb397de065709",
+        "request_id": "req_935dca1c52e045bfa304acde52a6160d",
+        "source_sha256": "5f40a499f12a0428b0a9810ecdb16f47792f4ba8c5951d9707cdadaa1f9d3165"
+      }
     },
     {
       "scene": 8,
-      "start": 14547,
-      "duration": 184,
+      "start": 15354,
+      "duration": 235,
       "text": "Agent Loop 读取这个结构化结果，知道下一棒该回到作者那里。",
-      "audio": "voiceover-v2/zh-CN/054.mp3"
+      "audio": "voiceover-v2/zh-CN/054.mp3",
+      "provenance": {
+        "payload_sha256": "a7b7527353d56e2acd35f5bf24e38d02404b2998706eb5fb47cd0db40e0d6730",
+        "audio_sha256": "73017e7e2531abe0099486825d435b28904c11811d16029fcc65c0e17e3ce547",
+        "request_id": "req_573d617d0e4743119c79d0f068cfa116",
+        "source_sha256": "13ba6a3445db59b47c35067a778c8cd737ee3d7eb34d7a56588fc14fe3c8c222"
+      }
     },
     {
       "scene": 9,
-      "start": 14806,
-      "duration": 191,
+      "start": 15664,
+      "duration": 193,
       "text": "规则把意见写回 PR，并把修改任务交给 Alex 的 Duet。",
-      "audio": "voiceover-v2/zh-CN/055.mp3"
+      "audio": "voiceover-v2/zh-CN/055.mp3",
+      "provenance": {
+        "payload_sha256": "cd836557fa703ba6ef6b548b77ea96a756f47e43a6410765682fe9cd6530923e",
+        "audio_sha256": "7b0c3610094ceb62c1d10637e3189feef7611eccd717dabf7636e88445002738",
+        "request_id": "req_c28a47eaf3404e1089d2ff8e9330b27a",
+        "source_sha256": "4869c22c7695be5302bb006a1adfb5c2281d2e8a9e319993d6b817c0e8274ce4"
+      }
     },
     {
       "scene": 9,
-      "start": 15008,
-      "duration": 202,
+      "start": 15868,
+      "duration": 213,
       "text": "它拿到具体缺项和对应版本，补上报表字段，再追加提交。",
-      "audio": "voiceover-v2/zh-CN/056.mp3"
+      "audio": "voiceover-v2/zh-CN/056.mp3",
+      "provenance": {
+        "payload_sha256": "c789613b78b855b946798a6d099895e1b83c5835b5e48d36f058c7ac2932d695",
+        "audio_sha256": "cd657168630b352f87ddbb41318e55695222c7918c296ae86946c982ed5a2a61",
+        "request_id": "req_7f97dec88b814daaa7d1d9a485fd0d34",
+        "source_sha256": "c02b271962cf62c2045a8fbd9a2e0d8d0bef6d7bd9f9923e53daafca4ff6c517"
+      }
     },
     {
       "scene": 9,
-      "start": 15221,
-      "duration": 207,
+      "start": 16092,
+      "duration": 211,
       "text": "新版本进入同一套评审规则，Sam 的 Duet 检查后给出通过结论。",
-      "audio": "voiceover-v2/zh-CN/057.mp3"
+      "audio": "voiceover-v2/zh-CN/057.mp3",
+      "provenance": {
+        "payload_sha256": "7ffdde2ac6ea00c4bcef0101f7b916785e505b054fa0922de4bb913f5259be22",
+        "audio_sha256": "168d69622d228e8ac5b5e8693b6989996e3522e5195ce8ebc0c165db483626c9",
+        "request_id": "req_3dc07a011abb4c6eb61fe2603d7fd886",
+        "source_sha256": "c3c565b7ce34e6c527ca0a78ffc186accb886a6cda26a1dce5d838ca18e38f30"
+      }
     },
     {
       "scene": 9,
-      "start": 15439,
-      "duration": 281,
+      "start": 16314,
+      "duration": 243,
       "text": "接下来，Agent Loop 可以把本次变更交给\nLoopLab，连同要验证的需求和条件一起送过去。",
-      "audio": "voiceover-v2/zh-CN/058.mp3"
+      "audio": "voiceover-v2/zh-CN/058.mp3",
+      "provenance": {
+        "payload_sha256": "0020cde4c128ba447f248a09782ae32415a90b5ddc7f7b13c86e3c4ac934f915",
+        "audio_sha256": "5cf691721ff97e4fd7eb6422898ca539e027a8aac182d8736e96e6190d73f0ab",
+        "request_id": "req_0d1165c664874edc9aa9174760af1b3b",
+        "source_sha256": "9d8ae51f97f81e3fe3a0650ef281c1c6a3dfeb9f3cf0a87a62e1cf420e1a0cbe"
+      }
     },
     {
       "scene": 9,
-      "start": 15731,
+      "start": 16568,
       "duration": 165,
       "text": "每次交付都带着下一位执行者能直接使用的上下文。",
-      "audio": "voiceover-v2/zh-CN/059.mp3"
+      "audio": "voiceover-v2/zh-CN/059.mp3",
+      "provenance": {
+        "payload_sha256": "7753163d8c16d895b5f36dccae587bc73ef45fcd745af4aa0175d90c93f80481",
+        "audio_sha256": "31f2166a8bcb0ae46424627fe9d798df3b80157c143b0d0baf28b25279e07e80",
+        "request_id": "req_4a2736c27b1c40f0aaef490169d31e15",
+        "source_sha256": "d0e17bbe62e2856281c38d71c4d717eda8e56a2eff9632d86a8b2a966e745a77"
+      }
     },
     {
       "scene": 10,
-      "start": 15971,
-      "duration": 88,
+      "start": 16808,
+      "duration": 109,
       "text": "Sam 给出了两条验收条件。",
-      "audio": "voiceover-v2/zh-CN/060.mp3"
+      "audio": "voiceover-v2/zh-CN/060.mp3",
+      "provenance": {
+        "payload_sha256": "417dc2ae08de9a2847842caa13736bb63eb863829e8147084a436ab1c233dcd0",
+        "audio_sha256": "0690e17b559c222cc171a10c25cff24f19e205c83a1ad5178d0840a2396074f6",
+        "request_id": "req_fda5d9833d8b432e855b8577cce8cae6",
+        "source_sha256": "5043a88bcc1ee8faf90c22a632bbde0837ab4dfabc6c4a3bdb03b9221580e617"
+      }
     },
     {
       "scene": 10,
-      "start": 16070,
-      "duration": 240,
+      "start": 16928,
+      "duration": 250,
       "text": "客户应该看到申请正在审核，内部导出的同一条记录也应该包含这个状态。",
-      "audio": "voiceover-v2/zh-CN/061.mp3"
+      "audio": "voiceover-v2/zh-CN/061.mp3",
+      "provenance": {
+        "payload_sha256": "b4b49f670cddd212caf896103ffd7cf8ca687ea94e56ee6993aada21c81723ca",
+        "audio_sha256": "6c5389231f98268f0777646be2aa075a212ffb6d90794d250d2c5173c65c042d",
+        "request_id": "req_da3d6d19b5834257892acc82bf515bbd",
+        "source_sha256": "5b26dc474eaf04be22f9407f7607cbab65400a30ec3be0327c42805b5c822b30"
+      }
     },
     {
       "scene": 10,
-      "start": 16321,
-      "duration": 224,
+      "start": 17189,
+      "duration": 214,
       "text": "LoopLab 的 Agent 调查真\n实页面，把操作编排成可复用的节点和流程。",
-      "audio": "voiceover-v2/zh-CN/062.mp3"
+      "audio": "voiceover-v2/zh-CN/062.mp3",
+      "provenance": {
+        "payload_sha256": "12080152fcb93994b15f430199a03e26ce4071ce3b5f34aee765db83f563d2d8",
+        "audio_sha256": "5a7a7beb5247ce4881a6e1ba6d4a743e0c37424db310bff376ebf17e89e691ef",
+        "request_id": "req_f054f1c025294ec7ba66fd8bd92d6ae1",
+        "source_sha256": "eb03cbb519ae827fdd44db1260712edd5422570e483378296dece5a15dbdafad"
+      }
     },
     {
       "scene": 10,
-      "start": 16556,
-      "duration": 294,
+      "start": 17414,
+      "duration": 288,
       "text": "随后，独立浏览器执行固定版本的流程，逐条检查页面和导出结果，留下步骤与截图。",
-      "audio": "voiceover-v2/zh-CN/063.mp3"
+      "audio": "voiceover-v2/zh-CN/063.mp3",
+      "provenance": {
+        "payload_sha256": "6cd777095e4c03baed22c00dbadda88d9b5ad824724ab21c3fc9181834512afc",
+        "audio_sha256": "20dcbfa2c084c6625cee00cce4816e1865d6556fd75d8d46921f7d6f42b951f5",
+        "request_id": "req_645fe3d70ade4a5b85527d21a67a0ada",
+        "source_sha256": "5c46304aa1dfbbead24418dcabbf8d610afeb2e87dd0d6d63b13a355637ed905"
+      }
     },
     {
       "scene": 10,
-      "start": 16861,
-      "duration": 75,
+      "start": 17713,
+      "duration": 96,
       "text": "回放按确定的步骤执行。",
-      "audio": "voiceover-v2/zh-CN/064.mp3"
+      "audio": "voiceover-v2/zh-CN/064.mp3",
+      "provenance": {
+        "payload_sha256": "0fd1c0070be39c2a1d1d3f59f78e5474315a0ed840a5aeb0fefbaeae04fe321a",
+        "audio_sha256": "104395f711799b8b66c9b5c9c4d3307a7bf5cb6de669f0ebfe5e6326825303e3",
+        "request_id": "req_2d433aa50c2046f98946ca890287d011",
+        "source_sha256": "256e010b63e9439fe6f9bb2ddbe1608c13477a07b7f0f5510bf28766665d246d"
+      }
     },
     {
       "scene": 10,
-      "start": 16947,
-      "duration": 129,
+      "start": 17820,
+      "duration": 127,
       "text": "测试通过时，结果带着证据回到流程。",
-      "audio": "voiceover-v2/zh-CN/065.mp3"
+      "audio": "voiceover-v2/zh-CN/065.mp3",
+      "provenance": {
+        "payload_sha256": "86db8a461b0b8440fb2fa872b2836df48449b5b511c3f1c8edb9d525c379ea89",
+        "audio_sha256": "3c29dce818a5747bf4370e183dfebcea3ac9b5837feaa4ce305a47485c07c865",
+        "request_id": "req_da48c44b7e1a4c11a6f9b3fef03c1db4",
+        "source_sha256": "dcbc32274dc8c28fd80409822cd4a4600ca7ad51e28303312e59327cc5f331e5"
+      }
     },
     {
       "scene": 10,
-      "start": 17087,
-      "duration": 268,
-      "text": "若有检查失败，Agent Loop 可以把失败位置\n和证据交回 Alex 的 Duet，继续修复和复验。",
-      "audio": "voiceover-v2/zh-CN/066.mp3"
-    },
-    {
-      "scene": 11,
-      "start": 17430,
-      "duration": 170,
-      "text": "验收报告回到共享主题，也能在消息中心里查到。",
-      "audio": "voiceover-v2/zh-CN/067.mp3"
-    },
-    {
-      "scene": 11,
-      "start": 17611,
-      "duration": 185,
-      "text": "Nora 知道，最初发现的变化已经推进成了经过验证的功能。",
-      "audio": "voiceover-v2/zh-CN/068.mp3"
-    },
-    {
-      "scene": 11,
-      "start": 17807,
-      "duration": 140,
-      "text": "Maya 看见需求的验收结果，继续安排发布。",
-      "audio": "voiceover-v2/zh-CN/069.mp3"
-    },
-    {
-      "scene": 11,
       "start": 17958,
-      "duration": 144,
+      "duration": 279,
+      "text": "若有检查失败，Agent Loop 可以把失败位置\n和证据交回 Alex 的 Duet，继续修复和复验。",
+      "audio": "voiceover-v2/zh-CN/066.mp3",
+      "provenance": {
+        "payload_sha256": "e0da317fc72e4fe18a622a1ed2cb8fd3721fe00712024722f931acb6f10b02d8",
+        "audio_sha256": "554012403dda1b4f71a6f090c6225da0470d4c609fad5587c307adfbf3bb41a6",
+        "request_id": "req_143403ef3e4540cf8e33bdb05508aaba",
+        "source_sha256": "443677a4febcf87ec01a491b37af7a8ac91283a790b8cf1e7f11c32db2ad343b"
+      }
+    },
+    {
+      "scene": 11,
+      "start": 18312,
+      "duration": 173,
+      "text": "验收报告回到共享主题，也能在消息中心里查到。",
+      "audio": "voiceover-v2/zh-CN/067.mp3",
+      "provenance": {
+        "payload_sha256": "287389c4ddc58166136447b4d751b17574d270af9436862c783335eb74625e5d",
+        "audio_sha256": "cc004b6527eee205ab74c8f9a28d833b7ca10e9ffbf465e5b83fdb821abc9379",
+        "request_id": "req_fa81296c697b4c7c9a474ac235df387e",
+        "source_sha256": "a45227164a635d2bc7ca1ea242544189275936b465a87f18e145188efb09caeb"
+      }
+    },
+    {
+      "scene": 11,
+      "start": 18496,
+      "duration": 192,
+      "text": "Nora 知道，最初发现的变化已经推进成了经过验证的功能。",
+      "audio": "voiceover-v2/zh-CN/068.mp3",
+      "provenance": {
+        "payload_sha256": "971c79ebdf3dc4aed3bc526b47461c66f8280cb31a7b6468b5d97bfc65dc0b7a",
+        "audio_sha256": "e0cd6d7d1fa647ea25a55bb38afaee7a3d792064452848e6edc7afdc72621cb2",
+        "request_id": "req_85efc4ccb7174a649daba5f9113080a2",
+        "source_sha256": "e2e5dd8817e338a6887c55081bcdcccd1016ab1db387657df3bf705db281704c"
+      }
+    },
+    {
+      "scene": 11,
+      "start": 18699,
+      "duration": 134,
+      "text": "Maya 看见需求的验收结果，继续安排发布。",
+      "audio": "voiceover-v2/zh-CN/069.mp3",
+      "provenance": {
+        "payload_sha256": "f993c7baebf5f818d58ad10d3a5f92520575ef0af70d1ccef1625744a70e2137",
+        "audio_sha256": "057aa11da3465b546792f4de5a9603cb282c73affefcb4a2f5a47cfce1d1e997",
+        "request_id": "req_92436906c95e48bbbfc64361588ed3de",
+        "source_sha256": "369c81e40fdc83411dbbc813061318e8a183e73394021ee0a02b70174383bcf1"
+      }
+    },
+    {
+      "scene": 11,
+      "start": 18844,
+      "duration": 188,
       "text": "Alex 和 Sam 的 Tracking 则记录改动、复验和证据。",
-      "audio": "voiceover-v2/zh-CN/070.mp3"
+      "audio": "voiceover-v2/zh-CN/070.mp3",
+      "provenance": {
+        "payload_sha256": "afb61a72b411db85fe739038705e9500cabf0edeaf119fe385291ac1c2ff7992",
+        "audio_sha256": "846fdd6adf84756e82d490a06fb77322814ab533e1f62068913fc021d4c10f55",
+        "request_id": "req_6cb989df3c9c40a18c829078e46b22fe",
+        "source_sha256": "98c1a68162494b2129b9341591767189f1e88f2628b1e1ec637bb105ee6fd09a"
+      }
     },
     {
       "scene": 11,
-      "start": 18113,
-      "duration": 196,
-      "text": "每个人从自己的职责出发跟踪同一项工作，并引用同一份结果。",
-      "audio": "voiceover-v2/zh-CN/071.mp3"
-    },
-    {
-      "scene": 11,
-      "start": 18320,
-      "duration": 222,
-      "text": "人需要做决定时，Duet 能把进度、材料和剩余选择一起带到面前。",
-      "audio": "voiceover-v2/zh-CN/072.mp3"
-    },
-    {
-      "scene": 12,
-      "start": 18617,
-      "duration": 415,
-      "text": "回看这条路径，消息中心让变化被发现，Duet 理解并完成每个人交出去的\n工作，Agent Loop 按规则交接，LoopLab 提供验收证据。",
-      "audio": "voiceover-v2/zh-CN/073.mp3"
-    },
-    {
-      "scene": 12,
       "start": 19043,
-      "duration": 291,
+      "duration": 214,
+      "text": "每个人从自己的职责出发跟踪同一项工作，并引用同一份结果。",
+      "audio": "voiceover-v2/zh-CN/071.mp3",
+      "provenance": {
+        "payload_sha256": "35b0d8ca920909a167b92d717e68539b3f752b80a6f76e3a414feea3b2c792ec",
+        "audio_sha256": "95bcb97305af81ed7dd0fa01f0bbd8cc4e338e052713d7139bc48e188ce5341e",
+        "request_id": "req_edb0b10ecaa44bfb9cb197846fef8c65",
+        "source_sha256": "d756890ad3392a14f41804adde9424783691acb5b8c979c4e59f7492cd4832ff"
+      }
+    },
+    {
+      "scene": 11,
+      "start": 19268,
+      "duration": 217,
+      "text": "人需要做决定时，Duet 能把进度、材料和剩余选择一起带到面前。",
+      "audio": "voiceover-v2/zh-CN/072.mp3",
+      "provenance": {
+        "payload_sha256": "3b80bfc506f7db52084fad15b7cc27c2afca38944e8ecda98a37a1ebab7d8136",
+        "audio_sha256": "3df2fe60c26eb25ceb08697b6feb6ed9673d2b1fe7f9f7b06824e1c7bdebd73f",
+        "request_id": "req_0c4f79683fa74cada6c3ed1259838410",
+        "source_sha256": "80f560cf2ffb0d9e51fefa0ed8c48e123af699c7457db2b9a3483c04b8664762"
+      }
+    },
+    {
+      "scene": 12,
+      "start": 19560,
+      "duration": 462,
+      "text": "回看这条路径，消息中心让变化被发现，Duet 理解并完成每个人交出去的\n工作，Agent Loop 按规则交接，LoopLab 提供验收证据。",
+      "audio": "voiceover-v2/zh-CN/073.mp3",
+      "provenance": {
+        "payload_sha256": "c76df02eb942e85f196411379c6f6e75db25d8a3ef06cb8a6ae809f7ef3e38cc",
+        "audio_sha256": "038873f1f73b1d49aa2b369612233b5b399aa4a36b924314c8ae5d1b787ba5f3",
+        "request_id": "req_02d5d40b3fa94817a453e64fd168ea98",
+        "source_sha256": "c47e163879c67b810ace55cb34649fad1c2df824e2aa3c91afdb5c6bff648fc9"
+      }
+    },
+    {
+      "scene": 12,
+      "start": 20033,
+      "duration": 255,
       "text": "团队可以先把一段真实工作做顺，再将反复发生\n的交接写成 policy，由负责人确定规则。",
-      "audio": "voiceover-v2/zh-CN/074.mp3"
+      "audio": "voiceover-v2/zh-CN/074.mp3",
+      "provenance": {
+        "payload_sha256": "612569b2ba15ec15e85ff55840876fca32c23b902c1b85068003ba32455cf940",
+        "audio_sha256": "bc5ba1317eff8b26653ac7699f76c2b8058e4555b4490b1f69705840316b4c91",
+        "request_id": "req_ddc4689204ac4224b6a9bc32fef72867",
+        "source_sha256": "62ca0fd4296f26baa15d5d7b60b2d95b92bb6bbda30f2b19d5ea7aa28d24cff7"
+      }
     },
     {
       "scene": 12,
-      "start": 19345,
-      "duration": 110,
+      "start": 20299,
+      "duration": 124,
       "text": "人继续决定目标、优先级和承诺。",
-      "audio": "voiceover-v2/zh-CN/075.mp3"
+      "audio": "voiceover-v2/zh-CN/075.mp3",
+      "provenance": {
+        "payload_sha256": "f912f51445abc5b376b4a308b0ea0fcb787ff01345a7d5c780b6a875cff6b3f8",
+        "audio_sha256": "b04f9f40d816823c95b87f0c439ae025bbc1ba33e34a27258bfbe87598a5d009",
+        "request_id": "req_0e94c5581e7645bebea2a334c2d10b39",
+        "source_sha256": "be8b026d83b4d1310483fcfcb621eabc50a9953862b6889d61203b5e709f9bda"
+      }
     },
     {
       "scene": 12,
-      "start": 19466,
-      "duration": 252,
+      "start": 20434,
+      "duration": 255,
       "text": "随着更多岗位的交付可以互相接住，公司就能逐\n条建立自己的 AI Native 业务闭环。",
-      "audio": "voiceover-v2/zh-CN/076.mp3"
+      "audio": "voiceover-v2/zh-CN/076.mp3",
+      "provenance": {
+        "payload_sha256": "c219b0ea216602c036af71b2b9539b551dc3e4a85e06b716302a724d0f0d29af",
+        "audio_sha256": "5450a8ed78a5d03b6597a96aa0a162d995748528a10bbe0a71bcc1963b83fa1a",
+        "request_id": "req_cb0e1212e65a4d5cbce6243767699878",
+        "source_sha256": "d5acbb5ce8516675e4f97c2afc18907ff0a41293826cd09d457a31413c7d34c8"
+      }
     }
   ]
 }

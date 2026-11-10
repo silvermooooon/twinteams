@@ -2,1057 +2,1057 @@
   {
     "text": "Start with this map.",
     "startMs": 1000,
-    "endMs": 2300,
+    "endMs": 2700,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "At the center, Agent Loop forms a ring.",
-    "startMs": 2667,
-    "endMs": 5500,
+    "startMs": 3067,
+    "endMs": 6167,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "It receives events, routes\ntasks by deterministic policy,",
-    "startMs": 5867,
-    "endMs": 10167,
+    "startMs": 6533,
+    "endMs": 10333,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "and connects results to the next step.",
-    "startMs": 10533,
-    "endMs": 13033,
+    "startMs": 10700,
+    "endMs": 13300,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "This routing core does\nnot call a language model.",
-    "startMs": 13400,
-    "endMs": 16367,
+    "startMs": 13667,
+    "endMs": 17100,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Inside are two shared services.",
-    "startMs": 16733,
-    "endMs": 19100,
+    "startMs": 17467,
+    "endMs": 20167,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Message Center gathers news,\nnotifications and work outputs",
-    "startMs": 19467,
-    "endMs": 24000,
+    "startMs": 20533,
+    "endMs": 25433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "into readable information\nfor search and subscriptions.",
-    "startMs": 24367,
-    "endMs": 28033,
+    "startMs": 25800,
+    "endMs": 30100,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "LoopLab runs tests and produces\nacceptance results with evidence.",
-    "startMs": 28400,
-    "endMs": 33033,
+    "startMs": 30467,
+    "endMs": 34500,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Around the ring are personal Duets.",
-    "startMs": 33400,
-    "endMs": 35500,
+    "startMs": 34867,
+    "endMs": 38400,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Each understands assignments,\nuses tools, completes work,",
-    "startMs": 35867,
-    "endMs": 40633,
+    "startMs": 38767,
+    "endMs": 42733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "and follows up through memory and Tracking.",
-    "startMs": 41000,
-    "endMs": 43467,
+    "startMs": 43100,
+    "endMs": 46700,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Each Duet connects outward to its own Owner:",
-    "startMs": 43833,
-    "endMs": 46533,
+    "startMs": 47067,
+    "endMs": 51167,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "the employee who sets goals\nand makes judgments.",
-    "startMs": 46900,
-    "endMs": 50000,
+    "startMs": 51533,
+    "endMs": 56000,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "People address their own Duet.",
-    "startMs": 50367,
-    "endMs": 52133,
+    "startMs": 56367,
+    "endMs": 58533,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Across roles, Duets\ncoordinate by leaving tasks,",
-    "startMs": 52500,
-    "endMs": 56467,
+    "startMs": 58900,
+    "endMs": 62933,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "materials and results in a shared topic.",
-    "startMs": 56833,
-    "endMs": 59567,
+    "startMs": 63300,
+    "endMs": 66067,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Now follow one flow.",
-    "startMs": 59933,
-    "endMs": 61500,
+    "startMs": 66433,
+    "endMs": 68433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "A Duet finds relevant information\nin Message Center and suggests an action.",
-    "startMs": 61867,
-    "endMs": 66667,
+    "startMs": 68800,
+    "endMs": 74400,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "The employee decides to proceed,\nand Duet starts work.",
-    "startMs": 67033,
-    "endMs": 71133,
+    "startMs": 74767,
+    "endMs": 78133,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "A task result returns to Agent Loop,",
-    "startMs": 71500,
-    "endMs": 74067,
+    "startMs": 78500,
+    "endMs": 81533,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "where policy passes it to the\nnext responsible person’s Duet.",
-    "startMs": 74433,
-    "endMs": 78467,
+    "startMs": 81900,
+    "endMs": 85533,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "When acceptance is needed,\nLoopLab runs the tests",
-    "startMs": 78833,
-    "endMs": 82633,
+    "startMs": 85900,
+    "endMs": 89767,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "and sends the result back into the loop.",
-    "startMs": 83000,
-    "endMs": 85267,
+    "startMs": 90133,
+    "endMs": 92467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "People judge.",
-    "startMs": 85633,
-    "endMs": 86600,
+    "startMs": 92833,
+    "endMs": 94133,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Duets do the work.",
-    "startMs": 86967,
-    "endMs": 88467,
+    "startMs": 94500,
+    "endMs": 96500,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Message Center supplies information,",
-    "startMs": 88833,
-    "endMs": 91300,
+    "startMs": 96867,
+    "endMs": 99200,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "LoopLab supplies acceptance evidence,\nand Agent Loop connects the steps.",
-    "startMs": 91667,
-    "endMs": 96867,
+    "startMs": 99567,
+    "endMs": 105267,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Next, we will see how this map works,\nstarting with one person’s delegation.",
-    "startMs": 97233,
-    "endMs": 102900,
+    "startMs": 105633,
+    "endMs": 110933,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "A company runs through the connected\nresponsibilities of many people.",
-    "startMs": 105400,
-    "endMs": 109567,
+    "startMs": 113433,
+    "endMs": 117733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Each person can begin by handing\npart of their work to an AI,",
-    "startMs": 109933,
-    "endMs": 113633,
+    "startMs": 118100,
+    "endMs": 122200,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "whether that means collecting information,",
-    "startMs": 114000,
-    "endMs": 116400,
+    "startMs": 122567,
+    "endMs": 125133,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "preparing a report\nor following an ongoing task.",
-    "startMs": 116767,
-    "endMs": 119767,
+    "startMs": 125500,
+    "endMs": 129900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "In this design, each employee’s\npersonal AI is called Duet.",
-    "startMs": 120133,
-    "endMs": 124267,
+    "startMs": 130267,
+    "endMs": 134500,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "When one Duet’s output becomes something\nthe next person can use directly,",
-    "startMs": 124633,
-    "endMs": 129533,
+    "startMs": 134867,
+    "endMs": 139367,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "those individual delegations\nstart to connect.",
-    "startMs": 129900,
-    "endMs": 132867,
+    "startMs": 139733,
+    "endMs": 142733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "With a clear starting point,\nhandoffs and acceptance conditions,",
-    "startMs": 133233,
-    "endMs": 137667,
+    "startMs": 143100,
+    "endMs": 147833,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "a business process can keep moving\nthrough rules and human judgment.",
-    "startMs": 138033,
-    "endMs": 142000,
+    "startMs": 148200,
+    "endMs": 152433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "This is how we approach AI-native work.",
-    "startMs": 142367,
-    "endMs": 145067,
+    "startMs": 152800,
+    "endMs": 156100,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Bob messages me and asks for a report.",
-    "startMs": 147567,
-    "endMs": 150233,
+    "startMs": 158600,
+    "endMs": 161700,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "I select his message,\nbring it to my own Duet,",
-    "startMs": 150600,
-    "endMs": 153933,
+    "startMs": 162067,
+    "endMs": 165467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "and say, prepare this report,\nthen send it to Bob.",
-    "startMs": 154300,
-    "endMs": 158167,
+    "startMs": 165833,
+    "endMs": 169733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "The quotation carries the original request\nand the conversation it came from.",
-    "startMs": 158533,
-    "endMs": 163400,
+    "startMs": 170100,
+    "endMs": 174567,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "My Duet organizes the data,\ncompletes the report,",
-    "startMs": 163767,
-    "endMs": 167433,
+    "startMs": 174933,
+    "endMs": 178433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "and uses a sending tool to post the file\nas me in that original conversation.",
-    "startMs": 167800,
-    "endMs": 172667,
+    "startMs": 178800,
+    "endMs": 184967,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Sending is part of the task\nI have just assigned.",
-    "startMs": 173033,
-    "endMs": 176200,
+    "startMs": 185333,
+    "endMs": 188833,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Bob receives what he needs\nand continues his work.",
-    "startMs": 176567,
-    "endMs": 179767,
+    "startMs": 189200,
+    "endMs": 192633,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "One small delegation has crossed\na handoff between two roles.",
-    "startMs": 180133,
-    "endMs": 184200,
+    "startMs": 193000,
+    "endMs": 197133,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Duet stays with the same employee over time.",
-    "startMs": 186700,
-    "endMs": 189633,
+    "startMs": 199633,
+    "endMs": 203333,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "You can teach it your\nresponsibilities, preferred sources,",
-    "startMs": 190000,
-    "endMs": 194167,
+    "startMs": 203700,
+    "endMs": 207900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "working standards and communication style.",
-    "startMs": 194533,
-    "endMs": 197400,
+    "startMs": 208267,
+    "endMs": 210967,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "During a day, you might assign\na report, discuss a customer,",
-    "startMs": 197767,
-    "endMs": 202033,
+    "startMs": 211333,
+    "endMs": 215300,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "then ask about another piece of research.",
-    "startMs": 202400,
-    "endMs": 205000,
+    "startMs": 215667,
+    "endMs": 218867,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "You keep addressing the same Duet.",
-    "startMs": 205367,
-    "endMs": 207400,
+    "startMs": 219233,
+    "endMs": 222767,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "It works on the tasks separately\nand brings their results back.",
-    "startMs": 207767,
-    "endMs": 211567,
+    "startMs": 223133,
+    "endMs": 227233,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "As the conversation grows, older\nmaterial is condensed into a summary",
-    "startMs": 211933,
-    "endMs": 216733,
+    "startMs": 227600,
+    "endMs": 232300,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "and the latest exchanges\nremain in their original form.",
-    "startMs": 217100,
-    "endMs": 220533,
+    "startMs": 232667,
+    "endMs": 236200,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "You can continue the immediate discussion\nand return to ongoing work later.",
-    "startMs": 220900,
-    "endMs": 225333,
+    "startMs": 236567,
+    "endMs": 241667,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Imagine that, on Monday,\na crawler finds a regulatory update",
-    "startMs": 227833,
-    "endMs": 232600,
+    "startMs": 244167,
+    "endMs": 249067,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "concerning customers’ visibility\ninto application processing.",
-    "startMs": 232967,
-    "endMs": 236967,
+    "startMs": 249433,
+    "endMs": 253667,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Message Center keeps the source\nlink and publication date,",
-    "startMs": 237333,
-    "endMs": 240933,
+    "startMs": 254033,
+    "endMs": 257733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "adds a readable summary\nand classifies the information.",
-    "startMs": 241300,
-    "endMs": 244767,
+    "startMs": 258100,
+    "endMs": 262467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Employees can browse, search and subscribe.",
-    "startMs": 245133,
-    "endMs": 248533,
+    "startMs": 262833,
+    "endMs": 266733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Their Duets can look for information relevant",
-    "startMs": 248900,
-    "endMs": 251900,
+    "startMs": 267100,
+    "endMs": 270400,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "to their responsibilities\nor check on a schedule.",
-    "startMs": 252267,
-    "endMs": 255267,
+    "startMs": 270767,
+    "endMs": 274067,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "This brings outside changes into\nthe company’s shared information space.",
-    "startMs": 255633,
-    "endMs": 260300,
+    "startMs": 274433,
+    "endMs": 279133,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "An item can remain here\nuntil someone connects it",
-    "startMs": 260667,
-    "endMs": 263867,
+    "startMs": 279500,
+    "endMs": 282767,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "with work they are doing\nand decides how to respond.",
-    "startMs": 264233,
-    "endMs": 267333,
+    "startMs": 283133,
+    "endMs": 286300,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Nora handles market research.",
-    "startMs": 269833,
-    "endMs": 272067,
+    "startMs": 288800,
+    "endMs": 290800,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Her Duet knows she is following\nthe customer application experience,",
-    "startMs": 272433,
-    "endMs": 276800,
+    "startMs": 291167,
+    "endMs": 296233,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "so it recommends this update and explains how\nit may affect the existing application page.",
-    "startMs": 277167,
-    "endMs": 282900,
+    "startMs": 296600,
+    "endMs": 302367,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Nora decides to investigate\nand asks Duet for research,",
-    "startMs": 283267,
-    "endMs": 287200,
+    "startMs": 302733,
+    "endMs": 306967,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "a report and a requirements proposal.",
-    "startMs": 287567,
-    "endMs": 289900,
+    "startMs": 307333,
+    "endMs": 310700,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "The outputs become specific.",
-    "startMs": 290267,
-    "endMs": 292367,
+    "startMs": 311067,
+    "endMs": 313500,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Which processes are affected?",
-    "startMs": 292733,
-    "endMs": 294633,
+    "startMs": 313867,
+    "endMs": 316300,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "What does the source say?",
-    "startMs": 295000,
-    "endMs": 296567,
+    "startMs": 316667,
+    "endMs": 319000,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "What should customers see, and what\nshould internal staff be able to export?",
-    "startMs": 296933,
-    "endMs": 301833,
+    "startMs": 319367,
+    "endMs": 324100,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Maya receives these materials and can turn\nthe research into a product requirement.",
-    "startMs": 302200,
-    "endMs": 307367,
+    "startMs": 324467,
+    "endMs": 329100,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Nora can ask her Duet to bring the product,",
-    "startMs": 309867,
-    "endMs": 312633,
+    "startMs": 331600,
+    "endMs": 335100,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "development and testing\ncolleagues into a human group.",
-    "startMs": 313000,
-    "endMs": 316167,
+    "startMs": 335467,
+    "endMs": 339933,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "The people discuss scope\nand priorities there.",
-    "startMs": 316533,
-    "endMs": 319433,
+    "startMs": 340300,
+    "endMs": 343667,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Maya can take a message that needs\nwork and hand it to her own Duet.",
-    "startMs": 319800,
-    "endMs": 323900,
+    "startMs": 344033,
+    "endMs": 348867,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Meanwhile, Nora’s Duet creates\nand manages a linked topic,",
-    "startMs": 324267,
-    "endMs": 328600,
+    "startMs": 349233,
+    "endMs": 353700,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "posts the research and invites\nthe relevant Duets to contribute.",
-    "startMs": 328967,
-    "endMs": 332933,
+    "startMs": 354067,
+    "endMs": 359167,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Each Duet brings its employee’s\nresponsibilities and uses that",
-    "startMs": 333300,
-    "endMs": 337600,
+    "startMs": 359533,
+    "endMs": 363433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "employee’s group access to read\nthe shared history and files.",
-    "startMs": 337967,
-    "endMs": 341933,
+    "startMs": 363800,
+    "endMs": 367933,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "People address their own Duet.",
-    "startMs": 342300,
-    "endMs": 344067,
+    "startMs": 368300,
+    "endMs": 370467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "The Duets coordinate through the topic,",
-    "startMs": 344433,
-    "endMs": 346833,
+    "startMs": 370833,
+    "endMs": 373733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "leaving work and replies for\none another asynchronously.",
-    "startMs": 347200,
-    "endMs": 350567,
+    "startMs": 374100,
+    "endMs": 377867,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "On Thursday, Nora asks where the\napplication-status work has reached.",
-    "startMs": 353067,
-    "endMs": 358067,
+    "startMs": 380367,
+    "endMs": 384933,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Duet uses several forms\nof memory to recover the work.",
-    "startMs": 358433,
-    "endMs": 362200,
+    "startMs": 385300,
+    "endMs": 389167,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Recent context holds a summary\nand the latest exchanges.",
-    "startMs": 362567,
-    "endMs": 366567,
+    "startMs": 389533,
+    "endMs": 393167,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Every four hours, Dream\nincrementally reviews all",
-    "startMs": 366933,
-    "endMs": 370567,
+    "startMs": 393533,
+    "endMs": 397900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "group conversations visible to the\nemployee and their conversations",
-    "startMs": 370933,
-    "endMs": 375300,
+    "startMs": 398267,
+    "endMs": 403233,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "with their own Duet,\nconsolidating lasting information.",
-    "startMs": 375667,
-    "endMs": 379400,
+    "startMs": 403600,
+    "endMs": 407733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Git preserves versions and sources.",
-    "startMs": 379767,
-    "endMs": 382133,
+    "startMs": 408100,
+    "endMs": 411133,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "If Monday’s plan conflicts with Thursday’s,",
-    "startMs": 382500,
-    "endMs": 385367,
+    "startMs": 411500,
+    "endMs": 414200,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Duet can trace the change and update\nmemory from the applicable decision.",
-    "startMs": 385733,
-    "endMs": 390300,
+    "startMs": 414567,
+    "endMs": 419267,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "When Duet recognizes an ongoing\nmatter, it creates a Tracking item.",
-    "startMs": 390667,
-    "endMs": 395333,
+    "startMs": 419633,
+    "endMs": 424200,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Its first node describes\nthe item and its goal.",
-    "startMs": 395700,
-    "endMs": 398633,
+    "startMs": 424567,
+    "endMs": 428567,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "That metadata stays in everyday\ncontext to help locate the work.",
-    "startMs": 399000,
-    "endMs": 403133,
+    "startMs": 428933,
+    "endMs": 433433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Detailed progress is retrieved when needed,",
-    "startMs": 403500,
-    "endMs": 406133,
+    "startMs": 433800,
+    "endMs": 436800,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "and new decisions\nand deliveries add further nodes.",
-    "startMs": 406500,
-    "endMs": 409700,
+    "startMs": 437167,
+    "endMs": 440967,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Work can continue across many\nintervening conversations.",
-    "startMs": 410067,
-    "endMs": 414033,
+    "startMs": 441333,
+    "endMs": 444867,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Maya writes the product\nrequirement as a user story.",
-    "startMs": 416533,
-    "endMs": 419833,
+    "startMs": 447367,
+    "endMs": 450867,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Alex’s Duet implements it\nand opens a pull request,",
-    "startMs": 420200,
-    "endMs": 423667,
+    "startMs": 451233,
+    "endMs": 454933,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "or PR, proposing its code changes for review.",
-    "startMs": 424033,
-    "endMs": 427433,
+    "startMs": 455300,
+    "endMs": 458600,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "GitHub emits an event\nidentifying the PR and commit.",
-    "startMs": 427800,
-    "endMs": 431300,
+    "startMs": 458967,
+    "endMs": 462467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Agent Loop runs as a separate service and\nuses a policy file to send the review to Sam.",
-    "startMs": 431667,
-    "endMs": 437433,
+    "startMs": 462833,
+    "endMs": 468867,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "The outer loop follows deterministic\nrules without calling a model.",
-    "startMs": 437800,
-    "endMs": 441800,
+    "startMs": 469233,
+    "endMs": 473533,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Sam’s Duet understands the code\nand checks it against the requirement.",
-    "startMs": 442167,
-    "endMs": 446400,
+    "startMs": 473900,
+    "endMs": 479700,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "It finds that customers can see the status,",
-    "startMs": 446767,
-    "endMs": 449800,
+    "startMs": 480067,
+    "endMs": 482900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "while the internal report\nstill lacks the field.",
-    "startMs": 450167,
-    "endMs": 453000,
+    "startMs": 483267,
+    "endMs": 486633,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "It returns specific feedback and a\nstructured changes-requested result.",
-    "startMs": 453367,
-    "endMs": 458133,
+    "startMs": 487000,
+    "endMs": 491367,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Agent Loop reads that outcome and routes\nthe next task back to the author.",
-    "startMs": 458500,
-    "endMs": 462900,
+    "startMs": 491733,
+    "endMs": 496467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "The rule writes the feedback to the PR\nand assigns the correction to Alex’s Duet.",
-    "startMs": 465400,
-    "endMs": 470233,
+    "startMs": 498967,
+    "endMs": 504300,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "It receives the missing requirement\nand the relevant version,",
-    "startMs": 470600,
-    "endMs": 473967,
+    "startMs": 504667,
+    "endMs": 507833,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "adds the report field\nand pushes another commit.",
-    "startMs": 474333,
-    "endMs": 477167,
+    "startMs": 508200,
+    "endMs": 512000,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "The updated version follows\nthe same review policy.",
-    "startMs": 477533,
-    "endMs": 480900,
+    "startMs": 512367,
+    "endMs": 515733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Sam’s Duet checks it\nand returns an approved result.",
-    "startMs": 481267,
-    "endMs": 484800,
+    "startMs": 516100,
+    "endMs": 520067,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Agent Loop can then send\nthe change to LoopLab,",
-    "startMs": 485167,
-    "endMs": 488167,
+    "startMs": 520433,
+    "endMs": 523467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "together with the requirement\nand the conditions to verify.",
-    "startMs": 488533,
-    "endMs": 491900,
+    "startMs": 523833,
+    "endMs": 527433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Each handoff carries context the\nnext participant can use directly.",
-    "startMs": 492267,
-    "endMs": 497067,
+    "startMs": 527800,
+    "endMs": 532300,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Sam has supplied two acceptance conditions.",
-    "startMs": 499567,
-    "endMs": 502667,
+    "startMs": 534800,
+    "endMs": 537900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "The customer should see that\nthe application is in review,",
-    "startMs": 503033,
-    "endMs": 506433,
+    "startMs": 538267,
+    "endMs": 542133,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "and the exported internal record\nshould contain the same status.",
-    "startMs": 506800,
-    "endMs": 510833,
+    "startMs": 542500,
+    "endMs": 546900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "LoopLab’s agent investigates the real pages\nand prepares reusable nodes and a test flow.",
-    "startMs": 511200,
-    "endMs": 517067,
+    "startMs": 547267,
+    "endMs": 552967,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "An independent browser then executes\na fixed version of that flow,",
-    "startMs": 517433,
-    "endMs": 521567,
+    "startMs": 553333,
+    "endMs": 558400,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "checking the page and export while\nrecording steps and screenshots.",
-    "startMs": 521933,
-    "endMs": 526167,
+    "startMs": 558767,
+    "endMs": 563000,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Replay follows the defined steps.",
-    "startMs": 526533,
-    "endMs": 528933,
+    "startMs": 563367,
+    "endMs": 567067,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "A passing result returns\nto the workflow with evidence.",
-    "startMs": 529300,
-    "endMs": 532800,
+    "startMs": 567433,
+    "endMs": 571233,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "If a check fails, Agent Loop\ncan send the failure location",
-    "startMs": 533167,
-    "endMs": 537567,
+    "startMs": 571600,
+    "endMs": 576067,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "and evidence back to Alex’s Duet for\nanother correction and verification.",
-    "startMs": 537933,
-    "endMs": 542600,
+    "startMs": 576433,
+    "endMs": 581433,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "The acceptance report returns to the shared\ntopic and can be found in Message Center.",
-    "startMs": 545100,
-    "endMs": 550433,
+    "startMs": 583933,
+    "endMs": 588733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Nora can see that the change she\nspotted has become a verified feature.",
-    "startMs": 550800,
-    "endMs": 555200,
+    "startMs": 589100,
+    "endMs": 593800,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Maya has evidence that the requirement\nis satisfied and can arrange the release.",
-    "startMs": 555567,
-    "endMs": 560333,
+    "startMs": 594167,
+    "endMs": 599967,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Alex’s and Sam’s Tracking\nrecords capture the correction,",
-    "startMs": 560700,
-    "endMs": 564333,
+    "startMs": 600333,
+    "endMs": 605300,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "verification and supporting evidence.",
-    "startMs": 564700,
-    "endMs": 567233,
+    "startMs": 605667,
+    "endMs": 608600,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Each person follows the work\nfrom their own responsibilities,",
-    "startMs": 567600,
-    "endMs": 571567,
+    "startMs": 608967,
+    "endMs": 613167,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "referring to the same result.",
-    "startMs": 571933,
-    "endMs": 573967,
+    "startMs": 613533,
+    "endMs": 616200,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "When a decision is needed,\nDuet brings the progress,",
-    "startMs": 574333,
-    "endMs": 577800,
+    "startMs": 616567,
+    "endMs": 620333,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "materials and remaining choices\ntogether for its employee.",
-    "startMs": 578167,
-    "endMs": 581833,
+    "startMs": 620700,
+    "endMs": 625000,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Looking back, Message Center\nmade the change discoverable.",
-    "startMs": 584333,
-    "endMs": 588233,
+    "startMs": 627500,
+    "endMs": 631467,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Duet understood and carried out\nthe work each person delegated.",
-    "startMs": 588600,
-    "endMs": 592633,
+    "startMs": 631833,
+    "endMs": 635833,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Agent Loop connected\nthe handoffs through rules,",
-    "startMs": 593000,
-    "endMs": 595800,
+    "startMs": 636200,
+    "endMs": 639833,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "and LoopLab supplied acceptance evidence.",
-    "startMs": 596167,
-    "endMs": 599133,
+    "startMs": 640200,
+    "endMs": 643733,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "A team can first establish how\na real piece of work should run,",
-    "startMs": 599500,
-    "endMs": 603533,
+    "startMs": 644100,
+    "endMs": 648500,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "then turn its recurring handoffs into\npolicies defined by the responsible people.",
-    "startMs": 603900,
-    "endMs": 609033,
+    "startMs": 648867,
+    "endMs": 654033,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "Employees continue to decide goals,\npriorities and commitments.",
-    "startMs": 609400,
-    "endMs": 613833,
+    "startMs": 654400,
+    "endMs": 659033,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "As more outputs become usable\ninputs for the next role,",
-    "startMs": 614200,
-    "endMs": 617733,
+    "startMs": 659400,
+    "endMs": 663900,
     "timestampMs": null,
     "confidence": null
   },
   {
     "text": "the company can build its AI-native\nworkflows one process at a time.",
-    "startMs": 618100,
-    "endMs": 622667,
+    "startMs": 664267,
+    "endMs": 668833,
     "timestampMs": null,
     "confidence": null
   }

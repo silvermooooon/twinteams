@@ -4,6 +4,7 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from fractions import Fraction
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -23,6 +24,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--video", type=Path, help="Verify an encoded 1080p film")
     parser.add_argument("--language", choices=LANGUAGES, help="Select one language; required with --video")
+    parser.add_argument("--baseline", type=Path, help="Check that all prior MP3s were replaced and scripts preserved")
     args = parser.parse_args()
     if args.video and not args.language:
         parser.error("--video requires --language")
@@ -32,6 +34,8 @@ def main():
         for language in (args.language,) if args.language else LANGUAGES:
             manifest = json.loads((ASSETS / language / "manifest.json").read_text(encoding="utf-8"))
             report = verify_narration(language, manifest)
+            if args.baseline:
+                report["replacement"] = verify_replacement(language, manifest, args.baseline)
             if args.video:
                 report["video"] = verify_video(args.video, manifest)
             reports[language] = report
@@ -45,17 +49,29 @@ def verify_narration(language, manifest):
     _, _, heading, line_limit = LANGUAGES[language]
     source = NARRATION["read_scenes"](language, heading)
     chapters, cues = manifest["chapters"], manifest["cues"]
+    settings = manifest["narration"]
+    require(settings["provider"] == "openai" and settings["language"] == language,
+            "Expected OpenAI narration for the selected language")
+    require(all(isinstance(settings[field], str) and settings[field].strip()
+                for field in ("model", "voice", "instructions")), "Missing speech model, voice or instructions")
+    require(isinstance(settings["speed"], (int, float)) and 0.25 <= settings["speed"] <= 4,
+            "Invalid speech speed")
     require(manifest["fps"] == FPS, "Wrong narration frame rate")
     require(len(chapters) == len(source), "Chapter count differs from Markdown")
     require([cue["scene"] for cue in cues] == sorted(cue["scene"] for cue in cues),
             "Narration cues are not in chapter order")
     position, count = 0, 0
+    spoken_inputs = []
     separator = "" if language == "zh-CN" else " "
     for chapter, (scene, title, narration) in zip(chapters, source):
         label = f"{language} chapter {scene}"
         require((chapter["id"], chapter["title"], chapter["start"]) == (scene, title, position),
                 f"{label}: chapter metadata or boundary differs from source")
         chapter_cues = [cue for cue in cues if cue["scene"] == scene]
+        expected_splits = NARRATION["split_narration"](narration, language, line_limit)
+        require([cue["text"] for cue in chapter_cues] == [caption for _, caption in expected_splits],
+                f"{label}: cue segmentation differs from narration source")
+        spoken_inputs.extend(spoken for spoken, _ in expected_splits)
         count += len(chapter_cues)
         actual = separator.join(" ".join(cue["text"] for cue in chapter_cues).split())
         require(actual == separator.join(narration.split()), f"{label}: narration differs from Markdown")
@@ -106,6 +122,7 @@ def verify_narration(language, manifest):
         measured = list(pool.map(mp3_seconds, paths))
     for index, (cue, seconds) in enumerate(zip(cues, measured), start=1):
         require(math.ceil(seconds * FPS) == cue["duration"], f"Cue {index}: MP3 duration differs from manifest")
+    provenance = verify_provenance(settings, cues, spoken_inputs, paths)
     return {
         "chapters": len(chapters),
         "cues": len(cues),
@@ -113,7 +130,52 @@ def verify_narration(language, manifest):
         "frames": position,
         "duration_seconds": round(position / FPS, 3),
         "measured_speech_seconds": round(sum(measured), 3),
+        "narration": provenance,
     }
+
+
+def verify_provenance(settings, cues, spoken_inputs, paths):
+    cached_sources = 0
+    for cue, spoken, path in zip(cues, spoken_inputs, paths):
+        provenance = cue["provenance"]
+        payload = NARRATION["speech_payload"](spoken, settings)
+        digest = NARRATION["payload_hash"](payload)
+        require(provenance["payload_sha256"] == digest, f"{path.name}: speech request differs from source")
+        require(provenance["audio_sha256"] == sha256(path), f"{path.name}: MP3 differs from generation receipt")
+        require(isinstance(provenance["request_id"], str) and provenance["request_id"].startswith("req_"),
+                f"{path.name}: missing OpenAI request ID")
+        require(re.fullmatch(r"[0-9a-f]{64}", provenance["source_sha256"]) is not None,
+                f"{path.name}: missing source WAV hash")
+        raw = NARRATION["CACHE"] / f"{digest}.wav"
+        metadata = raw.with_suffix(".json")
+        # Cache files are local generation evidence and are not required in a fresh Git checkout.
+        if raw.exists() or metadata.exists():
+            receipt = json.loads(metadata.read_text(encoding="utf-8"))
+            require(receipt["request_id"] == provenance["request_id"], f"{path.name}: request ID differs from cache")
+            require(receipt["source_sha256"] == provenance["source_sha256"] == sha256(raw),
+                    f"{path.name}: source WAV differs from receipt")
+            cached_sources += 1
+    return {"provider": settings["provider"], "model": settings["model"], "voice": settings["voice"],
+            "verified_payloads": len(cues), "verified_mp3_hashes": len(cues),
+            "request_receipts": len(cues), "verified_cached_wavs": cached_sources}
+
+
+def verify_replacement(language, manifest, baseline_path):
+    baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+    expected = {f'public/{cue["audio"]}' for cue in manifest["cues"]}
+    previous = {path: digest for path, digest in baseline["audio_sha256"].items()
+                if path.startswith(f'public/{NARRATION["ASSET_DIRECTORY"]}/{language}/')}
+    require(set(previous) == expected, f"{language}: old and new audio file sets differ")
+    require(all(sha256(ROOT / path) != digest for path, digest in previous.items()),
+            f"{language}: a prior narration MP3 was retained")
+    script = f"ai-native-vision/v2/video-script.{language}.md"
+    require(sha256(ROOT.parent / script) == baseline["script_sha256"][script],
+            f"{language}: narration script changed since the audio baseline")
+    return {"baseline_commit": baseline["commit"], "replaced_mp3s": len(previous), "script_unchanged": True}
+
+
+def sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def mp3_seconds(path):

@@ -151,6 +151,29 @@ function Progress() {
   );
 }
 
+function NarrationCredit({ language }: { language: Language }) {
+  const frame = useCurrentFrame();
+  const { fps, durationInFrames } = useVideoConfig();
+  if (frame >= 6 * fps && frame < durationInFrames - 6 * fps) return null;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        right: 100,
+        bottom: 180,
+        color: C.muted,
+        fontFamily: 'Inter, "Noto Sans SC", sans-serif',
+        fontSize: 22,
+        pointerEvents: "none",
+      }}
+    >
+      {language === "zh-CN"
+        ? "AI 生成配音 · OpenAI TTS"
+        : "AI-generated narration · OpenAI TTS"}
+    </div>
+  );
+}
+
 export function DuetExplainedFilm({ language, subtitles, ambience }: Props) {
   const data = language === "zh-CN" ? zh : en;
   const introduction = data.chapters[0];
@@ -252,6 +275,7 @@ export function DuetExplainedFilm({ language, subtitles, ambience }: Props) {
         </Sequence>
       </Track>
       {ambience && <Score />}
+      <NarrationCredit language={language} />
       <Progress />
     </AbsoluteFill>
   );
