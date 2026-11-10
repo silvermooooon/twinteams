@@ -74,8 +74,15 @@ def verify_narration(language, manifest):
             "Total frame count differs from chapter boundaries")
 
     paths, expected_captions, expected_srt = [], [], []
+    intro_count, story_count = 0, 0
     for index, cue in enumerate(cues, start=1):
-        relative = f'{NARRATION["ASSET_DIRECTORY"]}/{language}/{index:03d}.mp3'
+        if cue["scene"] == 0:
+            intro_count += 1
+            filename = f"intro-{intro_count:03d}.mp3"
+        else:
+            story_count += 1
+            filename = f"{story_count:03d}.mp3"
+        relative = f'{NARRATION["ASSET_DIRECTORY"]}/{language}/{filename}'
         require(cue["audio"] == relative, f"Cue {index} references the wrong MP3")
         paths.append(ROOT / "public" / relative)
         lines = cue["text"].splitlines()

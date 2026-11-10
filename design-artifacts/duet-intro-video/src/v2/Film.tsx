@@ -12,6 +12,7 @@ import {
 import zh from "../../public/voiceover-v2/zh-CN/manifest.json";
 import en from "../../public/voiceover-v2/en/manifest.json";
 import { type Cue, type Language, type SceneProps, C } from "./Shared";
+import { S00Architecture } from "./ArchitectureScene";
 import {
   S01Delegation,
   S02Bob,
@@ -152,11 +153,19 @@ function Progress() {
 
 export function DuetExplainedFilm({ language, subtitles, ambience }: Props) {
   const data = language === "zh-CN" ? zh : en;
-  const chapters = data.chapters;
+  const introduction = data.chapters[0];
+  const chapters = data.chapters.slice(1);
   const common = { language, cues: data.cues, subtitles };
   return (
     <AbsoluteFill style={{ background: C.paper }}>
       <Track name="Story">
+        <Sequence
+          name="00 · Architecture and responsibilities"
+          from={introduction.start}
+          durationInFrames={introduction.duration}
+        >
+          <Chapter data={introduction} Visual={S00Architecture} {...common} />
+        </Sequence>
         <Sequence
           name="01 · Personal delegation"
           from={chapters[0].start}

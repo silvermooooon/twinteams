@@ -1,609 +1,748 @@
 {
   "fps": 30,
-  "duration": 16524,
+  "duration": 19763,
   "chapters": [
+    {
+      "id": 0,
+      "title": "先看懂这张架构图",
+      "start": 0,
+      "duration": 3239
+    },
     {
       "id": 1,
       "title": "每个人先交出一部分工作",
-      "start": 0,
+      "start": 3239,
       "duration": 1291
     },
     {
       "id": 2,
       "title": "鲍勃要一份报表",
-      "start": 1291,
+      "start": 4530,
       "duration": 1358
     },
     {
       "id": 3,
       "title": "始终面对自己的 Duet",
-      "start": 2649,
+      "start": 5888,
       "duration": 1336
     },
     {
       "id": 4,
       "title": "消息中心先让变化被看见",
-      "start": 3985,
+      "start": 7224,
       "duration": 1257
     },
     {
       "id": 5,
       "title": "Nora 决定把消息变成需求",
-      "start": 5242,
+      "start": 8481,
       "duration": 1319
     },
     {
       "id": 6,
       "title": "人在群聊里沟通 Duet 在主题里协作",
-      "start": 6561,
+      "start": 9800,
       "duration": 1388
     },
     {
       "id": 7,
       "title": "跨天以后它怎样接着做",
-      "start": 7949,
+      "start": 11188,
       "duration": 1816
     },
     {
       "id": 8,
       "title": "Agent Loop 把明确的事件交给负责人",
-      "start": 9765,
+      "start": 13004,
       "duration": 1772
     },
     {
       "id": 9,
       "title": "修复结果重新进入同一条流程",
-      "start": 11537,
+      "start": 14776,
       "duration": 1165
     },
     {
       "id": 10,
       "title": "LoopLab 用浏览器运行给出证据",
-      "start": 12702,
+      "start": 15941,
       "duration": 1459
     },
     {
       "id": 11,
       "title": "每个人知道自己的事推进到了哪里",
-      "start": 14161,
+      "start": 17400,
       "duration": 1187
     },
     {
       "id": 12,
       "title": "成熟的交接成为下一条自动流程",
-      "start": 15348,
+      "start": 18587,
       "duration": 1176
     }
   ],
   "cues": [
     {
-      "scene": 1,
+      "scene": 0,
       "start": 30,
+      "duration": 62,
+      "text": "先看这张架构图。",
+      "audio": "voiceover-v2/zh-CN/intro-001.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 103,
+      "duration": 90,
+      "text": "中间的圆环，是 Agent Loop。",
+      "audio": "voiceover-v2/zh-CN/intro-002.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 204,
+      "duration": 200,
+      "text": "它根据确定的 policy 接收事件、分发任务，把结果接到下一步；",
+      "audio": "voiceover-v2/zh-CN/intro-003.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 415,
+      "duration": 85,
+      "text": "这一层调度不调用大模型。",
+      "audio": "voiceover-v2/zh-CN/intro-004.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 511,
+      "duration": 78,
+      "text": "圆环内部有两个公共服务。",
+      "audio": "voiceover-v2/zh-CN/intro-005.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 600,
+      "duration": 277,
+      "text": "消息中心汇集新闻、业务通知和工作产出，整理成可阅读、搜索和订阅的信息。",
+      "audio": "voiceover-v2/zh-CN/intro-006.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 888,
+      "duration": 142,
+      "text": "LoopLab 负责测试与验收，产出结果和证据。",
+      "audio": "voiceover-v2/zh-CN/intro-007.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1041,
+      "duration": 111,
+      "text": "圆环外围，是每位员工自己的 Duet。",
+      "audio": "voiceover-v2/zh-CN/intro-008.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1163,
+      "duration": 210,
+      "text": "它理解任务、调用工具、完成工作，并用记忆和 Tracking 持续跟进。",
+      "audio": "voiceover-v2/zh-CN/intro-009.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1384,
+      "duration": 151,
+      "text": "每个 Duet 再向外连接自己的 Owner，也就是那位员工。",
+      "audio": "voiceover-v2/zh-CN/intro-010.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1546,
+      "duration": 154,
+      "text": "人决定目标和取舍，始终把任务交给自己的 Duet。",
+      "audio": "voiceover-v2/zh-CN/intro-011.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1711,
+      "duration": 219,
+      "text": "需要跨岗位协作时，Duet 在共享主题中留下任务、资料和结果。",
+      "audio": "voiceover-v2/zh-CN/intro-012.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1941,
+      "duration": 74,
+      "text": "现在看信息怎样流动。",
+      "audio": "voiceover-v2/zh-CN/intro-013.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2026,
+      "duration": 190,
+      "text": "Duet 从消息中心找到相关信息，结合员工的职责提出行动。",
+      "audio": "voiceover-v2/zh-CN/intro-014.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2227,
+      "duration": 102,
+      "text": "人决定推进后，Duet 开始工作。",
+      "audio": "voiceover-v2/zh-CN/intro-015.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2340,
+      "duration": 180,
+      "text": "任务结果回到 Agent Loop，\n按 policy 交给下一位负责人的 Duet；",
+      "audio": "voiceover-v2/zh-CN/intro-016.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2531,
+      "duration": 178,
+      "text": "需要验收时，LoopLab 执行测试，结果再回到循环。",
+      "audio": "voiceover-v2/zh-CN/intro-017.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2720,
+      "duration": 293,
+      "text": "人做判断，Duet 做事，消息中心提供信息，\nLoopLab 提供验收，Agent Loop 连接各个环节。",
+      "audio": "voiceover-v2/zh-CN/intro-018.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 3024,
+      "duration": 170,
+      "text": "接下来，从每个人的一次委托，看这张图怎样运转。",
+      "audio": "voiceover-v2/zh-CN/intro-019.mp3"
+    },
+    {
+      "scene": 1,
+      "start": 3269,
       "duration": 137,
       "text": "一家公司的工作，由很多人的职责接在一起。",
       "audio": "voiceover-v2/zh-CN/001.mp3"
     },
     {
       "scene": 1,
-      "start": 178,
+      "start": 3417,
       "duration": 306,
       "text": "每个人都可以先把一部分事情交给自己的 AI，\n比如收集资料、做报表，或者持续跟进一项任务。",
       "audio": "voiceover-v2/zh-CN/002.mp3"
     },
     {
       "scene": 1,
-      "start": 495,
+      "start": 3734,
       "duration": 108,
       "text": "这里，每位员工的个人 AI 叫作 Duet。",
       "audio": "voiceover-v2/zh-CN/003.mp3"
     },
     {
       "scene": 1,
-      "start": 614,
+      "start": 3853,
       "duration": 251,
       "text": "当一个 Duet 交出的结果能被下一位负\n责人直接使用，这些个人委托就开始连起来。",
       "audio": "voiceover-v2/zh-CN/004.mp3"
     },
     {
       "scene": 1,
-      "start": 876,
+      "start": 4115,
       "duration": 288,
       "text": "等一条业务有了明确的起点、交接和验收条件，\n它就可以在规则与人的判断下持续推进。",
       "audio": "voiceover-v2/zh-CN/005.mp3"
     },
     {
       "scene": 1,
-      "start": 1175,
+      "start": 4414,
       "duration": 71,
       "text": "这是我们理解的 AI Native。",
       "audio": "voiceover-v2/zh-CN/006.mp3"
     },
     {
       "scene": 2,
-      "start": 1321,
+      "start": 4560,
       "duration": 139,
       "text": "鲍勃给我发来一条消息，请我做一份报表。",
       "audio": "voiceover-v2/zh-CN/007.mp3"
     },
     {
       "scene": 2,
-      "start": 1471,
+      "start": 4710,
       "duration": 281,
       "text": "我选中他的消息，交给自己的 Duet，\n并告诉它，帮我做好这份报表，然后发给鲍勃。",
       "audio": "voiceover-v2/zh-CN/008.mp3"
     },
     {
       "scene": 2,
-      "start": 1763,
+      "start": 5002,
       "duration": 162,
       "text": "引用带来了原始要求，也带来了要回复的那段对话。",
       "audio": "voiceover-v2/zh-CN/009.mp3"
     },
     {
       "scene": 2,
-      "start": 1936,
+      "start": 5175,
       "duration": 282,
       "text": "我的 Duet 整理数据，完成报表，再调用\n发送工具，以我的身份把文件发回与鲍勃的私聊。",
       "audio": "voiceover-v2/zh-CN/010.mp3"
     },
     {
       "scene": 2,
-      "start": 2229,
+      "start": 5468,
       "duration": 119,
       "text": "这个发送动作来自我刚才的明确委托。",
       "audio": "voiceover-v2/zh-CN/011.mp3"
     },
     {
       "scene": 2,
-      "start": 2359,
+      "start": 5598,
       "duration": 113,
       "text": "鲍勃收到材料，就能继续他的工作。",
       "audio": "voiceover-v2/zh-CN/012.mp3"
     },
     {
       "scene": 2,
-      "start": 2483,
+      "start": 5722,
       "duration": 121,
       "text": "一次小任务已经跨过了一个岗位交接点。",
       "audio": "voiceover-v2/zh-CN/013.mp3"
     },
     {
       "scene": 3,
-      "start": 2679,
+      "start": 5918,
       "duration": 91,
       "text": "Duet 会长期跟随同一位员工。",
       "audio": "voiceover-v2/zh-CN/014.mp3"
     },
     {
       "scene": 3,
-      "start": 2781,
+      "start": 6020,
       "duration": 191,
       "text": "你可以教它自己的职责、常用资料、工作标准和表达习惯。",
       "audio": "voiceover-v2/zh-CN/015.mp3"
     },
     {
       "scene": 3,
-      "start": 2983,
+      "start": 6222,
       "duration": 240,
       "text": "一天里，你可能先交代报表，再讨论客户问题，然后问起另一项研究。",
       "audio": "voiceover-v2/zh-CN/016.mp3"
     },
     {
       "scene": 3,
-      "start": 3234,
+      "start": 6473,
       "duration": 244,
       "text": "眼前始终是同一个 Duet，它在后台分别处理这些事情，并把结果带回来。",
       "audio": "voiceover-v2/zh-CN/017.mp3"
     },
     {
       "scene": 3,
-      "start": 3489,
+      "start": 6728,
       "duration": 239,
       "text": "对话持续变长时，较早内容会压缩成摘要，最近几条问答保留原文。",
       "audio": "voiceover-v2/zh-CN/018.mp3"
     },
     {
       "scene": 3,
-      "start": 3739,
+      "start": 6978,
       "duration": 201,
       "text": "你能接着刚才的话说，也能在之后重新找回一项持续中的工作。",
       "audio": "voiceover-v2/zh-CN/019.mp3"
     },
     {
       "scene": 4,
-      "start": 4015,
+      "start": 7254,
       "duration": 251,
       "text": "设想周一，爬虫发现了一条监管变化，提出客户需要了解申请的处理状态。",
       "audio": "voiceover-v2/zh-CN/020.mp3"
     },
     {
       "scene": 4,
-      "start": 4277,
+      "start": 7516,
       "duration": 237,
       "text": "消息中心保存原文链接和发布时间，将内容整理成可阅读的摘要并分类。",
       "audio": "voiceover-v2/zh-CN/021.mp3"
     },
     {
       "scene": 4,
-      "start": 4525,
+      "start": 7764,
       "duration": 230,
       "text": "员工可以浏览、搜索和订阅，Duet 也可以按职责主动查找或定期拉取。",
       "audio": "voiceover-v2/zh-CN/022.mp3"
     },
     {
       "scene": 4,
-      "start": 4766,
+      "start": 8005,
       "duration": 155,
       "text": "消息中心让外部变化进入公司的共同信息范围。",
       "audio": "voiceover-v2/zh-CN/023.mp3"
     },
     {
       "scene": 4,
-      "start": 4932,
+      "start": 8171,
       "duration": 265,
       "text": "一条资讯可以先留在这里，等它与某个人手上的工作发生联系，再进入后续行动。",
       "audio": "voiceover-v2/zh-CN/024.mp3"
     },
     {
       "scene": 5,
-      "start": 5272,
+      "start": 8511,
       "duration": 62,
       "text": "Nora 负责市场研究。",
       "audio": "voiceover-v2/zh-CN/025.mp3"
     },
     {
       "scene": 5,
-      "start": 5345,
+      "start": 8584,
       "duration": 345,
       "text": "她的 Duet 知道，她正在关注客户申请体验，\n于是把这条变化推荐给她，并解释可能影响现有申请页面。",
       "audio": "voiceover-v2/zh-CN/026.mp3"
     },
     {
       "scene": 5,
-      "start": 5701,
+      "start": 8940,
       "duration": 237,
       "text": "Nora 判断值得投入，委托 Duet 调研影响，整理报告，并形成需求建议。",
       "audio": "voiceover-v2/zh-CN/027.mp3"
     },
     {
       "scene": 5,
-      "start": 5949,
+      "start": 9188,
       "duration": 72,
       "text": "交付物逐渐具体起来。",
       "audio": "voiceover-v2/zh-CN/028.mp3"
     },
     {
       "scene": 5,
-      "start": 6032,
+      "start": 9271,
       "duration": 267,
       "text": "哪些流程受影响，原文依据在哪里，客户应该看见什么，内部人员又需要导出什么。",
       "audio": "voiceover-v2/zh-CN/029.mp3"
     },
     {
       "scene": 5,
-      "start": 6310,
+      "start": 9549,
       "duration": 206,
       "text": "Maya 收到这些材料后，就能把研究结论继续整理成产品需求。",
       "audio": "voiceover-v2/zh-CN/030.mp3"
     },
     {
       "scene": 6,
-      "start": 6591,
+      "start": 9830,
       "duration": 236,
       "text": "Nora 可以请自己的 Duet 建立一\n个真人群，把产品、开发和测试同事拉进来。",
       "audio": "voiceover-v2/zh-CN/031.mp3"
     },
     {
       "scene": 6,
-      "start": 6838,
+      "start": 10077,
       "duration": 105,
       "text": "大家在群里讨论范围和优先级。",
       "audio": "voiceover-v2/zh-CN/032.mp3"
     },
     {
       "scene": 6,
-      "start": 6954,
+      "start": 10193,
       "duration": 171,
       "text": "Maya 看到一条需要处理的消息，就把它交给自己的 Duet。",
       "audio": "voiceover-v2/zh-CN/033.mp3"
     },
     {
       "scene": 6,
-      "start": 7136,
+      "start": 10375,
       "duration": 308,
       "text": "与此同时，Nora 的 Duet 创建并管理一个绑定\n主题，将报告放进去，再邀请相关 Duet 留言协作。",
       "audio": "voiceover-v2/zh-CN/034.mp3"
     },
     {
       "scene": 6,
-      "start": 7455,
+      "start": 10694,
       "duration": 246,
       "text": "每个 Duet 带着自己主人的职责参与，\n按主人在群里的权限读取共享历史和文件。",
       "audio": "voiceover-v2/zh-CN/035.mp3"
     },
     {
       "scene": 6,
-      "start": 7712,
+      "start": 10951,
       "duration": 192,
       "text": "人直接联系自己的 Duet，Duet 之间的工作则围绕主题异步展开。",
       "audio": "voiceover-v2/zh-CN/036.mp3"
     },
     {
       "scene": 7,
-      "start": 7979,
+      "start": 11218,
       "duration": 162,
       "text": "到了周四，Nora 只要问，申请状态那件事到哪了。",
       "audio": "voiceover-v2/zh-CN/037.mp3"
     },
     {
       "scene": 7,
-      "start": 8152,
+      "start": 11391,
       "duration": 88,
       "text": "Duet 会用几层记忆找回工作。",
       "audio": "voiceover-v2/zh-CN/038.mp3"
     },
     {
       "scene": 7,
-      "start": 8251,
+      "start": 11490,
       "duration": 108,
       "text": "短期上下文保存摘要和最近问答。",
       "audio": "voiceover-v2/zh-CN/039.mp3"
     },
     {
       "scene": 7,
-      "start": 8370,
+      "start": 11609,
       "duration": 335,
       "text": "每四小时，Dream 从主人可见的所有群聊及其与 Duet\n的对话中增量整理长期信息，Git 留下版本和来源。",
       "audio": "voiceover-v2/zh-CN/040.mp3"
     },
     {
       "scene": 7,
-      "start": 8716,
+      "start": 11955,
       "duration": 222,
       "text": "若周一与周四的计划有出入，Duet 能查证据，依据有效决定更新记忆。",
       "audio": "voiceover-v2/zh-CN/041.mp3"
     },
     {
       "scene": 7,
-      "start": 8949,
+      "start": 12188,
       "duration": 155,
       "text": "Duet 识别到持续事项后，会主动建立 Tracking 记录。",
       "audio": "voiceover-v2/zh-CN/042.mp3"
     },
     {
       "scene": 7,
-      "start": 9115,
+      "start": 12354,
       "duration": 269,
       "text": "首节点写下事项、目标和简述，这些元数据留在日常上下文里，帮助定位工作。",
       "audio": "voiceover-v2/zh-CN/043.mp3"
     },
     {
       "scene": 7,
-      "start": 9395,
+      "start": 12634,
       "duration": 172,
       "text": "详细进度按需读取，新的决定和交付继续追加节点。",
       "audio": "voiceover-v2/zh-CN/044.mp3"
     },
     {
       "scene": 7,
-      "start": 9578,
+      "start": 12817,
       "duration": 142,
       "text": "于是，任务可以跨过很多次对话继续推进。",
       "audio": "voiceover-v2/zh-CN/045.mp3"
     },
     {
       "scene": 8,
-      "start": 9795,
+      "start": 13034,
       "duration": 157,
       "text": "Maya 把需求写成产品需求条目，也就是 story。",
       "audio": "voiceover-v2/zh-CN/046.mp3"
     },
     {
       "scene": 8,
-      "start": 9963,
+      "start": 13202,
       "duration": 260,
       "text": "Alex 的 Duet 开始实现，并提交\n供团队评审的代码变更请求，也就是 PR。",
       "audio": "voiceover-v2/zh-CN/047.mp3"
     },
     {
       "scene": 8,
-      "start": 10234,
+      "start": 13473,
       "duration": 156,
       "text": "GitHub 发出一个带有 PR 和提交版本的事件。",
       "audio": "voiceover-v2/zh-CN/048.mp3"
     },
     {
       "scene": 8,
-      "start": 10401,
+      "start": 13640,
       "duration": 234,
       "text": "独立运行的 Agent Loop 根据规则文件\npolicy，把评审交给负责这项工作的 Sam。",
       "audio": "voiceover-v2/zh-CN/049.mp3"
     },
     {
       "scene": 8,
-      "start": 10646,
+      "start": 13885,
       "duration": 129,
       "text": "外圈执行确定的规则，无需调用模型。",
       "audio": "voiceover-v2/zh-CN/050.mp3"
     },
     {
       "scene": 8,
-      "start": 10786,
+      "start": 14025,
       "duration": 124,
       "text": "Sam 的 Duet 才负责理解代码和检查需求。",
       "audio": "voiceover-v2/zh-CN/051.mp3"
     },
     {
       "scene": 8,
-      "start": 10921,
+      "start": 14160,
       "duration": 209,
       "text": "它发现，客户页面已经展示状态，但内部报表还没有对应字段。",
       "audio": "voiceover-v2/zh-CN/052.mp3"
     },
     {
       "scene": 8,
-      "start": 11141,
+      "start": 14380,
       "duration": 156,
       "text": "它提交具体意见，并给出明确的需要修改结论。",
       "audio": "voiceover-v2/zh-CN/053.mp3"
     },
     {
       "scene": 8,
-      "start": 11308,
+      "start": 14547,
       "duration": 184,
       "text": "Agent Loop 读取这个结构化结果，知道下一棒该回到作者那里。",
       "audio": "voiceover-v2/zh-CN/054.mp3"
     },
     {
       "scene": 9,
-      "start": 11567,
+      "start": 14806,
       "duration": 191,
       "text": "规则把意见写回 PR，并把修改任务交给 Alex 的 Duet。",
       "audio": "voiceover-v2/zh-CN/055.mp3"
     },
     {
       "scene": 9,
-      "start": 11769,
+      "start": 15008,
       "duration": 202,
       "text": "它拿到具体缺项和对应版本，补上报表字段，再追加提交。",
       "audio": "voiceover-v2/zh-CN/056.mp3"
     },
     {
       "scene": 9,
-      "start": 11982,
+      "start": 15221,
       "duration": 207,
       "text": "新版本进入同一套评审规则，Sam 的 Duet 检查后给出通过结论。",
       "audio": "voiceover-v2/zh-CN/057.mp3"
     },
     {
       "scene": 9,
-      "start": 12200,
+      "start": 15439,
       "duration": 281,
       "text": "接下来，Agent Loop 可以把本次变更交给\nLoopLab，连同要验证的需求和条件一起送过去。",
       "audio": "voiceover-v2/zh-CN/058.mp3"
     },
     {
       "scene": 9,
-      "start": 12492,
+      "start": 15731,
       "duration": 165,
       "text": "每次交付都带着下一位执行者能直接使用的上下文。",
       "audio": "voiceover-v2/zh-CN/059.mp3"
     },
     {
       "scene": 10,
-      "start": 12732,
+      "start": 15971,
       "duration": 88,
       "text": "Sam 给出了两条验收条件。",
       "audio": "voiceover-v2/zh-CN/060.mp3"
     },
     {
       "scene": 10,
-      "start": 12831,
+      "start": 16070,
       "duration": 240,
       "text": "客户应该看到申请正在审核，内部导出的同一条记录也应该包含这个状态。",
       "audio": "voiceover-v2/zh-CN/061.mp3"
     },
     {
       "scene": 10,
-      "start": 13082,
+      "start": 16321,
       "duration": 224,
       "text": "LoopLab 的 Agent 调查真\n实页面，把操作编排成可复用的节点和流程。",
       "audio": "voiceover-v2/zh-CN/062.mp3"
     },
     {
       "scene": 10,
-      "start": 13317,
+      "start": 16556,
       "duration": 294,
       "text": "随后，独立浏览器执行固定版本的流程，逐条检查页面和导出结果，留下步骤与截图。",
       "audio": "voiceover-v2/zh-CN/063.mp3"
     },
     {
       "scene": 10,
-      "start": 13622,
+      "start": 16861,
       "duration": 75,
       "text": "回放按确定的步骤执行。",
       "audio": "voiceover-v2/zh-CN/064.mp3"
     },
     {
       "scene": 10,
-      "start": 13708,
+      "start": 16947,
       "duration": 129,
       "text": "测试通过时，结果带着证据回到流程。",
       "audio": "voiceover-v2/zh-CN/065.mp3"
     },
     {
       "scene": 10,
-      "start": 13848,
+      "start": 17087,
       "duration": 268,
       "text": "若有检查失败，Agent Loop 可以把失败位置\n和证据交回 Alex 的 Duet，继续修复和复验。",
       "audio": "voiceover-v2/zh-CN/066.mp3"
     },
     {
       "scene": 11,
-      "start": 14191,
+      "start": 17430,
       "duration": 170,
       "text": "验收报告回到共享主题，也能在消息中心里查到。",
       "audio": "voiceover-v2/zh-CN/067.mp3"
     },
     {
       "scene": 11,
-      "start": 14372,
+      "start": 17611,
       "duration": 185,
       "text": "Nora 知道，最初发现的变化已经推进成了经过验证的功能。",
       "audio": "voiceover-v2/zh-CN/068.mp3"
     },
     {
       "scene": 11,
-      "start": 14568,
+      "start": 17807,
       "duration": 140,
       "text": "Maya 看见需求的验收结果，继续安排发布。",
       "audio": "voiceover-v2/zh-CN/069.mp3"
     },
     {
       "scene": 11,
-      "start": 14719,
+      "start": 17958,
       "duration": 144,
       "text": "Alex 和 Sam 的 Tracking 则记录改动、复验和证据。",
       "audio": "voiceover-v2/zh-CN/070.mp3"
     },
     {
       "scene": 11,
-      "start": 14874,
+      "start": 18113,
       "duration": 196,
       "text": "每个人从自己的职责出发跟踪同一项工作，并引用同一份结果。",
       "audio": "voiceover-v2/zh-CN/071.mp3"
     },
     {
       "scene": 11,
-      "start": 15081,
+      "start": 18320,
       "duration": 222,
       "text": "人需要做决定时，Duet 能把进度、材料和剩余选择一起带到面前。",
       "audio": "voiceover-v2/zh-CN/072.mp3"
     },
     {
       "scene": 12,
-      "start": 15378,
+      "start": 18617,
       "duration": 415,
       "text": "回看这条路径，消息中心让变化被发现，Duet 理解并完成每个人交出去的\n工作，Agent Loop 按规则交接，LoopLab 提供验收证据。",
       "audio": "voiceover-v2/zh-CN/073.mp3"
     },
     {
       "scene": 12,
-      "start": 15804,
+      "start": 19043,
       "duration": 291,
       "text": "团队可以先把一段真实工作做顺，再将反复发生\n的交接写成 policy，由负责人确定规则。",
       "audio": "voiceover-v2/zh-CN/074.mp3"
     },
     {
       "scene": 12,
-      "start": 16106,
+      "start": 19345,
       "duration": 110,
       "text": "人继续决定目标、优先级和承诺。",
       "audio": "voiceover-v2/zh-CN/075.mp3"
     },
     {
       "scene": 12,
-      "start": 16227,
+      "start": 19466,
       "duration": 252,
       "text": "随着更多岗位的交付可以互相接住，公司就能逐\n条建立自己的 AI Native 业务闭环。",
       "audio": "voiceover-v2/zh-CN/076.mp3"

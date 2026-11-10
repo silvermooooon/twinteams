@@ -4,9 +4,29 @@
 
 For colleagues and business leaders encountering this design for the first time. After watching, viewers should understand how an employee delegates to their own Duet, how work moves between roles, and where Agent Loop, Message Center and LoopLab participate.
 
-The main story uses a hypothetical regulatory change. Customers need to see the processing status of their applications, and an internal report must export that status. Nora handles market research, Maya owns the product, Alex develops it, and Sam handles review and testing. Bob’s request for a report is a short everyday example at the beginning.
+The main story uses a hypothetical regulatory change. Customers need to see the processing status of their applications, and an internal report must export that status. Nora handles market research, Maya owns the product, Alex develops it, and Sam handles review and testing. After the architecture overview, Bob’s report request introduces an everyday task.
 
-Estimated running time is 8–10 minutes. Each scene unfolds through several actions, introducing names and architecture as the work develops. Use white, graphite and selective red accents. Product controls, messages and narration are in English. The suggested timing is editorial guidance and should be adjusted after recording.
+Estimated running time is 10–12 minutes. An animated architecture overview introduces each component’s position and responsibility before the everyday delegation and complete business story show them working together. Each scene unfolds through several actions. Use white, graphite and selective red accents. Product controls, messages and narration are in English. The suggested timing is editorial guidance and should be adjusted after recording.
+
+## 00 Read the architecture before the story
+
+### Viewer takeaway
+
+Establish the positions and responsibilities of the whole system first. A central Agent Loop ring connects events and tasks through policy. Message Center and LoopLab sit inside it. Personal Duets surround the ring, each connected farther outward to its own Owner. People set goals and make judgments; Duets carry out their responsibilities; the shared services bring information and acceptance evidence into the workflow.
+
+### On-screen progression
+
+About 90–105 seconds, adjusted to the recorded narration. Begin with a faint outline of the complete architecture, then illuminate and label one component at a time. A card on the right gives only the current component’s responsibility. Draw the central ring labeled **Agent Loop · Policy** and move an event pulse along it. Reveal two cards inside: **Message Center · Information and discovery**, then **LoopLab · Tests and acceptance evidence**. Place several **Duets** around the outside of the ring. Connect each one by its own short radial line to its **Owner** farther outward, using consistent Owner / Duet labels to keep each personal pairing clear. Highlight only the corresponding Owner–Duet link when explaining personal judgment. Human links do not cross to someone else’s Duet. Show a shared-topic message example in the responsibility card when explaining collaboration; it is an interaction pattern, not another central service or a direct agent chat line.
+
+Animate one brief flow through these same positions: a relevant Duet discovers information in Message Center, proposes an action to its own Owner, and begins after the Owner decides to proceed. The work result enters Agent Loop and follows policy to the next Duet. Highlight LoopLab at acceptance, then return its result to the ring. Show Message Center search, subscription and retrieval as information access, without implying that every read must route through Agent Loop. Hold the complete map at the end, highlighting people, Duets, Message Center, LoopLab and the ring in the narration’s order so viewers can remember the responsibilities and positions.
+
+### Narration
+
+Start with this map. At the center, Agent Loop forms a ring. It receives events, routes tasks by deterministic policy, and connects results to the next step. This routing core does not call a language model. Inside are two shared services. Message Center gathers news, notifications and work outputs into readable information for search and subscriptions. LoopLab runs tests and produces acceptance results with evidence. Around the ring are personal Duets. Each understands assignments, uses tools, completes work, and follows up through memory and Tracking. Each Duet connects outward to its own Owner: the employee who sets goals and makes judgments. People address their own Duet. Across roles, Duets coordinate by leaving tasks, materials and results in a shared topic. Now follow one flow. A Duet finds relevant information in Message Center and suggests an action. The employee decides to proceed, and Duet starts work. A task result returns to Agent Loop, where policy passes it to the next responsible person’s Duet. When acceptance is needed, LoopLab runs the tests and sends the result back into the loop. People judge. Duets do the work. Message Center supplies information, LoopLab supplies acceptance evidence, and Agent Loop connects the steps. Next, we will see how this map works, starting with one person’s delegation.
+
+### Transition
+
+Select one Owner and their Duet from the complete map and expand them into the existing first scene. Explain personal delegation, then enter Bob’s report request. The later cases reuse the component names and positions established here.
 
 ## 01 Each person delegates part of their work
 
@@ -214,7 +234,7 @@ Personal delegation, shared information, deterministic routing and independent a
 
 ### On-screen progression
 
-About 40 seconds. Retrace five outputs, the update, research report, user story, PR and acceptance evidence. Label Agent Loop around the outside, then highlight Message Center, the employees’ Duets and LoopLab inside. Fold two recurring handoffs, “Who reviews a new PR?” and “Who receives requested changes?” into a policy file. Keep all four people visible alongside decisions about goals, priorities and release timing.
+About 40 seconds. Return to the opening architecture: the central Agent Loop ring contains Message Center and LoopLab; personal Duets surround the ring, each connected farther outward to its own Owner. Retrace five outputs, the update, research report, user story, PR and acceptance evidence, highlighting where information is supplied, work is performed, results are routed and acceptance evidence is produced. Fold two recurring handoffs, “Who reviews a new PR?” and “Who receives requested changes?” into a policy file. Keep all Owners visible alongside decisions about goals, priorities and release timing.
 
 ### Narration
 

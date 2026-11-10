@@ -32,23 +32,35 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--language", choices=SETTINGS, help="Generate only one language")
     parser.add_argument("--rate", type=int, help="Override the macOS speech rate")
+    parser.add_argument("--intro-only", action="store_true",
+                        help="Regenerate scene 00 while preserving the recorded story and its timing")
     args = parser.parse_args()
     for language in (args.language,) if args.language else SETTINGS:
-        generate(language, args.rate)
+        generate(language, args.rate, args.intro_only)
 
 
-def generate(language, requested_rate):
+def generate(language, requested_rate, intro_only=False):
     voice, default_rate, narration_heading, line_limit = SETTINGS[language]
     rate = requested_rate or default_rate
     scenes = read_scenes(language, narration_heading)
     output = ROOT / "public" / ASSET_DIRECTORY / language
     output.parent.mkdir(parents=True, exist_ok=True)
+    retained = read_retained_story(output, scenes, language, line_limit) if intro_only else {}
     chapters, cues = [], []
-    frame = 0
+    frame, story_cue_count = 0, 0
     with tempfile.TemporaryDirectory(prefix=f".{language}-", dir=output.parent) as temporary:
         staging = Path(temporary)
         raw_audio = staging / "speech.aiff"
         for scene, title, narration in scenes:
+            if scene in retained:
+                chapter, chapter_cues = retained[scene]
+                offset = frame - chapter["start"]
+                chapters.append({**chapter, "start": frame})
+                cues.extend({**cue, "start": cue["start"] + offset} for cue in chapter_cues)
+                frame += chapter["duration"]
+                print(f"{language} {scene:02d}: preserved {len(chapter_cues)} cues, "
+                      f'{chapter["duration"] / FPS:.2f}s', flush=True)
+                continue
             start = frame
             frame += OPENING_FRAMES
             captions = split_narration(narration, language, line_limit)
@@ -57,7 +69,11 @@ def generate(language, requested_rate):
             for index, (text, caption) in enumerate(captions):
                 if index:
                     frame += GAP_FRAMES
-                asset = f"{len(cues) + 1:03d}.mp3"
+                if scene == 0:
+                    asset = f"intro-{index + 1:03d}.mp3"
+                else:
+                    story_cue_count += 1
+                    asset = f"{story_cue_count:03d}.mp3"
                 duration = synthesize(text, voice, rate, raw_audio, staging / asset)
                 cues.append({
                     "scene": scene,
@@ -75,8 +91,9 @@ def generate(language, requested_rate):
         output.mkdir(exist_ok=True)
         for asset in staging.iterdir():
             asset.replace(output / asset.name)
-        for obsolete in output.glob("[0-9][0-9][0-9].mp3"):
-            if int(obsolete.stem) > len(cues):
+        expected = {Path(cue["audio"]).name for cue in cues}
+        for obsolete in (*output.glob("[0-9][0-9][0-9].mp3"), *output.glob("intro-[0-9][0-9][0-9].mp3")):
+            if obsolete.name not in expected:
                 obsolete.unlink()
     print(f"{language}: {voice}, rate {rate}, {len(cues)} cues, {frame / FPS:.2f}s", flush=True)
 
@@ -89,9 +106,38 @@ def read_scenes(language, narration_heading):
         if not section or not section.group(1).strip():
             raise ValueError(f"{language} scene {number}: missing narration")
         scenes.append((int(number), title, " ".join(section.group(1).split())))
-    if [scene for scene, _, _ in scenes] != list(range(1, 13)):
-        raise ValueError(f"{language}: expected exactly 12 ordered scenes")
+    if [scene for scene, _, _ in scenes] != list(range(13)):
+        raise ValueError(f"{language}: expected architecture scene 00 followed by scenes 01–12")
     return scenes
+
+
+def read_retained_story(output, scenes, language, line_limit):
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    chapters = [chapter for chapter in manifest["chapters"] if chapter["id"] > 0]
+    if manifest["fps"] != FPS or [chapter["id"] for chapter in chapters] != list(range(1, 13)):
+        raise ValueError(f"{language}: existing story must contain ordered scenes 01–12 at {FPS} fps")
+    retained, index = {}, 0
+    position = chapters[0]["start"]
+    for chapter, (scene, title, narration) in zip(chapters, scenes[1:]):
+        cues = [cue for cue in manifest["cues"] if cue["scene"] == scene]
+        captions = split_narration(narration, language, line_limit)
+        if (chapter["title"], chapter["start"]) != (title, position) or len(cues) != len(captions):
+            raise ValueError(f"{language} scene {scene}: existing story differs; regenerate all narration")
+        end = position + OPENING_FRAMES
+        for local_index, (cue, (_, caption)) in enumerate(zip(cues, captions)):
+            index += 1
+            audio = f"{ASSET_DIRECTORY}/{language}/{index:03d}.mp3"
+            start = end + (GAP_FRAMES if local_index else 0)
+            if ((cue["text"], cue["audio"], cue["start"]) != (caption, audio, start)
+                    or type(cue["duration"]) is not int or cue["duration"] <= 0
+                    or not (ROOT / "public" / audio).is_file()):
+                raise ValueError(f"{language} scene {scene}: existing cue differs; regenerate all narration")
+            end = start + cue["duration"]
+        position += chapter["duration"]
+        if position != end + CLOSING_FRAMES:
+            raise ValueError(f"{language} scene {scene}: existing chapter timing is inconsistent")
+        retained[scene] = (chapter, cues)
+    return retained
 
 
 def split_narration(narration, language, limit):

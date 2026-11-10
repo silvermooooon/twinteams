@@ -1,14 +1,20 @@
 # Duet — AI Native, explained through work
 
-The current films follow an everyday report request, then a fictional project from
-an external update through research, product definition, development, review and
-acceptance. Both languages contain twelve scenes with their own narration timing.
+The current films first introduce the architecture and each component's role.
+The central Agent Loop ring contains Message Center and LoopLab. Personal Duets
+sit around the outside, each linked outward to its own employee (Owner). An
+animated event flow connects the responsibilities before the examples begin.
+
+The twelve story scenes then follow an everyday report request and a fictional
+project from an external update through research, product definition, development,
+review and acceptance. The opening and closing use the same architecture map.
+Both languages have independent narration timing across thirteen chapters.
 The design and [bilingual scripts](../ai-native-vision/v2/README.md) are the editorial sources.
 
 | Language | Composition | Duration | Final MP4 | Subtitles |
 | --- | --- | --- | --- | --- |
-| 中文 | `DuetExplainedZh` | 9:10.800 | [1080p film](out/v2/duet-ai-native-zh-CN-1080p.mp4) | [SRT](public/voiceover-v2/zh-CN/duet-ai-native-v2.srt) |
-| English | `DuetExplainedEn` | 8:39.767 | [1080p film](out/v2/duet-ai-native-en-1080p.mp4) | [SRT](public/voiceover-v2/en/duet-ai-native-v2.srt) |
+| 中文 | `DuetExplainedZh` | 10:58.767 | [1080p film](out/v2/duet-ai-native-zh-CN-1080p.mp4) | [SRT](public/voiceover-v2/zh-CN/duet-ai-native-v2.srt) |
+| English | `DuetExplainedEn` | 10:24.167 | [1080p film](out/v2/duet-ai-native-en-1080p.mp4) | [SRT](public/voiceover-v2/en/duet-ai-native-v2.srt) |
 
 Both deliverables are H.264/AAC at 1920 × 1080 and 30 fps, with visible subtitles
 and a quiet ambient score. Each person delegates to their own Duet. The topic
@@ -43,6 +49,7 @@ file** to open or download a film if the file page does not show a player.
 | Change | Source |
 | --- | --- |
 | Narration and screen direction | `../ai-native-vision/v2/video-script.zh-CN.md`, `video-script.en.md` |
+| Architecture introduction and shared map | `src/v2/ArchitectureScene.tsx` |
 | Scenes 1–6: delegation, messages and topics | `src/v2/PersonalScenes.tsx` |
 | Scenes 7–12: memory, routing and acceptance | `src/v2/DeliveryScenes.tsx` |
 | Visual primitives and narration cue matching | `src/v2/Shared.tsx` |
@@ -55,6 +62,12 @@ both at rate 160. Generate changed speech on macOS with `say`, FFmpeg and FFprob
 
 ```sh
 npm run narration:v2
+```
+
+To update only the architecture introduction while preserving the recorded story:
+
+```sh
+python3 scripts/generate-v2-narration.py --intro-only
 ```
 
 The generator extracts each scene's full narration, creates MP3 clips, measures
@@ -75,14 +88,15 @@ python3 scripts/verify-v2-delivery.py --language en --video out/v2/duet-ai-nativ
 Verification checks the complete narration against the editorial script, caption
 timing, audio lengths, chapter boundaries, encoded frames and an audible speech
 window in every chapter. Visual review covers all twelve scenes in both languages,
-intermediate delegation and topic states, subtitles, page assertions and the closing
-loop. These checks complement visual playback review; they do not transcribe speech.
+intermediate delegation and topic states, subtitles, page assertions, the architecture
+introduction and the closing loop. These checks complement visual playback review;
+they do not transcribe speech.
 
 ## Earlier compositions and assets
 
 `DuetBusinessLoop`, `DuetBusinessLoopZhReview` and `DuetAiNativeZh` remain available
 with their original scripts and measured audio. They belong to earlier editions.
-The current twelve-scene films are under `src/v2/` and `public/voiceover-v2/`.
+The current films are under `src/v2/` and `public/voiceover-v2/`.
 
 Inter is bundled from `@fontsource/inter`; see its [license](public/fonts/LICENSE.txt).
 Noto Sans SC comes from the official Google Fonts distribution; see its

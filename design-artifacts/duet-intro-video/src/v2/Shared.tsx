@@ -141,7 +141,9 @@ export function Frame({
           }}
         >
           {" "}
-          {String(number).padStart(2, "0")} / 12
+          {number === 0
+            ? "ARCHITECTURE"
+            : `${String(number).padStart(2, "0")} / 12`}
         </div>
       </div>
       <div style={{ position: "absolute", left: 100, right: 100, top: 108 }}>

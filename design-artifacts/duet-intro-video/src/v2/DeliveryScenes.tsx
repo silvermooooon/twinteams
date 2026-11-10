@@ -1,4 +1,5 @@
-import { useCurrentFrame, interpolate } from "remotion";
+import { useCurrentFrame } from "remotion";
+import { ArchitectureDiagram } from "./ArchitectureScene";
 import {
   C,
   Card,
@@ -1061,14 +1062,13 @@ export function S12WholeLoop({ language, cues }: SceneProps) {
     ["人继续决定", "Employees continue"],
     ["随着更多岗位", "As more outputs"],
   ]);
-  const frame = useCurrentFrame();
   return (
     <Frame
       number={12}
       title={tr(
         language,
         "一段成熟协作，长成自动闭环",
-        "An established workflow becomes an AI-native loop",
+        "The same map. A working loop.",
       )}
       strap={tr(
         language,
@@ -1076,119 +1076,32 @@ export function S12WholeLoop({ language, cues }: SceneProps) {
         "Begin with personal delegation. Make each output useful to the next role.",
       )}
     >
-      <div style={{ position: "relative", height: "100%" }}>
-        <svg
-          width="1720"
-          height="610"
-          style={{ position: "absolute", inset: 0 }}
-        >
-          <ellipse
-            cx="860"
-            cy="290"
-            rx="825"
-            ry="220"
-            fill="none"
-            stroke={C.line}
-            strokeWidth="3"
-          />
-          <ellipse
-            cx="860"
-            cy="290"
-            rx="825"
-            ry="220"
-            fill="none"
-            stroke={C.red}
-            strokeWidth="4"
-            strokeDasharray="150 3600"
-            strokeDashoffset={
-              -interpolate(frame, [0, 1800], [0, 3500], {
-                extrapolateRight: "clamp",
-              })
-            }
-          />
-        </svg>
-        <div
-          style={{
-            position: "absolute",
-            left: 620,
-            top: 25,
-            width: 480,
-            textAlign: "center",
-            background: C.paper,
-          }}
-        >
-          <Text size={41} style={{ color: C.red }}>
-            Agent Loop
-          </Text>
-          <Text size={24} muted>
-            {tr(
-              language,
-              "policy 承接稳定的交接",
-              "Policy carries established handoffs",
-            )}
-          </Text>
-        </div>
-        <div
-          style={{
-            position: "absolute",
-            left: 105,
-            right: 105,
-            top: 176,
-            ...row,
-            gap: 20,
-          }}
-        >
-          {[
-            [
-              "Message Center",
-              tr(language, "资讯与研究", "Information and research"),
-            ],
-            [
-              "Personal Duets",
-              tr(
-                language,
-                "需求 · 开发 · 评审",
-                "Requirements · Build · Review",
-              ),
-            ],
-            [
-              "LoopLab",
-              tr(language, "运行与验收证据", "Runs and acceptance evidence"),
-            ],
-          ].map(([name, detail], i) => (
-            <div key={name} style={{ display: "contents" }}>
-              {i > 0 && <Arrow />}
-              <Card
-                style={{
-                  flex: i === 1 ? 1.3 : 1,
-                  textAlign: "center",
-                  padding: 28,
-                }}
-              >
-                <Text size={35}>{name}</Text>
-                <Text size={25} muted style={{ marginTop: 18 }}>
-                  {detail}
-                </Text>
-              </Card>
-            </div>
-          ))}
-        </div>
-        <Stage
-          elapsed={elapsed}
-          style={{
-            position: "absolute",
-            left: 260,
-            right: 260,
-            top: 375,
-            height: 90,
-            textAlign: "center",
-          }}
-        >
-          <Text size={32}>
+      <ArchitectureDiagram
+        language={language}
+        stage={7}
+        elapsed={elapsed}
+        style={{
+          position: "absolute",
+          left: 0,
+          top: -15,
+          width: 1120,
+          height: 630,
+        }}
+      />
+      <div style={{ position: "absolute", left: 1160, top: 28, width: 560 }}>
+        <Label>
+          {tr(
+            language,
+            "同一张图，一条完整的业务闭环",
+            "ONE MAP · A COMPLETE WORKFLOW",
+          )}
+        </Label>
+        <Stage elapsed={elapsed} style={{ minHeight: 182, paddingTop: 22 }}>
+          <Text size={38} style={{ lineHeight: 1.35 }}>
             {step === 0
               ? tr(
                   language,
-                  "资讯 → 报告 → Story → PR → 验收证据",
+                  "资讯 → 研究 → Story → PR → 验收证据",
                   "Update → Research → Story → PR → Evidence",
                 )
               : step === 1
@@ -1212,16 +1125,38 @@ export function S12WholeLoop({ language, cues }: SceneProps) {
         </Stage>
         <div
           style={{
-            position: "absolute",
-            left: 250,
-            right: 250,
-            top: 515,
-            ...row,
-            justifyContent: "space-between",
+            borderTop: `1px solid ${C.line}`,
+            paddingTop: 26,
+            display: "grid",
+            gap: 20,
           }}
         >
-          {["Nora", "Maya", "Alex", "Sam"].map((name) => (
-            <Person key={name} name={name} />
+          {[
+            ["Owner", tr(language, "判断与决策", "Judgment and decisions")],
+            ["Duet", tr(language, "理解与执行", "Understanding and execution")],
+            [
+              "Message Center",
+              tr(language, "可发现的信息", "Discoverable information"),
+            ],
+            ["LoopLab", tr(language, "验收结果与证据", "Acceptance evidence")],
+            [
+              "Agent Loop",
+              tr(language, "按 policy 衔接工作", "Policy-driven handoffs"),
+            ],
+          ].map(([name, detail]) => (
+            <div
+              key={name}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "230px 1fr",
+                gap: 12,
+              }}
+            >
+              <Text size={25}>{name}</Text>
+              <Text size={25} muted>
+                {detail}
+              </Text>
+            </div>
           ))}
         </div>
       </div>

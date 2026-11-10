@@ -1,931 +1,1140 @@
 {
   "fps": 30,
-  "duration": 15593,
+  "duration": 18725,
   "chapters": [
+    {
+      "id": 0,
+      "title": "Read the architecture before the story",
+      "start": 0,
+      "duration": 3132
+    },
     {
       "id": 1,
       "title": "Each person delegates part of their work",
-      "start": 0,
+      "start": 3132,
       "duration": 1265
     },
     {
       "id": 2,
       "title": "Bob needs a report",
-      "start": 1265,
+      "start": 4397,
       "duration": 1174
     },
     {
       "id": 3,
       "title": "The same Duet stays with you",
-      "start": 2439,
+      "start": 5571,
       "duration": 1234
     },
     {
       "id": 4,
       "title": "Message Center makes a change discoverable",
-      "start": 3673,
+      "start": 6805,
       "duration": 1260
     },
     {
       "id": 5,
       "title": "Nora turns information into a research assignment",
-      "start": 4933,
+      "start": 8065,
       "duration": 1201
     },
     {
       "id": 6,
       "title": "People discuss the work Duets coordinate in a topic",
-      "start": 6134,
+      "start": 9266,
       "duration": 1296
     },
     {
       "id": 7,
       "title": "Remembering how the work has progressed",
-      "start": 7430,
+      "start": 10562,
       "duration": 1904
     },
     {
       "id": 8,
       "title": "Agent Loop routes an event to the responsible person",
-      "start": 9334,
+      "start": 12466,
       "duration": 1466
     },
     {
       "id": 9,
       "title": "The repaired version returns to the workflow",
-      "start": 10800,
+      "start": 13932,
       "duration": 1025
     },
     {
       "id": 10,
       "title": "LoopLab verifies the result in a browser",
-      "start": 11825,
+      "start": 14957,
       "duration": 1366
     },
     {
       "id": 11,
       "title": "Each person can see what their work has achieved",
-      "start": 13191,
+      "start": 16323,
       "duration": 1177
     },
     {
       "id": 12,
       "title": "Repeatable handoffs become the next automated workflow",
-      "start": 14368,
+      "start": 17500,
       "duration": 1225
     }
   ],
   "cues": [
     {
-      "scene": 1,
+      "scene": 0,
       "start": 30,
+      "duration": 39,
+      "text": "Start with this map.",
+      "audio": "voiceover-v2/en/intro-001.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 80,
+      "duration": 85,
+      "text": "At the center, Agent Loop forms a ring.",
+      "audio": "voiceover-v2/en/intro-002.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 176,
+      "duration": 129,
+      "text": "It receives events, routes\ntasks by deterministic policy,",
+      "audio": "voiceover-v2/en/intro-003.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 316,
+      "duration": 75,
+      "text": "and connects results to the next step.",
+      "audio": "voiceover-v2/en/intro-004.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 402,
+      "duration": 89,
+      "text": "This routing core does\nnot call a language model.",
+      "audio": "voiceover-v2/en/intro-005.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 502,
+      "duration": 71,
+      "text": "Inside are two shared services.",
+      "audio": "voiceover-v2/en/intro-006.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 584,
+      "duration": 136,
+      "text": "Message Center gathers news,\nnotifications and work outputs",
+      "audio": "voiceover-v2/en/intro-007.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 731,
+      "duration": 110,
+      "text": "into readable information\nfor search and subscriptions.",
+      "audio": "voiceover-v2/en/intro-008.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 852,
+      "duration": 139,
+      "text": "LoopLab runs tests and produces\nacceptance results with evidence.",
+      "audio": "voiceover-v2/en/intro-009.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1002,
+      "duration": 63,
+      "text": "Around the ring are personal Duets.",
+      "audio": "voiceover-v2/en/intro-010.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1076,
+      "duration": 143,
+      "text": "Each understands assignments,\nuses tools, completes work,",
+      "audio": "voiceover-v2/en/intro-011.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1230,
+      "duration": 74,
+      "text": "and follows up through memory and Tracking.",
+      "audio": "voiceover-v2/en/intro-012.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1315,
+      "duration": 81,
+      "text": "Each Duet connects outward to its own Owner:",
+      "audio": "voiceover-v2/en/intro-013.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1407,
+      "duration": 93,
+      "text": "the employee who sets goals\nand makes judgments.",
+      "audio": "voiceover-v2/en/intro-014.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1511,
+      "duration": 53,
+      "text": "People address their own Duet.",
+      "audio": "voiceover-v2/en/intro-015.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1575,
+      "duration": 119,
+      "text": "Across roles, Duets\ncoordinate by leaving tasks,",
+      "audio": "voiceover-v2/en/intro-016.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1705,
+      "duration": 82,
+      "text": "materials and results in a shared topic.",
+      "audio": "voiceover-v2/en/intro-017.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1798,
+      "duration": 47,
+      "text": "Now follow one flow.",
+      "audio": "voiceover-v2/en/intro-018.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 1856,
+      "duration": 144,
+      "text": "A Duet finds relevant information\nin Message Center and suggests an action.",
+      "audio": "voiceover-v2/en/intro-019.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2011,
+      "duration": 123,
+      "text": "The employee decides to proceed,\nand Duet starts work.",
+      "audio": "voiceover-v2/en/intro-020.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2145,
+      "duration": 77,
+      "text": "A task result returns to Agent Loop,",
+      "audio": "voiceover-v2/en/intro-021.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2233,
+      "duration": 121,
+      "text": "where policy passes it to the\nnext responsible person’s Duet.",
+      "audio": "voiceover-v2/en/intro-022.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2365,
+      "duration": 114,
+      "text": "When acceptance is needed,\nLoopLab runs the tests",
+      "audio": "voiceover-v2/en/intro-023.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2490,
+      "duration": 68,
+      "text": "and sends the result back into the loop.",
+      "audio": "voiceover-v2/en/intro-024.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2569,
+      "duration": 29,
+      "text": "People judge.",
+      "audio": "voiceover-v2/en/intro-025.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2609,
+      "duration": 45,
+      "text": "Duets do the work.",
+      "audio": "voiceover-v2/en/intro-026.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2665,
+      "duration": 74,
+      "text": "Message Center supplies information,",
+      "audio": "voiceover-v2/en/intro-027.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2750,
+      "duration": 156,
+      "text": "LoopLab supplies acceptance evidence,\nand Agent Loop connects the steps.",
+      "audio": "voiceover-v2/en/intro-028.mp3"
+    },
+    {
+      "scene": 0,
+      "start": 2917,
+      "duration": 170,
+      "text": "Next, we will see how this map works,\nstarting with one person’s delegation.",
+      "audio": "voiceover-v2/en/intro-029.mp3"
+    },
+    {
+      "scene": 1,
+      "start": 3162,
       "duration": 125,
       "text": "A company runs through the connected\nresponsibilities of many people.",
       "audio": "voiceover-v2/en/001.mp3"
     },
     {
       "scene": 1,
-      "start": 166,
+      "start": 3298,
       "duration": 111,
       "text": "Each person can begin by handing\npart of their work to an AI,",
       "audio": "voiceover-v2/en/002.mp3"
     },
     {
       "scene": 1,
-      "start": 288,
+      "start": 3420,
       "duration": 72,
       "text": "whether that means collecting information,",
       "audio": "voiceover-v2/en/003.mp3"
     },
     {
       "scene": 1,
-      "start": 371,
+      "start": 3503,
       "duration": 90,
       "text": "preparing a report\nor following an ongoing task.",
       "audio": "voiceover-v2/en/004.mp3"
     },
     {
       "scene": 1,
-      "start": 472,
+      "start": 3604,
       "duration": 124,
       "text": "In this design, each employee’s\npersonal AI is called Duet.",
       "audio": "voiceover-v2/en/005.mp3"
     },
     {
       "scene": 1,
-      "start": 607,
+      "start": 3739,
       "duration": 147,
       "text": "When one Duet’s output becomes something\nthe next person can use directly,",
       "audio": "voiceover-v2/en/006.mp3"
     },
     {
       "scene": 1,
-      "start": 765,
+      "start": 3897,
       "duration": 89,
       "text": "those individual delegations\nstart to connect.",
       "audio": "voiceover-v2/en/007.mp3"
     },
     {
       "scene": 1,
-      "start": 865,
+      "start": 3997,
       "duration": 133,
       "text": "With a clear starting point,\nhandoffs and acceptance conditions,",
       "audio": "voiceover-v2/en/008.mp3"
     },
     {
       "scene": 1,
-      "start": 1009,
+      "start": 4141,
       "duration": 119,
       "text": "a business process can keep moving\nthrough rules and human judgment.",
       "audio": "voiceover-v2/en/009.mp3"
     },
     {
       "scene": 1,
-      "start": 1139,
+      "start": 4271,
       "duration": 81,
       "text": "This is how we approach AI-native work.",
       "audio": "voiceover-v2/en/010.mp3"
     },
     {
       "scene": 2,
-      "start": 1295,
+      "start": 4427,
       "duration": 80,
       "text": "Bob messages me and asks for a report.",
       "audio": "voiceover-v2/en/011.mp3"
     },
     {
       "scene": 2,
-      "start": 1386,
+      "start": 4518,
       "duration": 100,
       "text": "I select his message,\nbring it to my own Duet,",
       "audio": "voiceover-v2/en/012.mp3"
     },
     {
       "scene": 2,
-      "start": 1497,
+      "start": 4629,
       "duration": 116,
       "text": "and say, prepare this report,\nthen send it to Bob.",
       "audio": "voiceover-v2/en/013.mp3"
     },
     {
       "scene": 2,
-      "start": 1624,
+      "start": 4756,
       "duration": 146,
       "text": "The quotation carries the original request\nand the conversation it came from.",
       "audio": "voiceover-v2/en/014.mp3"
     },
     {
       "scene": 2,
-      "start": 1781,
+      "start": 4913,
       "duration": 110,
       "text": "My Duet organizes the data,\ncompletes the report,",
       "audio": "voiceover-v2/en/015.mp3"
     },
     {
       "scene": 2,
-      "start": 1902,
+      "start": 5034,
       "duration": 146,
       "text": "and uses a sending tool to post the file\nas me in that original conversation.",
       "audio": "voiceover-v2/en/016.mp3"
     },
     {
       "scene": 2,
-      "start": 2059,
+      "start": 5191,
       "duration": 95,
       "text": "Sending is part of the task\nI have just assigned.",
       "audio": "voiceover-v2/en/017.mp3"
     },
     {
       "scene": 2,
-      "start": 2165,
+      "start": 5297,
       "duration": 96,
       "text": "Bob receives what he needs\nand continues his work.",
       "audio": "voiceover-v2/en/018.mp3"
     },
     {
       "scene": 2,
-      "start": 2272,
+      "start": 5404,
       "duration": 122,
       "text": "One small delegation has crossed\na handoff between two roles.",
       "audio": "voiceover-v2/en/019.mp3"
     },
     {
       "scene": 3,
-      "start": 2469,
+      "start": 5601,
       "duration": 88,
       "text": "Duet stays with the same employee over time.",
       "audio": "voiceover-v2/en/020.mp3"
     },
     {
       "scene": 3,
-      "start": 2568,
+      "start": 5700,
       "duration": 125,
       "text": "You can teach it your\nresponsibilities, preferred sources,",
       "audio": "voiceover-v2/en/021.mp3"
     },
     {
       "scene": 3,
-      "start": 2704,
+      "start": 5836,
       "duration": 86,
       "text": "working standards and communication style.",
       "audio": "voiceover-v2/en/022.mp3"
     },
     {
       "scene": 3,
-      "start": 2801,
+      "start": 5933,
       "duration": 128,
       "text": "During a day, you might assign\na report, discuss a customer,",
       "audio": "voiceover-v2/en/023.mp3"
     },
     {
       "scene": 3,
-      "start": 2940,
+      "start": 6072,
       "duration": 78,
       "text": "then ask about another piece of research.",
       "audio": "voiceover-v2/en/024.mp3"
     },
     {
       "scene": 3,
-      "start": 3029,
+      "start": 6161,
       "duration": 61,
       "text": "You keep addressing the same Duet.",
       "audio": "voiceover-v2/en/025.mp3"
     },
     {
       "scene": 3,
-      "start": 3101,
+      "start": 6233,
       "duration": 114,
       "text": "It works on the tasks separately\nand brings their results back.",
       "audio": "voiceover-v2/en/026.mp3"
     },
     {
       "scene": 3,
-      "start": 3226,
+      "start": 6358,
       "duration": 144,
       "text": "As the conversation grows, older\nmaterial is condensed into a summary",
       "audio": "voiceover-v2/en/027.mp3"
     },
     {
       "scene": 3,
-      "start": 3381,
+      "start": 6513,
       "duration": 103,
       "text": "and the latest exchanges\nremain in their original form.",
       "audio": "voiceover-v2/en/028.mp3"
     },
     {
       "scene": 3,
-      "start": 3495,
+      "start": 6627,
       "duration": 133,
       "text": "You can continue the immediate discussion\nand return to ongoing work later.",
       "audio": "voiceover-v2/en/029.mp3"
     },
     {
       "scene": 4,
-      "start": 3703,
+      "start": 6835,
       "duration": 143,
       "text": "Imagine that, on Monday,\na crawler finds a regulatory update",
       "audio": "voiceover-v2/en/030.mp3"
     },
     {
       "scene": 4,
-      "start": 3857,
+      "start": 6989,
       "duration": 120,
       "text": "concerning customers’ visibility\ninto application processing.",
       "audio": "voiceover-v2/en/031.mp3"
     },
     {
       "scene": 4,
-      "start": 3988,
+      "start": 7120,
       "duration": 108,
       "text": "Message Center keeps the source\nlink and publication date,",
       "audio": "voiceover-v2/en/032.mp3"
     },
     {
       "scene": 4,
-      "start": 4107,
+      "start": 7239,
       "duration": 104,
       "text": "adds a readable summary\nand classifies the information.",
       "audio": "voiceover-v2/en/033.mp3"
     },
     {
       "scene": 4,
-      "start": 4222,
+      "start": 7354,
       "duration": 102,
       "text": "Employees can browse, search and subscribe.",
       "audio": "voiceover-v2/en/034.mp3"
     },
     {
       "scene": 4,
-      "start": 4335,
+      "start": 7467,
       "duration": 90,
       "text": "Their Duets can look for information relevant",
       "audio": "voiceover-v2/en/035.mp3"
     },
     {
       "scene": 4,
-      "start": 4436,
+      "start": 7568,
       "duration": 90,
       "text": "to their responsibilities\nor check on a schedule.",
       "audio": "voiceover-v2/en/036.mp3"
     },
     {
       "scene": 4,
-      "start": 4537,
+      "start": 7669,
       "duration": 140,
       "text": "This brings outside changes into\nthe company’s shared information space.",
       "audio": "voiceover-v2/en/037.mp3"
     },
     {
       "scene": 4,
-      "start": 4688,
+      "start": 7820,
       "duration": 96,
       "text": "An item can remain here\nuntil someone connects it",
       "audio": "voiceover-v2/en/038.mp3"
     },
     {
       "scene": 4,
-      "start": 4795,
+      "start": 7927,
       "duration": 93,
       "text": "with work they are doing\nand decides how to respond.",
       "audio": "voiceover-v2/en/039.mp3"
     },
     {
       "scene": 5,
-      "start": 4963,
+      "start": 8095,
       "duration": 67,
       "text": "Nora handles market research.",
       "audio": "voiceover-v2/en/040.mp3"
     },
     {
       "scene": 5,
-      "start": 5041,
+      "start": 8173,
       "duration": 131,
       "text": "Her Duet knows she is following\nthe customer application experience,",
       "audio": "voiceover-v2/en/041.mp3"
     },
     {
       "scene": 5,
-      "start": 5183,
+      "start": 8315,
       "duration": 172,
       "text": "so it recommends this update and explains how\nit may affect the existing application page.",
       "audio": "voiceover-v2/en/042.mp3"
     },
     {
       "scene": 5,
-      "start": 5366,
+      "start": 8498,
       "duration": 118,
       "text": "Nora decides to investigate\nand asks Duet for research,",
       "audio": "voiceover-v2/en/043.mp3"
     },
     {
       "scene": 5,
-      "start": 5495,
+      "start": 8627,
       "duration": 70,
       "text": "a report and a requirements proposal.",
       "audio": "voiceover-v2/en/044.mp3"
     },
     {
       "scene": 5,
-      "start": 5576,
+      "start": 8708,
       "duration": 63,
       "text": "The outputs become specific.",
       "audio": "voiceover-v2/en/045.mp3"
     },
     {
       "scene": 5,
-      "start": 5650,
+      "start": 8782,
       "duration": 57,
       "text": "Which processes are affected?",
       "audio": "voiceover-v2/en/046.mp3"
     },
     {
       "scene": 5,
-      "start": 5718,
+      "start": 8850,
       "duration": 47,
       "text": "What does the source say?",
       "audio": "voiceover-v2/en/047.mp3"
     },
     {
       "scene": 5,
-      "start": 5776,
+      "start": 8908,
       "duration": 147,
       "text": "What should customers see, and what\nshould internal staff be able to export?",
       "audio": "voiceover-v2/en/048.mp3"
     },
     {
       "scene": 5,
-      "start": 5934,
+      "start": 9066,
       "duration": 155,
       "text": "Maya receives these materials and can turn\nthe research into a product requirement.",
       "audio": "voiceover-v2/en/049.mp3"
     },
     {
       "scene": 6,
-      "start": 6164,
+      "start": 9296,
       "duration": 83,
       "text": "Nora can ask her Duet to bring the product,",
       "audio": "voiceover-v2/en/050.mp3"
     },
     {
       "scene": 6,
-      "start": 6258,
+      "start": 9390,
       "duration": 95,
       "text": "development and testing\ncolleagues into a human group.",
       "audio": "voiceover-v2/en/051.mp3"
     },
     {
       "scene": 6,
-      "start": 6364,
+      "start": 9496,
       "duration": 87,
       "text": "The people discuss scope\nand priorities there.",
       "audio": "voiceover-v2/en/052.mp3"
     },
     {
       "scene": 6,
-      "start": 6462,
+      "start": 9594,
       "duration": 123,
       "text": "Maya can take a message that needs\nwork and hand it to her own Duet.",
       "audio": "voiceover-v2/en/053.mp3"
     },
     {
       "scene": 6,
-      "start": 6596,
+      "start": 9728,
       "duration": 130,
       "text": "Meanwhile, Nora’s Duet creates\nand manages a linked topic,",
       "audio": "voiceover-v2/en/054.mp3"
     },
     {
       "scene": 6,
-      "start": 6737,
+      "start": 9869,
       "duration": 119,
       "text": "posts the research and invites\nthe relevant Duets to contribute.",
       "audio": "voiceover-v2/en/055.mp3"
     },
     {
       "scene": 6,
-      "start": 6867,
+      "start": 9999,
       "duration": 129,
       "text": "Each Duet brings its employee’s\nresponsibilities and uses that",
       "audio": "voiceover-v2/en/056.mp3"
     },
     {
       "scene": 6,
-      "start": 7007,
+      "start": 10139,
       "duration": 119,
       "text": "employee’s group access to read\nthe shared history and files.",
       "audio": "voiceover-v2/en/057.mp3"
     },
     {
       "scene": 6,
-      "start": 7137,
+      "start": 10269,
       "duration": 53,
       "text": "People address their own Duet.",
       "audio": "voiceover-v2/en/058.mp3"
     },
     {
       "scene": 6,
-      "start": 7201,
+      "start": 10333,
       "duration": 72,
       "text": "The Duets coordinate through the topic,",
       "audio": "voiceover-v2/en/059.mp3"
     },
     {
       "scene": 6,
-      "start": 7284,
+      "start": 10416,
       "duration": 101,
       "text": "leaving work and replies for\none another asynchronously.",
       "audio": "voiceover-v2/en/060.mp3"
     },
     {
       "scene": 7,
-      "start": 7460,
+      "start": 10592,
       "duration": 150,
       "text": "On Thursday, Nora asks where the\napplication-status work has reached.",
       "audio": "voiceover-v2/en/061.mp3"
     },
     {
       "scene": 7,
-      "start": 7621,
+      "start": 10753,
       "duration": 113,
       "text": "Duet uses several forms\nof memory to recover the work.",
       "audio": "voiceover-v2/en/062.mp3"
     },
     {
       "scene": 7,
-      "start": 7745,
+      "start": 10877,
       "duration": 120,
       "text": "Recent context holds a summary\nand the latest exchanges.",
       "audio": "voiceover-v2/en/063.mp3"
     },
     {
       "scene": 7,
-      "start": 7876,
+      "start": 11008,
       "duration": 109,
       "text": "Every four hours, Dream\nincrementally reviews all",
       "audio": "voiceover-v2/en/064.mp3"
     },
     {
       "scene": 7,
-      "start": 7996,
+      "start": 11128,
       "duration": 131,
       "text": "group conversations visible to the\nemployee and their conversations",
       "audio": "voiceover-v2/en/065.mp3"
     },
     {
       "scene": 7,
-      "start": 8138,
+      "start": 11270,
       "duration": 112,
       "text": "with their own Duet,\nconsolidating lasting information.",
       "audio": "voiceover-v2/en/066.mp3"
     },
     {
       "scene": 7,
-      "start": 8261,
+      "start": 11393,
       "duration": 71,
       "text": "Git preserves versions and sources.",
       "audio": "voiceover-v2/en/067.mp3"
     },
     {
       "scene": 7,
-      "start": 8343,
+      "start": 11475,
       "duration": 86,
       "text": "If Monday’s plan conflicts with Thursday’s,",
       "audio": "voiceover-v2/en/068.mp3"
     },
     {
       "scene": 7,
-      "start": 8440,
+      "start": 11572,
       "duration": 137,
       "text": "Duet can trace the change and update\nmemory from the applicable decision.",
       "audio": "voiceover-v2/en/069.mp3"
     },
     {
       "scene": 7,
-      "start": 8588,
+      "start": 11720,
       "duration": 140,
       "text": "When Duet recognizes an ongoing\nmatter, it creates a Tracking item.",
       "audio": "voiceover-v2/en/070.mp3"
     },
     {
       "scene": 7,
-      "start": 8739,
+      "start": 11871,
       "duration": 88,
       "text": "Its first node describes\nthe item and its goal.",
       "audio": "voiceover-v2/en/071.mp3"
     },
     {
       "scene": 7,
-      "start": 8838,
+      "start": 11970,
       "duration": 124,
       "text": "That metadata stays in everyday\ncontext to help locate the work.",
       "audio": "voiceover-v2/en/072.mp3"
     },
     {
       "scene": 7,
-      "start": 8973,
+      "start": 12105,
       "duration": 79,
       "text": "Detailed progress is retrieved when needed,",
       "audio": "voiceover-v2/en/073.mp3"
     },
     {
       "scene": 7,
-      "start": 9063,
+      "start": 12195,
       "duration": 96,
       "text": "and new decisions\nand deliveries add further nodes.",
       "audio": "voiceover-v2/en/074.mp3"
     },
     {
       "scene": 7,
-      "start": 9170,
+      "start": 12302,
       "duration": 119,
       "text": "Work can continue across many\nintervening conversations.",
       "audio": "voiceover-v2/en/075.mp3"
     },
     {
       "scene": 8,
-      "start": 9364,
+      "start": 12496,
       "duration": 99,
       "text": "Maya writes the product\nrequirement as a user story.",
       "audio": "voiceover-v2/en/076.mp3"
     },
     {
       "scene": 8,
-      "start": 9474,
+      "start": 12606,
       "duration": 104,
       "text": "Alex’s Duet implements it\nand opens a pull request,",
       "audio": "voiceover-v2/en/077.mp3"
     },
     {
       "scene": 8,
-      "start": 9589,
+      "start": 12721,
       "duration": 102,
       "text": "or PR, proposing its code changes for review.",
       "audio": "voiceover-v2/en/078.mp3"
     },
     {
       "scene": 8,
-      "start": 9702,
+      "start": 12834,
       "duration": 105,
       "text": "GitHub emits an event\nidentifying the PR and commit.",
       "audio": "voiceover-v2/en/079.mp3"
     },
     {
       "scene": 8,
-      "start": 9818,
+      "start": 12950,
       "duration": 173,
       "text": "Agent Loop runs as a separate service and\nuses a policy file to send the review to Sam.",
       "audio": "voiceover-v2/en/080.mp3"
     },
     {
       "scene": 8,
-      "start": 10002,
+      "start": 13134,
       "duration": 120,
       "text": "The outer loop follows deterministic\nrules without calling a model.",
       "audio": "voiceover-v2/en/081.mp3"
     },
     {
       "scene": 8,
-      "start": 10133,
+      "start": 13265,
       "duration": 127,
       "text": "Sam’s Duet understands the code\nand checks it against the requirement.",
       "audio": "voiceover-v2/en/082.mp3"
     },
     {
       "scene": 8,
-      "start": 10271,
+      "start": 13403,
       "duration": 91,
       "text": "It finds that customers can see the status,",
       "audio": "voiceover-v2/en/083.mp3"
     },
     {
       "scene": 8,
-      "start": 10373,
+      "start": 13505,
       "duration": 85,
       "text": "while the internal report\nstill lacks the field.",
       "audio": "voiceover-v2/en/084.mp3"
     },
     {
       "scene": 8,
-      "start": 10469,
+      "start": 13601,
       "duration": 143,
       "text": "It returns specific feedback and a\nstructured changes-requested result.",
       "audio": "voiceover-v2/en/085.mp3"
     },
     {
       "scene": 8,
-      "start": 10623,
+      "start": 13755,
       "duration": 132,
       "text": "Agent Loop reads that outcome and routes\nthe next task back to the author.",
       "audio": "voiceover-v2/en/086.mp3"
     },
     {
       "scene": 9,
-      "start": 10830,
+      "start": 13962,
       "duration": 145,
       "text": "The rule writes the feedback to the PR\nand assigns the correction to Alex’s Duet.",
       "audio": "voiceover-v2/en/087.mp3"
     },
     {
       "scene": 9,
-      "start": 10986,
+      "start": 14118,
       "duration": 101,
       "text": "It receives the missing requirement\nand the relevant version,",
       "audio": "voiceover-v2/en/088.mp3"
     },
     {
       "scene": 9,
-      "start": 11098,
+      "start": 14230,
       "duration": 85,
       "text": "adds the report field\nand pushes another commit.",
       "audio": "voiceover-v2/en/089.mp3"
     },
     {
       "scene": 9,
-      "start": 11194,
+      "start": 14326,
       "duration": 101,
       "text": "The updated version follows\nthe same review policy.",
       "audio": "voiceover-v2/en/090.mp3"
     },
     {
       "scene": 9,
-      "start": 11306,
+      "start": 14438,
       "duration": 106,
       "text": "Sam’s Duet checks it\nand returns an approved result.",
       "audio": "voiceover-v2/en/091.mp3"
     },
     {
       "scene": 9,
-      "start": 11423,
+      "start": 14555,
       "duration": 90,
       "text": "Agent Loop can then send\nthe change to LoopLab,",
       "audio": "voiceover-v2/en/092.mp3"
     },
     {
       "scene": 9,
-      "start": 11524,
+      "start": 14656,
       "duration": 101,
       "text": "together with the requirement\nand the conditions to verify.",
       "audio": "voiceover-v2/en/093.mp3"
     },
     {
       "scene": 9,
-      "start": 11636,
+      "start": 14768,
       "duration": 144,
       "text": "Each handoff carries context the\nnext participant can use directly.",
       "audio": "voiceover-v2/en/094.mp3"
     },
     {
       "scene": 10,
-      "start": 11855,
+      "start": 14987,
       "duration": 93,
       "text": "Sam has supplied two acceptance conditions.",
       "audio": "voiceover-v2/en/095.mp3"
     },
     {
       "scene": 10,
-      "start": 11959,
+      "start": 15091,
       "duration": 102,
       "text": "The customer should see that\nthe application is in review,",
       "audio": "voiceover-v2/en/096.mp3"
     },
     {
       "scene": 10,
-      "start": 12072,
+      "start": 15204,
       "duration": 121,
       "text": "and the exported internal record\nshould contain the same status.",
       "audio": "voiceover-v2/en/097.mp3"
     },
     {
       "scene": 10,
-      "start": 12204,
+      "start": 15336,
       "duration": 176,
       "text": "LoopLab’s agent investigates the real pages\nand prepares reusable nodes and a test flow.",
       "audio": "voiceover-v2/en/098.mp3"
     },
     {
       "scene": 10,
-      "start": 12391,
+      "start": 15523,
       "duration": 124,
       "text": "An independent browser then executes\na fixed version of that flow,",
       "audio": "voiceover-v2/en/099.mp3"
     },
     {
       "scene": 10,
-      "start": 12526,
+      "start": 15658,
       "duration": 127,
       "text": "checking the page and export while\nrecording steps and screenshots.",
       "audio": "voiceover-v2/en/100.mp3"
     },
     {
       "scene": 10,
-      "start": 12664,
+      "start": 15796,
       "duration": 72,
       "text": "Replay follows the defined steps.",
       "audio": "voiceover-v2/en/101.mp3"
     },
     {
       "scene": 10,
-      "start": 12747,
+      "start": 15879,
       "duration": 105,
       "text": "A passing result returns\nto the workflow with evidence.",
       "audio": "voiceover-v2/en/102.mp3"
     },
     {
       "scene": 10,
-      "start": 12863,
+      "start": 15995,
       "duration": 132,
       "text": "If a check fails, Agent Loop\ncan send the failure location",
       "audio": "voiceover-v2/en/103.mp3"
     },
     {
       "scene": 10,
-      "start": 13006,
+      "start": 16138,
       "duration": 140,
       "text": "and evidence back to Alex’s Duet for\nanother correction and verification.",
       "audio": "voiceover-v2/en/104.mp3"
     },
     {
       "scene": 11,
-      "start": 13221,
+      "start": 16353,
       "duration": 160,
       "text": "The acceptance report returns to the shared\ntopic and can be found in Message Center.",
       "audio": "voiceover-v2/en/105.mp3"
     },
     {
       "scene": 11,
-      "start": 13392,
+      "start": 16524,
       "duration": 132,
       "text": "Nora can see that the change she\nspotted has become a verified feature.",
       "audio": "voiceover-v2/en/106.mp3"
     },
     {
       "scene": 11,
-      "start": 13535,
+      "start": 16667,
       "duration": 143,
       "text": "Maya has evidence that the requirement\nis satisfied and can arrange the release.",
       "audio": "voiceover-v2/en/107.mp3"
     },
     {
       "scene": 11,
-      "start": 13689,
+      "start": 16821,
       "duration": 109,
       "text": "Alex’s and Sam’s Tracking\nrecords capture the correction,",
       "audio": "voiceover-v2/en/108.mp3"
     },
     {
       "scene": 11,
-      "start": 13809,
+      "start": 16941,
       "duration": 76,
       "text": "verification and supporting evidence.",
       "audio": "voiceover-v2/en/109.mp3"
     },
     {
       "scene": 11,
-      "start": 13896,
+      "start": 17028,
       "duration": 119,
       "text": "Each person follows the work\nfrom their own responsibilities,",
       "audio": "voiceover-v2/en/110.mp3"
     },
     {
       "scene": 11,
-      "start": 14026,
+      "start": 17158,
       "duration": 61,
       "text": "referring to the same result.",
       "audio": "voiceover-v2/en/111.mp3"
     },
     {
       "scene": 11,
-      "start": 14098,
+      "start": 17230,
       "duration": 104,
       "text": "When a decision is needed,\nDuet brings the progress,",
       "audio": "voiceover-v2/en/112.mp3"
     },
     {
       "scene": 11,
-      "start": 14213,
+      "start": 17345,
       "duration": 110,
       "text": "materials and remaining choices\ntogether for its employee.",
       "audio": "voiceover-v2/en/113.mp3"
     },
     {
       "scene": 12,
-      "start": 14398,
+      "start": 17530,
       "duration": 117,
       "text": "Looking back, Message Center\nmade the change discoverable.",
       "audio": "voiceover-v2/en/114.mp3"
     },
     {
       "scene": 12,
-      "start": 14526,
+      "start": 17658,
       "duration": 121,
       "text": "Duet understood and carried out\nthe work each person delegated.",
       "audio": "voiceover-v2/en/115.mp3"
     },
     {
       "scene": 12,
-      "start": 14658,
+      "start": 17790,
       "duration": 84,
       "text": "Agent Loop connected\nthe handoffs through rules,",
       "audio": "voiceover-v2/en/116.mp3"
     },
     {
       "scene": 12,
-      "start": 14753,
+      "start": 17885,
       "duration": 89,
       "text": "and LoopLab supplied acceptance evidence.",
       "audio": "voiceover-v2/en/117.mp3"
     },
     {
       "scene": 12,
-      "start": 14853,
+      "start": 17985,
       "duration": 121,
       "text": "A team can first establish how\na real piece of work should run,",
       "audio": "voiceover-v2/en/118.mp3"
     },
     {
       "scene": 12,
-      "start": 14985,
+      "start": 18117,
       "duration": 154,
       "text": "then turn its recurring handoffs into\npolicies defined by the responsible people.",
       "audio": "voiceover-v2/en/119.mp3"
     },
     {
       "scene": 12,
-      "start": 15150,
+      "start": 18282,
       "duration": 133,
       "text": "Employees continue to decide goals,\npriorities and commitments.",
       "audio": "voiceover-v2/en/120.mp3"
     },
     {
       "scene": 12,
-      "start": 15294,
+      "start": 18426,
       "duration": 106,
       "text": "As more outputs become usable\ninputs for the next role,",
       "audio": "voiceover-v2/en/121.mp3"
     },
     {
       "scene": 12,
-      "start": 15411,
+      "start": 18543,
       "duration": 137,
       "text": "the company can build its AI-native\nworkflows one process at a time.",
       "audio": "voiceover-v2/en/122.mp3"
