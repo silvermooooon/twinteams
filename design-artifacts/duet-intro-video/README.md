@@ -5,7 +5,7 @@ an external update through research, product definition, development, review and
 acceptance. Both languages contain twelve scenes with their own narration timing.
 The design and [bilingual scripts](../ai-native-vision/v2/README.md) are the editorial sources.
 
-| Language | Composition | Duration | Local MP4 | Subtitles |
+| Language | Composition | Duration | Final MP4 | Subtitles |
 | --- | --- | --- | --- | --- |
 | 中文 | `DuetExplainedZh` | 9:10.800 | [1080p film](out/v2/duet-ai-native-zh-CN-1080p.mp4) | [SRT](public/voiceover-v2/zh-CN/duet-ai-native-v2.srt) |
 | English | `DuetExplainedEn` | 8:39.767 | [1080p film](out/v2/duet-ai-native-en-1080p.mp4) | [SRT](public/voiceover-v2/en/duet-ai-native-v2.srt) |
@@ -33,8 +33,10 @@ npm run render:v2:zh
 npm run render:v2:en
 ```
 
-`out/` holds exported video and visual QA frames and is ignored by Git. Source,
-fonts, measured narration and subtitles are checked in; share the MP4 separately.
+The two final MP4s linked above are checked into Git alongside the source, fonts,
+measured narration and subtitles. Other renders, preview pages, logs and visual QA
+frames under `out/` remain ignored. On GitHub, use **View raw** or **Download raw
+file** to open or download a film if the file page does not show a player.
 
 ## Editing the current films
 

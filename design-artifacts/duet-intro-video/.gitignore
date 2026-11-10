@@ -3,5 +3,9 @@ dist
 .DS_Store
 .env
 
-# Ignore the output video from Git but not videos you import into src/.
-out
+# Keep the two final films; ignore other renders, previews and QA outputs.
+/out/*
+!/out/v2/
+/out/v2/*
+!/out/v2/duet-ai-native-zh-CN-1080p.mp4
+!/out/v2/duet-ai-native-en-1080p.mp4

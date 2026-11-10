@@ -15,7 +15,8 @@ and transition. The scene guide totals 8 minutes 50 seconds; final timing follow
 the recorded narration and visual pauses. The completed films use independent
 language timings, with matching subtitles and progressive screen action. Their
 [Remotion source and reproduction instructions](../../duet-intro-video/README.md)
-are in the sibling media project. MP4 files are local exports, outside Git.
+are in the sibling media project. Both final MP4 files are included in Git; on
+GitHub, use **View raw** or **Download raw file** to open or download them.
 
 The design documents use the editable `content.zh-CN.json` and `content.en.json`
 sources. `build_documents.py` generates both DOCX files and their embedded diagrams
