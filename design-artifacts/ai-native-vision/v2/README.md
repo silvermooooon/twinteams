@@ -11,7 +11,7 @@ and acceptance. The two languages use the same roles, examples and interaction m
 | Design document, nine pages | [中文设计文档](Duet-AI-Native-Design.zh-CN.docx) | [English design document](Duet-AI-Native-Design.en.docx) |
 | Video script, architecture opening + twelve story scenes | [中文视频文案](video-script.zh-CN.md) | [English video script](video-script.en.md) |
 | Narrated 1080p film | [中文成片 · 11:31](../../duet-intro-video/out/v2/duet-ai-native-zh-CN-1080p.mp4) | [English film · 11:10](../../duet-intro-video/out/v2/duet-ai-native-en-1080p.mp4) |
-| Offline HTML presentation, 14 slides | [打开演示](Duet-AI-Native-Presentation.html#zh-01) | [Open presentation](Duet-AI-Native-Presentation.html#en-01) |
+| Offline HTML presentation, 14 slides | [打开双语演示](Duet-AI-Native-Presentation.html#zh-01) | [Open English edition](Duet-AI-Native-Presentation.en.html) |
 
 Each script includes the viewer takeaway, progressive screen action, full narration
 and transition. Final timing follows the recorded narration and visual pauses.
@@ -38,11 +38,12 @@ and page boundaries. Preview PDFs and page images are QA outputs and are not com
 
 ## HTML presentation
 
-Open the HTML file directly in a browser. It includes both languages and its
-film stills, so it works without a server or connection. Use the arrow keys
-to advance, **F** for full screen and **N** for speaker notes. The language
-switch stays on the current slide. Printing lays out the selected language
-one slide per page. On GitHub, download the HTML before opening it.
+Both HTML editions embed their film stills and open directly in a browser
+offline. Use the arrow keys to advance, **F** for full screen and **N** for
+speaker notes. The bilingual edition switches languages without leaving the
+current slide. The separate English edition opens with English slides, notes
+and controls. Printing lays out one slide per page. On GitHub, download the
+HTML before opening it.
 
 The deck follows the final films chapter for chapter. Speaker notes distinguish
 the film's design examples from current product behavior where relevant. Edit

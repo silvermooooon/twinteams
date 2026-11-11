@@ -12,7 +12,7 @@
     },
     "en": {
       "title": "The AI Native architecture",
-      "lead": "Each employee delegates to their own Duet, with shared services for information, handoffs and acceptance checks.",
+      "lead": "Each employee delegates to their own Duet. Agent Loop connects the handoffs between roles.",
       "points": [
         "Agent Loop routes events and tasks using policy.",
         "Message Center gathers information. LoopLab supplies acceptance evidence."
@@ -139,10 +139,10 @@
       "title": "Nora’s impact research",
       "lead": "Nora’s Duet flags the update as relevant, and she asks it to study the impact on applications.",
       "points": [
-        "Her Duet produces an impact list, sourced report and draft story.",
+        "Her Duet lists the affected processes and provides a report with sources and a draft user story.",
         "Maya takes up the customer page and the internal report requirements."
       ],
-      "notes": "Nora is the market researcher tracking the customer application experience. Once she decides to proceed, her Duet identifies two changes: show the status to the customer and include it in the internal export. Maya uses the research and draft story to define the requirements."
+      "notes": "Nora is the market researcher tracking the customer application experience. Once she decides to proceed, her Duet identifies two changes. Customers need to see their application status, and staff need it in the internal export. Maya uses the research and draft user story to define the requirements."
     },
     "frames": {
       "zh": 10271,
@@ -212,9 +212,9 @@
     },
     "en": {
       "title": "Event routing with Agent Loop",
-      "lead": "After Alex opens a pull request, Agent Loop uses policy to assign the review to Sam.",
+      "lead": "Alex’s Duet opens a pull request. Agent Loop uses policy to route the review to Sam’s Duet.",
       "points": [
-        "The PR event carries its number and commit version.",
+        "The PR event includes the pull request number and commit ID.",
         "Sam’s Duet spots the missing export field and returns changes_requested."
       ],
       "notes": "Maya’s story gives development and review the same requirements. Agent Loop matches structured events against fixed rules. Sam’s Duet reads the code, explains the missing field and returns the structured outcome that routes the work back to Alex."
@@ -242,7 +242,7 @@
         "The same story and PR tie the finding to the fix.",
         "Approval passes the version and criteria to LoopLab."
       ],
-      "notes": "The configured GitHub integration writes review feedback to the original PR. Alex’s Duet receives the issue and its version, then adds the Processing status column. Sam checks the new commit and returns approved, which triggers acceptance."
+      "notes": "The configured GitHub integration writes review feedback to the original PR. Alex’s Duet receives the finding and the commit it applies to, then adds the Processing status column. Sam’s Duet checks the new commit and returns approved, which triggers acceptance."
     },
     "frames": {
       "zh": 16709,

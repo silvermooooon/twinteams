@@ -9,10 +9,18 @@ import subprocess
 
 SOURCE = Path(__file__).resolve().parent
 FILM = SOURCE.parents[2] / "duet-intro-video"
-OUTPUT = SOURCE.parent / "Duet-AI-Native-Presentation.html"
+OUTPUTS = {
+    "Duet-AI-Native-Presentation.html": ("zh", "en"),
+    "Duet-AI-Native-Presentation.en.html": ("en",),
+}
 LANGUAGES = {
     "zh": {
         "locale": "zh-CN",
+        "switch": "中文",
+        "ui": {
+            "nav": "演示控制", "prev": "上一页", "next": "下一页", "jump": "跳转到指定页",
+            "notes": "备注", "noteTitle": "演讲备注", "full": "全屏", "exit": "退出全屏",
+        },
         "cover": "设计导览",
         "subtitle": "个人委托如何接成业务闭环",
         "notes": "这套设计从员工与自己的 Duet 开始。先看各组件分工，再用日常报表委托和一项虚构的监管变化，说明工作如何跨岗位交接和验收。",
@@ -25,6 +33,12 @@ LANGUAGES = {
     },
     "en": {
         "locale": "en",
+        "switch": "EN",
+        "ui": {
+            "nav": "Presentation controls", "prev": "Previous slide", "next": "Next slide",
+            "jump": "Go to slide", "notes": "Notes", "noteTitle": "Speaker notes",
+            "full": "Full screen", "exit": "Exit full screen",
+        },
         "cover": "Design overview",
         "subtitle": "How personal Duets connect work across a company",
         "notes": "Start with the architecture, then follow a weekly report and a fictional regulatory update to see how work moves between roles and how the team verifies the result.",
@@ -60,9 +74,10 @@ def film_still(language, frame, *, architecture):
     )
 
 
-def render_slides(chapters, lang, mark):
+def render_slides(chapters, lang, mark, *, hidden):
     language = LANGUAGES[lang]
     total = len(chapters) + 1
+    initial = ' data-print="no" hidden' if hidden else ' data-print="yes"'
     for page, chapter in enumerate([None, *chapters], start=1):
         if chapter is None:
             section = language["cover"]
@@ -83,9 +98,8 @@ def render_slides(chapters, lang, mark):
                 f'<ul class="points">{points}</ul></div>'
                 f'{film_still(language, chapter["frames"][lang], architecture=page == 2)}'
             )
-        hidden = ' data-print="no" hidden' if lang == "en" else ' data-print="yes"'
         last = ' data-last="yes"' if page == total else ""
-        yield f"""<section class="{css}" lang="{language['locale']}" data-language="{lang}"{hidden}{last}>
+        yield f"""<section class="{css}" lang="{language['locale']}" data-language="{lang}"{initial}{last}>
           <header class="slide-head"><div class="brand">{mark}<span>Duet</span></div><span class="chapter">{section}</span></header>
           <div class="story">{body}</div>
           <footer class="slide-foot"><span>{page:02} / {total:02}</span></footer>
@@ -97,13 +111,29 @@ def main():
     chapters = json.loads((SOURCE / "content.json").read_text(encoding="utf-8"))
     mark = '<span class="brand-mark" aria-hidden="true"></span>'
     logo = data_url("image/svg+xml", (FILM / "public" / "brand" / "duet-symbol.svg").read_bytes())
-    slides = "\n        ".join(slide for lang in LANGUAGES for slide in render_slides(chapters, lang, mark))
     template = (SOURCE / "deck.html").read_text(encoding="utf-8")
-    OUTPUT.write_text(
-        template.replace("<!-- SLIDES -->", slides).replace("/* DUET_MARK */", f'url("{logo}")'),
-        encoding="utf-8",
-    )
-    print(OUTPUT)
+    for filename, languages in OUTPUTS.items():
+        default = languages[0]
+        slides = "\n        ".join(
+            slide for lang in languages
+            for slide in render_slides(chapters, lang, mark, hidden=lang != default)
+        )
+        switch = "\n          ".join(
+            f'<button type="button" data-language="{lang}" lang="{LANGUAGES[lang]["locale"]}"'
+            f' aria-pressed="{str(lang == default).lower()}">{LANGUAGES[lang]["switch"]}</button>'
+            for lang in languages
+        ) if len(languages) > 1 else ""
+        labels = {lang: LANGUAGES[lang]["ui"] for lang in languages}
+        deck = (
+            template.replace("{{LOCALE}}", LANGUAGES[default]["locale"])
+            .replace("/* DUET_MARK */", f'url("{logo}")')
+            .replace("<!-- SLIDES -->", slides)
+            .replace("          <!-- LANGUAGE_SWITCH -->\n", f"          {switch}\n" if switch else "")
+            .replace("/* UI_LABELS */", json.dumps(labels, ensure_ascii=False))
+        )
+        output = SOURCE.parent / filename
+        output.write_text(deck, encoding="utf-8")
+        print(output)
 
 
 if __name__ == "__main__":
