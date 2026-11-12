@@ -1,327 +1,93 @@
 [
   {
-    "section": "system",
-    "zh": {
-      "title": "AI Native 架构",
-      "lead": "每个人把工作交给自己的 Duet，由 Agent Loop 和共享服务接起后续流程。",
-      "points": [
-        "Agent Loop 按 policy 分发事件与任务。",
-        "Message Center 汇集信息，LoopLab 提供验收证据。"
-      ],
-      "notes": "圆环外，每位 Owner 决定目标、优先级和取舍，各自的 Duet 理解任务、调用工具并跟进。圆环内是 Message Center 和 LoopLab。Duet 可以直接搜索或订阅消息，Agent Loop 用确定的规则接起工作结果，无需调用大模型。"
-    },
-    "en": {
-      "title": "The AI Native architecture",
-      "lead": "Each employee delegates to their own Duet. Agent Loop connects the handoffs between roles.",
-      "points": [
-        "Agent Loop routes events and tasks using policy.",
-        "Message Center gathers information. LoopLab supplies acceptance evidence."
-      ],
-      "notes": "Outside the ring, each Owner sets goals and priorities. Their Duet interprets tasks, uses tools and follows up. Inside the ring are Message Center and LoopLab. Duets can search or subscribe to information directly. Agent Loop applies fixed rules to route work results without calling a language model."
-    },
+    "title": {"zh": "先看懂这张架构图", "en": "Meet the architecture before the story"},
     "frames": {
-      "zh": 3290,
-      "en": 3238
+      "zh": [[0, 38], [124, 148], [681, 705], [926, 950], [1090, 1114], [1455, 1479], [1811, 1835], [2039, 2063], [2470, 2494], [2651, 2675], [2843, 2867], [2879, 2903], [2930, 2954], [2995, 3019], [3082, 3106], [3209, 3233]],
+      "en": [[0, 38], [92, 116], [616, 640], [914, 938], [1046, 1070], [1412, 1436], [1767, 1791], [1993, 2017], [2355, 2379], [2577, 2601], [2785, 2809], [2835, 2859], [2906, 2930], [2987, 3011], [3087, 3111], [3169, 3193]]
     }
   },
   {
-    "section": "personal",
-    "zh": {
-      "title": "个人委托",
-      "lead": "AI Native 从员工把一件具体的事交给自己的 Duet 开始。",
-      "points": [
-        "收集资料、整理报表、跟进进度。",
-        "明确交付物、接手人和验收条件。"
-      ],
-      "notes": "让一项工作可以交接，比单次任务做得快更重要。影片接下来用研究报告、产品需求、代码和验收结果，演示不同岗位的交付物如何连成一条业务流程。"
-    },
-    "en": {
-      "title": "Personal delegation",
-      "lead": "AI Native starts when someone gives their Duet a concrete piece of work.",
-      "points": [
-        "Gather sources, prepare a report or follow up.",
-        "Define the deliverable, the next owner and the acceptance criteria."
-      ],
-      "notes": "For work to move between roles, each deliverable needs to give the next person enough to proceed. The film follows research, product requirements, code and acceptance evidence through those handoffs."
-    },
+    "title": {"zh": "每个人先交出一部分工作", "en": "Each person delegates part of their work"},
     "frames": {
-      "zh": 4752,
-      "en": 4647
+      "zh": [[3427, 3465], [3607, 3650], [3999, 4041], [4127, 4176], [4405, 4429], [4668, 4692]],
+      "en": [[3373, 3411], [3543, 3586], [3977, 4019], [4055, 4104], [4293, 4317], [4584, 4608]]
     }
   },
   {
-    "section": "personal",
-    "zh": {
-      "title": "鲍勃的周报",
-      "lead": "员工把鲍勃的原消息交给自己的 Duet，委托它整理本周报表。",
-      "points": [
-        "引用保留原始要求和回复去向。",
-        "Owner 审阅文件，点击 Confirm send 后发出。"
-      ],
-      "notes": "这是一次跨岗位交付。影片把代发压缩为明确委托后的一个动作。当前产品里，Duet 会先准备包含收件人、正文和文件的发送卡片，Owner 必须点击 Confirm send 才会以本人身份发布。"
-    },
-    "en": {
-      "title": "Bob’s weekly report",
-      "lead": "The employee gives their Duet Bob’s original message and asks it to prepare the weekly report.",
-      "points": [
-        "The reference carries the request and the reply destination.",
-        "The Owner reviews the file and selects Confirm send."
-      ],
-      "notes": "This is a handoff between colleagues. The film condenses sending into one action after the explicit request. In the current product, Duet prepares a review card with the recipients, text and file. The Owner publishes the exact draft in their own name by selecting Confirm send."
-    },
+    "title": {"zh": "鲍勃要一份报表", "en": "Bob needs a report"},
     "frames": {
-      "zh": 5307,
-      "en": 5122
+      "zh": [[4837, 4875], [5023, 5047], [5180, 5204], [5523, 5576], [5618, 5642], [5982, 6006]],
+      "en": [[4728, 4766], [4862, 4886], [4975, 4999], [5248, 5301], [5364, 5388], [5676, 5700]]
     }
   },
   {
-    "section": "personal",
-    "zh": {
-      "title": "一个 My Duet 入口",
-      "lead": "报表、客户问题和行业研究都能交给同一个 Duet。",
-      "points": [
-        "独立任务分别处理，结果回到同一入口。",
-        "Duet 逐步记住职责、工作标准和表达习惯。"
-      ],
-      "notes": "员工可以把常用资料或偏好教给 Duet，例如研究结论要附原文。较早的对话整理成摘要，最近问答保留原文，方便顺着上一轮继续。持续事项可通过 Tracking 找回。"
-    },
-    "en": {
-      "title": "One place to work with Duet",
-      "lead": "The same Duet can handle a report, a customer question and a research request.",
-      "points": [
-        "Separate tasks run independently and return to My Duet.",
-        "Duet learns the employee’s role, standards and preferences."
-      ],
-      "notes": "An employee can teach Duet which sources to use and how to work, such as attaching original sources to research findings. Conversation summaries preserve older context alongside recent messages. Tracking helps retrieve work that continues across conversations."
-    },
+    "title": {"zh": "始终面对自己的 Duet", "en": "The same Duet stays with you"},
     "frames": {
-      "zh": 7555,
-      "en": 7215
+      "zh": [[6305, 6343], [6448, 6472], [6644, 6695], [6972, 6996], [7247, 7271], [7503, 7527]],
+      "en": [[5959, 5997], [6111, 6135], [6340, 6391], [6694, 6718], [6828, 6852], [7097, 7121]]
     }
   },
   {
-    "section": "workflow",
-    "zh": {
-      "title": "消息中心里的监管更新",
-      "lead": "在这个虚构案例里，一条监管更新提出客户需要看见申请状态。",
-      "points": [
-        "Message Center 保留原文、发布时间和摘要。",
-        "员工和 Duet 可以按职责搜索、订阅或拉取。"
-      ],
-      "notes": "周一，爬虫发现了这条更新。消息进入公司的共享信息范围，可以等待有相关职责的人判断是否推进。同一来源可以被多位员工发现，无需为每条资讯立即启动任务。"
-    },
-    "en": {
-      "title": "A regulatory update",
-      "lead": "In this fictional scenario, a regulatory update calls for customers to see their application status.",
-      "points": [
-        "Message Center keeps the source, publication time and summary.",
-        "Employees and Duets can search, subscribe or retrieve updates."
-      ],
-      "notes": "On Monday, a crawler finds the update. Message Center makes it available to the company so the right person can decide whether to act. Several employees can discover the same source when it becomes relevant to their work."
-    },
+    "title": {"zh": "消息中心先让变化被看见", "en": "Message Center makes a change discoverable"},
     "frames": {
-      "zh": 8711,
-      "en": 8380
+      "zh": [[7635, 7673], [7943, 7967], [8176, 8225], [8397, 8421], [8545, 8569], [8646, 8670]],
+      "en": [[7295, 7333], [7621, 7645], [7885, 7934], [8182, 8206], [8233, 8257], [8385, 8409]]
     }
   },
   {
-    "section": "workflow",
-    "zh": {
-      "title": "Nora 的影响研究",
-      "lead": "Nora 看到 Duet 的相关性建议，决定调研申请流程受影响的环节。",
-      "points": [
-        "Nora 的 Duet 交付影响清单、带来源的报告和初步 story。",
-        "Maya 接手客户页面和内部报表两项需求。"
-      ],
-      "notes": "Nora 负责市场研究，正在跟进客户申请体验。她决定投入后，Duet 查明两个交付目标：客户能看见状态，内部人员能从报表导出状态。Maya 可以直接用研究报告和初步 story 明确产品要求。"
-    },
-    "en": {
-      "title": "Nora’s impact research",
-      "lead": "Nora’s Duet flags the update as relevant, and she asks it to study the impact on applications.",
-      "points": [
-        "Her Duet lists the affected processes and provides a report with sources and a draft user story.",
-        "Maya takes up the customer page and the internal report requirements."
-      ],
-      "notes": "Nora is the market researcher tracking the customer application experience. Once she decides to proceed, her Duet identifies two changes. Customers need to see their application status, and staff need it in the internal export. Maya uses the research and draft user story to define the requirements."
-    },
+    "title": {"zh": "Nora 把资讯变成调研任务", "en": "Nora turns an update into a research task"},
     "frames": {
-      "zh": 10271,
-      "en": 9841
+      "zh": [[8964, 9002], [9145, 9169], [9430, 9454], [9681, 9720], [9775, 9799], [10095, 10119]],
+      "en": [[8634, 8672], [8810, 8834], [9082, 9106], [9332, 9371], [9416, 9440], [9734, 9758]]
     }
   },
   {
-    "section": "workflow",
-    "zh": {
-      "title": "真人群聊与 Duet 主题",
-      "lead": "Nora、Maya、Alex 和 Sam 在群聊里讨论范围，各自的 Duet 在共享主题里交接。",
-      "points": [
-        "Maya 用 Ask my Duet 把群聊消息交给自己的 Duet。",
-        "Duet 在主题里异步共享研究、需求与测试问题。"
-      ],
-      "notes": "影片展示的主题把研究报告和后续讨论放在同一处，访问遵循各自 Owner 的授权。当前产品中的真人群聊和独立 Duet 对话也各有边界：Owner 只直接委托自己的 Duet，Duet 间沟通需获得相应授权。"
-    },
-    "en": {
-      "title": "Human chat and Duet topics",
-      "lead": "Nora, Maya, Alex and Sam discuss scope in group chat, while their Duets coordinate in a shared topic.",
-      "points": [
-        "Maya uses Ask my Duet to delegate a message to her own Duet.",
-        "Duets share research, requirements and test questions in the topic."
-      ],
-      "notes": "In the film, a topic holds the research and subsequent work, subject to each Owner’s access. The current product also separates human chats and Duet conversations. Employees delegate directly to their own Duets, and communication between Duets requires the relevant consent."
-    },
+    "title": {"zh": "人在群聊，Duet 在共享主题协作", "en": "People chat. Duets work in a shared topic."},
     "frames": {
-      "zh": 11780,
-      "en": 11293
+      "zh": [[10354, 10392], [10645, 10669], [10797, 10821], [10994, 11018], [11334, 11389], [11612, 11636]],
+      "en": [[9918, 9956], [10209, 10233], [10321, 10345], [10477, 10501], [10786, 10841], [11125, 11149]]
     }
   },
   {
-    "section": "workflow",
-    "zh": {
-      "title": "跨天跟进",
-      "lead": "周四，Nora 问起申请状态项目，Duet 能找回已完成的工作和下一步。",
-      "points": [
-        "短期上下文支持当前对话，Dream 整理长期记忆。",
-        "Tracking 记录目标、进度、变更及其来源。"
-      ],
-      "notes": "Git 保存记忆的版本和来源，Tracking 详情可按需打开。影片设想 Dream 将可见群聊纳入长期整理。当前产品的定期 Dream 处理已发布的私聊内容，群聊原文不进入该流程，Duet 发到私聊的相关进展报告可作为输入。"
-    },
-    "en": {
-      "title": "Following up across days",
-      "lead": "When Nora asks for an update on Thursday, Duet can find what happened and what comes next.",
-      "points": [
-        "Recent context supports the conversation. Dream consolidates memory.",
-        "Tracking records goals, progress, changes and their sources."
-      ],
-      "notes": "Git records memory versions and sources, and Duet can open Tracking details on demand. The film imagines Dream incorporating visible group chats. Today, scheduled Dream uses published private-chat content, including progress reports Duet posts there. Raw group history stays outside that process."
-    },
+    "title": {"zh": "周四，接着周一的工作", "en": "Pick up on Thursday where Monday began"},
     "frames": {
-      "zh": 13720,
-      "en": 13270
+      "zh": [[11871, 11909], [12369, 12393], [12642, 12666], [13043, 13067], [13142, 13166], [13438, 13462]],
+      "en": [[11381, 11419], [11806, 11830], [12243, 12267], [12676, 12700], [12746, 12770], [13014, 13038]]
     }
   },
   {
-    "section": "workflow",
-    "zh": {
-      "title": "Agent Loop 按规则交接",
-      "lead": "Alex 提交代码变更后，Agent Loop 按 policy 将评审交给 Sam。",
-      "points": [
-        "PR 事件携带编号和提交版本。",
-        "Sam 的 Duet 发现报表缺项，返回 changes_requested。"
-      ],
-      "notes": "Maya 的 story 为开发和评审提供同一份要求。Agent Loop 用确定规则匹配结构化事件，评审由 Sam 的 Duet 读取代码并完成。评审意见说明缺项，结构化结论触发回交作者。"
-    },
-    "en": {
-      "title": "Event routing with Agent Loop",
-      "lead": "Alex’s Duet opens a pull request. Agent Loop uses policy to route the review to Sam’s Duet.",
-      "points": [
-        "The PR event includes the pull request number and commit ID.",
-        "Sam’s Duet spots the missing export field and returns changes_requested."
-      ],
-      "notes": "Maya’s story gives development and review the same requirements. Agent Loop matches structured events against fixed rules. Sam’s Duet reads the code, explains the missing field and returns the structured outcome that routes the work back to Alex."
-    },
+    "title": {"zh": "事件到了，下一棒交给谁", "en": "An event arrives. Who takes the next step?"},
     "frames": {
-      "zh": 15526,
-      "en": 14846
+      "zh": [[13838, 13876], [14295, 14319], [14459, 14483], [14866, 14890], [15001, 15025], [15449, 15473]],
+      "en": [[13391, 13429], [13769, 13793], [13926, 13950], [14217, 14241], [14402, 14426], [14773, 14797]]
     }
   },
   {
-    "section": "workflow",
-    "zh": {
-      "title": "修复与复审",
-      "lead": "Alex 的 Duet 补上报表字段，新提交回到 Sam 手里复审。",
-      "points": [
-        "同一份 story 和 PR 串起问题、修复与复审。",
-        "评审通过后，版本和验收条件交给 LoopLab。"
-      ],
-      "notes": "评审意见通过配置好的 GitHub 集成回写原 PR，修改任务也带着原问题和版本。Alex 的 Duet 添加 Processing status 列。Sam 检查新提交并给出 approved，Agent Loop 再发出验收任务。"
-    },
-    "en": {
-      "title": "A new commit for review",
-      "lead": "Alex’s Duet adds the missing export field and sends the new commit back through Sam’s review.",
-      "points": [
-        "The same story and PR tie the finding to the fix.",
-        "Approval passes the version and criteria to LoopLab."
-      ],
-      "notes": "The configured GitHub integration writes review feedback to the original PR. Alex’s Duet receives the finding and the commit it applies to, then adds the Processing status column. Sam’s Duet checks the new commit and returns approved, which triggers acceptance."
-    },
+    "title": {"zh": "修复后，再走完同一条流程", "en": "A correction returns to the same workflow"},
     "frames": {
-      "zh": 16709,
-      "en": 15950
+      "zh": [[15634, 15672], [15975, 15999], [16092, 16116], [16314, 16338], [16568, 16592]],
+      "en": [[14939, 14977], [15246, 15270], [15378, 15402], [15641, 15665], [15834, 15858]]
     }
   },
   {
-    "section": "workflow",
-    "zh": {
-      "title": "LoopLab 的浏览器验收",
-      "lead": "LoopLab 独立回放固定版本的测试流程，检查同一申请的两处状态。",
-      "points": [
-        "客户页面和导出报表均应显示 In review。",
-        "结果带步骤和截图，失败可附证据回交 Alex。"
-      ],
-      "notes": "先由 LoopLab 的 Agent 调查页面，编排可复用的操作和断言。随后，独立浏览器执行固定流程并记录证据。验收结果回到 Agent Loop，由 policy 决定后续。"
-    },
-    "en": {
-      "title": "Browser acceptance with LoopLab",
-      "lead": "LoopLab replays a fixed test workflow in an independent browser to check two views of the same application.",
-      "points": [
-        "The customer page and exported row should both show In review.",
-        "The run records steps and screenshots. Failures can return to Alex with evidence."
-      ],
-      "notes": "A LoopLab agent first inspects the page and builds reusable steps and assertions. The browser then runs the fixed workflow and records evidence. Agent Loop receives the outcome and applies policy to determine what happens next."
-    },
+    "title": {"zh": "让实际运行证明结果", "en": "Let an actual run show the result"},
     "frames": {
-      "zh": 17756,
-      "en": 16972
+      "zh": [[16778, 16816], [17189, 17213], [17414, 17438], [17550, 17574], [17820, 17844], [17958, 17982]],
+      "en": [[16014, 16052], [16418, 16442], [16605, 16629], [16763, 16787], [17025, 17049], [17148, 17172]]
     }
   },
   {
-    "section": "workflow",
-    "zh": {
-      "title": "共享证据与个人进度",
-      "lead": "同一次验收支撑各岗位自己的 Tracking 和后续决定。",
-      "points": [
-        "共享主题和 Message Center 提供同一份验收报告。",
-        "Maya 查看证据并决定发布时间。"
-      ],
-      "notes": "Nora 看到调研落地为已验收功能，Alex 和 Sam 分别记录改动和复验证据，Maya 继续安排发布。可阅读的报告与结构化结果来自同一次运行，后者回到 Agent Loop。"
-    },
-    "en": {
-      "title": "One report, four roles",
-      "lead": "One acceptance run supports each role’s Tracking and next decision.",
-      "points": [
-        "The topic and Message Center link to the same report.",
-        "Maya reviews the evidence and decides when to release."
-      ],
-      "notes": "Nora sees that the research led to a verified feature. Alex and Sam record the fix and its test evidence, while Maya plans the release. The readable report and the structured outcome come from the same run. Agent Loop receives the structured outcome."
-    },
+    "title": {"zh": "同一结果，回答每个人的问题", "en": "One result answers different responsibilities"},
     "frames": {
-      "zh": 19093,
-      "en": 18338
+      "zh": [[18282, 18320], [18496, 18520], [18699, 18723], [18844, 18868], [19268, 19292]],
+      "en": [[17488, 17526], [17673, 17697], [17825, 17849], [18010, 18034], [18497, 18521]]
     }
   },
   {
-    "section": "closing",
-    "zh": {
-      "title": "把稳定交接写成规则",
-      "lead": "从监管资讯到验收证据，每次交付都给下一位负责人留下可用的材料。",
-      "points": [
-        "把稳定的评审、回修和验收交接写成 policy。",
-        "人决定目标、优先级和发布承诺。"
-      ],
-      "notes": "回到开场架构：Message Center 提供信息，Duet 完成个人委托，Agent Loop 执行交接规则，LoopLab 提供可复核的验收证据。团队可以先把真实工作跑通，再逐条固定反复出现的交接。"
-    },
-    "en": {
-      "title": "Policy for repeatable handoffs",
-      "lead": "From the regulatory update to acceptance evidence, each deliverable gives the next person what they need to proceed.",
-      "points": [
-        "Write stable review, revision and acceptance handoffs into policy.",
-        "People set goals, priorities and release commitments."
-      ],
-      "notes": "Return to the opening architecture. Message Center supplies information, Duet handles individual work, Agent Loop applies routing policy and LoopLab provides verifiable acceptance evidence. Teams can establish a real workflow and then codify the handoffs they repeat."
-    },
+    "title": {"zh": "一段成熟协作，长成自动闭环", "en": "The same map. A working loop."},
     "frames": {
-      "zh": 20120,
-      "en": 19439
+      "zh": [[19530, 19568], [20033, 20057], [20299, 20323], [20434, 20644]],
+      "en": [[18795, 18833], [19323, 19347], [19632, 19656], [19782, 20020]]
     }
   }
 ]

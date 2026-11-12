@@ -9,16 +9,13 @@
   <style>
     :root {
       --ink: #202124;
-      --muted: #545358;
-      --red: #b5121b;
       --paper: #fcfbf9;
-      --rule: #e1deda;
       font-family: Inter, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
       color: var(--ink);
       background: #242426;
     }
     * { box-sizing: border-box; }
-    body, h1, h2, p, ul, figure { margin: 0; }
+    body, h2, p { margin: 0; }
     [hidden] { display: none !important; }
     button, select { font: inherit; }
     button:focus-visible, select:focus-visible { outline: 2px solid #ff827e; outline-offset: 3px; }
@@ -29,93 +26,21 @@
       place-items: center;
     }
     .shell { width: min(100%, calc((100svh - 6.5rem) * 16 / 9), 110rem); }
-    .deck { container-type: inline-size; }
     .slide {
       position: relative;
       aspect-ratio: 16 / 9;
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
-      gap: 1.6cqw;
-      padding: 3.1cqw 4.4cqw 2.35cqw;
       background: var(--paper);
     }
     .slide + .slide { margin-top: 1rem; }
     .enhanced .slide { margin-top: 0; }
-    .slide-head, .slide-foot {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 1rem;
-    }
-    .slide-head { padding-bottom: 1.15cqw; border-bottom: 1px solid var(--rule); }
-    .brand { display: inline-flex; align-items: center; gap: .55cqw; font-size: 1.23cqw; font-weight: 740; }
-    .brand-mark { width: 1.75cqw; height: 1.75cqw; background: /* DUET_MARK */ center / contain no-repeat; }
-    .chapter { color: var(--muted); font-size: 1.04cqw; font-weight: 620; letter-spacing: .08em; }
-    .story {
-      display: grid;
-      align-items: center;
-      grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr);
-      gap: 3.2cqw;
-    }
-    .story h2 {
-      margin-bottom: 1.1cqw;
-      font-size: 3.9cqw;
-      font-weight: 750;
-      line-height: 1.07;
-      letter-spacing: -.052em;
-      text-wrap: balance;
-    }
-    .slide[lang="zh-CN"] .story h2 { line-height: 1.18; letter-spacing: -.035em; }
-    .lead { font-size: 1.57cqw; line-height: 1.52; font-weight: 560; }
-    .points {
-      margin-top: 1.55cqw;
-      padding: 1.15cqw 0 0;
-      border-top: 1px solid var(--rule);
-      list-style: none;
-      color: var(--muted);
-      font-size: 1.24cqw;
-      line-height: 1.52;
-    }
-    .points li { position: relative; padding-left: 1cqw; }
-    .points li + li { margin-top: .65cqw; }
-    .points li::before {
-      position: absolute;
-      top: .72em;
-      left: 0;
-      width: .45cqw;
-      height: 2px;
-      content: "";
-      background: var(--red);
-    }
-    .film-still img {
+    .film-frame {
       display: block;
       width: 100%;
       height: auto;
-      max-height: 36cqw;
-      object-fit: contain;
-      background: white;
-      border: 1px solid var(--rule);
     }
-    .film-still figcaption {
-      padding-top: .67cqw;
-      color: var(--muted);
-      font-size: .91cqw;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: .035em;
-    }
-    .slide-foot {
-      color: var(--muted);
-      font-size: 1.03cqw;
-      font-variant-numeric: tabular-nums;
-    }
-    .slide-foot::before { width: 2.4cqw; height: 2px; content: ""; background: var(--red); }
-    .cover .story { grid-template-columns: 1fr .85fr; }
-    .cover h1 { font-size: 8.8cqw; font-weight: 760; line-height: .98; letter-spacing: -.075em; }
-    .cover h1 span { display: block; color: var(--red); }
-    .cover .lead { margin-top: 2cqw; font-size: 2.04cqw; line-height: 1.35; }
-    .cover .story > .brand-mark { width: 23cqw; height: 23cqw; justify-self: center; }
     .toolbar {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: .65rem;
@@ -142,9 +67,7 @@
     .toolbar select { width: min(24vw, 16rem); padding-inline: .55rem; text-overflow: ellipsis; }
     .count { padding-inline: .25rem; white-space: nowrap; font-size: .85rem; font-variant-numeric: tabular-nums; }
     .notes-panel {
-      position: fixed;
-      inset: auto max(1.5rem, calc((100vw - 58rem) / 2)) 4.6rem;
-      z-index: 1;
+      margin-top: .7rem;
       padding: 1.15rem 1.4rem;
       max-height: 45svh;
       overflow: auto;
@@ -155,7 +78,7 @@
       box-shadow: 0 4px 28px #0005;
     }
     .notes-panel h2 { margin-bottom: .45rem; font-size: .85rem; color: #ffd1ce; }
-    .notes-panel p { line-height: 1.55; }
+    .notes-panel p { line-height: 1.55; white-space: pre-line; }
     .sr-only {
       position: absolute;
       width: 1px;
@@ -165,31 +88,11 @@
       clip-path: inset(50%);
       white-space: nowrap;
     }
-    @media (max-width: 800px) and (orientation: portrait) {
+    @media screen and (max-width: 800px) and (orientation: portrait) {
       .viewer { padding: .7rem; display: block; }
       .shell { width: 100%; }
-      .slide { min-height: min(78svh, 41rem); aspect-ratio: auto; padding: 1.25rem; gap: 1.25rem; }
-      .slide-head { padding-bottom: .7rem; }
-      .brand { gap: .4rem; font-size: .9rem; }
-      .brand-mark { width: 1.25rem; height: 1.25rem; }
-      .chapter, .slide-foot, .film-still figcaption { font-size: .72rem; }
-      .story { grid-template-columns: 1fr; align-content: center; gap: 1.5rem; }
-      .story h2 { margin-bottom: .55rem; font-size: clamp(1.9rem, 7.8vw, 3rem); }
-      .lead { font-size: 1.05rem; }
-      .points { margin-top: .8rem; padding-top: .7rem; font-size: .92rem; }
-      .points li { padding-left: .8rem; }
-      .points li + li { margin-top: .3rem; }
-      .points li::before { width: .32rem; }
-      .film-still img { max-height: 48cqw; }
-      .film-still figcaption { padding-top: .4rem; }
-      .cover .story { grid-template-columns: 1fr; align-content: center; }
-      .cover h1 { font-size: clamp(3.65rem, 14vw, 7rem); }
-      .cover .lead { margin-top: .85rem; font-size: 1.2rem; }
-      .cover .story > .brand-mark { width: 29cqw; height: 29cqw; justify-self: start; }
-      .slide-foot::before { width: 1.5rem; }
-      .toolbar { flex-wrap: wrap; padding-top: .6rem; font-size: .82rem; }
+      .toolbar { padding-top: .6rem; font-size: .82rem; }
       .toolbar select { width: clamp(6rem, 34vw, 16rem); }
-      .notes-panel { position: static; margin-top: .7rem; max-height: none; }
     }
     @page { size: 16in 9in; margin: 0; }
     @media print {
@@ -197,7 +100,7 @@
       .viewer { display: block; min-height: 0; padding: 0; }
       .shell { width: 100%; }
       .toolbar, .notes-panel, .sr-only, .slide[data-print="no"] { display: none !important; }
-      .slide[hidden][data-print="yes"] { display: grid !important; }
+      .slide[hidden][data-print="yes"] { display: block !important; }
       .slide { break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
       .slide:last-child, .slide[data-last="yes"] { break-after: auto; }
       .slide + .slide { margin-top: 0; }
@@ -239,7 +142,7 @@
     const langButtons = document.querySelectorAll('button[data-language]');
     const total = slides[defaultLanguage].length;
     const number = (index) => String(index + 1).padStart(2, '0');
-    const title = (slide) => slide.querySelector('h1, h2').innerText.replace(/\s+/g, ' ').trim();
+    const title = (slide) => slide.querySelector('h2').textContent.replace(/\s+/g, ' ').trim();
     const notes = get('notes');
     const notesToggle = get('notes-toggle');
     const fullscreen = get('fullscreen');
@@ -271,7 +174,7 @@
           for (const page of pages) page.dataset.print = key === lang ? 'yes' : 'no';
         }
         jump.replaceChildren(...slides[lang].map((page, i) =>
-          new Option(`${number(i)}  ${page.querySelector('h1, h2').textContent.trim()}`, i)));
+          new Option(`${number(i)}  ${page.dataset.time}  ${title(page)}`, i)));
       }
       if (active) active.hidden = true;
       current.hidden = false;
@@ -281,6 +184,7 @@
       get('previous').disabled = index === 0;
       get('next').disabled = index === total - 1;
       get('notes-copy').textContent = current.querySelector('template').content.textContent.trim();
+      notes.scrollTop = 0;
       get('announcement').textContent = `${number(index)} / ${total}. ${title(current)}`;
       document.title = `${title(current)} · Duet AI Native`;
       const hash = `#${lang}-${number(index)}`;
@@ -296,9 +200,7 @@
     function toggleNotes() {
       notes.hidden = !notes.hidden;
       notesToggle.setAttribute('aria-expanded', !notes.hidden);
-      if (!notes.hidden && getComputedStyle(notes).position === 'static') {
-        notes.scrollIntoView({block: 'nearest'});
-      }
+      if (!notes.hidden) notes.scrollIntoView({block: 'nearest'});
     }
 
     async function toggleFullscreen() {

@@ -1,4 +1,4 @@
-"""Build the offline HTML presentation from the editorial copy and final films."""
+"""Build the offline HTML deck from the final V2 video frames and narration."""
 
 import base64
 import html
@@ -19,104 +19,86 @@ LANGUAGES = {
         "switch": "中文",
         "ui": {
             "nav": "演示控制", "prev": "上一页", "next": "下一页", "jump": "跳转到指定页",
-            "notes": "备注", "noteTitle": "演讲备注", "full": "全屏", "exit": "退出全屏",
+            "notes": "旁白", "noteTitle": "原片旁白", "full": "全屏", "exit": "退出全屏",
         },
-        "cover": "设计导览",
-        "subtitle": "个人委托如何接成业务闭环",
-        "notes": "这套设计从员工与自己的 Duet 开始。先看各组件分工，再用日常报表委托和一项虚构的监管变化，说明工作如何跨岗位交接和验收。",
-        "system": "系统架构",
-        "personal": "日常委托",
-        "workflow": "业务案例",
-        "closing": "闭环与扩展",
-        "caption": "原片画面",
-        "map_alt": "Agent Loop 围绕 Message Center 与 LoopLab。每个 Duet 位于圆环外，并连接自己的 Owner。",
     },
     "en": {
         "locale": "en",
         "switch": "EN",
         "ui": {
             "nav": "Presentation controls", "prev": "Previous slide", "next": "Next slide",
-            "jump": "Go to slide", "notes": "Notes", "noteTitle": "Speaker notes",
+            "jump": "Go to slide", "notes": "Narration", "noteTitle": "Original narration",
             "full": "Full screen", "exit": "Exit full screen",
         },
-        "cover": "Design overview",
-        "subtitle": "How personal Duets connect work across a company",
-        "notes": "Start with the architecture, then follow a weekly report and a fictional regulatory update to see how work moves between roles and how the team verifies the result.",
-        "system": "Architecture",
-        "personal": "Personal delegation",
-        "workflow": "Workflow example",
-        "closing": "Closing the loop",
-        "caption": "From the film",
-        "map_alt": "Agent Loop surrounds Message Center and LoopLab. Each Duet sits outside the ring and connects to its own Owner.",
     },
 }
 
 
-def data_url(mime, data):
-    return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
-
-
-def film_still(language, frame, *, architecture):
-    film = FILM / "out" / "v2" / f"duet-ai-native-{language['locale']}-1080p.mp4"
-    crop = "1160:640:80:240" if architecture else "1760:630:80:248,scale=1600:-1"
+def film_still(film, frame, fps):
+    seconds, offset = divmod(frame, fps)
+    # Seek to a whole second before selecting the exact frame at 30 fps.
     image = subprocess.check_output([
-        "ffmpeg", "-nostdin", "-v", "error", "-ss", f"{frame / 30:.6f}", "-i", str(film),
-        "-map", "0:v:0", "-frames:v", "1", "-vf", f"crop={crop}",
-        "-c:v", "libwebp", "-quality", "88", "-f", "webp", "pipe:1",
+        "ffmpeg", "-nostdin", "-v", "error", "-ss", str(seconds), "-i", str(film),
+        "-map", "0:v:0", "-frames:v", "1", "-vf", f"trim=start_frame={offset},format=bgra",
+        "-c:v", "libwebp", "-lossless", "1", "-compression_level", "4", "-f", "webp", "pipe:1",
     ])
     if not image:
         raise ValueError(f"No image at frame {frame} in {film.name}")
-    minutes, seconds = divmod(frame // 30, 60)
-    alt = language["map_alt"] if architecture else ""
-    return (
-        f'<figure class="film-still"><img src="{data_url("image/webp", image)}" alt="{html.escape(alt)}">'
-        f'<figcaption>{language["caption"]} {minutes:02}:{seconds:02}</figcaption></figure>'
-    )
+    return "data:image/webp;base64," + base64.b64encode(image).decode("ascii")
 
 
-def render_slides(chapters, lang, mark, *, hidden):
-    language = LANGUAGES[lang]
-    total = len(chapters) + 1
-    initial = ' data-print="no" hidden' if hidden else ' data-print="yes"'
-    for page, chapter in enumerate([None, *chapters], start=1):
-        if chapter is None:
-            section = language["cover"]
-            css = "slide cover"
-            notes = language["notes"]
-            body = (
-                f'<div><h1>Duet <span>AI Native</span></h1><p class="lead">{language["subtitle"]}</p></div>'
-                '<div class="brand-mark" aria-hidden="true"></div>'
+def film_pages(chapters, lang):
+    locale = LANGUAGES[lang]["locale"]
+    film = FILM / "out" / "v2" / f"duet-ai-native-{locale}-1080p.mp4"
+    manifest = json.loads((FILM / "public" / "voiceover-v2" / locale / "manifest.json").read_text(encoding="utf-8"))
+    fps = manifest["fps"]
+    if len(chapters) != len(manifest["chapters"]):
+        raise ValueError(f"Chapter count differs from {film.name}")
+    for chapter, original in zip(chapters, manifest["chapters"]):
+        scene = original["id"]
+        pages = chapter["frames"][lang]
+        end = original["start"] + original["duration"]
+        if not pages or pages[0][0] != original["start"] or len(pages) != len(chapter["frames"]["en"]):
+            raise ValueError(f"Unpaired pages for {locale} scene {scene}")
+        ends = [start for start, _ in pages[1:]] + [end]
+        cues = [cue for cue in manifest["cues"] if cue["scene"] == scene]
+        for (start, frame), stop in zip(pages, ends):
+            if not start <= frame < stop <= end:
+                raise ValueError(f"Frame {frame} is outside its page in {locale} scene {scene}")
+            # A cue that crosses a visual transition appears in both pages' notes.
+            narration = "\n\n".join(
+                cue["text"] for cue in cues
+                if cue["start"] < stop and cue["start"] + cue["duration"] > start
             )
-        else:
-            section = language[chapter["section"]]
-            css = "slide"
-            copy = chapter[lang]
-            notes = copy["notes"]
-            points = "".join(f"<li>{html.escape(point)}</li>" for point in copy["points"])
-            body = (
-                f'<div><h2>{html.escape(copy["title"])}</h2><p class="lead">{html.escape(copy["lead"])}</p>'
-                f'<ul class="points">{points}</ul></div>'
-                f'{film_still(language, chapter["frames"][lang], architecture=page == 2)}'
-            )
-        last = ' data-last="yes"' if page == total else ""
-        yield f"""<section class="{css}" lang="{language['locale']}" data-language="{lang}"{initial}{last}>
-          <header class="slide-head"><div class="brand">{mark}<span>Duet</span></div><span class="chapter">{section}</span></header>
-          <div class="story">{body}</div>
-          <footer class="slide-foot"><span>{page:02} / {total:02}</span></footer>
-          <template>{html.escape(notes)}</template>
-        </section>"""
+            minutes, seconds = divmod(frame // fps, 60)
+            time = f"{minutes:02}:{seconds:02}"
+            caption = next((cue["text"] for cue in cues if cue["start"] <= frame < cue["start"] + cue["duration"]), "")
+            yield scene, frame, time, chapter["title"][lang], caption, narration, film_still(film, frame, fps)
+
+
+def render_slides(pages, lang, *, hidden):
+    locale = LANGUAGES[lang]["locale"]
+    visibility = 'data-print="no" hidden' if hidden else 'data-print="yes"'
+    for index, (scene, frame, time, title, caption, narration, image) in enumerate(pages, start=1):
+        alt = html.escape(" ".join(caption.split()))
+        last = ' data-last="yes"' if index == len(pages) else ""
+        yield f'''<section class="slide" lang="{locale}" data-language="{lang}" data-scene="{scene}" data-frame="{frame}" data-time="{time}" {visibility}{last}>
+          <h2 class="sr-only">{html.escape(title)}</h2>
+          <img class="film-frame" width="1920" height="1080" src="{image}" alt="{alt}">
+          <template>{html.escape(narration)}</template>
+        </section>'''
 
 
 def main():
     chapters = json.loads((SOURCE / "content.json").read_text(encoding="utf-8"))
-    mark = '<span class="brand-mark" aria-hidden="true"></span>'
-    logo = data_url("image/svg+xml", (FILM / "public" / "brand" / "duet-symbol.svg").read_bytes())
+    pages = {lang: list(film_pages(chapters, lang)) for lang in LANGUAGES}
     template = (SOURCE / "deck.html").read_text(encoding="utf-8")
     for filename, languages in OUTPUTS.items():
         default = languages[0]
         slides = "\n        ".join(
-            slide for lang in languages
-            for slide in render_slides(chapters, lang, mark, hidden=lang != default)
+            slide
+            for lang in languages
+            for slide in render_slides(pages[lang], lang, hidden=lang != default)
         )
         switch = "\n          ".join(
             f'<button type="button" data-language="{lang}" lang="{LANGUAGES[lang]["locale"]}"'
@@ -126,7 +108,6 @@ def main():
         labels = {lang: LANGUAGES[lang]["ui"] for lang in languages}
         deck = (
             template.replace("{{LOCALE}}", LANGUAGES[default]["locale"])
-            .replace("/* DUET_MARK */", f'url("{logo}")')
             .replace("<!-- SLIDES -->", slides)
             .replace("          <!-- LANGUAGE_SWITCH -->\n", f"          {switch}\n" if switch else "")
             .replace("/* UI_LABELS */", json.dumps(labels, ensure_ascii=False))
