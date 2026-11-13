@@ -3,9 +3,6 @@ dist
 .DS_Store
 .env
 
-# Keep the two final films; ignore other renders, previews and QA outputs.
-/out/*
-!/out/v2/
-/out/v2/*
-!/out/v2/duet-ai-native-zh-CN-1080p.mp4
-!/out/v2/duet-ai-native-en-1080p.mp4
+# Generated films and narration audio are rebuilt locally; do not commit them.
+/out/
+/public/**/*.mp3

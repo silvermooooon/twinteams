@@ -11,10 +11,10 @@ review and acceptance. The opening and closing use the same architecture map.
 Both languages have independent narration timing across thirteen chapters.
 The design and [bilingual scripts](../ai-native-vision/v2/README.md) are the editorial sources.
 
-| Language | Composition | Duration | Final MP4 | Subtitles |
+| Language | Composition | Duration | Rendered output | Subtitles |
 | --- | --- | --- | --- | --- |
-| 中文 | `DuetExplainedZh` | 11:31.133 | [1080p film](out/v2/duet-ai-native-zh-CN-1080p.mp4) | [SRT](public/voiceover-v2/zh-CN/duet-ai-native-v2.srt) |
-| English | `DuetExplainedEn` | 11:10.333 | [1080p film](out/v2/duet-ai-native-en-1080p.mp4) | [SRT](public/voiceover-v2/en/duet-ai-native-v2.srt) |
+| 中文 | `DuetExplainedZh` | 11:31.133 | `out/v2/duet-ai-native-zh-CN-1080p.mp4` (local render) | [SRT](public/voiceover-v2/zh-CN/duet-ai-native-v2.srt) |
+| English | `DuetExplainedEn` | 11:10.333 | `out/v2/duet-ai-native-en-1080p.mp4` (local render) | [SRT](public/voiceover-v2/en/duet-ai-native-v2.srt) |
 
 Both deliverables are H.264/AAC at 1920 × 1080 and 30 fps, with visible subtitles
 and a quiet ambient score. Each person delegates to their own Duet. The topic
@@ -39,10 +39,10 @@ npm run render:v2:zh
 npm run render:v2:en
 ```
 
-The two final MP4s linked above are checked into Git alongside the source, fonts,
-measured narration and subtitles. Other renders, preview pages, logs and visual QA
-frames under `out/` remain ignored. On GitHub, use **View raw** or **Download raw
-file** to open or download a film if the file page does not show a player.
+The final MP4s and generated narration audio are not checked into Git. Render them
+locally with the commands above; source, fonts, subtitle files and measured
+timing data remain in the repository. Other renders, preview pages, logs and
+visual QA frames under `out/` are also ignored.
 
 ## Editing the current films
 

@@ -10,7 +10,7 @@ and acceptance. The two languages use the same roles, examples and interaction m
 | --- | --- | --- |
 | Design document, nine pages | [中文设计文档](Duet-AI-Native-Design.zh-CN.docx) | [English design document](Duet-AI-Native-Design.en.docx) |
 | Video script, architecture opening + twelve story scenes | [中文视频文案](video-script.zh-CN.md) | [English video script](video-script.en.md) |
-| Narrated 1080p film | [中文成片 · 11:31](../../duet-intro-video/out/v2/duet-ai-native-zh-CN-1080p.mp4) | [English film · 11:10](../../duet-intro-video/out/v2/duet-ai-native-en-1080p.mp4) |
+| Narrated 1080p film | 本地渲染 `duet-intro-video/out/v2/duet-ai-native-zh-CN-1080p.mp4`（约 11:31） | 本地渲染 `duet-intro-video/out/v2/duet-ai-native-en-1080p.mp4`（约 11:10） |
 | Offline HTML presentation, 84 slides per language | [打开双语演示](Duet-AI-Native-Presentation.html#zh-01) | [Open English edition](Duet-AI-Native-Presentation.en.html) |
 
 Each script includes the viewer takeaway, progressive screen action, full narration
@@ -18,8 +18,8 @@ and transition. Final timing follows the recorded narration and visual pauses.
 The completed films use independent
 language timings, with matching subtitles and progressive screen action. Their
 [Remotion source and reproduction instructions](../../duet-intro-video/README.md)
-are in the sibling media project. Both final MP4 files are included in Git; on
-GitHub, use **View raw** or **Download raw file** to open or download them.
+are in the sibling media project. The final MP4 files and narration audio are
+not stored in Git; render them locally from that project.
 
 The design documents use the editable `content.zh-CN.json` and `content.en.json`
 sources. `build_documents.py` generates both DOCX files and their embedded diagrams
