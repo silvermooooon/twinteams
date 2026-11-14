@@ -161,7 +161,7 @@ export function DetailSidebar({ api, detail, duetTarget, actors, version, tracki
   async function uploadFile(selected: File) {
     if (!selected.size || selected.size > 20 * 1024 * 1024) { onError(t('workspace.fileLimit')); return; }
     setUploading(true);
-    try { await api.request(`/chats/${chatId}/workspace/files?name=${encodeURIComponent(selected.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: selected }); onChange(); }
+    try { await api.request(`/chats/${chatId}/workspace/files?name=${encodeURIComponent(selected.name)}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: selected }); setWorkspaceRefresh(value => value + 1); }
     catch (error) { onError(error); } finally { setUploading(false); if (uploadInput.current) uploadInput.current.value = ''; }
   }
   const members = detail.members.filter(a => a.kind === 'human');

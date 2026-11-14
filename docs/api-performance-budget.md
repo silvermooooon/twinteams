@@ -68,6 +68,63 @@ measures individual pages, ten simultaneous history reads, and ten simultaneous
 mixed homepage/history/Tracking/shared-file/memory reads. Run this check without
 an unrelated benchmark competing for the same local PostgreSQL and CPU.
 
+## SDK tool and workspace follow-up, 2026-11-14
+
+This follow-up compares against `71b729f`. The probe calls the actual
+`ProductService.runtime_tool` entry with a request and context manifest on
+disposable PostgreSQL. SELECT counts cover scope discovery, authorization,
+projection and manifest construction; they exclude HTTP and do not represent a
+model or SDK execution-host benchmark.
+
+For each source count, the fixture creates one detailed topic with that many
+hashed sources and updates, plus one additional topic per source. It calls
+`get_tracking`, then `list_tracking` in the same task, so the list read includes
+authorization of the manifest accumulated by the preceding detail read.
+
+| Sources / updates | `get_tracking` SELECTs, before → after | `list_tracking` SELECTs, before → after |
+| ---: | ---: | ---: |
+| 1 | 36 → 30 | 34 → 27 |
+| 10 | 72 → 30 | 79 → 27 |
+| 40 | 192 → 30 | 229 → 27 |
+
+The workspace probe uses a registered directory with one ordinary file. Root
+listing dropped from five to four SELECTs; subdirectory listing dropped from
+seven to four. Membership, workspace nodes and attachments are each loaded once.
+These query-count results do not claim a constant cost for arbitrary dependency
+depth or file volume. Every probe removed its schema and temporary workspace;
+none called a model.
+
+Tracking manifest construction now batches exactly the topic/update IDs already
+authorized in the returned projection. Hidden updates are excluded, while
+visible source hashes, post-mutation revisions and foreign-chat wrappers remain.
+The conversations to lock are discovered by batching each message dependency
+level, preserving the existing ancestor traversal and both checks around sorted locks.
+Workspace directory reads reuse their member, nodes and attachments inside one
+request; independent file access still authorizes its own scope.
+
+Frontend uploads refresh the workspace list through its existing refresh state.
+Reminder toggles apply the returned record; an overlapping bootstrap read uses
+the existing pending flag to fetch current data after discarding an older result.
+Cancel, Stop and Retry retain their explicit full refreshes. Generic chat revision
+hints and their compensation remain; later events can still trigger authorized
+content reads.
+
+`tests/test_runtime_tracking_workspace_reads.py` covers the real tool entry,
+hidden updates, new foreign-chat provenance, withdrawal, mutation revisions,
+legacy source IDs, dirty ORM fields, workspace grants and cyclic source graphs.
+All nine new cases passed, along with 63 existing focused tests. Frontend
+typechecking, a production build and `test:duet-ui` passed, including held-HTTP
+and account-switch cases. The isolated `file-delivery-preview` browser scenario
+passed both cases using the actual API, SDK and PostgreSQL with an offline
+provider. Its schema, Redis keys, processes and temporary workspace were removed.
+
+The final full backend run passed **674 tests**. All **96 non-AI routes** had
+successful coverage: **497 successful responses**, a **355.130 ms maximum**, and
+none above the 3,000 ms budget. The separate 5,000-message / 100-item / ten-client
+load check passed all 33 response-content checks with a **200.755 ms maximum**.
+Its schema, files and Redis namespace were removed. These are local measurements;
+the query-count reductions above do not imply equivalent end-to-end speedups.
+
 ## Source-heavy read regression, 2026-11-14
 
 The architecture review additionally measured one Tracking topic with no updates

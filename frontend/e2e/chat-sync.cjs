@@ -11,13 +11,17 @@ async function until(check, label) {
 
 async function chatSyncRegression(browser, origin) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 1100 } });
-  const failures = [], requests = [], sockets = [], frames = [], summaries = [], heldDetails = [];
+  const failures = [], requests = [], sockets = [], frames = [], summaries = [], heldDetails = [], heldBootstraps = [], heldReminders = [];
   page.on('pageerror', error => failures.push(error.message));
   const now = '2026-11-14T08:00:00Z';
   const actors = ['Alex', 'Blair', 'Casey'].map((name, index) => ({ id: `owner-${index}`, kind: 'human', name, initials: name[0], color: '#5264ad' }));
   const chats = ['Active group', 'Other group'].map((title, index) => ({ id: `group-${index}`, kind: 'group', title, revision: 1, member_owner_ids: actors.map(actor => actor.id), unread_count: 0, last_message: 'Initial summary' }));
   const settings = { reply_for_me_enabled: false, prompt_override: null, sidebar_open: true, sidebar_tab: 'tracking' };
-  let topic, holdDetail = false, messages = [];
+  let topic, holdDetail = false, messages = [], workspace = [], account = 0, holdBootstrap = false, holdReminder = false;
+  const reminders = [
+    [{ id: 'first', title: 'First reminder', detail: '', done: false, due_at: null }, { id: 'second', title: 'Second reminder', detail: '', done: false, due_at: null }],
+    [{ id: 'blair-reminder', title: 'Blair reminder', detail: '', done: false, due_at: null }],
+  ];
   const chatDetail = chat => ({ revision: chat.revision, chat, members: actors, messages: messages.filter(message => message.chat_id === chat.id), requests: [], approvals: [], questions: [], settings, has_more: false, before_seq: null });
   await page.route('**/api/**', async route => {
     const request = route.request(), path = new URL(request.url()).pathname, method = request.method();
@@ -25,8 +29,10 @@ async function chatSyncRegression(browser, origin) {
     requests.push(`${method} ${path}`);
     let body;
     if (path === '/api/config') body = { development_mode: true };
-    else if (path === '/api/auth/me') body = { current_owner_id: actors[0].id, owner: actors[0], development_mode: true };
-    else if (path === '/api/bootstrap') body = { actors, chats, reminders: [], current_owner_id: actors[0].id, model_configured: true, development_mode: true, server_time: now };
+    else if (path === '/api/auth/me') body = { current_owner_id: actors[account].id, owner: actors[account], development_mode: true };
+    else if (path === '/api/auth/logout') body = {};
+    else if (path === '/api/auth/login') { account = 1; body = { current_owner_id: actors[account].id, owner: actors[account], development_mode: true }; }
+    else if (path === '/api/bootstrap') { body = { actors, chats, reminders: reminders[account], current_owner_id: actors[account].id, model_configured: true, development_mode: true, server_time: now }; if (holdBootstrap) { heldBootstraps.push({ route, body: structuredClone(body) }); return; } }
     else if (path === '/api/me/twin/credentials') body = { configured: false, credentials: [] };
     else if (path === '/api/me/twin/credential-requests') body = { configured: false, requests: [] };
     else if (path === '/api/me/twin/reset') body = { status: 'idle', generation: 0, private_chat_id: 'private' };
@@ -36,6 +42,11 @@ async function chatSyncRegression(browser, origin) {
     else if (path.endsWith('/tracking') && method === 'POST') { topic = { ...request.postDataJSON(), id: 'topic', chat_id: 'group-0', status: 'active', created_at: now, updated_at: now, updates: [] }; body = topic; }
     else if (path.endsWith('/tracking')) body = { tracking: topic ? [topic] : [] };
     else if (path.endsWith('/tracking/topic')) body = topic;
+    else if (path.endsWith('/settings')) { Object.assign(settings, request.postDataJSON()); body = settings; }
+    else if (path.endsWith('/workspace/files') && method === 'POST') { const name = new URL(request.url()).searchParams.get('name'); body = { id: 'uploaded-file', kind: 'file', name, path: name, size: request.postDataBuffer().length }; workspace.push(body); }
+    else if (path.endsWith('/workspace')) body = workspace;
+    else if (path.endsWith('/shared-files')) body = { files: [] };
+    else if (path.startsWith('/api/reminders/') && method === 'PATCH') { const id = path.split('/').at(-1); const before = reminders[account].find(item => item.id === id); body = { ...before, ...request.postDataJSON(), detail: 'Canonical saved detail' }; reminders[account] = reminders[account].map(item => item.id === id ? body : item); if (holdReminder) { heldReminders.push({ route, body }); return; } }
     else if (path === '/api/presence' || path.endsWith('/read')) body = {};
     else { failures.push(`Unexpected sync fixture API request: ${method} ${path}`); return route.fulfill({ status: 500, body: '{}' }); }
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
@@ -67,6 +78,39 @@ async function chatSyncRegression(browser, origin) {
     changed('group-0', 2);
     await page.locator('.side-drawer').getByText(topic.description, { exact: true }).waitFor();
     await page.locator('.side-drawer').getByRole('button', { name: 'Close', exact: true }).click();
+
+    await page.getByRole('tab', { name: 'Shared files', exact: true }).click();
+    await page.getByText('No files uploaded to this chat', { exact: true }).waitFor();
+    const uploadBootstrap = count('/api/bootstrap'), uploadChat = count('/api/chats/group-0'), uploadWorkspace = count('/api/chats/group-0/workspace');
+    await page.locator('.detail-sidebar input[type="file"]').setInputFiles({ name: 'local-upload.txt', mimeType: 'text/plain', buffer: Buffer.from('Local upload fixture') });
+    await page.getByRole('button', { name: 'local-upload.txt', exact: true }).waitFor();
+    assert.equal(count('/api/bootstrap'), uploadBootstrap, 'workspace uploads do not eagerly reload bootstrap');
+    assert.equal(count('/api/chats/group-0'), uploadChat, 'workspace uploads do not eagerly reload chat history');
+    assert.equal(count('/api/chats/group-0/workspace'), uploadWorkspace + 1, 'workspace uploads refresh the affected file list');
+
+    await page.getByRole('button', { name: 'Reminders', exact: true }).click();
+    const reminderBootstrap = count('/api/bootstrap'), reminderChat = count('/api/chats/group-0');
+    await page.locator('.reminder-card').filter({ hasText: 'First reminder' }).getByRole('button', { name: 'Mark complete', exact: true }).click();
+    await page.getByRole('button', { name: /^Completed/ }).click();
+    await page.locator('.reminder-card').filter({ hasText: 'First reminder' }).getByText('Canonical saved detail', { exact: true }).waitFor();
+    await page.getByRole('button', { name: /^To do/ }).click();
+    await page.locator('.reminder-card').filter({ hasText: 'Second reminder' }).waitFor();
+    assert.equal(count('/api/bootstrap'), reminderBootstrap, 'reminder toggle applies the returned record without bootstrap');
+    assert.equal(count('/api/chats/group-0'), reminderChat, 'reminder toggle does not fetch chat history');
+
+    reminders[0].push({ id: 'third', title: 'New external reminder', detail: '', done: false, due_at: null });
+    holdBootstrap = true;
+    sockets.at(-1).send(JSON.stringify({ v: 1, type: 'personal_changed', section: 'chats' }));
+    await until(() => heldBootstraps.length === 1, 'bootstrap with an external reminder waits for HTTP');
+    await page.locator('.reminder-card').filter({ hasText: 'Second reminder' }).getByRole('button', { name: 'Mark complete', exact: true }).click();
+    await page.getByRole('button', { name: /^Completed/ }).click();
+    await page.locator('.reminder-card').filter({ hasText: 'Second reminder' }).waitFor();
+    holdBootstrap = false;
+    await heldBootstraps[0].route.fulfill({ contentType: 'application/json', body: JSON.stringify(heldBootstraps[0].body) });
+    await page.getByRole('button', { name: /^To do/ }).click();
+    await page.locator('.reminder-card').filter({ hasText: 'New external reminder' }).waitFor();
+    assert.equal(await page.locator('.reminder-card').filter({ hasText: 'Second reminder' }).count(), 0, 'stale bootstrap cannot undo the returned reminder');
+    await page.getByRole('button', { name: 'Chat', exact: true }).click();
 
     changed('group-1', 2);
     await until(() => summaries.length === 1, 'first offscreen summary');
@@ -122,8 +166,25 @@ async function chatSyncRegression(browser, origin) {
     assert.equal(heartbeats.length, 1, 'unacknowledged heartbeats are not business retries');
     assert.equal(reconnected.find(frame => frame.command === 'send')?.command_id, send.command_id, 'business sends still replay with their original idempotency key');
     sockets.at(-1).send(JSON.stringify({ v: 1, type: 'ack', command_id: send.command_id, result: {} }));
+
+    await page.getByRole('button', { name: 'Reminders', exact: true }).click();
+    holdReminder = true;
+    await page.locator('.reminder-card').filter({ hasText: 'New external reminder' }).getByRole('button', { name: 'Mark complete', exact: true }).click();
+    await until(() => heldReminders.length === 1, 'account A reminder response waits for HTTP');
+    await page.getByRole('button', { name: 'Account', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign out / switch account', exact: true }).click();
+    await page.getByPlaceholder('DEV-AAA').fill('DEV-BBB');
+    holdBootstrap = true;
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await until(() => heldBootstraps.length === 2, 'account B bootstrap waits for HTTP');
+    await heldReminders[0].route.fulfill({ contentType: 'application/json', body: JSON.stringify(heldReminders[0].body) });
+    holdBootstrap = false;
+    await heldBootstraps[1].route.fulfill({ contentType: 'application/json', body: JSON.stringify(heldBootstraps[1].body) });
+    await page.getByRole('button', { name: 'Reminders', exact: true }).click();
+    await page.locator('.reminder-card').filter({ hasText: 'Blair reminder' }).waitFor();
+    assert.equal(await page.locator('.reminder-card').filter({ hasText: 'New external reminder' }).count(), 0, 'late account A response cannot mutate account B bootstrap');
     assert.deepEqual(failures, []);
-    console.log('Chat sync regression passed: coalesced offscreen revisions and catch-up, stale summary rejected, Tracking save avoids global reload while generic revision recovery works, in-flight history refresh preserves scrolling, reconnect sends only current presence and preserves business send retries.');
+    console.log('Chat sync regression passed: targeted workspace/reminder updates, canonical reminder response and concurrent bootstrap catch-up, late account response isolation, coalesced offscreen revisions and catch-up, stale summary rejected, Tracking generic revision recovery, in-flight scrolling, current presence and stable business retries.');
   } finally { await page.close(); }
 }
 

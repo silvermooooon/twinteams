@@ -525,10 +525,11 @@ class ProductService:
         self._prime_source_messages(db, source_ids, [], cache)
         return all(self.visible_message(db, member, source_id, False, cache=cache) for source_id in source_ids)
 
-    def _prime_source_messages(self, db, source_ids, sources, cache):
+    def _prime_source_messages(self, db, source_ids, sources, cache, *, hash_source_ids=False):
         from sqlalchemy.orm import load_only
 
-        identifiers, hashed, pending = set(source_ids), set(), list(sources or [])
+        identifiers, pending = set(source_ids), list(sources or [])
+        hashed = set(identifiers) if hash_source_ids else set()
         while pending:
             source = pending.pop()
             if source.get("kind") == "message":
@@ -2718,20 +2719,15 @@ class ProductService:
 
     def _message_source_chat_ids(self, db, request, destination_id, explicit_source_ids):
         """Find the complete permission boundary without exposing any source data."""
+        from sqlalchemy.orm import load_only
+
         chat_ids = {destination_id}
         if request is not None:
             chat_ids.add(request.chat_id)
-        seen_messages = set()
+        seen_messages, pending_messages = set(), set()
         def visit_message(message_id):
-            if message_id in seen_messages:
-                return
-            seen_messages.add(message_id)
-            message = db.get(Message, message_id)
-            if message:
-                chat_ids.add(message.chat_id)
-                for source_id in message.source_message_ids or []:
-                    visit_message(source_id)
-                visit_sources(message.source_provenance)
+            if message_id not in seen_messages:
+                pending_messages.add(message_id)
         def visit_sources(sources):
             for source in sources or []:
                 if source.get("kind") == "chat_context":
@@ -2756,6 +2752,17 @@ class ProductService:
         for message_id in explicit_source_ids:
             if isinstance(message_id, str):
                 visit_message(message_id)
+        while pending_messages:
+            identifiers = set(pending_messages)
+            pending_messages.clear()
+            seen_messages.update(identifiers)
+            messages = list(db.scalars(select(Message).options(load_only(Message.id, Message.chat_id,
+                Message.source_message_ids, Message.source_provenance)).where(Message.id.in_(identifiers))))
+            for message in messages:
+                chat_ids.add(message.chat_id)
+                for source_id in message.source_message_ids or []:
+                    visit_message(source_id)
+                visit_sources(message.source_provenance)
         return chat_ids
 
     def _message_tool_origin(self, db, context):
@@ -2996,36 +3003,34 @@ class ProductService:
             manifest = db.get(ContextManifest, manifest_id) if manifest_id else None
             if manifest and manifest.owner_id == owner_id:
                 source_ids = []
-                if name == "get_tracking":
-                    topic = db.get(TrackingTopic, args["id"])
-                    source_ids = list(topic.source_message_ids)
-                    for update in db.scalars(select(TrackingUpdate).where(TrackingUpdate.topic_id == topic.id)):
-                        if self.sources_allowed(db, target_member, update.source_message_ids, update.source_floor_seq):
-                            source_ids.extend(update.source_message_ids)
                 extra_provenance = []
                 if name == "history":
                     from .conversation_context import read_sources
                     extra_provenance = [source for message in result.get("messages", [])
                         for source in read_sources(db, db.get(Message, message["id"]), message)]
                 tracking_ids = [row["id"] for row in result.get("tracking", [])] if name == "list_tracking" else [result["id"]] if name in {"get_tracking", "create_tracking", "update_tracking", "add_tracking_update"} and result.get("id") else []
-                for topic_id in tracking_ids:
-                    topic = db.get(TrackingTopic, topic_id)
-                    if not topic:
-                        continue
-                    topic_member = target_member
-                    if topic.chat_id != target_chat.id:
-                        topic_member = self.membership(db, owner_id, topic.chat_id)[1]
-                    if self.tracking_json(db, topic, topic_member):
+                if tracking_ids:
+                    # The response already authorized these exact rows in this transaction.
+                    topics = list(db.scalars(select(TrackingTopic).where(TrackingTopic.id.in_(tracking_ids))))
+                    for topic in topics:
                         topic_sources = self._tracking_provenance(topic)
                         extra_provenance.extend(topic_sources if topic.chat_id == target_chat.id else [
                             {"kind": "chat_context", "chat_id": topic.chat_id, "sources": topic_sources}])
-                        if name != "list_tracking":
-                            for update in db.scalars(select(TrackingUpdate).where(TrackingUpdate.topic_id == topic.id)):
-                                if self.sources_allowed(db, target_member, update.source_message_ids, update.source_floor_seq) and self.provenance_allowed(db, target_member, update.source_provenance):
-                                    extra_provenance.extend(update.source_provenance or [])
+                        if name == "get_tracking":
+                            source_ids.extend(topic.source_message_ids)
+                    update_ids = [row["id"] for row in result.get("updates", [])]
+                    updates = list(db.scalars(select(TrackingUpdate).where(
+                        TrackingUpdate.topic_id.in_(tracking_ids), TrackingUpdate.id.in_(update_ids)))) if update_ids else []
+                    for update in updates:
+                        extra_provenance.extend(update.source_provenance or [])
+                        if name == "get_tracking":
+                            source_ids.extend(update.source_message_ids)
                 known = {source.get("id") for source in manifest.sources if source.get("kind") == "message" and target_chat.id == chat.id}
                 from .conversation_context import message_source
-                added = [message_source(db, db.get(Message, sid)) for sid in dict.fromkeys(source_ids) if sid not in known]
+                new_ids = [sid for sid in dict.fromkeys(source_ids) if sid not in known]
+                checked = {}
+                self._prime_source_messages(db, new_ids, [], checked, hash_source_ids=True)
+                added = [message_source(db, checked["metadata", sid]) for sid in new_ids]
                 if name == "read_workspace_file":
                     extra_provenance.append({"kind": "workspace", "id": result["id"]})
                     target_chat = db.get(Chat, result["chat_id"])
@@ -3188,8 +3193,9 @@ class ProductService:
         with self.transaction() as db:
             return self._workspace_db(db, owner_id, chat_id, path)
 
-    def _workspace_path_db(self, db, owner_id, chat_id, relative, *, allow_directory=False):
-        _, member = self.membership(db, owner_id, chat_id)
+    def _workspace_path_db(self, db, owner_id, chat_id, relative, *, allow_directory=False, member=None, nodes=None, attachments=None):
+        if member is None:
+            _, member = self.membership(db, owner_id, chat_id)
         root_path = settings.workspace_root / chat_id
         root = root_path.resolve()
         if not root.is_relative_to(settings.workspace_root) or root_path.is_symlink():
@@ -3202,7 +3208,7 @@ class ProductService:
             fail(403, "Workspace symlinks cannot be opened")
         if not path.is_file() and not (allow_directory and path.is_dir()):
             fail(404, "Workspace file is unavailable")
-        if relative.parts and not self._workspace_path_allowed(db, member, path, relative):
+        if relative.parts and not self._workspace_path_allowed(db, member, path, relative, nodes=nodes, attachments=attachments):
             fail(404, "Workspace file is unavailable")
         return path
 
@@ -3248,11 +3254,12 @@ class ProductService:
         _, member = self.membership(db, owner_id, chat_id)
         root = settings.workspace_root / chat_id
         root.mkdir(parents=True, exist_ok=True)
-        parent = self._workspace_path_db(db, owner_id, chat_id, relative, allow_directory=True)
-        if not parent.is_dir():
-            fail(400, "Workspace path must be a directory")
         nodes = list(db.scalars(select(WorkspaceNode).where(WorkspaceNode.chat_id == chat_id)))
         attachments = list(db.scalars(select(ChatAttachment).where(ChatAttachment.chat_id == chat_id)))
+        parent = self._workspace_path_db(db, owner_id, chat_id, relative, allow_directory=True,
+            member=member, nodes=nodes, attachments=attachments)
+        if not parent.is_dir():
+            fail(400, "Workspace path must be a directory")
         entries = []
         for path in sorted(parent.iterdir(), key=lambda item: (not item.is_dir(), item.name.casefold())):
             local = path.relative_to(root)
