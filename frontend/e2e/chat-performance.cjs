@@ -99,12 +99,14 @@ const cases = [{
       return { id: message.dataset.messageId, offset: message.getBoundingClientRect().top - bounds.top };
     });
     await sleep(100);
+    t.record('anchor_before_revisit', { anchor, offset: await page.locator(`article[data-message-id="${anchor.id}"]`).evaluate(message => message.getBoundingClientRect().top - document.querySelector('.message-area').getBoundingClientRect().top) });
     t.record('expanded_window', { expanded, displayed: await page.locator('article[data-message-id]').count(), notifications: [...notifications],
       requests: requests.map(({ request, timing, ...row }) => row) });
     await chooseChat(page, seed.other_chat_title);
     await page.locator('.chat-header h2').filter({ hasText: seed.other_chat_title }).waitFor();
     await measure('revisit_after_older_page', () => chooseChat(page, seed.private_chat_title), { maxMessages: 130 });
     const restored = await page.locator(`article[data-message-id="${anchor.id}"]`).evaluate(message => message.getBoundingClientRect().top - document.querySelector('.message-area').getBoundingClientRect().top);
+    t.record('anchor_after_revisit', { expected: anchor.offset, restored });
     assert.ok(Math.abs(restored - anchor.offset) < 3, 'returning to the bounded older window preserves its visible scroll anchor');
     await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 700, downloadThroughput: -1, uploadThroughput: -1 });
     const beforeRead = notifications.length;

@@ -1,5 +1,6 @@
 """Independent product and SDK capacity pools on disposable PostgreSQL, offline."""
 import asyncio
+import gc
 from uuid import uuid4
 
 from agent_runtime import AssistantMessageEventStream, assistant_message
@@ -167,6 +168,7 @@ def test_background_child_pool_cannot_consume_eight_foreground_child_slots(produ
             await held.wait_for({f"FG-CHILD-{index}" for index in range(8)})
             assert len(held.entered) == 10 and sum(tag.startswith("BG-CHILD-") for tag in held.entered) == 2
             assert product.get_request(background)["status"] == product.get_request(root["id"])["status"] == "completed"
+            gc.collect()
             # Each manager retains its selected pool, even for the same owner.
             bg = product.get_request(background)
             assert runtime.managers[bg["session_id"], True].host is runtime.background_host

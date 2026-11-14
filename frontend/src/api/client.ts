@@ -77,10 +77,15 @@ export class ApiClient {
   get<T>(path: string, signal?: AbortSignal) { return this.request<T>(path, { signal }); }
   post<T>(path: string, data: unknown = {}): Promise<T> {
     const payload = data as Record<string, unknown>;
+    if (path === '/presence' && this.socket) {
+      // Presence describes now; disconnected heartbeats must not replay later.
+      if (this.socket.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ v: 1, type: 'command', command_id: requestKey(), chat_id: null, command: 'presence', payload }));
+      return Promise.resolve(undefined as T);
+    }
     const match = path.match(/^\/chats\/([^/]+)\/messages$/);
     const stop = path.match(/^\/reply-requests\/([^/]+)\/cancel$/);
-    if (this.socket && (match || stop || path === '/presence')) {
-      const command = match ? 'send' : stop ? 'stop' : 'presence';
+    if (this.socket && (match || stop)) {
+      const command = match ? 'send' : 'stop';
       const body = stop ? { request_id: stop[1] } : payload;
       const key = typeof payload.client_request_key === 'string' ? payload.client_request_key : requestKey();
       // Long messages use the existing HTTP send without splitting or changing their identity.

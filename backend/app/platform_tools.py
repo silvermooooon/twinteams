@@ -82,7 +82,6 @@ def scope_ids(service, db, name, args, context):
     if request or name == "set_message_reaction":
         ids.update(service._message_source_chat_ids(db, request, target_id, source_ids))
     if name == "create_chat":
-        service._validate_owner_ids(args.get("owner_ids"))
         owners = list(dict.fromkeys([context["owner_id"], *args["owner_ids"]]))
         if len(owners) == 2:
             existing = db.scalar(select(Chat.id).where(Chat.direct_pair_key == pair_key(owners)))
@@ -197,9 +196,7 @@ def dispatch(service, db, name, args, context, chat, member, locked_ids):
             visible.append(service.request_json(db, row, owner_id))
         return {"chat": chat_metadata(service, db, target, membership), "requests": visible}
     if name == "create_chat":
-        owners = args.get("owner_ids")
-        service._validate_owner_ids(owners)
-        return service._create_chat_db(db, owner_id, owners, args.get("title"), args.get("history_policy", "all"), locked_chat_ids=locked_ids)[1]
+        return service._create_chat_db(db, owner_id, args["owner_ids"], args.get("title"), args.get("history_policy", "all"), locked_chat_ids=locked_ids)[1]
     if name == "rename_chat":
         if not isinstance(args.get("title"), str):
             fail(400, "title must be a string")

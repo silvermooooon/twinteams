@@ -154,6 +154,7 @@ async function main() {
     await page.getByRole('button', { name: 'Revoke access for Blair Duet', exact: true }).click();
     await page.getByText('No trusted Duets yet', { exact: true }).waitFor(); assert.equal(revoked, true);
     assert.equal(failures.length, 0, failures.join('\n')); assert.ok(reads > 0);
+    await require('./chat-sync.cjs').chatSyncRegression(browser, origin);
     console.log('Duet UI regression passed: file approval explains reusable file/recipient consent while ordinary approval retains its exact-action copy; Shared files keeps existing upload/tree access, renders both owners’ approved shares and reuses file previews; private Workspace stays separate; single minimal typing indicator across concurrent foreground work, all background work hidden, completion preserves other work, icon Stop cancels only foreground responses through reorder, plus pair/multi/private sidebar, read-only transcript/history, all-owner decisions, once/always consent, own-only retry, peer-message allowance and private pending draft, close, permanent permission revocation.');
   } finally { await browser?.close(); vite.kill('SIGTERM'); }
 }

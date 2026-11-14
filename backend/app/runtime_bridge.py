@@ -16,6 +16,7 @@ from hashlib import sha256
 from typing import Any
 from urllib.parse import quote, urlsplit
 from uuid import NAMESPACE_URL, uuid5
+from weakref import WeakValueDictionary
 
 from agent_runtime import (
     Agent,
@@ -44,6 +45,13 @@ class RuntimeBusy(RuntimeError):
 
 async def maybe(value):
     return await value if inspect.isawaitable(value) else value
+
+
+def progress_event(event):
+    return event.get("type") in {"turn_start", "turn_end", "tool_execution_start", "tool_execution_update"} or (
+        event.get("type") == "message_update" and event.get("assistantMessageEvent", {}).get("type") in {
+            "text_delta", "thinking_delta", "toolcall_delta",
+        })
 
 
 def text_content(message: Any) -> str:
@@ -165,7 +173,8 @@ class RuntimeBridge:
         self.startup_error: str | None = None
         self.active: dict[str, Agent] = {}
         self.executors: dict[str, Any] = {}
-        self.managers: dict[tuple[str, bool], Any] = {}
+        # Active Agents and SDK child drivers own managers; completed task histories do not.
+        self.managers: WeakValueDictionary[tuple[str, bool], Any] = WeakValueDictionary()
         self.cancelled: set[str] = set()
         self._closing = False
         self.host = None
@@ -693,9 +702,7 @@ class RuntimeBridge:
             async def observe(event, signal):
                 nonlocal last_seq
                 kind = event.get("type")
-                if kind == "message_update" and event.get("assistantMessageEvent", {}).get("type") in {
-                    "text_delta", "thinking_delta", "toolcall_delta",
-                }:
+                if progress_event(event):
                     # These live previews never cross the product boundary.
                     # Local abort remains immediate; durable guards still run at
                     # request, tool and committed-output boundaries.
@@ -851,7 +858,7 @@ class RuntimeBridge:
             agent.state.messages = [{"role": "system", "content": system, "timestamp": 0},
                                     *[message for message in agent.state.messages if message.get("role") != "system"]]
         async def child_activity(event, signal):
-            if event.get("type") == "message_update" and event.get("assistantMessageEvent", {}).get("type") in {"text_delta", "thinking_delta", "toolcall_delta"}:
+            if progress_event(event):
                 signal.throw_if_aborted()
                 return
             await self._check_generation(context)

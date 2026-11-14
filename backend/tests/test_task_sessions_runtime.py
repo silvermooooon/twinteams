@@ -1,5 +1,6 @@
 """Concurrent chat tasks use real SDK leases and disposable PostgreSQL, offline."""
 import asyncio
+import gc
 from uuid import uuid4
 
 import pytest
@@ -48,7 +49,9 @@ def test_same_private_tasks_run_independently_and_stop_is_request_scoped(product
             first = product.get_request(first["id"])
             assert second["status"] == "completed" and first["status"] == "running"
             assert first["session_id"] != second["session_id"]
-            assert set(runtime.managers) >= {(first["session_id"], False), (second["session_id"], False)}
+            gc.collect()
+            assert (first["session_id"], False) in runtime.managers
+            assert (second["session_id"], False) not in runtime.managers
             assert "Other active tasks and workers" in str(contexts["NEW-TASK"])
             assert first["id"] in str(contexts["NEW-TASK"])
             second_records = await runtime._run_records(runtime.tenant_id, second["session_id"], second["run_id"])
@@ -64,6 +67,9 @@ def test_same_private_tasks_run_independently_and_stop_is_request_scoped(product
             else:
                 assert product.get_request(first["id"])["status"] == "completed"
             assert product.get_request(second["id"])["status"] == "completed"
+            await asyncio.sleep(0)
+            gc.collect()
+            assert not runtime.managers
             messages = product.chat_detail("owner-alex", "private-alex")["messages"]
             assert sum(message["body"] == "NEW-TASK-RESULT" for message in messages) == 1
             assert sum(message["body"] == "OLD-TASK-RESULT" for message in messages) == (not cancel_first)

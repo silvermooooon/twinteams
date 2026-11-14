@@ -521,20 +521,44 @@ class ProductService:
     def sources_allowed(self, db, member, source_ids, source_floor=None, *, cache=None):
         if source_floor is not None and source_floor < member.lower_seq:
             return False
+        cache = {} if cache is None else cache
+        self._prime_source_messages(db, source_ids, [], cache)
         return all(self.visible_message(db, member, source_id, False, cache=cache) for source_id in source_ids)
 
-    def provenance_allowed(self, db, member, sources, seen=None, cache=None):
+    def _prime_source_messages(self, db, source_ids, sources, cache):
         from sqlalchemy.orm import load_only
+
+        identifiers, hashed, pending = set(source_ids), set(), list(sources or [])
+        while pending:
+            source = pending.pop()
+            if source.get("kind") == "message":
+                identifiers.add(source["id"])
+                if source.get("hash"):
+                    hashed.add(source["id"])
+            elif source.get("kind") == "chat_context":
+                pending.extend(source.get("sources", []))
+            elif source.get("kind") == "tracking":
+                identifiers.update(source.get("source_message_ids", []))
+        for wanted, fields in ((identifiers - hashed, SOURCE_MESSAGE_FIELDS),
+                (hashed, SOURCE_MESSAGE_FIELDS + (Message.body, Message.raw_owner_input, Message.attachment_ids))):
+            field_names = {field.key for field in fields}
+            missing = {identifier for identifier in wanted if ("metadata", identifier) not in cache
+                or ((row := cache["metadata", identifier]) is not None and field_names & sa_inspect(row).unloaded)}
+            if missing:
+                # Populate deferred fields without refreshing already loaded or edited values.
+                rows = list(db.scalars(select(Message).options(load_only(*fields)).where(Message.id.in_(missing))))
+                cache.update({("metadata", identifier): None for identifier in missing})
+                cache.update({("metadata", row.id): row for row in rows})
+        attachments = cache.setdefault("projection_attachments", {})
+        attachment_ids = {identifier for message_id in hashed if (row := cache["metadata", message_id]) is not None
+                          for identifier in row.attachment_ids or []} - attachments.keys()
+        if attachment_ids:
+            attachments.update({identifier: None for identifier in attachment_ids})
+            attachments.update({row.id: row for row in db.scalars(select(ChatAttachment).where(ChatAttachment.id.in_(attachment_ids)))})
+
+    def provenance_allowed(self, db, member, sources, seen=None, cache=None):
         cache = {} if cache is None else cache
-        direct = [source for source in sources or [] if source.get("kind") == "message"]
-        missing = {source["id"] for source in direct if ("metadata", source["id"]) not in cache}
-        if missing:
-            fields = SOURCE_MESSAGE_FIELDS + (Message.body, Message.raw_owner_input, Message.attachment_ids)
-            rows = list(db.scalars(select(Message).options(load_only(*fields)).where(Message.id.in_(missing))))
-            cache.update({("metadata", identifier): None for identifier in missing})
-            cache.update({("metadata", row.id): row for row in rows})
-            _attachments = list(db.scalars(select(ChatAttachment).where(ChatAttachment.id.in_(
-                {identifier for row in rows for identifier in row.attachment_ids or []}))))
+        self._prime_source_messages(db, [], sources, cache)
         for source in sources or []:
             if source.get("kind") == "summary":
                 from .conversation_context import summary_allowed, summary_metadata
@@ -569,14 +593,10 @@ class ProductService:
                     return False
                 if source.get("hash"):
                     from .conversation_context import message_source
-                    # Fetch hash inputs together, preserving already loaded or edited values.
                     hashes = cache.get("projection_hashes")
                     if hashes is not None and message.id in hashes:
                         current_hash = hashes[message.id]
                     else:
-                        missing = sa_inspect(message).unloaded.intersection({"body", "raw_owner_input", "attachment_ids"})
-                        if missing:
-                            db.refresh(message, attribute_names=sorted(missing))
                         current_hash = message_source(db, message)["hash"]
                         if hashes is not None:
                             hashes[message.id] = current_hash
@@ -868,6 +888,7 @@ class ProductService:
         db.flush()
 
     def create_chat(self, owner_id, owner_ids, title=None, history_policy="all"):
+        self._validate_owner_ids(owner_ids)
         with self.transaction() as db:
             chat, result, created = self._create_chat_db(db, owner_id, owner_ids, title, history_policy)
         if created:
@@ -875,7 +896,6 @@ class ProductService:
         return result
 
     def _create_chat_db(self, db, owner_id, owner_ids, title=None, history_policy="all", *, locked_chat_ids=None):
-        self._validate_owner_ids(owner_ids)
         if title is not None and not isinstance(title, str):
             fail(400, "title must be a string")
         if history_policy not in {"all", "fixed_7d", "no_prior"}:
@@ -943,6 +963,7 @@ class ProductService:
         return chat, result
 
     def add_members(self, owner_id, chat_id, owner_ids, history_policy):
+        self._validate_owner_ids(owner_ids)
         with self.transaction() as db:
             chat, result = self._add_chat_members_db(db, owner_id, chat_id, owner_ids, history_policy)
         result["revision"] = chat.revision
@@ -950,7 +971,6 @@ class ProductService:
         return result
 
     def _add_chat_members_db(self, db, owner_id, chat_id, owner_ids, history_policy):
-        self._validate_owner_ids(owner_ids)
         chat, member = self.membership(db, owner_id, chat_id, True)
         if chat.kind != "group":
             fail(409, "Create a group chat to add paired owners and Duets; private chats stay private")
@@ -966,17 +986,23 @@ class ProductService:
 
     def tracking_json(self, db, topic, member, details=False, *, chat=None, title=None, cache=None):
         cache = {"projection_hashes": {}, "projection_grants": {}} if cache is None else cache
+        if topic.deleted_at:
+            return None
         if not topic.source_message_ids:
             cutoff = member.joined_at if member.history_policy == "no_prior" else member.joined_at - timedelta(days=7) if member.history_policy == "fixed_7d" else None
             if cutoff and aware(topic.created_at) < aware(cutoff):
                 return None
-        if topic.deleted_at or not self.sources_allowed(db, member, topic.source_message_ids, topic.source_floor_seq, cache=cache) or not self.provenance_allowed(db, member, topic.source_provenance, cache=cache):
+        self._prime_source_messages(db, topic.source_message_ids, topic.source_provenance, cache)
+        if not self.sources_allowed(db, member, topic.source_message_ids, topic.source_floor_seq, cache=cache) or not self.provenance_allowed(db, member, topic.source_provenance, cache=cache):
             return None
         result = {**{k: getattr(topic, k) for k in ("id", "chat_id", "title", "description", "status", "revision")}, "created_at": iso(topic.created_at), "updated_at": iso(topic.updated_at)}
         chat = chat or db.get(Chat, topic.chat_id)
         result.update(chat_kind=chat.kind, chat_title=title if title is not None else self.chat_title(db, chat, member.owner_id))
         if details:
-            result["updates"] = [{"id": u.id, "body": u.body, "created_at": iso(u.created_at)} for u in db.scalars(select(TrackingUpdate).where(TrackingUpdate.topic_id == topic.id).order_by(TrackingUpdate.created_at)) if self.sources_allowed(db, member, u.source_message_ids, u.source_floor_seq, cache=cache) and self.provenance_allowed(db, member, u.source_provenance, cache=cache) and (u.source_message_ids or member.history_policy == "all" or aware(u.created_at) >= aware(member.joined_at) - timedelta(days=7 if member.history_policy == "fixed_7d" else 0))]
+            updates = list(db.scalars(select(TrackingUpdate).where(TrackingUpdate.topic_id == topic.id).order_by(TrackingUpdate.created_at)))
+            self._prime_source_messages(db, [identifier for row in updates for identifier in row.source_message_ids],
+                [source for row in updates for source in row.source_provenance], cache)
+            result["updates"] = [{"id": u.id, "body": u.body, "created_at": iso(u.created_at)} for u in updates if self.sources_allowed(db, member, u.source_message_ids, u.source_floor_seq, cache=cache) and self.provenance_allowed(db, member, u.source_provenance, cache=cache) and (u.source_message_ids or member.history_policy == "all" or aware(u.created_at) >= aware(member.joined_at) - timedelta(days=7 if member.history_policy == "fixed_7d" else 0))]
         return result
 
     def _tracking_scope(self, db, chat, member, limit=None):
@@ -994,7 +1020,10 @@ class ProductService:
         query = query.order_by(TrackingTopic.created_at, TrackingTopic.id)
         if limit is not None:
             query = query.limit(limit)
-        for topic, origin, source_member in db.execute(query):
+        topics = list(db.execute(query))
+        self._prime_source_messages(db, [identifier for topic, _, _ in topics for identifier in topic.source_message_ids],
+            [source for topic, _, _ in topics for source in topic.source_provenance], cache)
+        for topic, origin, source_member in topics:
             if origin.id not in titles:
                 titles[origin.id] = self.chat_title(db, origin, member.owner_id)
             projection = self.tracking_json(db, topic, source_member, chat=origin, title=titles[origin.id], cache=cache)
@@ -1083,6 +1112,8 @@ class ProductService:
         conversations = {row.chat_id: row for row in db.scalars(select(DuetConversation).where(DuetConversation.chat_id.in_(chat_ids)))}
         checked = {"projection_hashes": {}, "projection_grants": {
             (member.owner_id, identifier): (chats[identifier], grant) for identifier, grant in members.items()}}
+        self._prime_source_messages(db, [identifier for row in approvals for identifier in row.source_message_ids],
+            [source for row in approvals for source in row.source_provenance], checked)
         result = []
         for approval in approvals:
             origin_member, origin_chat = members.get(approval.chat_id), chats.get(approval.chat_id)
@@ -1504,13 +1535,8 @@ class ProductService:
             fail(409, "Private runtime generation is no longer authorized")
         from .scheduled_tasks import snapshot
         task = snapshot(request)
-        if task:
-            twin = db.get(Actor, request.target_twin_id)
-            if chat.kind != "private" or chat.private_owner_id != context.get("owner_id") or twin.owner_id != chat.private_owner_id:
-                fail(403, "Scheduled execution requires the owner's private Duet")
-            member = self.membership(db, twin.owner_id, chat.id)[1]
-            if not self.provenance_allowed(db, member, self.manifest_provenance(db, request.id), cache=checked):
-                fail(409, "Scheduled runtime sources are no longer authorized")
+        if task and (chat.kind != "private" or chat.private_owner_id != context.get("owner_id") or twin.owner_id != chat.private_owner_id):
+            fail(403, "Scheduled execution requires the owner's private Duet")
         return True
 
     def authorize_runtime_generation(self, context):
@@ -1530,8 +1556,7 @@ class ProductService:
             request = db.get(ReplyRequest, request_id)
             if not request:
                 fail(404, "Reply request not found")
-            chat = db.scalar(select(Chat).where(Chat.id == request.chat_id).with_for_update())
-            db.refresh(request)
+            chat = db.get(Chat, request.chat_id)
             self.request_chain(db, request)
             return {**self.request_payload(request), "chat_kind": chat.kind}
 
@@ -2538,7 +2563,11 @@ class ProductService:
         if name == "list_tracking":
             return {"tracking": [row[3] for row in self._tracking_scope(db, chat, member)]}
         if name == "get_tracking":
-            return self.tracking_json(db, self._tracking_row(db, member, args["id"]), member, True)
+            topic = db.get(TrackingTopic, args["id"])
+            result = self.tracking_json(db, topic, member, True) if topic and topic.chat_id == member.chat_id else None
+            if not result:
+                fail(404, "Tracking topic is unavailable")
+            return result
         if name == "create_tracking":
             source_ids = list(dict.fromkeys(args.get("source_message_ids", [])))
             messages = self.check_sources(db, member, source_ids)
@@ -2846,6 +2875,8 @@ class ProductService:
         return await self.db_call("_runtime_tool_transaction", name, args, context)
 
     def _runtime_tool_transaction(self, name, args, context):
+        if name in {"create_chat", "add_chat_members"}:
+            self._validate_owner_ids(args.get("owner_ids"))
         chat_value = context.get("chat", {})
         chat_id = chat_value.get("id") if isinstance(chat_value, dict) else chat_value
         chat_id = chat_id or context.get("chat_id")

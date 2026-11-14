@@ -68,6 +68,55 @@ measures individual pages, ten simultaneous history reads, and ten simultaneous
 mixed homepage/history/Tracking/shared-file/memory reads. Run this check without
 an unrelated benchmark competing for the same local PostgreSQL and CPU.
 
+## Source-heavy read regression, 2026-11-14
+
+The architecture review additionally measured one Tracking topic with no updates
+and one pending approval, each referencing 1, 10 or 40 distinct messages with
+snapshot hashes. These are actual service calls on disposable PostgreSQL; the
+counts exclude HTTP authentication and outer runtime-tool authorization.
+
+| Distinct sources | Tracking detail SELECTs, before → after | Approval inbox SELECTs, before → after |
+| ---: | ---: | ---: |
+| 1 | 10 → 6 | 9 → 8 |
+| 10 | 46 → 6 | 27 → 8 |
+| 40 | 166 → 6 | 87 → 8 |
+
+Each result now reads the source messages in one batch. Tracking details no longer
+build and discard an initial authorized projection. The existing transaction-local
+cache retains partially loaded messages and attachment hash inputs; loading missing
+fields does not overwrite pending ORM edits. No persistent permission cache is used.
+
+`tests/test_read_path_simplification.py` extends this check to source-bearing
+Tracking lists, updates and approval lists, and verifies withdrawal, dirty hash
+inputs, scheduled-owner authorization and legacy lineage repair. Runtime tests
+also collect completed manager objects and verify that active children, nested
+recovery and owner-answer continuations still work. Tool progress counts of zero
+and fifty produce the same authorization query count in both main and child runs.
+These are query-count and lifecycle assertions, not claimed latency speedups.
+
+The standard 5,000-message / 100-item / ten-client workload was also rerun after
+the change. Every request returned the expected content within budget; the slowest
+was 190.564 ms. Tracking's ten-topic list used six SQLAlchemy statements (previous
+review baseline: fifteen), and the ten mixed requests used 98 statements in total
+(previous baseline: 116). The schema, temporary files and Redis namespace were
+verified removed. No live model was called.
+
+The final full backend run passed **665 tests**. Its HTTP inventory covered all
+**96 non-AI routes**, with **497 successful responses**, an **803.546 ms maximum**,
+no missing successful route and no response above the 3,000 ms budget.
+
+Frontend typechecking, the production build and `test:duet-ui` passed. The
+isolated `chat-loading` browser scenario passed both cases, including 5,000-message
+history and the five-window cache's withdrawal, reconnect and account boundaries.
+At 700 ms emulated latency the visible message anchor remained at 98 px through
+revisit and reauthorization. A held-HTTP regression also verifies that a late
+history response preserves scrolling performed while the request was pending.
+The browser fixture used deterministic offline execution; its schema, Redis keys,
+processes and temporary workspace were verified cleaned up.
+
+These checks used the existing editable sibling SDK at `1fe5394` with its
+pre-existing local edits. Those edits are outside this product change.
+
 ## Local load result, 2026-11-05
 
 All response-content assertions passed at the volume above. Every measured

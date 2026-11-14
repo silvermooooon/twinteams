@@ -1,5 +1,6 @@
 """Focused owner questions use real messages/FIFO and independent SDK contexts."""
 import asyncio
+import gc
 from uuid import uuid4
 
 import pytest
@@ -214,6 +215,14 @@ def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actu
             with product.transaction() as db:
                 assert db.scalar(select(func.count()).select_from(ReplyRequest).where(ReplyRequest.source == "subagent_result")) == 0
                 row = db.get(QuestionRequest, question_id); old_session, old_run = row.runtime_session_id, row.runtime_run_id
+            if worker:
+                manager = runtime.managers.get((original["session_id"], False))
+                if manager is not None:
+                    # Durable completion precedes the local driver's notification and cleanup.
+                    assert (await manager.wait(old_session, timeout=10))["status"] == "completed"
+                del manager
+            gc.collect()
+            assert (old_session, False) not in runtime.managers
             if restart:
                 await runtime.close(); runtime = RuntimeBridge(product)
                 runtime.models.register_api("offline-regression", offline)

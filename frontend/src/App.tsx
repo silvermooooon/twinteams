@@ -224,8 +224,7 @@ export default function App() {
     const generation = resetGenerations.current[key];
     const authorizedGeneration = cacheGeneration.current;
     const privateChat = bootstrapCurrent.current?.chats.some(chat => chat.id === chatId && chat.kind === 'private');
-    const anchored = messageArea.current && !scrollBottom.current ? messageArea.current.scrollHeight - messageArea.current.scrollTop : null;
-    const floor = historyFloor.current[key] ?? (anchored !== null && detailCurrent.current?.chat.id === chatId
+    const floor = historyFloor.current[key] ?? (messageArea.current && !scrollBottom.current && detailCurrent.current?.chat.id === chatId
       ? detailCurrent.current.before_seq ?? undefined : undefined);
     let latest: ChatDetail | undefined; let reauthorizingHistory = false;
     const isCurrent = () => !signal.aborted && currentApi.current === api && current.current.selected === chatId && current.current.ownerId === api.ownerId && sequence === chatSequence.current && generation === resetGenerations.current[key] && (!privateChat || authorizedGeneration === cacheGeneration.current);
@@ -264,6 +263,8 @@ export default function App() {
       if (result.chat.kind === 'private') { const twin = result.members.find(member => member.kind === 'twin' && result.chat.member_owner_ids.includes(member.owner_id || '')); if (twin) result.chat = { ...result.chat, title: twin.name }; }
       observeNotificationChat(result.chat, result.members);
       setBootstrap(previous => previous ? { ...previous, actors: previous.actors.map(actor => { const updated = result.members.find(member => member.id === actor.id); return updated && (updated.profile_revision || 0) >= (actor.profile_revision || 0) ? updated : actor; }), chats: previous.chats.map(chat => chat.id === result.chat.id ? result.chat : chat) } : previous);
+      // Users may scroll during the HTTP reads; preserve their current viewport.
+      const anchored = messageArea.current && !scrollBottom.current ? messageArea.current.scrollHeight - messageArea.current.scrollTop : null;
       setDetail(previous => {
         // A partial reaction acknowledgement cannot advance the full chat snapshot.
         // Preserve only newer local reaction aggregates on still-authorized messages.
@@ -351,6 +352,26 @@ export default function App() {
   useEffect(() => {
     if (!ownerId) return;
     const controller = new AbortController(); let retryTimer: ReturnType<typeof setTimeout> | undefined; let reconnectDelay = 700; let trackingTimer: ReturnType<typeof setTimeout> | undefined; let synchronized = false;
+    const summaryLoads = new Set<string>();
+    async function loadSummary(chatId: string) {
+      const key = `${api.ownerId}:${chatId}`; const generation = resetGenerations.current[key];
+      const loadKey = `${key}:${generation}`;
+      if (summaryLoads.has(loadKey)) return;
+      summaryLoads.add(loadKey);
+      try {
+        let received: number;
+        do {
+          const chat = await api.get<Chat>(`/chats/${chatId}/summary`, controller.signal);
+          if (controller.signal.aborted || currentApi.current !== api || generation !== resetGenerations.current[key]) return;
+          const revision = chat.revision ?? -1; received = revision;
+          const previous = bootstrapCurrent.current?.chats.find(item => item.id === chatId);
+          if (revision >= (previous?.revision ?? -1)) observeNotificationChat(chat, bootstrapCurrent.current?.actors || []);
+          setBootstrap(previous => previous ? { ...previous, chats: previous.chats.map(old => old.id === chatId && revision >= (old.revision ?? -1) ? chat : old) } : previous);
+        } while (received < (observedRevisions.current.get(key) ?? -1));
+      } catch (failure) {
+        if (!controller.signal.aborted && currentApi.current === api && generation === resetGenerations.current[key] && failure instanceof ApiError && [403, 404].includes(failure.status)) { chatCache.current.delete(key); revokeNotifications(chatId); }
+      } finally { summaryLoads.delete(loadKey); }
+    }
     const run = async () => {
       try {
         await api.events('', controller.signal, event => {
@@ -383,8 +404,8 @@ export default function App() {
             if (cached?.detail && cached.detail.revision < event.revision) cached.detail = null;
           }
           if (event.chat_id && event.chat_id !== selected) {
-            const chatId = event.chat_id; const key = `${api.ownerId}:${chatId}`; const generation = resetGenerations.current[key];
-            void api.get<Chat>(`/chats/${chatId}/summary`).then(chat => { if (current.current.ownerId === api.ownerId && generation === resetGenerations.current[key]) { observeNotificationChat(chat, bootstrapCurrent.current?.actors || []); setBootstrap(previous => previous ? { ...previous, chats: previous.chats.map(old => old.id === chat.id ? chat : old) } : previous); } }).catch(failure => { if (current.current.ownerId === api.ownerId && generation === resetGenerations.current[key] && failure instanceof ApiError && [403, 404].includes(failure.status)) { chatCache.current.delete(key); revokeNotifications(chatId); } });
+            const known = bootstrapCurrent.current?.chats.find(chat => chat.id === event.chat_id);
+            if (event.revision === undefined || event.revision > (known?.revision ?? -1)) void loadSummary(event.chat_id);
             return;
           }
           if (event.type === 'changed') {
@@ -425,7 +446,7 @@ export default function App() {
     const update = () => { focused.current = document.visibilityState === 'visible' && document.hasFocus(); void api.post('/presence', { device_id: deviceId.current, focused_chat_id: focused.current && page === 'chat' ? selected || null : null, visible: focused.current }).catch(() => {}); if (focused.current) markVisibleRead(); };
     update(); const timer = setInterval(update, 4000); window.addEventListener('focus', update); window.addEventListener('blur', update); document.addEventListener('visibilitychange', update);
     return () => { clearInterval(timer); window.removeEventListener('focus', update); window.removeEventListener('blur', update); document.removeEventListener('visibilitychange', update); };
-  }, [api, selected, page, markVisibleRead]);
+  }, [api, selected, page, connected, markVisibleRead]);
   useEffect(() => { if (!searchOpen || !ownerId) return; const abort = new AbortController(); const timer = setTimeout(() => { setPeopleLoading(true); api.get<Actor[]>(`/people?q=${encodeURIComponent(query)}`, abort.signal).then(setPeople).catch(e => { if (!abort.signal.aborted) onError(e); }).finally(() => { if (!abort.signal.aborted) setPeopleLoading(false); }); }, 180); return () => { clearTimeout(timer); abort.abort(); }; }, [query, searchOpen, api]);
   useEffect(() => { const close = (e: MouseEvent) => { if (!searchWrap.current?.contains(e.target as Node)) setSearchOpen(false); }; document.addEventListener('mousedown', close); return () => document.removeEventListener('mousedown', close); }, []);
   useEffect(() => { const pop = () => { setPage(routePage()); setTwinTab(routeTwinTab()); setAccountOpen(false); }; window.addEventListener('hashchange', pop); return () => window.removeEventListener('hashchange', pop); }, []);

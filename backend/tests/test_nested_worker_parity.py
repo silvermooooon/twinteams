@@ -1,5 +1,6 @@
 """Independent contexts share actual owner capabilities; all execution is offline."""
 import asyncio
+import gc
 from uuid import uuid4
 
 import pytest
@@ -99,9 +100,11 @@ def test_nested_result_resumes_actual_parent_with_shared_git_memory_and_recovery
             with product.transaction() as db:
                 error = db.get(ReplyRequest, request["id"]).error
             assert original["status"] == "completed", error
+            gc.collect()
             if restart:
                 if restart == "stop":
                     await asyncio.wait_for(worker_blocked.wait(), 10)
+                    gc.collect()
                     manager = runtime.managers[original["session_id"], bool(original["background"])]
                     children = await manager.aget()
                     await asyncio.wait_for(manager.stop(children[0]["task_id"]), 5)
@@ -114,6 +117,7 @@ def test_nested_result_resumes_actual_parent_with_shared_git_memory_and_recovery
                         await asyncio.sleep(.02)
                     raise AssertionError("child terminal notices were not retained")
                 await asyncio.wait_for(retained(), 15)
+                gc.collect()
                 assert await runtime.has_unresolved_scheduled_work(original)
                 if restart == "stop":
                     notes = await runtime.store.pending_child_results()

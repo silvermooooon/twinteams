@@ -48,6 +48,22 @@ def approval(product, context, action):
         "target": "Platform", "impact": "One change", "action": action})
 
 
+def test_chat_owner_ids_are_validated_at_service_and_tool_entries(product):
+    context = {"owner_id": "owner-alex", "chat": {"id": "private-alex"}}
+    for owners in (None, "owner-maya", [], [""], ["owner-maya"] * 101):
+        for name in ("create_chat", "add_chat_members"):
+            with pytest.raises(HTTPException) as direct:
+                if name == "create_chat":
+                    product.create_chat("owner-alex", owners)
+                else:
+                    product.add_members("owner-alex", "group-alex-maya", owners, "all")
+            assert direct.value.status_code == 400
+            with pytest.raises(HTTPException) as tool:
+                call(product, context, name, {"chat_id": "group-alex-maya",
+                    "owner_ids": owners, "history_policy": "all"})
+            assert tool.value.status_code == 400
+
+
 def test_owner_authorized_duet_manages_human_chats_without_posting_or_routing(product, monkeypatch):
     _, context = origin(product, "private-alex")
     emitted = []

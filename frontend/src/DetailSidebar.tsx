@@ -82,7 +82,7 @@ export function DetailSidebar({ api, detail, duetTarget, actors, version, tracki
     const kind = item.chat_kind || (item.chat_id === chatId ? detail.chat.kind : 'group');
     return kind === 'private' ? t('tracking.privateSource') : t('tracking.groupSource', { title: item.chat_title || item.chat_id });
   }
-  function trackingChanged() { setTrackingRefresh(value => value + 1); onChange(); }
+  function trackingChanged() { setTrackingRefresh(value => value + 1); }
   function trackingError(error: unknown) {
     if (error instanceof ApiError && [401, 403, 404, 409].includes(error.status)) { setTrackingItems(previous => previous.filter(item => item.id !== trackingDetail?.id && item.id !== (edit && edit !== 'new' ? edit.id : undefined))); setTrackingDetail(null); setEdit(null); setDeleteConfirm(false); }
     onError(error);
