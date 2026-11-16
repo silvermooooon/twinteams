@@ -48,20 +48,18 @@ async def main():
     parser.add_argument('--artifact-dir', type=Path)
     parser.add_argument('--node', default=os.getenv('TWINTEAMS_E2E_NODE'), help='Node >=22.12 executable')
     parser.add_argument('--live-model', action='store_true', help='Explicit bounded real gpt-6-luna scenario; offline remains the default')
-    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking', 'scheduled-task-workflow', 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'chat-loading', 'proactivity', 'contacts', 'interaction-live', 'read-unread-live', 'group-routing-live', 'group-routing-follow-on', 'group-route-recovery', 'message-center-live', 'group-creation-live', 'story-workflow-live', 'tracking-reconciliation-live', 'continue-ui-smoke'])
+    parser.add_argument('--scenario', choices=['continuous-workflow', 'tracking-resumption', 'first-private-group-tracking', 'scheduled-task-workflow', 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'chat-loading', 'proactivity', 'contacts', 'interaction-live', 'read-unread-live', 'group-routing-live', 'group-routing-follow-on', 'group-route-recovery', 'message-center-live', 'group-creation-live', 'story-workflow-live', 'tracking-reconciliation-live', 'forum-topic'])
     parser.add_argument('--live-max-attempts', type=int, default=60, help='Frozen per-campaign HTTP-attempt ceiling, including smoke and worker restarts')
     args = parser.parse_args()
     max_attempts = 320 if args.scenario == 'story-workflow-live' else 60
     if not 1 <= args.live_max_attempts <= max_attempts:
         parser.error(f'--live-max-attempts must be between 1 and {max_attempts}')
-    if (args.live_model and not args.scenario) or (not args.live_model and args.scenario not in {None, 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'chat-loading', 'proactivity', 'contacts', 'group-route-recovery', 'continue-ui-smoke'}):
+    if (args.live_model and not args.scenario) or (not args.live_model and args.scenario not in {None, 'personal-onboarding', 'file-delivery-preview', 'ask-user', 'chat-loading', 'proactivity', 'contacts', 'group-route-recovery', 'forum-topic'}):
         parser.error('--live-model requires an explicit dedicated --scenario')
     if not args.live_model and args.live_max_attempts != 60:
         parser.error('--live-max-attempts requires --live-model')
-    if args.live_model and args.scenario == 'group-route-recovery':
-        parser.error('group-route-recovery is strictly offline; it never injects a live provider failure')
-    if args.live_model and args.scenario == 'continue-ui-smoke':
-        parser.error('continue-ui-smoke is strictly offline')
+    if args.live_model and args.scenario in {'group-route-recovery', 'forum-topic'}:
+        parser.error(f'{args.scenario} is strictly offline')
     if args.live_model and args.scenario in {'group-routing-live', 'group-routing-follow-on'} and args.live_max_attempts > 40:
         parser.error('Post-fix group-routing-live acceptance requires --live-max-attempts <=40')
     if args.live_model and os.environ.get('TWINTEAMS_E2E_CASE'):

@@ -64,7 +64,7 @@ def test_actual_main_and_child_factories_keep_coordination_out_of_worker_role(pr
             with product.transaction() as db:
                 chain = db.get(CausalChain, request["causal_chain_id"])
                 budget_before = chain.spent, chain.allowance
-            assert budget_before[1] == 6
+            assert budget_before == (0, 0)
             child = DatabaseSession(runtime.store, tenant_id=runtime.tenant_id,
                 user_id="owner-alex", session_id="synthetic-role-child-" + uuid4().hex)
             await child.commit("subagent_created", parent_session_id=result["session_id"],
@@ -145,9 +145,9 @@ def test_actual_group_child_keeps_third_party_origin_without_parent_history(prod
             references = request_references(system)
             assert references == main
             assert references["requester_id"] == references["source_owner_id"] == "owner-maya"
-            assert references["source_message"] == {
-                "id": source["id"], "author_id": "twin-maya",
-                "author_owner_id": "owner-maya", "kind": "twin"}
+            assert "source_message" not in references
+            assert "source_message_id" not in references
+            assert references["request_source"] == "duet_topic_update"
             assert child.info.user_id == "owner-alex"
             assert "Authorized recent messages, with no gap after summary: []" in system
             assert "Authorized summary: No summary yet." in system

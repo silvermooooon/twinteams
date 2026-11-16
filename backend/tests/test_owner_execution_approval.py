@@ -23,6 +23,9 @@ def test_group_local_approval_exact_owner_origin_single_use_and_frozen_recovery(
     source = send_message(product, 'owner-maya', 'duet-alex-maya', 'Synthetic work', uuid4().hex)['message']
     request = receiver_request(product, 'owner-maya', 'duet-alex-maya', source['id'], 'twin-alex', uuid4().hex)
     context = product.get_runtime_context(request['id'])
+    page = product._runtime_tool_transaction('read_duet_topic', {'chat_id': 'duet-alex-maya'},
+        {**context, 'operation_id': uuid4().hex})
+    assert source['id'] in {post['id'] for post in page['messages']}
     config = {'version': 1, 'workspace': '/synthetic/owner-alex', 'skills': [],
               'credentials': [], 'execution_enabled': True, 'profile': {'soul': 'Synthetic owner'}}
     personal.freeze_execution_config(request['id'], config)
@@ -71,7 +74,8 @@ def test_group_local_approval_exact_owner_origin_single_use_and_frozen_recovery(
                 continuation_id = db.get(Approval, approval_id).continuation_request_id
                 continued = db.get(ReplyRequest, continuation_id)
                 assert continued.requester_id == continued.source_owner_id == 'owner-maya'
-                assert continued.source_message_id == source['id']
+                assert continued.source_message_id is None
+                assert continued.continuation_of_request_id == request['id']
                 assert continued.execution_config == config
                 assert continued.causal_chain_id == request['causal_chain_id']
             continuation = {**product.get_runtime_context(continuation_id), 'execution_config': config}
@@ -91,7 +95,10 @@ def test_group_local_approval_exact_owner_origin_single_use_and_frozen_recovery(
             with pytest.raises(HTTPException):
                 await bad.execute('wrong-task', {'id': approval_id}, AbortSignal(), None)
             # New model context must stay authorized even if the original approval sources still are.
-            product.get_runtime_context(continuation_id)
+            current = product.get_runtime_context(continuation_id)
+            page = product._runtime_tool_transaction('read_duet_topic', {'chat_id': 'duet-alex-maya'},
+                {**current, 'operation_id': uuid4().hex})
+            assert other_source['id'] in {post['id'] for post in page['messages']}
             with product.transaction() as db:
                 db.get(Message, other_source['id']).state = 'withdrawn'
             with pytest.raises(HTTPException):

@@ -381,7 +381,7 @@ def test_redis_outage_rebuild_stale_hint_and_idle_no_database_scan(product, monk
     assert client.values[index.key + ":ready"] == "1"
 
 
-def test_reminder_alone_eligible_and_foreign_chain_request_not_cancellable(product):
+def test_reminder_alone_eligible_and_forum_notification_runs_independently(product):
     from app.models import Reminder
     system = schedules.list_tasks(product, "owner-alex")["items"][0]
     with product.transaction() as db:
@@ -393,14 +393,19 @@ def test_reminder_alone_eligible_and_foreign_chain_request_not_cancellable(produ
     assert context["system_review"]["deadlines"][0]["title"] == "Deadline tomorrow"
     from duet_test_support import approved_chat
     approved_chat(product, "duet-alex-maya")
-    sent = product._runtime_tool_transaction("send_chat_message", {"chat_id": "duet-alex-maya",
-        "body": "An authorized peer subtask", "source_message_ids": []}, {**context, "operation_id": uuid4().hex})
+    sent = product._runtime_tool_transaction("post_duet_reply", {"chat_id": "duet-alex-maya",
+        "body": "An authorized peer subtask", "source_message_ids": [], "mention_owner_ids": ["owner-maya"]},
+        {**context, "operation_id": uuid4().hex})
+    from duet_test_support import request_duet_reply
+    peer = request_duet_reply(product, "owner-alex", "duet-alex-maya", sent["message_id"], "twin-maya")
     with product.transaction() as db:
-        foreign = db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == sent["message_id"]))
-        assert foreign.target_twin_id != db.get(ReplyRequest, request_id).target_twin_id
+        foreign = db.get(ReplyRequest, peer["id"])
+        own = db.get(ReplyRequest, request_id)
+        assert foreign.target_twin_id != own.target_twin_id
+        assert foreign.causal_chain_id != own.causal_chain_id
     product.finish_request(request_id, "completed")
     item = next(item for item in schedules.list_tasks(product, "owner-alex")["items"] if item["id"] == system["id"])
-    assert item["pending_work"] and item["active_request_id"] is None
+    assert not item["pending_work"] and item["active_request_id"] is None
 
 
 def test_retry_completion_clears_old_failure_and_restores_due_hint(product):

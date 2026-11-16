@@ -17,7 +17,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import credentials
 from app import service as service_module
-from app.models import ReplyRequest
+from app.models import ContextManifest, ReplyRequest
 from app.twin_execution import TwinExecutionBackend, owner_execution_allowed
 from checks.postgres import TestDatabase
 
@@ -132,6 +132,7 @@ def test_group_credential_form_belongs_to_target_owner_and_keeps_requester(produ
     source = send_message(product, "owner-maya", "duet-alex-maya", "Synthetic request", key())["message"]
     request = receiver_request(product, "owner-maya", "duet-alex-maya", source["id"], "twin-alex", key())
     context = product.get_runtime_context(request["id"])
+    asyncio.run(product.runtime_tool("read_duet_topic", {"chat_id": "duet-alex-maya"}, context))
     assert owner_execution_allowed(product, "owner-alex", request["id"])
     assert not owner_execution_allowed(product, "owner-maya", request["id"])
     row = credentials.create_request(product, {"name": "group-test", "keynames": ["TOKEN"]},
@@ -145,7 +146,12 @@ def test_group_credential_form_belongs_to_target_owner_and_keeps_requester(produ
         continuation = db.get(ReplyRequest, result["continuation_request_id"])
         assert continuation.chat_id == "duet-alex-maya" and continuation.target_twin_id == "twin-alex"
         assert continuation.requester_id == "owner-maya" and continuation.source_owner_id == "owner-maya"
-        assert continuation.source_message_id == source["id"]
+        assert continuation.source_message_id is None
+        assert continuation.continuation_of_request_id == request["id"]
+        assert continuation.causal_chain_id == request["causal_chain_id"]
+        manifests = db.scalars(select(ContextManifest).where(ContextManifest.request_id == continuation.id))
+        assert any(item.get("kind") == "duet_post_revision" and item.get("id") == source["id"]
+                   for manifest in manifests for item in manifest.sources)
         assert continuation.execution_config is None  # fresh credential metadata, not action consent
     assert owner_execution_allowed(product, "owner-alex", result["continuation_request_id"])
 

@@ -28,12 +28,12 @@ def proposal(product, peers=None, origin=None, context=None):
         request = product.send_message('owner-alex', 'private-alex', 'Prepare a coordination proposal', key())['request']
         context = product.get_runtime_context(request['id'])
     context = {**context, 'operation_id': key()}
-    args = {'participant_owner_ids': peers or ['owner-maya'], 'title': 'Plan a time',
+    args = {'participant_owner_ids': ['owner-maya'] if peers is None else peers, 'title': 'Plan a time',
             'purpose': 'Compare the owners explicitly supplied availability',
             'opening_message': 'Could we find an agreed time?'}
     if origin:
         args['origin_chat_id'] = origin
-    return product._runtime_tool_transaction('request_duet_conversation', args, context), context, args
+    return product._runtime_tool_transaction('create_duet_topic', args, context), context, args
 
 
 def consent(product, row, owner='owner-alex', scope='once', decision='approved'):
@@ -53,7 +53,7 @@ def test_pending_unanimous_consent_then_atomic_opening_and_receiver(product):
     row, context, args = proposal(product, origin='group-alex-maya')
     chat_id = row['chat_id']
     assert row['status'] == 'pending'
-    assert product._runtime_tool_transaction('request_duet_conversation', args, context) == row
+    assert product._runtime_tool_transaction('create_duet_topic', args, context) == row
     with product.transaction() as db:
         assert db.scalar(select(func.count()).select_from(Message).where(Message.chat_id == chat_id)) == 0
         assert db.scalar(select(func.count()).select_from(ReplyRequest).where(ReplyRequest.chat_id == chat_id)) == 0
@@ -71,8 +71,8 @@ def test_pending_unanimous_consent_then_atomic_opening_and_receiver(product):
     assert detail['messages'][0]['causal_chain_id'] == context['causal_chain_id']
     with product.transaction() as db:
         rows = list(db.scalars(select(ReplyRequest).where(ReplyRequest.chat_id == chat_id)))
-        assert len(rows) == 1 and rows[0].target_twin_id == 'twin-maya'
-        assert rows[0].source == 'duet_message'
+        assert len(rows) == 1 and rows[0].target_twin_id == 'twin-alex'
+        assert rows[0].source == 'duet_topic_update' and rows[0].source_message_id is None
     with pytest.raises(HTTPException):
         duet.detail(product, 'owner-jordan', chat_id)
 
@@ -85,6 +85,7 @@ def test_consent_resumes_original_private_task_once_with_actual_opening_state(pr
         original = db.get(ReplyRequest, original_id)
         original.execution_config = {'version': 0, 'skills': [], 'credentials': [], 'execution_enabled': False}
         if exhausted:
+            db.get(CausalChain, original.causal_chain_id).allowance = 6
             db.get(CausalChain, original.causal_chain_id).spent = 6
         original_sources = product.manifest_provenance(db, original_id)
     consent(product, row)
@@ -103,10 +104,10 @@ def test_consent_resumes_original_private_task_once_with_actual_opening_state(pr
         assert product.manifest_provenance(db, resumed.id) == original_sources
         assert db.scalar(select(ContextManifest.id).where(ContextManifest.request_id == resumed.id))
         assert 'connection only' in resumed.input_body and 'Do not resend' in resumed.input_body
-        assert ('has not been delivered' if exhausted else 'published and delivered') in resumed.input_body
+        assert 'opening post was published' in resumed.input_body
         messages = list(db.scalars(select(Message).where(Message.chat_id == row['chat_id'])))
-        assert len(messages) == 1 and messages[0].state == ('pending' if exhausted else 'published')
-        assert db.get(CausalChain, original.causal_chain_id).spent == (6 if exhausted else 1)
+        assert len(messages) == 1 and messages[0].state == 'published'
+        assert db.get(CausalChain, original.causal_chain_id).spent == (6 if exhausted else 0)
         assert resumed.id not in product.claim_dispatches()
         resumed_id = resumed.id
     product.finish_request(original_id, 'completed')
@@ -227,8 +228,7 @@ def test_close_signals_running_sdk_stop_and_blocks_late_output(product):
     assert request_id in {request['id'] for request in product.pending_stops({row['chat_id']})}
     with product.transaction() as db:
         assert db.get(DispatchCommand, request_id).kind == 'cancel'
-    with pytest.raises(HTTPException):
-        product.publish_runtime_output(request_id, 'Late output', product.get_request(request_id)['session_id'], 'synthetic-run')
+    assert product.publish_runtime_output(request_id, 'Late output', product.get_request(request_id)['session_id'], 'synthetic-run') is None
     assert len(duet.detail(product, 'owner-alex', row['chat_id'])['messages']) == 1
 
 
@@ -250,7 +250,7 @@ def test_concurrent_proposal_and_revoke_never_admit_revoked_standing_consent(pro
         revoking.set()
         return duet.revoke(product, 'owner-alex', 'owner-maya')
     with ThreadPoolExecutor(max_workers=2) as pool:
-        proposed = pool.submit(product._runtime_tool_transaction, 'request_duet_conversation', args, context)
+        proposed = pool.submit(product._runtime_tool_transaction, 'create_duet_topic', args, context)
         assert entered.wait(5)
         revoked = pool.submit(revoke)
         assert revoking.wait(5)
@@ -333,3 +333,137 @@ def test_human_group_send_and_detail_do_not_query_automation_candidates_or_reque
         assert not any('from tt_reply_requests' in statement for statement in statements)
     finally:
         event.remove(service_module.engine, 'before_cursor_execute', capture)
+
+
+def test_solo_topic_is_immediately_active_and_creator_is_administrator(product):
+    row, _, _ = proposal(product, peers=[])
+    assert row['status'] == 'active'
+    assert row['conversation']['admin_owner_id'] == 'owner-alex'
+    assert row['conversation']['participant_owner_ids'] == ['owner-alex']
+    detail = duet.detail(product, 'owner-alex', row['chat_id'])
+    assert len(detail['messages']) == 1
+    with product.transaction() as db:
+        requests = list(db.scalars(select(ReplyRequest).where(ReplyRequest.chat_id == row['chat_id'])))
+        assert len(requests) == 1 and requests[0].target_twin_id == 'twin-alex'
+
+
+def invitation(product, row, context, mentions=None):
+    return product._runtime_tool_transaction('invite_duet_participants',
+        {'chat_id': row['chat_id'], 'participant_owner_ids': ['owner-jordan'],
+            'requirements': 'Check the release requirements and append findings',
+            'mention_owner_ids': mentions or []}, {**context, 'operation_id': key()})
+
+
+def invitation_approvals(row):
+    return [approval for approval in row['conversation']['approvals'] if approval.get('invitation')]
+
+
+def test_only_administrator_invites_and_all_consents_precede_access(product):
+    row, context, _ = active(product)
+    request = product.send_message('owner-maya', 'private-maya', 'Coordinate within my authorization', key())['request']
+    peer_context = product.get_runtime_context(request['id'])
+    with pytest.raises(HTTPException, match='Only the topic administrator'):
+        invitation(product, row, peer_context)
+    invited = invitation(product, row, context, ['owner-jordan'])
+    assert invited['status'] == 'pending'
+    assert len(invitation_approvals(invited)) == 3
+    assert duet.detail(product, 'owner-alex', row['chat_id'])['conversation']['participant_owner_ids'] == ['owner-alex', 'owner-maya']
+    with pytest.raises(HTTPException):
+        duet.detail(product, 'owner-jordan', row['chat_id'])
+    inbox = product.chat_detail('owner-jordan', 'private-jordan')['approvals']
+    invitation_ids = {approval['id'] for approval in invitation_approvals(invited)}
+    assert any(approval['id'] in invitation_ids for approval in inbox)
+    for approval in invitation_approvals(invited):
+        asyncio.run(product.decide_approval(approval['approver_id'], approval['id'], 'approved', 'once'))
+    detail = duet.detail(product, 'owner-jordan', row['chat_id'])
+    assert set(detail['conversation']['participant_owner_ids']) == {'owner-alex', 'owner-maya', 'owner-jordan'}
+    assert detail['messages'][-1]['body'] == 'Check the release requirements and append findings'
+    with product.transaction() as db:
+        requests = list(db.scalars(select(ReplyRequest).where(ReplyRequest.chat_id == row['chat_id'],
+            ReplyRequest.target_twin_id == 'twin-jordan')))
+        assert len(requests) == 1 and requests[0].source == 'duet_topic_mention'
+        assert requests[0].source_message_id is None
+
+
+def test_rejected_invitation_does_not_close_existing_topic_or_grant_access(product):
+    row, context, _ = active(product)
+    invited = invitation(product, row, context)
+    approval = next(approval for approval in invitation_approvals(invited) if approval['approver_id'] == 'owner-jordan')
+    asyncio.run(product.decide_approval('owner-jordan', approval['id'], 'rejected', 'once'))
+    assert duet.detail(product, 'owner-alex', row['chat_id'])['conversation']['status'] == 'active'
+    with pytest.raises(HTTPException):
+        duet.detail(product, 'owner-jordan', row['chat_id'])
+    assert invitation(product, row, context)['status'] == 'pending'
+
+
+@pytest.mark.parametrize('restriction', ['withdrawn', 'cancelled', 'reset'])
+def test_delayed_invitation_rechecks_origin_before_sharing_requirements_and_history(product, restriction):
+    row, context, _ = active(product)
+    invited = invitation(product, row, context)
+    approvals = invitation_approvals(invited)
+    for approval in approvals[:-1]:
+        asyncio.run(product.decide_approval(approval['approver_id'], approval['id'], 'approved', 'once'))
+    with product.transaction() as db:
+        request = db.get(ReplyRequest, context['request_id'])
+        if restriction == 'withdrawn':
+            db.get(Message, request.source_message_id).state = 'withdrawn'
+        elif restriction == 'cancelled':
+            request.cancel_requested = True
+        else:
+            db.get(Chat, request.chat_id).reset_generation += 1
+    final = approvals[-1]
+    with pytest.raises(HTTPException):
+        asyncio.run(product.decide_approval(final['approver_id'], final['id'], 'approved', 'once'))
+    with pytest.raises(HTTPException):
+        duet.detail(product, 'owner-jordan', row['chat_id'])
+    assert len(duet.detail(product, 'owner-alex', row['chat_id'])['messages']) == 1
+
+
+def test_topic_metadata_changes_wake_admin_only_and_use_revision_check(product):
+    row, context, _ = active(product)
+    result = product._runtime_tool_transaction('update_duet_topic', {'chat_id': row['chat_id'],
+        'expected_revision': 1, 'title': 'Updated topic'}, {**context, 'operation_id': key()})
+    assert result['revision'] == 2 and result['title'] == 'Updated topic'
+    with product.transaction() as db:
+        updates = list(db.scalars(select(ReplyRequest).where(ReplyRequest.chat_id == row['chat_id'],
+            ReplyRequest.input_body.contains('topic_updated'))))
+        assert len(updates) == 1 and updates[0].target_twin_id == 'twin-alex'
+        assert 'Updated topic' not in updates[0].input_body
+    with pytest.raises(HTTPException, match='Topic changed'):
+        product._runtime_tool_transaction('update_duet_topic', {'chat_id': row['chat_id'],
+            'expected_revision': 1, 'title': 'Stale edit'}, {**context, 'operation_id': key()})
+
+
+def test_pending_invitee_private_duet_reads_own_approval_without_topic_access(product):
+    from app.models import ChangeOutbox
+
+    row, admin_context, _ = active(product)
+    with product.transaction() as db:
+        before_revision = db.get(Chat, 'private-jordan').revision
+        before_requests = list(db.scalars(select(ReplyRequest.id).where(ReplyRequest.chat_id == 'private-jordan')))
+    invited = invitation(product, row, admin_context)
+    with product.transaction() as db:
+        private = db.get(Chat, 'private-jordan')
+        assert private.revision > before_revision
+        assert db.scalar(select(ChangeOutbox.id).where(ChangeOutbox.chat_id == private.id,
+            ChangeOutbox.revision == private.revision, ChangeOutbox.kind == 'changed'))
+        assert list(db.scalars(select(ReplyRequest.id).where(ReplyRequest.chat_id == 'private-jordan'))) == before_requests
+    approval = next(item for item in invitation_approvals(invited) if item['approver_id'] == 'owner-jordan')
+    request = product.send_message('owner-jordan', 'private-jordan',
+        'Inspect my invitation and create a reminder to review it', key())['request']
+    context = product.get_runtime_context(request['id'])
+    result = product._runtime_tool_transaction('get_approval', {'id': approval['id']},
+        {**context, 'operation_id': key()})
+    assert result['id'] == approval['id'] and result['status'] == 'pending' and result['invitation']
+    assert result['impact'] == 'Check the release requirements and append findings'
+    with pytest.raises(HTTPException):
+        product._runtime_tool_transaction('read_duet_topic', {'chat_id': row['chat_id']},
+            {**context, 'operation_id': key()})
+    reminder = product._runtime_tool_transaction('create_reminder',
+        {'title': 'Review the topic invitation'}, {**context, 'operation_id': key()})
+    assert reminder['title'] == 'Review the topic invitation'
+    with product.transaction() as db:
+        member = product.membership(db, 'owner-jordan', 'private-jordan')[1]
+        sources = product.manifest_provenance(db, request['id'])
+        assert product.provenance_allowed(db, member, sources)
+        assert all(source.get('chat_id') != row['chat_id'] for source in sources)

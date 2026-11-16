@@ -193,9 +193,15 @@ def test_group_child_memory_write_checks_current_root_authorization(product, rev
             with product.transaction() as db:
                 chat, _ = product.membership(db, "owner-alex", "duet-alex-maya")
                 source = product.append_message(db, chat, author_id=db.scalar(select(Actor.id).where(Actor.owner_id == "owner-maya", Actor.kind == "twin")), kind="twin", body="Authorized group task", causal_chain_id=product.new_causal_chain(db, "owner-maya").id)
-                request = db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == source.id, ReplyRequest.target_twin_id == "twin-alex", ReplyRequest.generation == 0))
+                request = db.scalar(select(ReplyRequest).where(ReplyRequest.source == "duet_topic_update",
+                    ReplyRequest.input_body.contains(f'"update_id":"{source.id}"'),
+                    ReplyRequest.target_twin_id == "twin-alex", ReplyRequest.generation == 0))
                 request_id, source_id = request.id, source.id
-            result = await runtime.execute(product.get_request(request_id), product.get_runtime_context(request_id))
+            context = product.get_runtime_context(request_id)
+            page = product._runtime_tool_transaction("read_duet_topic", {"chat_id": "duet-alex-maya"},
+                {**context, "operation_id": uuid4().hex})
+            assert source_id in {post["id"] for post in page["messages"]}
+            result = await runtime.execute(product.get_request(request_id), context)
             product.complete_request(request_id, result)
             from agent_runtime.sessions import DatabaseSession
             child = DatabaseSession(runtime.store, tenant_id="local", user_id="owner-alex", session_id=uuid4().hex)

@@ -10,7 +10,7 @@ from duet_test_support import request_duet_reply as receiver_request
 from duet_test_support import seed_collaborations
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import event, func, select
+from sqlalchemy import event, select
 from test_memory_dream import product as product  # noqa: PLC0414
 
 from app import service as service_module
@@ -253,20 +253,32 @@ def test_cross_chat_reaction_requires_actual_message_visibility_and_preserves_so
             pass
         else:
             raise AssertionError(f"Unauthorized reaction accepted: target={target} extra={extra}")
-    # Prepared channel text is shareable; the original private read remains audited.
-    output = product.publish_runtime_output(
-        request["id"], "Prepared output after private reaction", product.get_request(request["id"])["session_id"], "r", "e", 1
-    )
+    # Explicitly published text is a snapshot; the private read remains audited.
+    output = asyncio.run(product.runtime_tool("post_duet_reply", {
+        "chat_id": "duet-team", "body": "Prepared output after private reaction",
+        "mention_owner_ids": []}, {**context, "operation_id": uuid4().hex}))["message_id"]
     for owner in ("owner-alex", "owner-maya"):
         assert any(row["id"] == output for row in product.chat_detail(owner, "duet-team")["messages"])
     with product.transaction() as db:
         assert any(source.get("chat_id") == "private-alex" for source in
                    db.get(ContextManifest, context["context_manifest_id"]).sources)
         assert db.get(Message, output).request_id == request["id"]
-        assert db.scalar(select(func.count()).select_from(ReplyRequest).where(ReplyRequest.source_message_id == output)) == 2
+        notifications = [row for row in db.scalars(select(ReplyRequest).where(
+            ReplyRequest.chat_id == "duet-team", ReplyRequest.source == "duet_topic_update"))
+            if json.loads(row.input_body)["update_id"] == output]
+        assert len(notifications) == 1
+        assert notifications[0].target_twin_id == "twin-alex" and notifications[0].source_message_id is None
     with pytest.raises(HTTPException) as denied:
         product.chat_detail("owner-maya", "private-alex")
     assert denied.value.status_code == 403
+    with product.transaction() as db:
+        db.get(Message, private).state = "withdrawn"
+    with pytest.raises(HTTPException) as revoked:
+        asyncio.run(product.runtime_tool("post_duet_reply", {
+            "chat_id": "duet-team", "body": "Must not reuse withdrawn evidence",
+            "mention_owner_ids": []}, {**context, "operation_id": uuid4().hex}))
+    assert revoked.value.status_code == 409
+    assert any(row["id"] == output for row in product.chat_detail("owner-maya", "duet-team")["messages"])
 
 
 def test_committed_reaction_tool_phase_recovers_without_duplicate_effect(product):

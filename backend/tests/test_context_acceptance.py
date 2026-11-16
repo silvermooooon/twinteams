@@ -2,6 +2,8 @@
 
 The journal, summary publication, membership checks, manifests and receiver input
 are production paths. Summary prose is a deliberate synthetic acceptance input.
+Forum checkpoint tests explicitly exercise the retained storage API; forum wakes
+do not call it or automatically receive its summary/history.
 """
 import asyncio
 import json
@@ -39,7 +41,7 @@ def request(product, chat_id, source_id, *, owner="owner-alex"):
 
 
 def summarize(product, request_id, body="Synthetic checkpoint preserving the journal facts."):
-    context = product.get_runtime_context(request_id)
+    context = checkpoint_context(product, request_id)
     scope, batches, covered = context["_summary_scope"], [], []
     while prepared := product.prepare_conversation_summary(scope):
         assert prepared["messages"], "The due prefix must be available to summarize"
@@ -51,6 +53,19 @@ def summarize(product, request_id, body="Synthetic checkpoint preserving the jou
         assert len(batches) < 20, "Summary maintenance must advance a finite journal boundary"
     assert batches, "This acceptance history must trigger summary maintenance"
     return saved, {"messages": covered, "batches": batches}
+
+
+def checkpoint_context(product, request_id):
+    """Exercise checkpoint storage explicitly, retaining real manifest checks."""
+    context = product.get_runtime_context(request_id)
+    if context["chat"]["kind"] == "duet":
+        checkpoint = product.get_conversation_context({
+            "chat_id": context["chat"]["id"], "owner_id": context["owner_id"],
+            "exclude_request_id": request_id,
+            "context_manifest_id": context["context_manifest_id"],
+        })
+        return {**context, **checkpoint}
+    return context
 
 
 @contextmanager
@@ -98,7 +113,7 @@ def test_over_500_sources_keep_journal_and_bound_repeated_context_reads(product,
 
     for _ in range(2):
         with sql_reads() as reads:
-            context = product.get_runtime_context(next_id)
+            context = checkpoint_context(product, next_id)
         assert context["summary"]["id"] == saved["id"]
         assert context["summary"]["coverage_end_seq"] == end
         assert [row["id"] for row in context["messages"]] == [row["id"] for row in expected_tail]
@@ -119,6 +134,10 @@ def test_over_500_sources_keep_journal_and_bound_repeated_context_reads(product,
     history = asyncio.run(product.runtime_tool("history", {"before_seq": 101, "limit": 100},
                                               {"owner_id": "owner-alex", "chat": {"id": chat_id}}))
     assert [row["seq"] for row in history["messages"]] == list(range(1, 101))
+    if chat_id == "duet-team":
+        asyncio.run(product.runtime_tool("post_duet_reply", {
+            "chat_id": chat_id, "body": "Synthetic verified modern Duet output",
+            "mention_owner_ids": []}, {**context, "operation_id": uuid4().hex}))
     product.complete_request(next_id, body="Synthetic verified modern Duet output",
                              session_id=product.get_request(next_id)["session_id"], run_id="run-" + next_id)
     with product.transaction() as db:
@@ -168,7 +187,7 @@ def test_covered_source_changes_revoke_frozen_resume_and_stale_summary(product, 
     saved, _ = summarize(product, first_id, "The old fact was verified.")
     tail = seed(product, "duet-team", 1)
     frozen_id = request(product, "duet-team", tail[-1]["id"])
-    assert product.get_runtime_context(frozen_id)["summary"]["id"] == saved["id"]
+    assert checkpoint_context(product, frozen_id)["summary"]["id"] == saved["id"]
     with product.transaction() as db:
         source = db.get(Message, rows[0]["id"])
         if mutation == "edit":
@@ -213,19 +232,19 @@ def test_private_audit_ancestor_does_not_revoke_delivered_peer_snapshot(product,
                                       "private_generation": 0,
                                       "sources": [{"kind": "message", "id": private[0]["id"]}]}]
     saved, _ = summarize(product, request(product, "duet-team", rows[-1]["id"]))
-    maya = product.get_runtime_context(request(product, "duet-team", rows[-1]["id"], owner="owner-maya"))
+    maya = checkpoint_context(product, request(product, "duet-team", rows[-1]["id"], owner="owner-maya"))
     assert maya["summary"] is None or maya["summary"]["id"] != saved["id"]
     assert rows[0]["id"] in {row["id"] for row in maya["messages"]}
     assert "Owner private context" not in json.dumps(maya["messages"])
     fresh_source = seed(product, "duet-team", 1)
     frozen_id = request(product, "duet-team", fresh_source[-1]["id"])
-    assert product.get_runtime_context(frozen_id)["summary"]["id"] == saved["id"]
+    assert checkpoint_context(product, frozen_id)["summary"]["id"] == saved["id"]
     with product.transaction() as db:
         if revoke == "withdraw":
             db.get(Message, private[0]["id"]).state = "withdrawn"
         else:
             db.get(Chat, "private-alex").reset_generation += 1
-    assert product.get_runtime_context(frozen_id)["summary"]["id"] == saved["id"]
+    assert checkpoint_context(product, frozen_id)["summary"]["id"] == saved["id"]
     fresh = product.get_conversation_context({"chat_id": "duet-team", "owner_id": "owner-alex"})
     assert fresh["summary"]["id"] == saved["id"]
     with product.transaction() as db:
@@ -325,11 +344,14 @@ def test_unrelated_membership_retires_cache_without_hiding_published_output_or_l
     rows = seed(product, "duet-team", 60)
     first_id = request(product, "duet-team", rows[-1]["id"])
     saved, _ = summarize(product, first_id)
-    old_scope = product.get_runtime_context(first_id)["_summary_scope"]
+    old_scope = checkpoint_context(product, first_id)["_summary_scope"]
     newest = seed(product, "duet-team", 1)
     reply_id = request(product, "duet-team", newest[-1]["id"])
-    product.get_runtime_context(reply_id)
-    product.complete_request(reply_id, body="Previously published verified finding",
+    asyncio.run(product.runtime_tool("post_duet_reply", {
+        "chat_id": "duet-team", "body": "Previously published verified finding",
+        "mention_owner_ids": []}, {**product.get_runtime_context(reply_id),
+                                   "operation_id": uuid4().hex}))
+    product.complete_request(reply_id, body="Private execution bookkeeping only",
                              session_id=product.get_request(reply_id)["session_id"], run_id="run-" + reply_id)
     with product.transaction() as db:
         output_id = db.scalar(select(Message.id).where(Message.request_id == reply_id))
@@ -378,7 +400,7 @@ def test_legacy_body_hash_manifest_can_resume_until_its_source_changes(product):
     assert error.value.status_code == 409
 
 
-def test_receiver_has_duet_summary_tail_without_private_owner_context(product):
+def test_receiver_reads_topic_explicitly_without_injected_summary_or_private_context(product):
     private = seed(product, "private-alex", 45, label="PRIVATE_SENTINEL_ALPHA")
     summarize(product, request(product, "private-alex", private[-1]["id"]),
               "PRIVATE_SUMMARY_SENTINEL_ALPHA")
@@ -392,15 +414,33 @@ def test_receiver_has_duet_summary_tail_without_private_owner_context(product):
     with sql_reads() as reads:
         prepared = product.get_runtime_context(receiver["id"])
     assert prepared
-    route_context = prepared
-    encoded = json.dumps(route_context)
-    assert "GROUP_CHECKPOINT_SENTINEL_BETA" in encoded
+    encoded = json.dumps(prepared)
+    assert "GROUP_CHECKPOINT_SENTINEL_BETA" not in encoded
+    assert "Authorized group fact" not in encoded and "AAA, can you answer?" not in encoded
     assert "PRIVATE_SENTINEL_ALPHA" not in encoded and "PRIVATE_SUMMARY_SENTINEL_ALPHA" not in encoded
     assert "private-alex" not in encoded
-    assert isinstance(route_context, dict) and route_context["summary"]["id"] == saved["id"]
-    assert [row["seq"] for row in route_context["messages"]] == list(
-        range(saved["coverage_end_seq"] + 1, sent["message"]["seq"] + 1))
-    assert_tail_reads(reads, len(route_context["messages"]))
+    assert prepared["summary"] is None and prepared["_summary_scope"] is None
+    assert prepared["messages"] == [] and prepared["source_message"] is None
+    assert not any("tt_messages.body" in row["sql"].split(" from ", 1)[0] for row in reads)
+    with sql_reads() as reads:
+        page = asyncio.run(product.runtime_tool("read_duet_topic", {
+            "chat_id": "duet-team", "limit": 20}, prepared))
+    assert page["next_before_seq"] == page["messages"][0]["seq"]
+    assert [row["seq"] for row in page["messages"]] == list(range(sent["message"]["seq"] - 19,
+                                                                                sent["message"]["seq"] + 1))
+    assert page["messages"][-1]["body"] == "AAA, can you answer?"
+    assert "PRIVATE_SENTINEL_ALPHA" not in json.dumps(page)
+    assert "GROUP_CHECKPOINT_SENTINEL_BETA" not in json.dumps(page)
+    assert_tail_reads(reads, len(page["messages"]))
+    earlier = asyncio.run(product.runtime_tool("read_duet_topic", {
+        "chat_id": "duet-team", "limit": 20, "before_seq": saved["coverage_end_seq"] + 1}, prepared))
+    assert earlier["messages"][-1]["seq"] == saved["coverage_end_seq"]
+    with product.transaction() as db:
+        manifest = db.get(ContextManifest, prepared["context_manifest_id"])
+        assert {row["id"] for row in page["messages"] + earlier["messages"]} <= {
+            source["id"] for source in manifest.sources if source["kind"] == "duet_post_revision"}
+    resumed = product.get_runtime_context(receiver["id"])
+    assert resumed["messages"] == [] and resumed["summary"] is None
 
 
 @pytest.fixture(autouse=True)

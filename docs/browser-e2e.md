@@ -1,10 +1,20 @@
 # Isolated browser acceptance
 
-Use a disposable PostgreSQL schema, Redis namespace, workspace and API/worker processes. Never point an acceptance runner at production or reuse a real user's conversation. Preserve failures and count all provider HTTP attempts, including transport failures. The current interaction contract is [message-driven Duet channels](interaction-rules.md).
+Use a disposable PostgreSQL schema, Redis namespace, workspace and API/worker processes. Never point an acceptance runner at production or reuse a real user's conversation. Preserve failures and count all provider HTTP attempts, including transport failures. The current interaction contract is [Duet topics](duet-topics.md).
 
 ## Current fixture
 
-Build the frontend into a temporary output directory with the repository's supported Node version, then run the existing collaboration fixture from the repository root:
+Run the automated forum browser scenario from the repository root with the repository's supported Node version and installed Chrome:
+
+```sh
+TWINTEAMS_BROWSER_CHANNEL=chrome backend/.venv/bin/python backend/checks/browser_e2e.py \
+  --scenario forum-topic --node /usr/local/n/versions/node/22.14.0/bin/node \
+  --artifact-dir /tmp/duet-forum-browser-acceptance
+```
+
+This strictly offline scenario builds isolated assets, runs the real browser/API/worker/SDK paths, and verifies posts beyond six, edit history and invitation consent. The [2026-11-17 forum acceptance report](duet-forum-acceptance-2026-11-17.md) records the executed workload, outcomes and cleanup evidence.
+
+For manual CUA journeys and the existing concurrency controls, build the frontend into a temporary output directory and launch the collaboration fixture:
 
 ```sh
 backend/.venv/bin/python backend/checks/duet_collaboration_acceptance.py \
@@ -12,11 +22,13 @@ backend/.venv/bin/python backend/checks/duet_collaboration_acceptance.py \
   --artifact-dir /tmp/duet-channel-acceptance
 ```
 
-The fixture prints its guarded loopback URL and instance metadata. Use that exact instance in Chrome through CUA for browser actions and DOM observation. Guarded read-only inspection correlates visible messages with canonical IDs, requests, consent, send budgets and SDK events; database observations do not substitute for a browser interaction claim. The deterministic offline adapter tests product plumbing, not independent model behavior.
+The fixture prints its guarded loopback URL and instance metadata. Use that exact instance in Chrome through CUA for browser actions and DOM observation. Guarded read-only inspection correlates visible messages with canonical IDs, requests, consent, post revisions and SDK events; database observations do not substitute for a browser interaction claim. The deterministic offline adapter tests product plumbing, not independent model behavior.
+
+Replace `--serve` with `--smoke` for its automatic offline HTTP/SDK check. It creates and approves a topic, explicitly reads and posts thirteen messages with mentions, checks metadata-only notifications and silent administrator self-updates, then removes its fixture. This check makes no browser-interaction claim. Without either flag, the launcher checks startup readiness and cleans up without exercising collaboration.
 
 Verify owner-private assistance and human-only chats; unanimous once approval; standing grants and revocation; read-only channel transcript and history pagination; ordinary question answers returning useful results to the initiating owner; and silent completion without an empty chat bubble. Count canonical message IDs rather than nested card rendering or transient updates.
 
-For the send boundary, exercise an actual chain's six published peer messages, including its opening. The sixth must be delivered. The seventh must remain unsent, absent from published transcript, peer context and notifications. Only its author's owner sees the prepared body and can cancel it. Other participating owners see the waiting count and shared allowance. Explicit Continue adds six sends with one durable consent key; retries must not grant twice. Private reports, questions, receipt, worker completion and retries do not themselves spend sends. Channel state stays independent of task execution state.
+For forum behavior, publish more than six posts and confirm they all persist without a Continue control. A post without @ wakes only the administrator; an explicit @ also wakes its target, and mentioning the administrator does not duplicate its update. Administrator-authored posts still create an administrator notification. Inspect actual SDK input to prove notifications contain no post body, opening, summary, files or Tracking content, then prove a tool read supplies the authorized post. A nonempty execution final alone must create no post. Verify author-only edits and revision history, administrator-only invitations, no membership before required consent, no new-member access to previously shared file snapshots, and current access after revocation. Legacy unsent drafts remain owner-only/cancellable and do not publish during upgrade. Topic state stays independent of task execution state.
 
 ## Live campaign
 

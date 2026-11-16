@@ -15,21 +15,21 @@ async function main() {
     browser = await chromium.launch({ headless: true, channel: process.env.TWINTEAMS_BROWSER_CHANNEL || 'chrome' });
     const page = await browser.newPage({ viewport: { width: 1280, height: 1100 } });
     const failures = []; page.on('pageerror', error => failures.push(error.message));
-    let releaseCancel; let draftCancelled = false;
-    let cancellations = [], decisions = [], continues = [], retries = [], revoked = false, closed = false, status = 'pending', reads = 0, summaryReads = 0;
+    let releaseCancel; let draftCancelled = false, invitation = false;
+    let cancellations = [], decisions = [], retries = [], revoked = false, closed = false, status = 'pending', reads = 0, summaryReads = 0, historyReads = 0;
     const now = '2026-10-26T08:00:00Z';
-    const approvals = () => [0, 1, 2].map(i => ({ id: `approval-${i}`, type: 'duet_conversation', chat_id: 'duet-1', approver_id: `owner-${i}`, title: 'Approve planning collaboration', description: 'Coordinate the launch plan.', target: 'Planning', impact: 'Share the conversation with the recipient Duets.', status: i === 0 && decisions.length ? decisions.at(-1).decision : i === 1 ? 'approved' : 'pending', scope: i === 0 && decisions.length ? decisions.at(-1).scope : 'once', peer_owner_ids: [0, 1, 2].filter(peer => peer !== i).map(peer => `owner-${peer}`), created_at: now }));
-    const conversation = () => ({ id: 'collaboration-1', chat_id: 'duet-1', kind: 'duet', title: 'Launch planning collaboration', origin_chat_id: 'pair', initiating_owner_id: 'owner-0', purpose: 'Agree on launch dates.', opening_message: 'Compare everyone’s **availability**.', status: closed ? 'closed' : status, participant_owner_ids: ['owner-0', 'owner-1', 'owner-2'], approvals: approvals(), created_at: now, can_close: true });
-    const message = (id, seq) => ({ id, chat_id: 'duet-1', seq, author_id: id === 'latest' ? 'twin-0' : 'twin-1', author_owner_id: id === 'latest' ? 'owner-0' : 'owner-1', kind: 'twin', body: id === 'older' ? 'Earlier planning context' : 'A **shared** launch plan', created_at: now, read_by: [], state: 'published' });
+    const approvals = () => [0, 1, 2].map(i => ({ id: `approval-${i}`, type: 'duet_conversation', chat_id: 'duet-1', approver_id: `owner-${i}`, title: 'Approve planning collaboration', description: 'Coordinate the launch plan.', target: 'Planning', impact: invitation ? 'Review the **revised milestones** before joining.' : 'Share the conversation with the recipient Duets.', invitation, invited_owner_ids: invitation ? ['owner-2'] : [], status: i === 0 && decisions.length ? decisions.at(-1).decision : i === 1 ? 'approved' : 'pending', scope: i === 0 && decisions.length ? decisions.at(-1).scope : 'once', peer_owner_ids: [0, 1, 2].filter(peer => peer !== i).map(peer => `owner-${peer}`), created_at: now }));
+    const conversation = () => ({ id: 'collaboration-1', chat_id: 'duet-1', kind: 'duet', title: 'Launch planning collaboration', origin_chat_id: 'pair', initiating_owner_id: 'owner-0', admin_owner_id: 'owner-0', revision: 1, purpose: 'Agree on launch dates.', opening_message: 'Compare everyone’s **availability**.', status: closed ? 'closed' : status, participant_owner_ids: ['owner-0', 'owner-1', 'owner-2'], approvals: approvals(), created_at: now, can_close: true });
+    const message = (id, seq) => ({ id, chat_id: 'duet-1', seq, author_id: id === 'latest' ? 'twin-0' : 'twin-1', author_owner_id: id === 'latest' ? 'owner-0' : 'owner-1', kind: 'twin', body: id === 'older' ? 'Earlier planning context' : 'A **shared** launch plan', created_at: now, read_by: [], state: 'published', mention_owner_ids: id === 'latest' ? ['owner-1'] : [], revision: id === 'peer' ? 2 : 1, edited_at: id === 'peer' ? now : null });
     await page.route('**/api/**', async route => {
       const req = route.request(), url = new URL(req.url()), p = url.pathname; if (!p.startsWith('/api/')) return route.continue(); let body = {};
       if (p.startsWith('/api/reply-requests/') && p.endsWith('/cancel')) { cancellations.push(p); if (p.includes('/new-task/')) await new Promise(resolve => { releaseCancel = resolve; }); }
       else if (p === '/api/chats/duet-1/summary') { summaryReads++; body = { id: 'duet-1', kind: 'duet', title: 'Launch planning collaboration', member_owner_ids: ['owner-0','owner-1','owner-2'], unread_count: 0 }; }
       else if (p === '/api/duet-conversations') { reads++; body = { conversations: [conversation(), { ...conversation(), id: 'rejected', chat_id: 'rejected', title: 'Declined collaboration', status: 'rejected', approvals: [] }] }; }
-      else if (p === '/api/duet-conversations/duet-1') body = { revision: 1, chat: { id: 'duet-1', kind: 'duet', title: 'Launch planning collaboration', member_owner_ids: ['owner-0', 'owner-1', 'owner-2'], unread_count: 0 }, conversation: conversation(), messages: url.searchParams.has('before_seq') ? [message('older',1)] : [message('latest',2),message('peer',3)], has_more: !url.searchParams.has('before_seq'), before_seq: url.searchParams.has('before_seq') ? 1 : 2, approvals: approvals(), members: [], requests: status === 'active' ? [0, 1].map(i => ({ id: `failed-${i}`, chat_id: 'duet-1', target_twin_id: `twin-${i}`, source: 'duet', status: 'failed', can_retry: true, can_cancel: false, error: 'Fixture failure', accepted_at: now })) : [], tracking: [], settings: { sidebar_open: true, sidebar_tab: 'duets' }, send_budgets: status === 'active' ? [{ causal_chain_id: 'chain-1', spent: 6, allowance: 6, remaining: 0, pending_count: 2, continuation_allowance: 6, can_continue: true }] : [], pending_messages: status === 'active' && !draftCancelled ? [{ ...message('draft',null), author_id: 'twin-0', body: 'Prepared private draft', state: 'pending', causal_chain_id: 'chain-1', can_cancel: true }] : [] };
+      else if (p === '/api/duet-conversations/duet-1') body = { revision: 1, chat: { id: 'duet-1', kind: 'duet', title: 'Launch planning collaboration', member_owner_ids: ['owner-0', 'owner-1', 'owner-2'], unread_count: 0 }, conversation: conversation(), messages: url.searchParams.has('before_seq') ? [message('older',1)] : [message('latest',2),message('peer',3)], has_more: !url.searchParams.has('before_seq'), before_seq: url.searchParams.has('before_seq') ? 1 : 2, approvals: approvals(), members: [], requests: status === 'active' ? [0, 1].map(i => ({ id: `failed-${i}`, chat_id: 'duet-1', target_twin_id: `twin-${i}`, source: 'duet', status: 'failed', can_retry: true, can_cancel: false, error: 'Fixture failure', accepted_at: now })) : [], tracking: [], settings: { sidebar_open: true, sidebar_tab: 'duets' }, pending_messages: status === 'active' && !draftCancelled ? [{ ...message('draft',null), author_id: 'twin-0', body: 'Prepared private draft', state: 'pending', causal_chain_id: 'chain-1', can_cancel: true }] : [] };
+      else if (p === '/api/duet-conversations/duet-1/posts/peer/history') { historyReads++; const earlier = url.searchParams.has('before_revision'); body = { chat_id: 'duet-1', message_id: 'peer', revisions: [{ revision: earlier ? 1 : 2, body: earlier ? 'Original planning proposal' : 'Revised planning proposal', mention_owner_ids: earlier ? [] : ['owner-0'], created_at: now }], has_more: !earlier, before_revision: earlier ? 1 : 2 }; }
       else if (p.startsWith('/api/approvals/')) { decisions.push(req.postDataJSON()); body = { status: 'approved' }; }
       else if (p === '/api/duet-conversations/duet-1/pending-messages/draft' && req.method() === 'DELETE') { draftCancelled = true; }
-      else if (p.endsWith('/continue')) { continues.push({ path: p, body: req.postDataJSON() }); }
       else if (p.endsWith('/retry')) { retries.push(p); }
       else if (p.endsWith('/close')) { closed = true; body = conversation(); }
       else if (p === '/api/duet-authorizations') body = { authorizations: revoked ? [] : [{ peer_owner_id: 'owner-1', peer_twin_id: 'twin-1', peer_name: 'Blair Duet', created_at: now }] };
@@ -104,48 +104,78 @@ async function main() {
     await page.getByRole('heading', { name: 'Human planning', exact: true }).waitFor();
     assert.equal(summaryReads, 1, 'Known human destinations preserve the direct fast path');
     await page.goto(`${origin}/e2e/duet-ui.html?approval=1`);
-    await page.getByText('Opening request', { exact: true }).click();
+    await page.getByText('Topic request', { exact: true }).click();
     await page.getByText('Prepared opening for recipients.', { exact: true }).waitFor();
     assert.equal(await page.locator('.duet-opening strong').innerText(), 'opening', 'Prepared opening renders Markdown inside the private approval card');
+    await page.goto(`${origin}/e2e/duet-ui.html?approval=1&invitation=1`);
+    await page.locator('.duet-approval p').filter({ hasText: 'Invited Duets: Casey Duet' }).waitFor();
+    await page.getByRole('button', { name: 'Allow once', exact: true }).waitFor();
     for (const source of ['pair', 'multi', 'private']) {
       await page.goto(`${origin}/e2e/duet-ui.html?origin=${source}${source === 'private' ? '&kind=private' : ''}`);
-      await page.getByRole('tab', { name: 'Duets', exact: true }).click();
+      await page.getByRole('tab', { name: 'Topics', exact: true }).click();
       await page.getByRole('button', { name: /Launch planning collaboration/ }).click();
       await page.getByText('Owner view · Read only', { exact: true }).waitFor();
       assert.equal(await page.locator('.duet-conversations textarea, .duet-conversations input').count(), 0);
+      await page.getByText('Administrator: Alex Duet', { exact: true }).waitFor();
+      await page.getByText('@Blair Duet', { exact: true }).waitFor();
+      await page.getByText('Edited', { exact: true }).waitFor();
+      assert.equal(await page.getByRole('button', { name: /Continue/ }).count(), 0);
       await page.getByRole('button', { name: 'Allow once', exact: true }).waitFor();
       assert.equal(await page.getByRole('button', { name: 'Allow once', exact: true }).count(), 1);
       assert.equal(await page.getByRole('button', { name: 'Always allow', exact: true }).count(), 1);
-      await page.locator('.duet-approval p').filter({ hasText: 'Recipient Duets: Blair Duet, Casey Duet' }).waitFor();
-      await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click();
+      await page.locator('.duet-approval p').filter({ hasText: 'Participant Duets: Blair Duet, Casey Duet' }).waitFor();
+      await page.getByRole('button', { name: 'Load earlier posts', exact: true }).click();
       await page.getByText('Earlier planning context', { exact: true }).waitFor();
     }
+    invitation = true;
+    await page.getByRole('button', { name: 'Refresh Duet topics', exact: true }).click();
+    const invitationCard = page.locator('.duet-conversations .duet-approval');
+    await invitationCard.getByText('Invitation request', { exact: true }).waitFor();
+    assert.equal(await invitationCard.locator('details').getAttribute('open'), null, 'Invitation requirements stay collapsed until opened');
+    await page.getByText('Original topic request', { exact: true }).click();
+    await page.getByText('Compare everyone’s availability.', { exact: true }).waitFor();
+    await invitationCard.getByText('Invitation request', { exact: true }).click();
+    await invitationCard.getByText('Review the revised milestones before joining.', { exact: true }).waitFor();
+    assert.equal(await invitationCard.locator('.duet-opening strong').innerText(), 'revised milestones');
+    invitation = false;
+    await page.getByRole('button', { name: 'Refresh Duet topics', exact: true }).click();
+    await invitationCard.getByText('Invitation request', { exact: true }).waitFor({ state: 'hidden' });
+    assert.equal(historyReads, 0, 'Post history is loaded only on request');
+    await page.getByRole('button', { name: 'View edit history', exact: true }).click();
+    await page.getByRole('region', { name: 'Post edit history', exact: true }).getByText('Revised planning proposal', { exact: true }).waitFor();
+    assert.equal(historyReads, 1);
+    await page.getByRole('button', { name: 'Load earlier versions', exact: true }).click();
+    await page.getByRole('region', { name: 'Post edit history', exact: true }).getByText('Original planning proposal', { exact: true }).waitFor();
+    assert.equal(historyReads, 2);
+    await page.getByRole('button', { name: 'Hide edit history', exact: true }).click();
+    assert.equal(await page.getByRole('region', { name: 'Post edit history', exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Reject', exact: true }).click();
     await page.getByRole('button', { name: 'Allow once', exact: true }).waitFor({ state: 'hidden' });
     assert.deepEqual(decisions.at(-1), { decision: 'rejected' });
-    decisions = []; await page.getByRole('button', { name: 'Refresh Duet conversations', exact: true }).click();
+    decisions = []; await page.getByRole('button', { name: 'Refresh Duet topics', exact: true }).click();
     await page.getByRole('button', { name: 'Allow once', exact: true }).waitFor();
     // Once and permanent consent produce distinct, explicit server scopes.
     await page.getByRole('button', { name: 'Allow once', exact: true }).click();
     await page.getByText('Allowed once', { exact: true }).first().waitFor();
     assert.deepEqual(decisions.at(-1), { decision: 'approved', scope: 'once' });
-    decisions = []; await page.getByRole('button', { name: 'Refresh Duet conversations', exact: true }).click();
+    decisions = []; await page.getByRole('button', { name: 'Refresh Duet topics', exact: true }).click();
     await page.getByRole('button', { name: 'Always allow', exact: true }).click();
     await page.getByText('Always allowed', { exact: true }).waitFor();
     assert.deepEqual(decisions.at(-1), { decision: 'approved', scope: 'always' });
-    status = 'active'; await page.getByRole('button', { name: 'Refresh Duet conversations', exact: true }).click();
-    await page.getByRole('button', { name: 'Continue · 6 more messages', exact: true }).click();
-    assert.equal(continues.length, 1); assert.deepEqual(Object.keys(continues[0].body).sort(), ['client_request_key', 'expected_allowance']); assert.equal(continues[0].body.expected_allowance, 6); assert.equal(continues[0].path, '/api/duet-conversations/duet-1/chains/chain-1/continue');
+    status = 'active'; await page.getByRole('button', { name: 'Refresh Duet topics', exact: true }).click();
+    await page.locator('[data-pending-message-id="draft"]').waitFor();
+    assert.equal(await page.getByRole('button', { name: /Continue/ }).count(), 0, 'Topics have no send allowance control');
+    assert.equal(await page.getByRole('region', { name: 'Duet message allowance' }).count(), 0);
     assert.equal(await page.locator('.duet-transcript [data-failed-request]').count(), 0);
     assert.equal(await page.locator('[data-pending-message-id="draft"]').count(), 1);
-    assert.equal(await page.getByText('Waiting to send · Not sent', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Unpublished drafts', { exact: true }).count(), 1);
     await page.getByRole('button', { name: 'Cancel unsent message', exact: true }).click();
     await page.locator('[data-pending-message-id="draft"]').waitFor({ state: 'hidden' });
     assert.equal(draftCancelled, true);
     assert.equal(await page.locator('[data-failed-request="failed-0"]').count(), 1, 'Only own Duet exposes request retry');
     await page.locator('[data-failed-request="failed-0"]').getByRole('button', { name: 'Retry', exact: true }).click();
     assert.deepEqual(retries, ['/api/reply-requests/failed-0/retry']);
-    await page.getByRole('button', { name: 'Close Duet conversation', exact: true }).click();
+    await page.getByRole('button', { name: 'Close Duet topic', exact: true }).click();
     await page.getByText('Closed', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: /Continue ·/ }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Allow once', exact: true }).count(), 0);
@@ -155,7 +185,7 @@ async function main() {
     await page.getByText('No trusted Duets yet', { exact: true }).waitFor(); assert.equal(revoked, true);
     assert.equal(failures.length, 0, failures.join('\n')); assert.ok(reads > 0);
     await require('./chat-sync.cjs').chatSyncRegression(browser, origin);
-    console.log('Duet UI regression passed: file approval explains reusable file/recipient consent while ordinary approval retains its exact-action copy; Shared files keeps existing upload/tree access, renders both owners’ approved shares and reuses file previews; private Workspace stays separate; single minimal typing indicator across concurrent foreground work, all background work hidden, completion preserves other work, icon Stop cancels only foreground responses through reorder, plus pair/multi/private sidebar, read-only transcript/history, all-owner decisions, once/always consent, own-only retry, peer-message allowance and private pending draft, close, permanent permission revocation.');
+    console.log('Duet UI regression passed: file approval explains reusable file/recipient consent while ordinary approval retains its exact-action copy; Shared files keeps existing upload/tree access, renders both owners’ approved shares and reuses file previews; private Workspace stays separate; single minimal typing indicator across concurrent foreground work, all background work hidden, completion preserves other work, icon Stop cancels only foreground responses through reorder, plus pair/multi/private sidebar, read-only transcript/history, all-owner decisions, once/always consent, own-only retry, topic administrator, explicit mentions, lazy paginated edit history and preserved private pending drafts with no send allowance, close, permanent permission revocation.');
   } finally { await browser?.close(); vite.kill('SIGTERM'); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

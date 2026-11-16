@@ -446,6 +446,15 @@ def close_duet_conversation(chat_id: str, owner: OwnerIdentity):
     return close_conversation(service, owner, chat_id)
 
 
+@router.get("/duet-conversations/{chat_id}/posts/{message_id}/history")
+def duet_post_history(chat_id: str, message_id: str, owner: OwnerIdentity,
+                      limit: int = Query(30, ge=1, le=100), before_revision: int | None = Query(None, ge=1)):
+    from .duet_messages import post_history
+    with service.transaction() as db:
+        return post_history(service, db, {"chat_id": chat_id, "message_id": message_id,
+            "limit": limit, "before_revision": before_revision}, {"owner_id": owner})
+
+
 @router.get("/duet-authorizations")
 def duet_authorizations(owner: OwnerIdentity):
     from .duet_conversations import authorizations
@@ -456,17 +465,6 @@ def duet_authorizations(owner: OwnerIdentity):
 def revoke_duet_authorization(peer_owner_id: str, owner: OwnerIdentity):
     from .duet_conversations import revoke
     return revoke(service, owner, peer_owner_id)
-
-
-class ContinueDuetSends(Input):
-    client_request_key: str = Field(min_length=1, max_length=160)
-    expected_allowance: int = Field(ge=0, strict=True)
-
-
-@router.post("/duet-conversations/{chat_id}/chains/{chain_id}/continue")
-def continue_duet_sends(chat_id: str, chain_id: str, data: ContinueDuetSends, owner: OwnerIdentity):
-    from .duet_messages import continue_sends
-    return continue_sends(service, owner, chat_id, chain_id, data.client_request_key, data.expected_allowance)
 
 
 @router.delete("/duet-conversations/{chat_id}/pending-messages/{message_id}")

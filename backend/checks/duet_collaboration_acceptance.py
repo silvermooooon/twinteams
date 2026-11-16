@@ -1,6 +1,7 @@
 """Disposable integrated Duet acceptance. Offline by default; no production state.
 
 Launch with --serve, then use the printed loopback URL for real CUA journeys.
+Use --smoke for an automatic offline create/consent/read/post forum check.
 The isolated provider executes real SDK tool calls and scripted model decisions;
 it is not evidence of natural-language model quality. --live requires a separate
 explicit --live-approved flag, uses the existing bounded Responses guard (30 HTTP
@@ -66,8 +67,12 @@ def install_offline(root):
                 owner_id = db.get(Actor, request.target_twin_id).owner_id
                 question = db.scalar(select(QuestionRequest).where(QuestionRequest.owner_id == owner_id, QuestionRequest.chat_id == request.chat_id, QuestionRequest.status == 'pending'))
                 approval = db.scalar(select(Approval).where(Approval.continuation_request_id == request.id))
+                origin = db.get(ReplyRequest, request.continuation_of_request_id) if request.continuation_of_request_id else request
+                topic_update = (json.loads(origin.input_body) if origin and origin.source in
+                    {'duet_topic_update', 'duet_topic_mention'} else None)
                 return {'request_id': request.id, 'source': request.source, 'chat_id': request.chat_id,
                         'owner_id': owner_id, 'source_message_id': request.source_message_id, 'pending_question_id': question.id if question else None,
+                        'source_owner_id': request.source_owner_id, 'topic_update': topic_update,
                         'approval_id': approval.id if approval else None, 'approval_status': approval.status if approval else None,
                         'approval_tool': approval.sdk_reference.get('action', {}).get('tool') if approval else None,
                         'session_id': request.session_id, 'continuation_of_request_id': getattr(request, 'continuation_of_request_id', None),
@@ -75,6 +80,15 @@ def install_offline(root):
                         'body': source.body if source else request.input_body or ''}
         info = await asyncio.to_thread(details)
         body = info.get('body', text)
+        topic_needs_read = info.get('chat_kind') == 'duet' and bool(info.get('topic_update')) and 'read_duet_topic' not in tool_names
+        if info.get('chat_kind') == 'duet':
+            body = ''
+            read = next((item for item in reversed(results) if item.get('toolName') == 'read_duet_topic'), None)
+            if read and info.get('topic_update'):
+                page = json.loads(text_content(read))
+                post = next((item for item in page['messages'] if item['id'] == info['topic_update']['update_id']), None)
+                if post and (info['source_owner_id'] != info['owner_id'] or info['source'] == 'question_result'):
+                    body = post['body']
         if info.get('source') in {'scheduled_task', 'system_review'}:
             try: body = json.loads(body).get('instructions', body)
             except (ValueError, TypeError): pass
@@ -85,7 +99,9 @@ def install_offline(root):
             marker = root / ('provider-start-' + info['request_id'] + '.json')
             if not marker.exists(): marker.write_text(json.dumps(info))
         final = '' if info.get('chat_kind') == 'duet' else 'Acceptance private reply.'
-        if info.get('source') == 'question_result' and body.startswith('CONCURRENCY QUESTION'):
+        if topic_needs_read:
+            name, args = 'read_duet_topic', {'chat_id': info['chat_id'], 'limit': 100}
+        elif info.get('source') == 'question_result' and body.startswith('CONCURRENCY QUESTION'):
             final = 'Completed question continuation: Blue'
         elif body.startswith('CONCURRENCY HOLD'):
             release = root / ('release-slow-provider-' + info['request_id'])
@@ -125,9 +141,9 @@ def install_offline(root):
             final = 'The file sharing request has been processed.'
         elif 'ACCEPTANCE PROPOSE ' in body:
             payload = json.loads(body.split('ACCEPTANCE PROPOSE ', 1)[1])
-            if 'request_duet_conversation' not in tool_names:
-                name, args = 'request_duet_conversation', payload
-            final = 'The Duet conversation is requested. Each owner can approve it in their private inbox or Duets sidebar.'
+            if info.get('source') != 'approval_result' and 'create_duet_topic' not in tool_names:
+                name, args = 'create_duet_topic', payload
+            final = 'The topic is requested. Each owner can approve it in their private inbox or Topics sidebar.'
         elif body.startswith('ACCEPTANCE ANSWER'):
             if info.get('pending_question_id') and 'answer_question' not in tool_names:
                 name, args = 'answer_question', {'question_id': info['pending_question_id'], 'message_id': info['source_message_id']}
@@ -135,7 +151,10 @@ def install_offline(root):
         elif body.startswith('ACCEPTANCE SILENT'):
             final = ''
         elif body.startswith('ACCEPTANCE ASKOWNER') and info.get('source') == 'question_result':
-            final = 'ACCEPTANCE FINAL: The supplied meeting time works.'
+            if 'post_duet_reply' not in tool_names:
+                name, args = 'post_duet_reply', {'chat_id': info['chat_id'],
+                    'body': 'ACCEPTANCE FINAL: The supplied meeting time works.',
+                    'mention_owner_ids': [info['source_owner_id']]}
         elif body.startswith('ACCEPTANCE FINAL'):
             if 'send_chat_message' not in tool_names:
                 name, args = 'send_chat_message', {'chat_id': 'private-' + info['owner_id'].removeprefix('owner-'), 'body': 'Coordination result: the supplied meeting time works.', 'source_message_ids': []}
@@ -145,7 +164,10 @@ def install_offline(root):
                 name, args = 'ask_question', {'question': 'Which supplied meeting time should I use?', 'options': ['Tuesday at 14:30', 'Wednesday at 15:00']}
             final = 'ACCEPTANCE PROGRESS: I am checking with my owner.'
         elif body.startswith('ACCEPTANCE REPORTBACK'):
-            final = 'ACCEPTANCE QUESTION: The supplied time works; please confirm this to your owner.'
+            if 'post_duet_reply' not in tool_names:
+                name, args = 'post_duet_reply', {'chat_id': info['chat_id'],
+                    'body': 'ACCEPTANCE QUESTION: The supplied time works; please confirm this to your owner.',
+                    'mention_owner_ids': [info['source_owner_id']]}
         elif body.startswith('ACCEPTANCE SLOW'):
             (root / ('slow-provider-' + info['request_id'])).write_text('isolated in-flight provider marker')
             release = root / ('release-slow-provider-' + info['request_id'])
@@ -153,10 +175,15 @@ def install_offline(root):
             while not release.exists():
                 if asyncio.get_running_loop().time() > deadline: raise RuntimeError('Controlled provider release timed out')
                 await asyncio.sleep(.1)
-            final = 'The slow coordination response is complete.'
+            if 'post_duet_reply' not in tool_names:
+                name, args = 'post_duet_reply', {'chat_id': info['chat_id'],
+                    'body': 'The slow coordination response is complete.', 'mention_owner_ids': []}
         elif body.startswith('ACCEPTANCE CHAIN'):
             number = int(body.split()[-1]) + 1
-            final = f'ACCEPTANCE CHAIN {number}' if number < 12 else 'The coordination is complete. Thank you.'
+            if number <= 12 and 'post_duet_reply' not in tool_names:
+                name, args = 'post_duet_reply', {'chat_id': info['chat_id'],
+                    'body': f'ACCEPTANCE CHAIN {number}', 'mention_owner_ids': [info['source_owner_id']]}
+            final = 'Execution finished without an automatic topic post.'
         elif body.startswith('ACCEPTANCE QUESTION'):
             if 'send_chat_message' not in tool_names:
                 name, args = 'send_chat_message', {'chat_id': 'private-' + info['owner_id'].removeprefix('owner-'), 'body': 'Coordination report: the supplied meeting time works.', 'source_message_ids': []}
@@ -204,12 +231,12 @@ def snapshot(root):
             'model_mode': os.environ.get('TWINTEAMS_E2E_MODEL_MODE'),
             'provider_http_attempts': len(json.loads((root / 'live-budget.json').read_text())['attempts']) if (root / 'live-budget.json').exists() else 0,
             'chats': [fields(item, 'id kind title') for item in db.scalars(select(Chat))],
-            'conversations': [fields(item, 'chat_id origin_chat_id status close_reason') for item in db.scalars(select(DuetConversation))],
+            'conversations': [fields(item, 'chat_id origin_chat_id initiating_owner_id status close_reason') for item in db.scalars(select(DuetConversation))],
             'memberships': [fields(item, 'chat_id owner_id') for item in db.scalars(select(Membership))],
-            'messages': [fields(item, 'id chat_id seq author_id kind body request_id reply_to_message_id state causal_chain_id sdk_output_key attachment_ids') for item in db.scalars(select(Message).order_by(Message.created_at))],
+            'messages': [fields(item, 'id chat_id seq author_id kind body request_id reply_to_message_id state causal_chain_id sdk_output_key attachment_ids mention_owner_ids revision') for item in db.scalars(select(Message).order_by(Message.created_at))],
             'attachments': [fields(item, 'id chat_id owner_id name sha256 message_id request_id') for item in db.scalars(select(ChatAttachment))],
             'file_operations': [fields(item, 'operation_id owner_id result') for item in db.scalars(select(ProductOperation).where(ProductOperation.name == 'present_files'))],
-            'requests': [fields(item, 'id chat_id target_twin_id requester_id causal_chain_id source status cancel_requested session_id run_id source_message_id accepted_at error background continuation_of_request_id') for item in db.scalars(select(ReplyRequest))],
+            'requests': [fields(item, 'id chat_id target_twin_id requester_id source_owner_id causal_chain_id source status cancel_requested session_id run_id source_message_id input_body accepted_at error background continuation_of_request_id') for item in db.scalars(select(ReplyRequest))],
             'approvals': [fields(item, 'id chat_id approver_id status sdk_reference') for item in db.scalars(select(Approval))],
             'questions': [fields(item, 'id owner_id chat_id origin_chat_id origin_request_id message_id status answer_message_id continuation_request_id created_at answered_at') for item in db.scalars(select(QuestionRequest))],
             'grants': [fields(item, 'owner_id peer_owner_id') for item in db.scalars(select(DuetContactGrant))],
@@ -283,6 +310,25 @@ def verify_concurrency_stage(value, stage):
 def verify_stage(value, stage):
     if stage in {'concurrent', 'cancel-isolation', 'background-overlap', 'continuation', 'cancel-finished', 'question-wait', 'parallel-results', 'retry-isolation'}:
         return verify_concurrency_stage(value, stage)
+    if stage == 'forum':
+        conversation = next(row for row in value['conversations'] if row['status'] == 'active')
+        posts = [row for row in value['messages'] if row['chat_id'] == conversation['chat_id']]
+        notifications = [row for row in value['requests'] if row['chat_id'] == conversation['chat_id']]
+        assert [row['body'] for row in posts] == [f'ACCEPTANCE CHAIN {number}' for number in range(13)]
+        assert all(row['state'] == 'published' for row in posts)
+        for post in posts:
+            updates = [row for row in notifications if json.loads(row['input_body'])['update_id'] == post['id']]
+            recipients = set(post['mention_owner_ids']) | {conversation['initiating_owner_id']}
+            assert {row['target_twin_id'] for row in updates} == {owner.replace('owner-', 'twin-') for owner in recipients}
+            assert len(updates) == len(recipients)
+            assert all(row['source_message_id'] is None and set(json.loads(row['input_body'])) ==
+                {'topic_id', 'update_id', 'revision', 'event', 'mentioned'} for row in updates)
+        assert all(row['status'] == 'completed' and not row['error'] for row in value['requests'])
+        calls = {row['tool'] for row in value['provider_calls']}
+        assert {'create_duet_topic', 'read_duet_topic', 'post_duet_reply'} <= calls
+        assert not value['send_grants'] and value['provider_http_attempts'] == 0
+        return {'stage': stage, 'passed': True, 'posts': len(posts), 'notifications': len(notifications),
+                'provider_decisions': len(value['provider_calls']), 'provider_http_attempts': 0}
     if stage == 'file-sharing':
         approvals = [row for row in value['approvals'] if row['sdk_reference'].get('file_shares')]
         assert len(approvals) == 1 and approvals[0]['status'] == 'approved'
@@ -307,7 +353,7 @@ def verify_stage(value, stage):
         for row in pending:
             assert not any(message['chat_id'] == row['chat_id'] for message in value['messages'])
             assert not any(request['chat_id'] == row['chat_id'] for request in value['requests'])
-        assert any(call['tool'] == 'request_duet_conversation' for call in value['provider_calls'])
+        assert any(call['tool'] == 'create_duet_topic' for call in value['provider_calls'])
     elif stage == 'directional':
         assert value['grants'] == [{'owner_id': 'owner-maya', 'peer_owner_id': 'owner-alex'}]
         assert any(row['status'] == 'pending' for row in value['conversations'])
@@ -320,7 +366,7 @@ def verify_stage(value, stage):
         assert conversations['Pair meeting once']['status'] == 'active'
         assert conversations['Team new recipient consent']['status'] == 'active'
         assert conversations['Pair trusted access']['close_reason'] == 'authorization_revoked'
-        assert conversations['Trusted chain six sends']['status'] == 'closed'
+        assert conversations['Forum beyond six posts']['status'] == 'closed'
         assert conversations['Private renewed consent']['status'] == 'rejected'
         assert conversations['Private renewed consent']['origin_chat_id'] == 'private-alex'
         assert value['grants'] == [{'owner_id': 'owner-maya', 'peer_owner_id': 'owner-alex'}]
@@ -395,6 +441,60 @@ def child(args):
         runpy.run_module('app.worker', run_name='__main__')
 
 
+async def smoke(url, state, artifacts):
+    """Exercise real HTTP consent and offline SDK tools in the owned fixture."""
+    import httpx
+
+    async def request(client, method, path, **kwargs):
+        response = await client.request(method, '/api' + path, **kwargs)
+        response.raise_for_status()
+        return response.json()
+
+    async with httpx.AsyncClient(base_url=url, trust_env=False) as alex, httpx.AsyncClient(base_url=url, trust_env=False) as maya:
+        for client, username in ((alex, 'DEV-AAA'), (maya, 'DEV-BBB')):
+            await request(client, 'POST', '/auth/login', json={'username': username})
+        proposal = {'participant_owner_ids': ['owner-maya'], 'title': 'Forum beyond six posts',
+            'purpose': 'Verify explicit forum collaboration without a send allowance.',
+            'opening_message': 'ACCEPTANCE CHAIN 0', 'mention_owner_ids': ['owner-maya']}
+        await request(alex, 'POST', '/chats/private-alex/messages', json={
+            'body': 'ACCEPTANCE PROPOSE ' + json.dumps(proposal), 'client_request_key': uuid4().hex})
+        deadline = asyncio.get_running_loop().time() + 90
+        while asyncio.get_running_loop().time() < deadline:
+            topics = (await request(alex, 'GET', '/duet-conversations'))['conversations']
+            if topics:
+                chat_id = topics[0]['chat_id']
+                break
+            await asyncio.sleep(.25)
+        else:
+            raise RuntimeError('Offline topic creation timed out')
+        for client, owner in ((alex, 'owner-alex'), (maya, 'owner-maya')):
+            topic = await request(client, 'GET', '/duet-conversations/' + chat_id)
+            approval = next(row for row in topic['approvals'] if row['approver_id'] == owner)
+            await request(client, 'POST', '/approvals/' + approval['id'] + '/decision',
+                json={'decision': 'approved', 'scope': 'once'})
+        deadline = asyncio.get_running_loop().time() + 120
+        while asyncio.get_running_loop().time() < deadline:
+            topic = await request(alex, 'GET', '/duet-conversations/' + chat_id)
+            peer = await request(maya, 'GET', '/duet-conversations/' + chat_id)
+            owner = await request(alex, 'GET', '/chats/private-alex')
+            requests = [*topic['requests'], *peer['requests'], *owner['requests']]
+            if any(row['status'] == 'failed' for row in requests):
+                raise RuntimeError('Offline forum request failed; inspect isolated worker log')
+            if len(topic['messages']) == 13 and all(row['status'] == 'completed' for row in requests):
+                break
+            await asyncio.sleep(.25)
+        else:
+            raise RuntimeError('Offline forum collaboration did not settle at thirteen posts')
+    output = await asyncio.to_thread(subprocess.check_output,
+        [sys.executable, str(Path(__file__).resolve()), '--role', 'inspect', '--state', str(state)],
+        cwd=BACKEND, text=True)
+    value = json.loads(output)
+    report = verify_stage(value, 'forum')
+    (artifacts / 'smoke-snapshot.json').write_text(json.dumps(value, indent=2))
+    (artifacts / 'smoke-report.json').write_text(json.dumps(report, indent=2))
+    print(json.dumps(report), flush=True)
+
+
 async def launch(args):
     import httpx
     from cryptography.fernet import Fernet
@@ -404,6 +504,8 @@ async def launch(args):
     from checks.postgres import TestDatabase
     if args.live and not args.live_approved:
         raise RuntimeError('Live model work requires explicit root GO and --live-approved')
+    if args.smoke and args.live:
+        raise RuntimeError('The scripted smoke check is strictly offline')
     if args.live and args.max_attempts > 30:
         raise RuntimeError('Acceptance campaign permits at most 30 HTTP attempts')
     private = environment('api')
@@ -463,6 +565,8 @@ async def launch(args):
             else: raise RuntimeError('Acceptance readiness timed out')
         public = {'url': url, 'instance_id': nonce, 'namespace': prefix, 'state': str(state), 'artifacts': str(artifacts), 'mode': env['TWINTEAMS_E2E_MODEL_MODE'], 'max_http_attempts': args.max_attempts if args.live else 0, 'launcher_pid': os.getpid(), 'child_pids': [process.pid for process in processes if process.poll() is None]}
         (artifacts / 'instance.json').write_text(json.dumps(public, indent=2)); print(json.dumps({'status': 'ready', **public}), flush=True)
+        if args.smoke:
+            await smoke(url, state, artifacts)
         if args.serve:
             task = asyncio.current_task(); loop = asyncio.get_running_loop()
             for sig in (signal.SIGINT, signal.SIGTERM): loop.add_signal_handler(sig, task.cancel)
@@ -489,10 +593,11 @@ async def launch(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--role', choices=['launch', 'init', 'api', 'worker', 'inspect', 'release-provider', 'seed-background'], default='launch')
-    parser.add_argument('--verify-stage', choices=['human', 'pending', 'directional', 'expanded', 'final', 'concurrent', 'cancel-isolation', 'background-overlap', 'continuation', 'cancel-finished', 'question-wait', 'parallel-results', 'retry-isolation', 'file-sharing'])
+    parser.add_argument('--verify-stage', choices=['human', 'pending', 'directional', 'expanded', 'final', 'forum', 'concurrent', 'cancel-isolation', 'background-overlap', 'continuation', 'cancel-finished', 'question-wait', 'parallel-results', 'retry-isolation', 'file-sharing'])
     parser.add_argument('--task-source', choices=['scheduled_task', 'system_review'], default='scheduled_task'); parser.add_argument('--owner-id', default='owner-alex'); parser.add_argument('--request-id')
     parser.add_argument('--chat-id'); parser.add_argument('--port', type=int); parser.add_argument('--state', type=Path)
     parser.add_argument('--serve', action='store_true'); parser.add_argument('--live', action='store_true'); parser.add_argument('--live-approved', action='store_true')
+    parser.add_argument('--smoke', action='store_true', help='Run the automatic offline forum tool/consent check')
     parser.add_argument('--behavior', action='store_true')
     parser.add_argument('--max-attempts', type=int, default=30); parser.add_argument('--dist', type=Path, default=Path('/tmp/duet-collab-dist'))
     parser.add_argument('--artifact-dir', type=Path, default=Path('/tmp/duet-collaboration-acceptance-offline'))

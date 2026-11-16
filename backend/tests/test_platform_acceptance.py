@@ -96,7 +96,7 @@ def test_cross_chat_publication_is_new_text_not_a_history_grant(product):
     shared = call(
         product,
         context,
-        "send_chat_message",
+        "post_duet_reply",
         {"chat_id": target, "body": "New report prepared for CCC.", "source_message_ids": []},
     )
     assert shared["sent"]
@@ -110,7 +110,7 @@ def test_cross_chat_publication_is_new_text_not_a_history_grant(product):
         call(
             product,
             context,
-            "send_chat_message",
+            "post_duet_reply",
             {"chat_id": target, "body": "This must fail", "source_message_ids": [forbidden_source]},
         )
     with pytest.raises(HTTPException) as error:
@@ -141,16 +141,19 @@ def test_private_read_is_audited_and_normal_group_output_stays_conservative(prod
             row.get("kind") == "chat_context" and row.get("chat_id") == "private-alex"
             for row in sources
         )
-    output_id = product.publish_runtime_output(
-        request["id"], "Prepared output after private reference read.",
-        request["session_id"], "sdk-run", "sdk-event", 7,
-    )
+    assert product.publish_runtime_output(request["id"], "Unposted execution final",
+        request["session_id"], "sdk-run", "sdk-event", 7) is None
+    output_id = call(product, context, "post_duet_reply", {
+        "chat_id": "duet-alex-maya", "body": "Prepared output after private reference read.",
+        "mention_owner_ids": [], "source_message_ids": [],
+    })["message_id"]
     for owner in ("owner-alex", "owner-maya"):
         assert any(row["id"] == output_id for row in product.chat_detail(owner, "duet-alex-maya")["messages"])
     with product.transaction() as db:
         assert any(row.get("chat_id") == "private-alex" for row in db.get(ContextManifest, context["context_manifest_id"]).sources)
         assert db.get(Message, output_id).request_id == request["id"]
-        assert db.scalar(select(func.count()).select_from(ReplyRequest).where(ReplyRequest.source_message_id == output_id)) == 1
+        wakes = list(db.scalars(select(ReplyRequest).where(ReplyRequest.source == "duet_topic_update")))
+        assert sum(json.loads(row.input_body)["update_id"] == output_id for row in wakes) == 1
     with pytest.raises(HTTPException) as denied:
         product.chat_detail("owner-maya", "private-alex")
     assert denied.value.status_code == 403
@@ -182,7 +185,7 @@ def test_late_cross_chat_send_revalidates_all_consumed_sources(product, change):
         call(
             product,
             context,
-            "send_chat_message",
+            "post_duet_reply",
             {
                 "chat_id": "duet-team",
                 "body": "Late report must fail.",
@@ -299,7 +302,7 @@ def test_group_actual_sdk_discovers_private_reads_and_reports_without_private_ex
             )
             public = [row for row in product.chat_detail("owner-maya", "duet-alex-maya")["messages"]
                       if row["body"] == "Conservative group output after private read."]
-            assert len(public) == 1 and public[0]["request_id"] == request["id"]
+            assert public == [], "An execution final must not publish a topic post"
             with pytest.raises(HTTPException) as denied:
                 product.chat_detail("owner-maya", "private-alex")
             assert denied.value.status_code == 403
@@ -312,7 +315,7 @@ def test_group_actual_sdk_discovers_private_reads_and_reports_without_private_ex
                     )
                     == before
                 )
-                assert db.get(CausalChain, request["causal_chain_id"]).spent == spent + 1
+                assert db.get(CausalChain, request["causal_chain_id"]).spent == spent
                 assert any(source.get("chat_id") == "private-alex" for source in
                            product.manifest_provenance(db, request["id"]))
         finally:
@@ -805,7 +808,8 @@ def test_exact_owner_approval_private_retry_grants_one_atomically_and_respects_r
     product.fail_request(private["id"], "Offline private failure")
     controller, context = origin(product)
     with product.transaction() as db:
-        db.get(CausalChain, controller["causal_chain_id"]).spent = 6
+        chain = db.get(CausalChain, controller["causal_chain_id"])
+        chain.spent = chain.allowance = 6
     for index, row in enumerate(old_group):
         call(
             product,

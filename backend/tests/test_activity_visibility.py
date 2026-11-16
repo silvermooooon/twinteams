@@ -19,18 +19,21 @@ from app.runtime_bridge import RuntimeBridge
 
 
 def request(product, source="private", *, origin=None, owner="owner-alex", session=None, run=None):
-    peer_message = None
-    if source == "duet_message" and not origin:
-        from duet_test_support import append_duet, approved_chat
-        chat_id = approved_chat(product, "duet-activity")
-        peer_message = append_duet(product, chat_id, "owner-maya", "Visible peer work")
+    peer_request = None
+    if source in {"duet_topic_update", "duet_topic_mention"} and not origin:
+        from duet_test_support import append_duet, approved_chat, request_duet_reply
+        owners = ["owner-maya", "owner-alex"] if source == "duet_topic_mention" else ["owner-alex", "owner-maya"]
+        chat_id = approved_chat(product, "duet-activity", owners)
+        peer_message = append_duet(product, chat_id, "owner-maya", "Visible peer work", mention_owner_ids=["owner-alex"])
+        peer_request = request_duet_reply(product, "owner-maya", chat_id, peer_message["id"], "twin-alex")
     with product.transaction() as db:
         previous = db.get(ReplyRequest, origin) if origin else None
         chat = db.get(Chat, previous.chat_id if previous else "private-" + owner.removeprefix("owner-"))
         snapshot = {"id": uuid4().hex, "kind": "system_review" if source == "system_review" else "personal",
                     "instructions": "Review the authorized fixture task", "title": "Fixture task"}
-        if peer_message:
-            row = db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == peer_message["id"], ReplyRequest.target_twin_id == "twin-alex"))
+        if peer_request:
+            row = db.get(ReplyRequest, peer_request["id"])
+            assert row.source == source and row.source_message_id is None
         else:
             row = product.accept_request(db, chat, previous.target_twin_id if previous else product.twin(db, owner).id,
                 previous.requester_id if previous else owner, source, uuid4().hex,
@@ -54,7 +57,7 @@ def ids(product, **kwargs):
     return {(row["session_id"], row["run_id"]) for row in product.activity_page("owner-alex", "private-alex", **kwargs)["items"]}
 
 
-@pytest.mark.parametrize("source,visible", [("private", True), ("duet_message", True), ("scheduled_task", False), ("system_review", False)])
+@pytest.mark.parametrize("source,visible", [("private", True), ("duet_topic_update", True), ("duet_topic_mention", True), ("scheduled_task", False), ("system_review", False)])
 def test_context_classifies_origin_and_continuations_without_using_background_as_visibility(product, source, visible):
     original = request(product, source)
     assert product.get_runtime_context(original["id"])["activity_user_visible"] is visible
@@ -62,7 +65,7 @@ def test_context_classifies_origin_and_continuations_without_using_background_as
     second = request(product, "credential_result", origin=first["id"])
     # Existing accepted execution facts may label a continuation simply as user.
     assert product.get_runtime_context(second["id"])["activity_user_visible"] is visible
-    if source == "duet_message":
+    if source in {"duet_topic_update", "duet_topic_mention"}:
         assert product.get_request(original["id"])["background"] is True
     row = projection(product, request=original, visible=visible, status="failed")
     product.record_activity("private-alex", "owner-alex", *row,

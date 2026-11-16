@@ -33,6 +33,8 @@ def topic(product, chat_id, owner="owner-alex", *, sources=True):
         from duet_test_support import request_duet_reply
         request = request_duet_reply(product, owner, chat_id, source_id, "twin-" + owner.removeprefix("owner-"))
         context = product.get_runtime_context(request["id"])
+        read = call(product, context, "read_duet_topic", {"chat_id": chat_id})
+        assert source_id in ids(read["messages"])
     result = call(product, context, "create_tracking", {
         "title": "Scoped project " + uuid4().hex, "description": "Verified ongoing decision",
         "source_message_ids": [source_id] if sources else [],
@@ -100,14 +102,14 @@ def test_private_union_matches_api_runtime_and_tool_without_cross_owner_leaks(se
 
 
 @pytest.mark.parametrize("other", ["private-alex", "duet-team"])
-def test_group_index_and_explicit_tool_arguments_stay_in_its_own_group(send_clients, other):
+def test_forum_tracking_is_explicit_and_stays_in_its_own_topic(send_clients, other):
     product, alex, _ = send_clients
     from duet_test_support import seed_collaborations
     seed_collaborations(product)
     local, _ = topic(product, "duet-alex-maya")
     foreign, _ = topic(product, other)
     _, context = origin(product, "duet-alex-maya")
-    assert ids(context["tracking"]) == {local["id"]}
+    assert context["tracking"] == [] and context["messages"] == [] and context["source_message"] is None
     assert ids(alex.get("/api/chats/duet-alex-maya/tracking").json()["tracking"]) == {local["id"]}
     assert ids(call(product, context, "list_tracking", {})["tracking"]) == {local["id"]}
     for name, args in [

@@ -405,7 +405,7 @@ class RuntimeBridge:
             ("history", "Read original messages visible to your owner in the selected chat, respecting membership history limits. Defaults to the originating chat. Results do not grant other audiences access to that history.",
              {"chat_id": text, "query": text, "before_seq": {"type": "integer"}, "limit": {"type": "integer", "minimum": 1, "maximum": 100}}, []),
             ("list_authorized_chats", "Discover authorized human chats for inspection, your owner's private chat and separate Duet conversations. Includes owner_private_chat_id and is_owner_private. Find your owner's private chat to report useful outcomes; use ask_question for owner input. Metadata discovery never grants hidden history or another owner's private access.", {}, []),
-            ("send_chat_message", "Send a Duet-attributed statement to your owner's private chat or another active approved Duet conversation. Human chats cannot receive Duet messages. For the current chat, use your normal assistant reply instead. Source IDs are internal audit references and do not share originating history. Optionally reply to an authorized destination message. Every published Duet-channel message is delivered to all other participants. Channel sends share six sends per causal chain; pending_budget means held, not sent, until an owner continues. Use ask_question for owner input. Delivery is replay-safe; never work around a denied send.",
+            ("send_chat_message", "Send a Duet-attributed report to your owner's private chat. For a forum topic, use post_duet_reply with explicit mention_owner_ids. Human chats cannot receive Duet messages. Source IDs are internal audit references and do not share originating history. Optionally reply to an authorized destination message. Use ask_question for owner input. Delivery is replay-safe; never work around a denied send.",
              {"chat_id": text, "body": text, "source_message_ids": ids,
               "reply_to_message_id": text},
              ["chat_id", "body", "source_message_ids"]),
@@ -448,7 +448,7 @@ class RuntimeBridge:
         limit = {"type": "integer", "minimum": 1, "maximum": 100}
         policy = {"type": "string", "enum": ["all", "fixed_7d", "no_prior"]}
         schemas.extend([
-            ("set_message_reaction", "Add or remove a supported emoji in your own private chat or an active approved Duet conversation; never in human chats. Use naturally for acknowledgment, thanks, shared joy or appreciation of effort. A reaction alone can suffice when text adds nothing; never announce it, react mechanically to every message or start courtesy loops. Serious feelings need substantive care. This Duet's reaction is separate from the owner's and conveys no owner consent or commitment. Routine current-chat reactions need no extra approval; respect source/audience restrictions. active is desired state, not a toggle; up to 20 emoji per actor/message. No message or model response is triggered. Defaults to the originating chat.",
+            ("set_message_reaction", "Add or remove a supported emoji in your own private chat or an active approved Duet conversation; never in human chats. Use naturally for acknowledgment, thanks, shared joy or appreciation of effort. A reaction alone can suffice when text adds nothing; never announce it, react mechanically to every message or start courtesy loops. Serious feelings need substantive care. This Duet's reaction is separate from the owner's and conveys no owner consent or commitment. Routine current-chat reactions need no extra approval; respect source/audience restrictions. active is desired state, not a toggle; up to 20 emoji per actor/message. In a Duet topic, a changed reaction sends its administrator a metadata-only update wake; ordinary participants are not woken. Defaults to the originating chat.",
              {"chat_id": text, "message_id": text, "emoji": {"type": "string", "minLength": 1, "maxLength": 32}, "active": {"type": "boolean"}},
              ["message_id", "emoji", "active"]),
             ("search_contacts", "Search your owner's private contact index by name, ID or short project responsibility tags. Contacts require actual visible human interaction; empty tags are valid. Tags are optional navigation clues alongside memory and task context, never the sole routing authority or permission to create a group. Never expose these private tags to other people. If a requested task needs a person who cannot be identified, ask your owner one focused identifying question with ask_question and continue independent work; do not wait or poll.",
@@ -464,12 +464,8 @@ class RuntimeBridge:
              {"owner_ids": {**ids, "minItems": 1, "maxItems": 100, "uniqueItems": True}, "title": text, "history_policy": {**policy, "default": "all"}}, ["owner_ids"]),
             ("rename_chat", "Rename a human group with at least three current owners as authorized by your owner. Private, pair and Duet conversations cannot be renamed. Title must contain 1–256 trimmed characters. A peer Duet request requires your owner's exact action approval. This sends no message.",
              {"chat_id": text, "title": text}, ["chat_id", "title"]),
-            ("add_chat_members", "Add people to a human group as authorized by your owner, with an explicit history policy: all, previous seven days, or no prior history. This changes the audience; obtain consent when needed. Duet conversations have fixed participants. A peer Duet request requires your owner's exact action approval. This sends no message or Duet reply.",
+            ("add_chat_members", "Add people to a human group as authorized by your owner, with an explicit history policy: all, previous seven days, or no prior history. This changes the audience; obtain consent when needed. Only the topic administrator can invite Duets using invite_duet_participants. A peer Duet request requires your owner's exact action approval. This sends no message or Duet reply.",
              {"chat_id": text, "owner_ids": {**ids, "minItems": 1, "maxItems": 100, "uniqueItems": True}, "history_policy": policy}, ["chat_id", "owner_ids", "history_policy"]),
-            ("request_duet_conversation", "Request a separate conversation with other owners' Duets for an owner-authorized purpose. Each participant owner must approve once or already have an active directed always grant to every peer. Consent permits the connection only. The prepared opening is held until unanimous consent, then sent. The opening is delivered to all other participating Duets immediately after activation, or held pending send allowance. Do not resend it. Returns pending or active immediately; continue independent work and never wait or poll. After pending consent activates, the initiating private task resumes automatically. Omit origin_chat_id for a private-origin task; supply it only for a human group containing all participants. Source IDs are internal audit references, not a history grant. Reuses the current causal-chain six-send allowance; explicit owner continuation is required after exhaustion.",
-             {"participant_owner_ids": {**ids, "minItems": 1, "maxItems": 99, "uniqueItems": True},
-              "title": text, "purpose": text, "opening_message": text, "source_message_ids": ids,
-              "origin_chat_id": {**text, "description": "Optional human group containing all participants; omit for a private origin."}}, ["participant_owner_ids", "title", "purpose", "opening_message"]),
             ("list_reminders", "Read your owner's in-app reminders, optionally restricted to an authorized chat. Defaults to including completed reminders.",
              {"chat_id": text, "include_done": {"type": "boolean", "default": True}, "limit": limit}, []),
             ("update_reminder", "Mark one of your owner's in-app reminders done or reopen it. Does not schedule an external notification.",
@@ -483,16 +479,19 @@ class RuntimeBridge:
              {"id": text}, ["id"]),
             ("cancel_reply_request", "Cancel an authorized reply request. Does not undo an already committed message or action.",
              {"id": text}, ["id"]),
-            ("retry_reply_request", "Retry an authorized failed request as a new generation of the original task, retaining its original causal chain. Receiving and retrying do not spend channel-send allowance; only subsequent published channel messages do. A Duet task may retry an existing legitimately frozen private task only after that exact owner approval, with private execution disclosed in approval target/impact. The retried task keeps its original configuration; retry approval grants no broader action permission.",
+            ("retry_reply_request", "Retry an authorized failed request as a new generation of the original task, retaining its original causal chain. A Duet task may retry an existing legitimately frozen private task only after that exact owner approval, with private execution disclosed in approval target/impact. The retried task keeps its original configuration; retry approval grants no broader action permission.",
              {"id": text}, ["id"]),
         ])
+        from .duet_topic_tools import WRITE_TOOLS as TOPIC_WRITES
+        from .duet_topic_tools import tool_schemas as topic_tool_schemas
+        schemas.extend(topic_tool_schemas())
         if (context.get("chat", {}).get("kind") == "private" and context.get("request_source") == "private"
                 and context.get("main_session_id") == session.session_id and not context.get("background")):
             schemas.append(("reply_as_owner", "Only when your owner explicitly tells you in their current private message to send as them. Provide chat_id for an ordinary message to an authorized human conversation, with no quote. To reply to a referenced message, provide reference_message_id: the owner's PRIVATE message carrying that reference, not the public original. The reference fixes the destination and quote; any chat_id must match. Send exact text from a prior visible private Duet draft (review_message_id) or wording supplied in this instruction. Use body='' for file-only. Optional attachment_ids are immutable files already shown privately before this instruction, or files on the referenced message. With a reference, the private draft and send instruction must follow it. A review request, incoming file, peer or background task never authorizes sending. If the destination, draft or mandate is unclear, ask your owner. This tool opens the send confirmation itself; do not ask a second question, claim it was sent or poll. Only the owner selecting Confirm send publishes the frozen message.",
                 {"chat_id": text, "reference_message_id": text, "review_message_id": text, "body": text,
                  "attachment_ids": {"type": "array", "items": text, "minItems": 1, "maxItems": 4, "uniqueItems": True}},
                 ["body"]))
-        approval_actions = {
+        approval_actions = TOPIC_WRITES | {
             "set_message_reaction",
             "send_chat_message", "present_files", "create_chat", "rename_chat", "add_chat_members",
             "create_reminder", "update_reminder", "create_tracking", "update_tracking",
@@ -586,11 +585,11 @@ class RuntimeBridge:
         if saved is not None:
             # Only already-frozen legacy runs can finish their old maintenance
             # call. New runs never receive this tool or an approval variant.
-            legacy = next((row for row in saved if row.get("name") == "save_summary"), None)
-            if legacy:
-                result.append(AgentTool(name="save_summary", description=legacy["description"],
-                    parameters=legacy["parameters"], execute=make_execute("save_summary"),
-                    replay=legacy["replay"], version=legacy.get("version")))
+            for legacy in saved:
+                if legacy.get("name") in {"save_summary", "request_duet_conversation"}:
+                    result.append(AgentTool(name=legacy["name"], description=legacy["description"],
+                        parameters=legacy["parameters"], execute=make_execute(legacy["name"]),
+                        replay=legacy["replay"], version=legacy.get("version")))
             current = {tool.name: tool for tool in result}
             result = [AgentTool(
                 name=row["name"], description=row["description"], parameters=row["parameters"],

@@ -43,7 +43,7 @@ def complete(product, request_id, body):
 
 
 @pytest.mark.parametrize("chat_id", ["private-alex", "duet-alex-maya", "duet-team"])
-def test_current_chat_tool_is_rejected_without_mutation_but_normal_reply_is_published_once(product, chat_id):
+def test_private_final_and_explicit_topic_post_are_the_only_publication_outlets(product, chat_id):
     request, context = origin(product, chat_id)
     body, operation = "Synthetic current-chat answer", uuid4().hex
     with pytest.raises(HTTPException) as rejected:
@@ -52,13 +52,19 @@ def test_current_chat_tool_is_rejected_without_mutation_but_normal_reply_is_publ
     assert outputs(product, request["id"], chat_id) == []
     with product.transaction() as db:
         assert db.get(ProductOperation, operation) is None
+    if chat_id.startswith("duet-"):
+        args = {"chat_id": chat_id, "body": body, "mention_owner_ids": []}
+        explicit = asyncio.run(product.runtime_tool("post_duet_reply", args,
+            {**context, "operation_id": operation}))
+        assert explicit["sent"]
     complete(product, request["id"], body)
     complete(product, request["id"], body)
     saved = outputs(product, request["id"], chat_id)
-    assert len(saved) == 1 and saved[0]["body"] == body and not saved[0]["key"].startswith("tool:")
+    assert len(saved) == 1 and saved[0]["body"] == body
+    assert saved[0]["key"].startswith("tool:") == chat_id.startswith("duet-")
 
 
-def test_cross_chat_report_replay_and_equal_text_normal_replies_remain_independent(product):
+def test_cross_chat_report_replays_and_equal_text_finals_never_post_to_topic(product):
     request, context = origin(product, "duet-alex-maya")
     body = "Synthetic report text shared with the owner"
     args = {"chat_id": "private-alex", "body": body, "source_message_ids": []}
@@ -68,10 +74,10 @@ def test_cross_chat_report_replay_and_equal_text_normal_replies_remain_independe
     assert call(product, context, args, operation)["message_id"] == sent["message_id"]
     assert len(outputs(product, request["id"], "private-alex")) == 1
     complete(product, request["id"], body)
-    assert len(outputs(product, request["id"], "duet-alex-maya")) == 1
+    assert outputs(product, request["id"], "duet-alex-maya") == []
     second, _ = origin(product, "duet-alex-maya")
     complete(product, second["id"], body)
-    assert len(outputs(product, second["id"], "duet-alex-maya")) == 1
+    assert outputs(product, second["id"], "duet-alex-maya") == []
 
 
 def test_reply_for_me_cannot_add_an_agent_outlet_in_a_human_chat(product):

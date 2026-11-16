@@ -2,7 +2,8 @@
 
 Explicit opt-in only: .venv/bin/python checks/context_acceptance.py --live
 Uses the existing authorized local provider configuration and existing HTTP guard.
-Synthetic journal rows are labelled; summary/reply/receiver outputs are real SDK runs.
+Synthetic journal rows are labelled; private summary/reply outputs are real SDK runs.
+Forum notification and paginated reads use the real product tools without a model call.
 Never writes application tables, changes credentials, restarts services or retries.
 """
 from __future__ import annotations
@@ -28,6 +29,7 @@ def source_hashes():
         "app/service.py", "app/models.py", "app/runtime_bridge.py",
         "app/conversation_summary.py", "app/conversation_context.py", "checks/context_acceptance.py",
         "app/questions.py", "app/twin_prompts.py", "checks/browser_e2e_live.py",
+        "app/duet_conversations.py", "app/duet_messages.py", "app/duet_topic_tools.py",
     )}
 
 
@@ -87,15 +89,15 @@ async def run(root, report):
         phase = live.PHASE.get()
         audit.append({"phase": phase, "payload_sha256": hashlib.sha256(request.content).hexdigest(),
                       "payload_bytes": len(request.content), "private_canary": PRIVATE_CODE in encoded})
-        if phase in {"group-summary", "peer-receiver"} and PRIVATE_CODE in encoded:
-            raise AssertionError("Private owner context entered group model input")
+        if phase in {"topic-summary", "topic-receiver"} and PRIVATE_CODE in encoded:
+            raise AssertionError("Private owner context entered topic model input")
         return await guarded_send(client, request, *args, **kwargs)
 
     httpx.AsyncClient.send = audited_send
     original_summary = runtime._summarize_conversation
 
     async def marked_summary(prepared):
-        phase = "private-summary" if prepared["scope"]["chat_id"] == "private-alex" else "group-summary"
+        phase = "private-summary" if prepared["scope"]["chat_id"] == "private-alex" else "topic-summary"
         marker = live.PHASE.set(phase)
         try:
             return await original_summary(prepared)
@@ -147,43 +149,70 @@ async def run(root, report):
         assert len(json.loads((root / "live-budget.json").read_text())["attempts"]) == attempts
         report["same_boundary_and_command_replay_provider_attempts"] = 0
 
-        report["stage"] = "duet-summary-and-receiver"
-        from app.models import Chat, ReplyRequest
-        root_request = product.send_message("owner-alex", "private-alex", "Create the authorized synthetic context channel", uuid4().hex)["request"]
+        report["stage"] = "forum-metadata-and-explicit-reads"
+        from app.models import ReplyRequest
+        root_request = product.send_message("owner-alex", "private-alex", "Create the authorized synthetic context topic", uuid4().hex)["request"]
         creation_context = {**product.get_runtime_context(root_request["id"]), "operation_id": uuid4().hex}
-        proposed = product._runtime_tool_transaction("request_duet_conversation", {
-            "participant_owner_ids": ["owner-maya", "owner-jordan"], "title": "Synthetic context channel",
-            "purpose": "Read only the owners' authorized release context", "opening_message": "Synthetic shared release context"}, creation_context)
+        proposed = product._runtime_tool_transaction("create_duet_topic", {
+            "participant_owner_ids": ["owner-maya", "owner-jordan"], "title": "Synthetic context topic",
+            "purpose": "Read only the owners' authorized release context", "opening_message": "Synthetic shared release context",
+            "mention_owner_ids": []}, creation_context)
         for approval in proposed["conversation"]["approvals"]:
             await product.decide_approval(approval["approver_id"], approval["id"], "approved", "once")
-        context_channel = proposed["chat_id"]
-        report["synthetic_group_rows"] = seed(product, context_channel, 60,
+        topic_id = proposed["chat_id"]
+        report["synthetic_topic_rows"] = seed(product, topic_id, 60,
             "Synthetic release validation assignment: BBB (owner-maya) owns validation; CCC observes.")
+        published = product._runtime_tool_transaction("post_duet_reply", {"chat_id": topic_id,
+            "body": "Read the topic and confirm the release validation status.",
+            "mention_owner_ids": ["owner-maya"]}, {**creation_context, "operation_id": uuid4().hex})
+        assert published["sent"]
         with product.transaction() as db:
-            chat = db.get(Chat, context_channel)
-            chain = product.new_causal_chain(db, "owner-alex")
-            message = product.append_message(db, chat, author_id="twin-alex", kind="twin",
-                body="Confirm the release validation status", causal_chain_id=chain.id)
-            message_seq = message.seq
-            receiver = db.scalar(select(ReplyRequest).where(ReplyRequest.source_message_id == message.id,
-                ReplyRequest.target_twin_id == "twin-maya", ReplyRequest.generation == 0))
+            receiver = db.scalar(select(ReplyRequest).where(ReplyRequest.source == "duet_topic_mention",
+                ReplyRequest.chat_id == topic_id, ReplyRequest.target_twin_id == "twin-maya",
+                ReplyRequest.input_body.contains(f'"update_id":"{published["message_id"]}"'),
+                ReplyRequest.generation == 0))
+            assert receiver and receiver.source_message_id is None
+            notification = json.loads(receiver.input_body)
+            assert notification == {"topic_id": topic_id, "update_id": published["message_id"],
+                "revision": 1, "event": "post_created", "mentioned": True}
             receiver_id = receiver.id
-        group_rows, group_hash = journal_digest(product, context_channel)
+        topic_rows, topic_hash = journal_digest(product, topic_id)
         context = product.get_runtime_context(receiver_id)
-        marker = live.PHASE.set("peer-receiver")
+        assert context["messages"] == [] and context["summary"] is None
+        assert context["source_message"] is None and context["tracking"] == [] and context["input_files"] == []
+        assert PRIVATE_CODE not in json.dumps(context)
+        marker = live.PHASE.set("topic-receiver")
         try:
             context = await runtime._maintain_conversation_context(context)
         finally:
             live.PHASE.reset(marker)
-        assert context["summary"] and "owner-maya" in context["summary"]["body"]
-        assert PRIVATE_CODE not in json.dumps(context)
-        assert [row["seq"] for row in context["messages"]] == list(range(
-            context["summary"]["coverage_end_seq"] + 1, message_seq + 1))
-        assert journal_digest(product, context_channel)[0] == group_rows
-        report["actual_group_summary"] = context["summary"]["body"]
+        assert context["messages"] == [] and context["summary"] is None
+        posts, page_sizes, before_seq = [], [], None
+        while True:
+            page = product._runtime_tool_transaction("read_duet_topic", {"chat_id": topic_id, "limit": 20,
+                **({"before_seq": before_seq} if before_seq is not None else {})},
+                {**context, "operation_id": uuid4().hex})
+            assert PRIVATE_CODE not in json.dumps(page)
+            assert len(page["messages"]) <= 20
+            posts.extend({key: row[key] for key in ("id", "seq", "body")} for row in page["messages"])
+            page_sizes.append(len(page["messages"]))
+            cursor = page["next_before_seq"]
+            if cursor is None:
+                break
+            assert before_seq is None or cursor < before_seq
+            before_seq = cursor
+        assert sorted(posts, key=lambda row: row["seq"]) == topic_rows
+        assert any("BBB (owner-maya) owns validation" in row["body"] for row in posts)
+        assert len(page_sizes) > 1 and len(posts) == 62
+        assert journal_digest(product, topic_id)[0] == topic_rows
+        assert len(json.loads((root / "live-budget.json").read_text())["attempts"]) == attempts
         report["receiver_request_id"] = receiver_id
-        report["canonical_group_sha256"] = group_hash
-        report["private_canary_absent_from_group_provider_payloads"] = True
+        report["canonical_topic_sha256"] = topic_hash
+        report["topic_receiver_initial_context_empty"] = True
+        report["topic_read_page_sizes"] = page_sizes
+        report["topic_read_post_count"] = len(posts)
+        report["topic_provider_attempts"] = 0
+        report["private_canary_absent_from_topic_notification_and_reads"] = True
 
         # Observe real selected row counts on the warmed summary path, including
         # the SQL hidden by source permission checks and repeated manifests.

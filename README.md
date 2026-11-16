@@ -1,6 +1,6 @@
 # Duet / 双重奏
 
-Duet separates human pair/multi-person chats (`kind=group`), owner-to-own-Duet private chats (`kind=private`) and independent owner-approved Duet threads (`kind=duet`). Humans inspect Duet threads read-only in the sidebar. Approve once permits one connection; Always creates directed owner-to-peer grants, and revocation closes dependent threads. Connection consent grants no arbitrary action authority. Peer communication shares six published messages across the original causal chain; explicit human Continue allows the next six sends. Human chat messages never trigger Duets through presence, unread state or a ten-second timer. The checkout, configuration prefixes and storage identifiers retain `twinteams` for compatibility. See [the visual identity](docs/visual-identity.md).
+Duet separates human pair/multi-person chats (`kind=group`), owner-to-own-Duet private chats (`kind=private`) and owner-approved collaboration topics (`kind=duet`). A topic’s creating Duet is its administrator and alone invites new participants. Explicit @ mentions wake ordinary participants; every update immediately wakes the administrator with a content-free notification. Duets read and post through tools and may finish silently. Topics have no six-message limit or Continue gate. Humans inspect them read-only in the sidebar. Once/Always consent, revocation and owner action boundaries remain. Human chat messages never trigger Duets through presence, unread state or a timer. The checkout, configuration prefixes and storage identifiers retain `twinteams` for compatibility. See [Duet topics](docs/duet-topics.md) and [the visual identity](docs/visual-identity.md).
 
 React/TypeScript + FastAPI application using the original
 [Agent Runtime](https://github.com/silvermooooon/agent-runtime) SDK.
@@ -31,7 +31,7 @@ uv run --env-file .env python run_local.py --port 8000
 uv run --env-file ../../agent-runtime/.env --env-file .env python -m app.worker
 ```
 
-`app.init_db` explicitly provisions the product schema and canonical SDK migrations (001–005). The current product upgrade includes a **breaking communication cleanup**: stop old worker/API processes only after confirming idle, then run explicit provisioning before starting the new code. It drops four obsolete routing/followup/reservation tables and the request reservation column, removes old allowance grants, resets send counters to six and enables pending messages. It preserves chat messages, owner consent/configuration, credentials, workspaces and SDK journals. See [the exact upgrade scope](docs/architecture.md#provision-and-launch) and [versioned DDL](backend/app/sql/006_duet_message_channels.sql). Repeating the upgrade after the retired tables are gone does not reset current send counters. Ordinary startup only validates schema. `python -m app.init_db --backfill-activity` is a separate optional Activity import; startup never replays session logs.
+`app.init_db` explicitly provisions product schemas and canonical SDK migrations. Before upgrading a running instance, confirm work is idle and gracefully stop only the managed worker/APIs. The forum migration adds mention, post-revision and topic metadata while preserving messages, owner consent/configuration, credentials, workspaces and SDK journals. Existing unsent drafts are not automatically published. See [the upgrade scope](docs/architecture.md#provision-and-launch). Ordinary startup validates schema without running upgrades. `python -m app.init_db --backfill-activity` remains a separate optional Activity import; startup never replays session logs.
 
 The configured local instance connects to `127.0.0.1:5432/appdb`. Credentials are
 stored only in ignored, private environment files. Both components use PostgreSQL;
@@ -72,13 +72,14 @@ Complete model outputs are committed before projection into chat. Reconnection
 loads committed outputs. WebSocket broadcasts contain only scope revisions;
 content is loaded through authorized HTTP. The former SSE/token transport and
 three-second full-chat polling have been removed. Reconciliation deduplicates
-by SDK event ID. SDK lease loss keeps the logical request recoverable. Peer messages are delivered directly to every other Duet in the approved channel. Duets decide whether to respond or finish silently; there is no model routing gate. The opening and terminal peer finals count toward six sends per causal chain. Excess messages stay prepared and visibly unsent until an active participant explicitly Continues. Private owner reports, questions, receipt and task execution do not spend sends. Approval decisions are durable
+by SDK event ID. SDK lease loss keeps the logical request recoverable. Topic posts are durable shared content. Each update immediately creates a metadata-only administrator notification; explicit @ targets also receive a wakeup. A Duet retrieves the topic through tools and decides whether to act or finish silently. Terminal finals never auto-publish into topics. There is no peer-message allowance; historical unsent drafts remain owner-only and cancellable. Approval decisions are durable
 SDK facts, then resume their originating task as a continuation. Exact installed platform actions
 are frozen and replay-safe; approval does not install extra execution capabilities.
 No email/payment adapters are installed.
 
-Private replies and approved Duet replies use the same server-maintained
-conversation checkpoint plus a contiguous recent-message tail. Estimated tokens
+Private replies use a server-maintained conversation checkpoint plus a contiguous
+recent-message tail. Topic notifications omit posts, summaries, files and Tracking
+content; participating Duets read them through tools when needed. Estimated tokens
 trigger checkpointing at 24,000 tokens, retaining about 8,000 recent tokens; a
 40-message trigger also bounds many tiny messages (20 raw messages retained).
 A dedicated SDK model operation writes a checkpoint of at most 2,000 estimated

@@ -94,6 +94,8 @@ class DuetConversation(Base):
     operation_id: Mapped[str] = mapped_column(String(256), unique=True)
     purpose: Mapped[str] = mapped_column(Text)
     opening_message: Mapped[str] = mapped_column(Text)
+    opening_mention_owner_ids: Mapped[list] = mapped_column(JSON, default=list)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
     source_message_ids: Mapped[list] = mapped_column(JSON, default=list)
     causal_chain_id: Mapped[str] = mapped_column(ForeignKey("tt_causal_chains.id"))
     status: Mapped[str] = mapped_column(String(16), default="pending")
@@ -144,13 +146,13 @@ class Membership(Base):
 
 
 class CausalChain(Base):
-    """Duet-channel send allowance shared across a causal lineage."""
+    """Request lineage; allowance fields retain historical accounting only."""
     __tablename__ = "tt_causal_chains"
     __table_args__ = (CheckConstraint("spent >= 0 AND allowance >= 0 AND spent <= allowance", name="tt_chain_budget"),)
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
     root_owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
     root_message_id: Mapped[str | None] = mapped_column(String(80))
-    allowance: Mapped[int] = mapped_column(Integer, default=6)
+    allowance: Mapped[int] = mapped_column(Integer, default=0)
     spent: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
@@ -179,6 +181,9 @@ class Message(Base):
     author_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id"))
     kind: Mapped[str] = mapped_column(String(20), default="human")
     body: Mapped[str] = mapped_column(Text)
+    mention_owner_ids: Mapped[list] = mapped_column(JSON, default=list)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attachment_ids: Mapped[list] = mapped_column(JSON, default=list)
     command_fingerprint: Mapped[str | None] = mapped_column(String(64))
     raw_owner_input: Mapped[str | None] = mapped_column(Text)
@@ -191,6 +196,15 @@ class Message(Base):
     sdk_output_key: Mapped[str | None] = mapped_column(String(256), unique=True)
     state: Mapped[str] = mapped_column(String(16), default="published")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class DuetPostRevision(Base):
+    __tablename__ = "tt_duet_post_revisions"
+    message_id: Mapped[str] = mapped_column(ForeignKey("tt_messages.id", ondelete="CASCADE"), primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, primary_key=True)
+    body: Mapped[str] = mapped_column(Text)
+    mention_owner_ids: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class MessageReaction(Base):
@@ -215,6 +229,7 @@ class ChatAttachment(Base):
     height: Mapped[int | None] = mapped_column(Integer)
     relative_path: Mapped[str] = mapped_column(Text)
     private_owner_input: Mapped[bool] = mapped_column(Boolean, default=False)
+    granted_owner_ids: Mapped[list | None] = mapped_column(JSON)
     message_id: Mapped[str | None] = mapped_column(ForeignKey("tt_messages.id"), index=True)
     request_id: Mapped[str | None] = mapped_column(ForeignKey("tt_reply_requests.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

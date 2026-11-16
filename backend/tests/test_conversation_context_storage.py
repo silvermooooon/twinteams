@@ -74,7 +74,8 @@ def test_current_request_partial_output_cannot_enter_or_be_crossed_by_checkpoint
                                      request_id=request["id"])
         own_seq = own.seq
         product.append_message(db, chat, author_id="twin-maya", kind="twin", body="Later fact")
-    context = product.get_runtime_context(request["id"])
+    from test_context_acceptance import checkpoint_context
+    context = checkpoint_context(product, request["id"])
     assert all(row["request_id"] != request["id"] for row in context["messages"])
     prepared = product.prepare_conversation_summary(context["_summary_scope"])
     assert prepared["scope"]["coverage_end_seq"] < own_seq
@@ -104,14 +105,14 @@ def test_additive_schema_is_repeatable_and_startup_rejects_missing_columns(produ
 
 
 def test_repeated_context_validates_frozen_tail_after_batched_body_load(product):
-    from test_context_acceptance import sql_reads
+    from test_context_acceptance import checkpoint_context, sql_reads
     ids = history(product)
     prepared = product.prepare_conversation_summary(scope(product))
     product.save_conversation_summary(prepared["scope"], "Checkpoint facts")
     request = request_duet_reply(product, "owner-maya", "duet-team", ids[-1], "twin-alex", uuid4().hex)
     for _ in range(2):
         with sql_reads() as reads:
-            context = product.get_runtime_context(request["id"])
+            context = checkpoint_context(product, request["id"])
         assert len(context["messages"]) == 20
         assert len(reads) < 50, "Frozen tail hashes must reuse the bounded bulk body read"
         summary_reads = [row["sql"].split(" from ", 1)[0] for row in reads if " from tt_summaries" in row["sql"]]

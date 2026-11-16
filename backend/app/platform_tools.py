@@ -20,6 +20,12 @@ WRITE_TOOLS = {"reply_as_owner", "request_duet_conversation", "set_message_react
                "add_tracking_update", "save_summary", "cancel_reply_request", "retry_reply_request"}
 # Exact arguments are frozen by the SDK; no uninstalled action may enter that path.
 ACTION_FIELDS = {
+    "create_duet_topic": ({"participant_owner_ids", "title", "purpose", "opening_message"}, {"mention_owner_ids", "source_message_ids", "origin_chat_id"}),
+    "post_duet_reply": ({"chat_id", "body", "mention_owner_ids"}, {"source_message_ids", "reply_to_message_id"}),
+    "edit_duet_post": ({"chat_id", "message_id", "body", "mention_owner_ids", "expected_revision"}, set()),
+    "invite_duet_participants": ({"chat_id", "participant_owner_ids", "requirements", "mention_owner_ids"}, set()),
+    "update_duet_topic": ({"chat_id", "expected_revision"}, {"title", "purpose"}),
+    "close_duet_topic": ({"chat_id"}, set()),
     "update_contact_tags": ({"contact_owner_id", "tags", "expected_revision"}, set()),
     "set_message_reaction": ({"message_id", "emoji", "active"}, {"chat_id"}),
     "send_chat_message": ({"chat_id", "body", "source_message_ids"}, {"reply_to_message_id"}),
@@ -71,7 +77,7 @@ def scope_ids(service, db, name, args, context):
         if approval:
             target_id = approval.chat_id
     ids = {origin_id, target_id}
-    if name == "request_duet_conversation" and args.get("origin_chat_id"):
+    if name in {"request_duet_conversation", "create_duet_topic"} and args.get("origin_chat_id"):
         ids.add(args["origin_chat_id"])
     request = db.get(ReplyRequest, context.get("request_id")) if context.get("request_id") else None
     source_ids = args.get("source_message_ids", [])
@@ -133,7 +139,7 @@ def request_row(service, db, owner_id, request_id):
         fail(404, "Reply request is unavailable")
     if row.source_message_id:
         service.visible_message(db, member, row.source_message_id)
-    elif row.requester_id != owner_id:
+    elif row.requester_id != owner_id and db.get(Actor, row.target_twin_id).owner_id != owner_id:
         fail(404, "Reply request is unavailable")
     if not service.provenance_allowed(db, member, service.manifest_provenance(db, row.id)):
         fail(409, "Reply request sources are no longer authorized")
@@ -322,7 +328,10 @@ def read_provenance(service, db, name, args, result, context):
         approval = db.get(Approval, args["id"])
         target_id = approval.chat_id
         sources = approval.source_provenance
-    elif name == "get_chat":
+        if approval.sdk_reference.get("invitation_key"):
+            target_id = db.scalar(select(Chat.id).where(Chat.kind == "private", Chat.private_owner_id == owner_id))
+            sources = []
+    elif name in {"get_chat", "read_duet_topic"}:
         target_id = args["chat_id"]
     elif name == "list_workspace":
         sources = [{"kind": "workspace", "id": row["id"]} for row in result["entries"]]

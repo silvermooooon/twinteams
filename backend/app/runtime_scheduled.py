@@ -23,7 +23,7 @@ def is_scheduled_request(request, context=None):
 def terminal_output_only(request, context=None):
     context = context or {}
     return (request.get("chat_kind") == "duet" or context.get("chat", {}).get("kind") == "duet"
-            or request.get("source") in {"duet_message", "message_center", "peer_report_reconcile"} or bool(context.get("message_center")) or is_scheduled_request(request, context))
+            or request.get("source") in {"duet_message", "duet_topic_update", "duet_topic_mention", "message_center", "peer_report_reconcile"} or bool(context.get("message_center")) or is_scheduled_request(request, context))
 
 
 def scheduled_prompt(request, context):
@@ -88,9 +88,9 @@ def scheduled_policy(context):
     policy = (
         "This work belongs to one saved scheduled occurrence. Keep its authorization scope, "
         "reporting behavior and pending work. Execute in your owner's private chat; coordinate "
-        "with peers through active approved Duet conversations or request_duet_conversation. "
+        "with peers through active approved Duet topics or create_duet_topic. "
         "Never wake or publish a Duet in a human chat. Connection approval grants no extra "
-        "task authority, and the shared six-send chain still applies. Do not duplicate operations or create, edit or "
+        "task authority. Do not duplicate operations or create, edit or "
         "cancel schedules. Only a completed final response is published; an empty response "
         "is silent. Approval and credential forms still request necessary owner action. "
     )

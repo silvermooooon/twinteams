@@ -1,6 +1,7 @@
 """Independent quote presentation checks; real PG/SDK with an offline provider."""
 
 import asyncio
+import json
 from uuid import uuid4
 
 import pytest
@@ -33,7 +34,13 @@ def accepted(product, kind):
         request = receiver_request(product,
             "owner-maya", chat_id, message_id, "twin-alex", uuid4().hex
         )
-    return request, product.get_runtime_context(request["id"]), message_id, chat_id
+    context = product.get_runtime_context(request["id"])
+    if kind != "private":
+        assert context["messages"] == [] and context["source_message"] is None
+        read = asyncio.run(product.runtime_tool("read_duet_topic", {"chat_id": chat_id},
+            {**context, "operation_id": uuid4().hex}))
+        assert any(row["id"] == message_id for row in read["messages"])
+    return request, context, message_id, chat_id
 
 
 def message_json(product, chat_id, message_id):
@@ -47,16 +54,15 @@ def message_json(product, chat_id, message_id):
 def assert_lineage(product, request, question_id, output_id):
     with product.transaction() as db:
         output, original = db.get(Message, output_id), db.get(ReplyRequest, request["id"])
-        assert output.request_id == original.id and original.source_message_id == question_id
-        assert (
-            output.causal_chain_id
-            == original.causal_chain_id
-            == db.get(Message, question_id).causal_chain_id
-        )
+        assert output.request_id == original.id and output.causal_chain_id == original.causal_chain_id
         prepared = db.get(Chat, output.chat_id).kind == "duet"
         if prepared:
+            assert original.source_message_id is None
+            assert json.loads(original.input_body)["update_id"] == question_id
             assert output.source_message_ids == [] and output.source_provenance == []
         else:
+            assert original.source_message_id == question_id
+            assert original.causal_chain_id == db.get(Message, question_id).causal_chain_id
             assert question_id in output.source_message_ids
         manifests = list(
             db.scalars(select(ContextManifest).where(ContextManifest.request_id == original.id))
@@ -68,34 +74,25 @@ def assert_lineage(product, request, question_id, output_id):
             assert output.source_provenance == product.manifest_provenance(db, original.id)
 
 
-@pytest.mark.parametrize("kind", ["private", "group"])
-def test_automatic_output_only_suppresses_private_display_quote_and_preserves_audit(product, kind):
-    request, _context, question_id, chat_id = accepted(product, kind)
-    output = product.publish_runtime_output(
-        request["id"],
-        "Answer without redundant private quote",
-        request["session_id"],
-        "quote-run",
-        "answer-event",
-        1,
-    )
-    visible = message_json(product, chat_id, output)
+@pytest.mark.parametrize("kind", ["private", "duet"])
+def test_private_final_is_unquoted_and_topic_reply_requires_explicit_quote_tool(product, kind):
+    request, context, question_id, chat_id = accepted(product, kind)
+    output = product.publish_runtime_output(request["id"], "Answer without redundant private quote",
+        request["session_id"], "quote-run", "answer-event", 1)
     if kind == "private":
-        assert "reply_to" not in visible
+        assert "reply_to" not in message_json(product, chat_id, output)
+        assert product.publish_runtime_output(request["id"], "Answer without redundant private quote",
+            request["session_id"], "quote-run", "answer-event", 1) == output
     else:
-        assert visible["reply_to"]["id"] == question_id
+        assert output is None
+        args = {"chat_id": chat_id, "body": "An intentional quoted topic reply",
+            "mention_owner_ids": [], "reply_to_message_id": question_id}
+        operation = {**context, "operation_id": uuid4().hex}
+        posted = asyncio.run(product.runtime_tool("post_duet_reply", args, operation))
+        output = posted["message_id"]
+        assert asyncio.run(product.runtime_tool("post_duet_reply", args, operation))["message_id"] == output
+        assert message_json(product, chat_id, output)["reply_to"]["id"] == question_id
     assert_lineage(product, request, question_id, output)
-    assert (
-        product.publish_runtime_output(
-            request["id"],
-            "Answer without redundant private quote",
-            request["session_id"],
-            "quote-run",
-            "answer-event",
-            1,
-        )
-        == output
-    )
 
 
 def test_cross_chat_private_tool_quote_remains_available_and_source_withdrawal_still_gates_output(
@@ -126,27 +123,18 @@ def test_cross_chat_private_tool_quote_remains_available_and_source_withdrawal_s
         sent = db.get(Message, result["message_id"])
         assert sent.request_id == request["id"] and sent.causal_chain_id == request["causal_chain_id"]
         assert sent.source_message_ids == [] and sent.source_provenance == []
-    automatic = product.publish_runtime_output(
-        request["id"],
-        "Ordinary group response",
-        request["session_id"],
-        "quote-run",
-        "ordinary-event",
-        2,
-    )
+    automatic = asyncio.run(product.runtime_tool("post_duet_reply", {
+        "chat_id": chat_id, "body": "Intentional topic reply", "mention_owner_ids": [],
+        "reply_to_message_id": question_id,
+    }, {**context, "operation_id": uuid4().hex}))["message_id"]
     assert message_json(product, chat_id, automatic)["reply_to"]["id"] == question_id
     assert_lineage(product, request, question_id, automatic)
     with product.transaction() as db:
         db.get(Message, question_id).state = "withdrawn"
     with pytest.raises(HTTPException) as error:
-        product.publish_runtime_output(
-            request["id"],
-            "Late response must be withheld",
-            request["session_id"],
-            "quote-run",
-            "late-event",
-            3,
-        )
+        asyncio.run(product.runtime_tool("post_duet_reply", {
+            "chat_id": chat_id, "body": "Late response must be withheld", "mention_owner_ids": [],
+        }, {**context, "operation_id": uuid4().hex}))
     assert error.value.status_code == 409
     # Withdrawing the original does not retract an already published prepared reply.
     # It removes the quote text and prevents any subsequent publication from that task.

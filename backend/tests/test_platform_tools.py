@@ -1,4 +1,4 @@
-"""Owner platform operations use existing transactions, grants and causal budget."""
+"""Owner platform operations use existing transactions, grants and task lineage."""
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -228,7 +228,7 @@ def test_reverse_cross_chat_sends_share_sorted_locks(product):
     barrier = Barrier(2)
     def send(context, target):
         barrier.wait()
-        return call(product, context, "send_chat_message", {"chat_id": target, "body": "Prepared update for " + target})
+        return call(product, context, "post_duet_reply", {"chat_id": target, "body": "Prepared update for " + target})
     with ThreadPoolExecutor(max_workers=2) as pool:
         left = pool.submit(send, a, "duet-team")
         right = pool.submit(send, b, "duet-alex-maya")
@@ -236,13 +236,13 @@ def test_reverse_cross_chat_sends_share_sorted_locks(product):
         assert right.result(timeout=10)["sent"]
 
 
-def test_approved_receiver_retry_does_not_grant_or_consume_send_allowance(product):
+def test_approved_receiver_retry_preserves_legacy_accounting_without_a_send_gate(product):
     old, _ = origin(product)
     product.fail_request(old["id"], "Offline failure")
     controller, context = origin(product)
     with product.transaction() as db:
         chain = db.get(CausalChain, controller["causal_chain_id"])
-        chain.spent = chain.allowance
+        chain.spent = chain.allowance = 6
     consent = approval(product, context, {"tool": "retry_reply_request", "arguments": {"id": old["id"]}})
     with product.transaction() as db:
         db.get(Approval, consent["id"]).status = "approved"
@@ -264,7 +264,7 @@ def test_approved_receiver_retry_does_not_grant_or_consume_send_allowance(produc
     call(product, {**context2, "approved_approval_id": consent2["id"]}, "retry_reply_request", {"id": old2["id"]})
     with product.transaction() as db:
         chain = db.get(CausalChain, controller2["causal_chain_id"])
-        assert chain.spent == 1 and chain.allowance == 6
+        assert chain.spent == chain.allowance == 0
         assert not db.scalar(select(AllowanceGrant.id).where(AllowanceGrant.client_request_key == "approval:" + consent2["id"]))
 
 
@@ -312,7 +312,7 @@ def test_report_cites_actual_authorized_foreign_chat_without_sharing_sources(pro
         source_id = product.append_message(db, db.get(Chat, "private-alex"), author_id="owner-alex", kind="human", body="Private reference").id
     from duet_test_support import approved_chat
     target = approved_chat(product, "duet-alex-jordan", ["owner-alex", "owner-jordan"])
-    result = call(product, context, "send_chat_message", {"chat_id": target, "body": "Prepared owner statement", "source_message_ids": [source_id]})
+    result = call(product, context, "post_duet_reply", {"chat_id": target, "body": "Prepared owner statement", "source_message_ids": [source_id]})
     assert any(row["id"] == result["message_id"] for row in product.chat_detail("owner-jordan", target)["messages"])
     with product.transaction() as db:
         message = db.get(Message, result["message_id"])
@@ -321,7 +321,7 @@ def test_report_cites_actual_authorized_foreign_chat_without_sharing_sources(pro
         assert any(row.get("chat_id") == "private-alex" and any(s["id"] == source_id for s in row["sources"]) for row in sources if row["kind"] == "chat_context")
         db.get(Message, source_id).state = "withdrawn"
     with pytest.raises(HTTPException):
-        call(product, context, "send_chat_message", {"chat_id": target, "body": "Late statement", "source_message_ids": [source_id]})
+        call(product, context, "post_duet_reply", {"chat_id": target, "body": "Late statement", "source_message_ids": [source_id]})
 
 
 @pytest.fixture(autouse=True)

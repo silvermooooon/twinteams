@@ -132,6 +132,8 @@ async function main() {
     ? [require("./message-center-live.cjs")]
     : live && report.scenario === "interaction-live"
     ? [require("./interaction-live.cjs")]
+    : !live && report.scenario === "forum-topic"
+    ? [require("./forum-topic.cjs")]
     : !live && report.scenario === "proactivity"
     ? [require("./proactivity.cjs")]
     : !live && report.scenario === "contacts"

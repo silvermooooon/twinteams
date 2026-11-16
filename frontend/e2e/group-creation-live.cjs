@@ -108,7 +108,7 @@ const cases = [{
     const after = inspect(), shared = await api(page, `/chats/${created.id}?limit=100`);
     assert.equal(shared.messages.filter(row => row.kind === 'twin').length, 0, 'human conversation does not automatically invoke Duet');
     assert.equal(after.requests.filter(row => row.chat_id === created.id).length, 0, 'human messages do not enqueue Duet requests');
-    assert.ok(!after.tools.some(row => row.name === 'request_duet_conversation' && row.success), 'no Duet collaboration is created');
+    assert.ok(!after.tools.some(row => ['create_duet_topic', 'request_duet_conversation'].includes(row.name) && row.success), 'no Duet topic is created');
     assert.equal(shared.messages.length, 3, 'only three intentional human messages are published');
     t.record('approved_group', { approval: firstApproval.id, chat: created, messages: shared.messages.map(row => ({ id: row.id, author_id: row.author_id, kind: row.kind, body: row.body })), requests: after.requests.filter(row => row.chat_id === created.id), calls: after.tools.filter(row => ['create_chat', 'execute_approved_action'].includes(row.name)) });
 

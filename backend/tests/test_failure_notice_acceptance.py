@@ -68,6 +68,9 @@ def test_latest_generation_filter_does_not_bypass_source_visibility(attachments)
     chat = approved_chat(product, "duet-alex-maya")
     source = append_duet(product, chat, "owner-maya", "Synthetic visible source")
     request_id = request_duet_reply(product, "owner-maya", chat, source["id"], "twin-alex")["id"]
+    context = product.get_runtime_context(request_id)
+    product._runtime_tool_transaction("read_duet_topic", {"chat_id": chat},
+        {**context, "operation_id": uuid4().hex})
     with product.transaction() as db:
         db.get(ReplyRequest, request_id).status = "failed"
     assert request_id in {row["id"] for row in client.get(f"/api/chats/{chat}").json()["requests"]}
@@ -76,3 +79,32 @@ def test_latest_generation_filter_does_not_bypass_source_visibility(attachments)
         db.get(Message, source["id"]).state = "withdrawn"
     for owner in ("owner-alex", "owner-maya"):
         assert request_id not in {row["id"] for row in client.get(f"/api/chats/{chat}", headers={"x-test-owner": owner}).json()["requests"]}
+    retry = client.post(f"/api/reply-requests/{request_id}/retry", json={"client_request_key": uuid4().hex})
+    assert retry.status_code == 409
+
+
+def test_topic_retry_retains_consumed_sources_until_execution(attachments):
+    product, client = attachments
+    from duet_test_support import append_duet, approved_chat, request_duet_reply
+    from fastapi import HTTPException
+
+    from app.models import Message
+    chat = approved_chat(product, "duet-alex-maya")
+    source = append_duet(product, chat, "owner-maya", "Synthetic retry context")
+    old = request_duet_reply(product, "owner-maya", chat, source["id"], "twin-alex")
+    context = product.get_runtime_context(old["id"])
+    product._runtime_tool_transaction("read_duet_topic", {"chat_id": chat},
+        {**context, "operation_id": uuid4().hex})
+    with product.transaction() as db:
+        db.get(ReplyRequest, old["id"]).status = "failed"
+    retry = client.post(f'/api/reply-requests/{old["id"]}/retry', json={"client_request_key": uuid4().hex})
+    assert retry.status_code == 200, retry.text
+    resumed = product.get_runtime_context(retry.json()["id"])
+    with product.transaction() as db:
+        assert product.manifest_provenance(db, retry.json()["id"]) == product.manifest_provenance(db, old["id"])
+        db.get(Message, source["id"]).state = "withdrawn"
+    with pytest.raises(HTTPException) as caught:
+        product.authorize_runtime_generation(resumed)
+    assert caught.value.status_code == 409
+    with pytest.raises(HTTPException):
+        product.get_runtime_context(retry.json()["id"])

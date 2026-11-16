@@ -93,5 +93,11 @@ def set_reaction(service, db, owner_id, chat_id, message_id, actor_id, emoji, ac
             db.delete(existing)
         db.flush()
         db.info.setdefault("message_reactions", {}).pop(message_id, None)
+        if chat.kind == "duet":
+            from .duet_messages import notify_update
+            from .models import DuetConversation
+            topic = db.get(DuetConversation, chat.id)
+            topic.revision += 1
+            notify_update(service, db, chat, owner_id, "reaction_changed", message_id, topic.revision)
     return {"chat_id": chat_id, "message_id": message_id, "actor_id": actor_id,
             "emoji": emoji, "active": active, "reactions": projection(db, message_id, owner_id)}

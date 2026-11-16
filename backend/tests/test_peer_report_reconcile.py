@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from agent_runtime.transcript import current_tools
-from duet_test_support import append_duet, approved_chat
+from duet_test_support import append_duet, approved_chat, request_duet_reply
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
@@ -25,10 +25,7 @@ def topic(product, *, chat_id="private-alex", title="Owner's handoff", descripti
 def peer_report(product, *, operation=None, body="The first review is complete."):
     chat_id = approved_chat(product, "duet-report", ["owner-alex", "owner-maya"])
     peer = append_duet(product, chat_id, "owner-maya", body)
-    with product.transaction() as db:
-        request = db.scalar(select(ReplyRequest).where(ReplyRequest.source == "duet_message",
-            ReplyRequest.source_message_id == peer["id"], ReplyRequest.target_twin_id == "twin-alex"))
-        peer_request_id = request.id
+    peer_request_id = request_duet_reply(product, "owner-maya", chat_id, peer["id"], "twin-alex")["id"]
     context = product.get_runtime_context(peer_request_id)
     args = {"chat_id": "private-alex", "body": body, "source_message_ids": [peer["id"]]}
     context = {**context, "operation_id": operation or uuid4().hex}

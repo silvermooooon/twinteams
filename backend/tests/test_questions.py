@@ -28,6 +28,9 @@ def pending(product, chat_id="private-alex", *, options=("Short", "Detailed")):
     session_id = product.get_request(request["id"])["session_id"]
     product.bind_runtime_run(request["id"], session_id, "run-" + request["id"])
     context = product.get_runtime_context(request["id"])
+    if chat_id != "private-alex":
+        product._runtime_tool_transaction("read_duet_topic", {"chat_id": chat_id},
+            {**context, "operation_id": uuid4().hex})
     context.update(operation_id=uuid4().hex, runtime_session_id=session_id,
         runtime_run_id="run-" + request["id"], runtime_command_id=request["id"])
     args = {"question": "Which format should I use?", "options": list(options)}
@@ -107,14 +110,17 @@ def test_natural_association_rejects_existing_unrelated_quote(product):
 
 @pytest.mark.parametrize("revoke", ["withdraw", "leave", "floor", "close", "failed", "cancel"])
 def test_group_owner_only_question_revocation_never_resumes_or_leaks_known_id(product, revoke):
-    request, _, row, _ = pending(product, "duet-alex-maya")
+    request, context, row, _ = pending(product, "duet-alex-maya")
+    page = product._runtime_tool_transaction("read_duet_topic", {"chat_id": "duet-alex-maya"},
+        {**context, "operation_id": uuid4().hex})
+    source_id = page["messages"][-1]["id"]
     with product.transaction() as db:
         if revoke == "withdraw":
-            db.get(Message, request["source_message_id"]).state = "withdrawn"
+            db.get(Message, source_id).state = "withdrawn"
         elif revoke == "leave":
-            product.membership(db, "owner-alex", "duet-alex-maya")[1].left_at = db.get(Message, request["source_message_id"]).created_at
+            product.membership(db, "owner-alex", "duet-alex-maya")[1].left_at = db.get(Message, source_id).created_at
         elif revoke == "floor":
-            product.membership(db, "owner-alex", "duet-alex-maya")[1].lower_seq = db.get(Message, request["source_message_id"]).seq + 1
+            product.membership(db, "owner-alex", "duet-alex-maya")[1].lower_seq = db.get(Message, source_id).seq + 1
         elif revoke == "close":
             db.get(DuetConversation, "duet-alex-maya").status = "closed"
         elif revoke == "failed":

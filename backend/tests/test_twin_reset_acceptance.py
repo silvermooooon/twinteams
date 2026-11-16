@@ -75,7 +75,7 @@ def test_reset_preserves_groups_other_owner_configuration_and_idempotent_new_wor
         actor.name, actor.avatar_preset, actor.enabled_skill_names = "Keep this Twin", "orbit", ["keep-skill"]
     request = send_message(product, "owner-alex", "private-alex", "Old private text", key())["request"]
     context = product.get_runtime_context(request["id"])
-    sent = product._runtime_tool_transaction("send_chat_message", {"chat_id": "duet-team", "body": "Public group text remains",
+    sent = product._runtime_tool_transaction("post_duet_reply", {"chat_id": "duet-team", "body": "Public group text remains",
         "source_message_ids": [request["source_message_id"]]}, {**context, "operation_id": key()})
     from duet_test_support import append_duet, request_duet_reply
     incoming = append_duet(product, "duet-team", "owner-maya", "Independent existing peer work")
@@ -146,9 +146,20 @@ def test_group_sdk_work_completes_after_owner_private_reset_with_generation_zero
     async def run():
         runtime = RuntimeBridge(product)
         def offline(model, context, options):
+            results = [row for row in context.messages if row.get("role") == "toolResult"]
+            assert not any(row.get("isError") for row in results), results
+            if not results:
+                content = [{"type": "toolCall", "id": "read-topic", "name": "read_duet_topic",
+                    "arguments": {"chat_id": "duet-team"}}]
+            elif len(results) == 1:
+                assert "An unrelated peer task" in str(results)
+                content = [{"type": "toolCall", "id": "post-topic", "name": "post_duet_reply",
+                    "arguments": {"chat_id": "duet-team", "body": "Group work still completes", "mention_owner_ids": []}}]
+            else:
+                content = [{"type": "text", "text": "This final is not a post"}]
             stream = AssistantMessageEventStream()
             stream.push({"type": "done", "message": assistant_message(model,
-                content=[{"type": "text", "text": "Group work still completes"}], stopReason="stop")})
+                content=content, stopReason="toolUse" if len(results) < 2 else "stop")})
             return stream
         runtime.models.register_api("offline-regression", offline)
         await runtime.start()
@@ -162,6 +173,7 @@ def test_group_sdk_work_completes_after_owner_private_reset_with_generation_zero
                 row = db.get(ActivityProjection, (result["session_id"], result["run_id"]))
                 assert row.private_generation == 0
                 assert db.scalar(select(Message.id).where(Message.chat_id == "duet-team", Message.body == "Group work still completes"))
+                assert not db.scalar(select(Message.id).where(Message.chat_id == "duet-team", Message.body == "This final is not a post"))
         finally:
             await runtime.close()
     asyncio.run(run())

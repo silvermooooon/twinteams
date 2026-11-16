@@ -397,6 +397,14 @@ def install_fixture(root):
             final = f'E2E CHAIN {label} {step}' if step <= 12 else 'E2E chain complete: ' + label
         if results and results[-1].get('isError'):
             name, arguments, final = None, None, 'E2E tool failed: ' + str(results[-1].get('toolName'))
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'forum-topic':
+            name, arguments, final = None, None, 'No additional response is needed.'
+            if command == 'FORUM_INVITE' and 'invite_duet_participants' not in names:
+                topic = json.loads((root / 'forum-topic.json').read_text())
+                name, arguments = 'invite_duet_participants', {'chat_id': topic['chat_id'],
+                    'participant_owner_ids': ['owner-jordan'],
+                    'requirements': 'Review the revised milestone and add delivery risks.',
+                    'mention_owner_ids': ['owner-jordan']}
         if name:
             if name not in tools:
                 raise RuntimeError('E2E command requires installed tool: ' + name)
@@ -473,6 +481,40 @@ def seed(root):
             # Explicit review cases advance their selected task through the guarded CLI.
             minutes = 60 if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'story-workflow-live' else 30
             review.next_run_at, review.index_dirty = now() + timedelta(minutes=minutes), True
+    if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'forum-topic':
+        (root / 'forum-topic.json').write_text(json.dumps(asyncio.run(forum_topic_fixture())))
+
+
+async def forum_topic_fixture():
+    """Seed canonical forum facts through production tools and owner decisions."""
+    if (os.environ.get('TWINTEAMS_E2E_SCENARIO') != 'forum-topic'
+            or os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline'):
+        raise RuntimeError('Forum acceptance requires its isolated offline scenario')
+    from app.service import service
+
+    request = service.send_message('owner-alex', 'private-alex',
+        'Coordinate the isolated forum acceptance topic.', uuid4().hex)['request']
+    context = service.get_runtime_context(request['id'])
+
+    def tool(name, arguments):
+        return service._runtime_tool_transaction(name, arguments, {**context, 'operation_id': uuid4().hex})
+
+    created = tool('create_duet_topic', {'participant_owner_ids': ['owner-maya'],
+        'title': 'Forum acceptance topic', 'purpose': 'Review the synthetic delivery plan.',
+        'opening_message': 'Opening: review the delivery milestones.', 'mention_owner_ids': []})
+    for approval in created['conversation']['approvals']:
+        await service.decide_approval(approval['approver_id'], approval['id'], 'approved')
+    chat_id = created['chat_id']
+    posted = [tool('post_duet_reply', {'chat_id': chat_id, 'body': f'Delivery checkpoint {index}.',
+        'mention_owner_ids': ['owner-maya'] if index == 2 else []}) for index in range(1, 9)]
+    edited_id = posted[1]['message_id']
+    tool('edit_duet_post', {'chat_id': chat_id, 'message_id': edited_id,
+        'body': 'Delivery checkpoint 2: revised milestone.', 'mention_owner_ids': ['owner-maya'],
+        'expected_revision': 1})
+    return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
+        'test_only_product_tool_seed': True, 'chat_id': chat_id, 'title': created['conversation']['title'],
+        'post_count': 9, 'edited_message_id': edited_id, 'origin_request_id': request['id'],
+        'model_mode': 'deterministic-offline'}
 
 
 def api_app():
@@ -548,7 +590,8 @@ def inspect_fixture(root):
     from app.service import service
     with service.transaction() as db:
         requests = [{**{key: getattr(row, key) for key in ('id', 'chat_id', 'requester_id', 'target_twin_id', 'source', 'status', 'generation', 'private_generation', 'source_message_id', 'causal_chain_id', 'session_id', 'run_id', 'background', 'continuation_of_request_id')},
-                     'accepted_at': row.accepted_at.isoformat()} for row in db.scalars(select(ReplyRequest))]
+                     'accepted_at': row.accepted_at.isoformat(),
+                     'topic_notification': json.loads(row.input_body) if row.source in {'duet_topic_update', 'duet_topic_mention'} and row.input_body else None} for row in db.scalars(select(ReplyRequest))]
         tasks = [{**{key: getattr(row, key) for key in ('id', 'owner_id', 'kind', 'revision', 'enabled', 'index_dirty')},
                   'next_run_at': row.next_run_at.isoformat() if row.next_run_at else None,
                   'active_request_id': (row.details or {}).get('active_request_id'),
@@ -581,7 +624,7 @@ def inspect_fixture(root):
                               'tracking_refs': refs})
         tracking = [{'id': row.id, 'chat_id': row.chat_id, 'source_message_ids': row.source_message_ids, 'revision': row.revision, 'status': row.status, 'deleted': row.deleted_at is not None} for row in db.scalars(select(TrackingTopic))]
         workflow = {}
-        if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'story-workflow-live', 'tracking-reconciliation-live', 'continue-ui-smoke'}:
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') in {'story-workflow-live', 'tracking-reconciliation-live'}:
             workflow['tracking'] = [{key: getattr(row, key) for key in ('id', 'chat_id', 'title', 'description', 'status', 'source_message_ids')} for row in db.scalars(select(TrackingTopic)) if not row.deleted_at]
             workflow['tracking_updates'] = [{key: getattr(row, key) for key in ('id', 'topic_id', 'body', 'source_message_ids')} for row in db.scalars(select(TrackingUpdate))]
             workflow['reminders'] = [{key: getattr(row, key) for key in ('id', 'owner_id', 'title', 'detail', 'done')} for row in db.scalars(select(Reminder))]
@@ -886,14 +929,14 @@ async def chat_cache_fixture(root, *, withdraw=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'question-withdraw-source', 'chat-performance-history', 'chat-cache-seed', 'chat-cache-withdraw', 'fail-next-dream', 'continue-smoke-seed'])
+    parser.add_argument('role', choices=['init', 'api', 'worker', 'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'question-withdraw-source', 'chat-performance-history', 'chat-cache-seed', 'chat-cache-withdraw', 'fail-next-dream', 'forum-topic-state'])
     parser.add_argument('--port', type=int)
     parser.add_argument('--state', type=Path)
     parser.add_argument('--task-id')
     parser.add_argument('--question-id')
     parser.add_argument('--owner-id', choices=['owner-alex', 'owner-maya', 'owner-jordan'])
     args = parser.parse_args()
-    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'question-withdraw-source', 'chat-performance-history', 'chat-cache-seed', 'chat-cache-withdraw', 'fail-next-dream', 'continue-smoke-seed'}:
+    if args.role in {'inspect', 'restart-worker', 'presence', 'advance-schedule', 'advance-contact-dream', 'question-history', 'question-withdraw-source', 'chat-performance-history', 'chat-cache-seed', 'chat-cache-withdraw', 'fail-next-dream', 'forum-topic-state'}:
         if not args.state or args.state.is_symlink() or args.state.stat().st_mode & 0o077:
             raise RuntimeError('Inspect requires its private fixture state file')
         saved = json.loads(args.state.read_text())
@@ -902,6 +945,9 @@ def main():
     root = guard()
     if args.state and args.state.resolve().parent != root:
         raise RuntimeError('State file must belong to its disposable root')
+    if args.role == 'forum-topic-state':
+        print((root / 'forum-topic.json').read_text())
+        return
     if args.role in {'chat-cache-seed', 'chat-cache-withdraw'}:
         print(json.dumps(asyncio.run(chat_cache_fixture(root, withdraw=args.role == 'chat-cache-withdraw'))))
         return
@@ -911,29 +957,6 @@ def main():
         from app.service import service
         from checks.chat_history_fixture import seed_chat_history
         print(json.dumps(seed_chat_history(service)))
-        return
-    if args.role == 'continue-smoke-seed':
-        if os.environ.get('TWINTEAMS_E2E_SCENARIO') != 'continue-ui-smoke' or os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline':
-            raise RuntimeError('Continue UI smoke seed is restricted to its offline fixture')
-        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests'))
-        from duet_test_support import approved_chat
-
-        from app.models import Chat, uid
-        from app.service import service
-        previous = approved_chat(service, 'duet-smoke-previous', ['owner-maya', 'owner-alex'])
-        target = approved_chat(service, 'duet-smoke-target', ['owner-maya', 'owner-jordan'])
-        with service.transaction() as db:
-            db.get(Chat, previous).title = 'Previous BA collaboration'
-            db.get(Chat, target).title = 'Technical clarification'
-            private = db.get(Chat, 'private-maya')
-            request = service.accept_request(db, private, 'twin-maya', 'owner-maya', 'manual', uid(), input_body='Offline continuation smoke')
-            request.status = 'completed'
-            chat = db.get(Chat, target)
-            messages = [service.append_prepared_message(db, chat, request, author_id='twin-maya', kind='twin', body=f'Test send {index}') for index in range(6)]
-            held = service.append_prepared_message(db, chat, request, author_id='twin-maya', kind='twin', body='For the same refund key with a different amount, reject the conflicting request.')
-            assert all(row.state == 'published' for row in messages) and held.state == 'pending'
-            result = {'previous': previous, 'target': target, 'chain': request.causal_chain_id, 'held': held.id}
-        print(json.dumps(result))
         return
     if args.role == 'advance-contact-dream':
         if os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline' or not args.owner_id:

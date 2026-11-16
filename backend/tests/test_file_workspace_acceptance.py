@@ -100,7 +100,7 @@ def test_actual_sdk_reads_image_only_on_demand_and_generated_file_is_browsable(f
     assert client.get(f'/api/chats/private-alex/workspace/files/{entry["id"]}/preview').text == generated.read_text()
 
 
-def test_group_router_gets_file_references_without_pixels_or_file_body(files):
+def test_topic_notification_loads_no_files_and_explicit_read_returns_references(files):
     product, client, root = files
     from duet_test_support import approved_chat
     chat = approved_chat(product, "duet-alex-maya")
@@ -118,7 +118,11 @@ def test_group_router_gets_file_references_without_pixels_or_file_body(files):
     image, document = delivered
     from duet_test_support import request_duet_reply
     receiver = request_duet_reply(product, "owner-alex", chat, result["message"]["id"], "twin-maya")
-    payload = product.get_runtime_context(receiver["id"])["source_message"]
+    incoming = product.get_runtime_context(receiver["id"])
+    assert incoming["source_message"] is None and incoming["input_files"] == []
+    page = product._runtime_tool_transaction("read_duet_topic", {"chat_id": chat},
+        {**incoming, "operation_id": uuid4().hex})
+    payload = next(post for post in page["messages"] if post["id"] == result["message"]["id"])
     assert {row["id"] for row in payload["attachments"]} == {image["id"], document["id"]}
     assert "input_images" not in payload and "DO_NOT_AUTO_INJECT_72" not in json.dumps(payload)
     assert all(Path(row["workspace_path"]).is_relative_to(root / chat) for row in payload["attachments"])

@@ -1,5 +1,6 @@
 """Independent SDK payload, task delivery and silent reaction checks; no live provider."""
 import asyncio
+import json
 from copy import copy
 from uuid import uuid4
 
@@ -37,8 +38,12 @@ def test_actual_reaction_only_turn_is_persisted_and_does_not_create_a_conversati
             chat_id = approved_chat(product, "duet-social-integration")
             message_id = append_duet(product, chat_id, "owner-maya", "Thanks, that helped")["id"]
             request = request_duet_reply(product, "owner-maya", chat_id, message_id, "twin-alex")
+            initial = product.get_runtime_context(request["id"])
+            assert initial["messages"] == [] and initial["source_message"] is None
+            assert json.loads(initial["input_body"])["update_id"] == message_id
         with product.transaction() as db:
             before = tuple(db.scalar(select(func.count()).select_from(table)) for table in (Message, ReplyRequest))
+            request_ids = set(db.scalars(select(ReplyRequest.id)))
         runtime = RuntimeBridge(product)
         calls = []
 
@@ -46,21 +51,45 @@ def test_actual_reaction_only_turn_is_persisted_and_does_not_create_a_conversati
             calls.append(context)
             tools = {tool["name"]: tool for tool in current_tools(context.messages)}
             assert tools["set_message_reaction"]["parameters"]["required"] == ["message_id", "emoji", "active"]
-            return response(model, call("set_message_reaction", message_id=message_id, emoji="❤️", active=True) if len(calls) == 1 else [])
+            if kind == "duet" and len(calls) == 1:
+                assert "Thanks, that helped" not in "\n".join(text_content(row) for row in context.messages)
+                return response(model, call("read_duet_topic", chat_id=chat_id))
+            if len(calls) == (2 if kind == "duet" else 1):
+                if kind == "duet":
+                    assert any(row.get("toolName") == "read_duet_topic" and "Thanks, that helped" in text_content(row)
+                               for row in context.messages)
+                return response(model, call("set_message_reaction", message_id=message_id, emoji="❤️", active=True))
+            return response(model)
 
         runtime.models.register_api("offline-regression", offline)
         await runtime.start(); product.bind_runtime(runtime)
         try:
             await product.execute_request(request["id"])
             assert product.get_request(request["id"])["status"] == "completed", product.get_request(request["id"])
-            assert len(calls) == 2
+            expected_calls = 3 if kind == "duet" else 2
+            assert len(calls) == expected_calls
             with product.transaction() as db:
                 reaction = db.get(MessageReaction, (message_id, "twin-alex", "❤️"))
                 assert reaction is not None
                 assert not db.scalar(select(Message.id).where(Message.request_id == request["id"]))
-                assert tuple(db.scalar(select(func.count()).select_from(table)) for table in (Message, ReplyRequest)) == before
+                assert db.scalar(select(func.count()).select_from(Message)) == before[0]
+                new_requests = list(db.scalars(select(ReplyRequest).where(ReplyRequest.id.not_in(request_ids))))
+                assert len(new_requests) == (1 if kind == "duet" else 0)
+                if new_requests:
+                    notice = new_requests[0]
+                    assert notice.target_twin_id == "twin-alex" and notice.source == "duet_topic_update"
+                    assert notice.source_message_id is None and notice.background
+                    assert json.loads(notice.input_body) == {"topic_id": chat_id, "update_id": message_id,
+                        "revision": 2, "event": "reaction_changed", "mentioned": False}
             await product.execute_request(request["id"])
-            assert len(calls) == 2
+            assert len(calls) == expected_calls
+            if kind == "duet":
+                await product.execute_request(notice.id)
+                assert product.get_request(notice.id)["status"] == "completed"
+                assert len(calls) == expected_calls + 1
+                with product.transaction() as db:
+                    assert db.scalar(select(func.count()).select_from(Message)) == before[0]
+                    assert db.scalar(select(func.count()).select_from(ReplyRequest)) == before[1] + 1
         finally:
             await runtime.close()
     asyncio.run(run())

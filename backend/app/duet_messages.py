@@ -1,28 +1,49 @@
-"""Atomic channel publication and bounded automatic sends, independent of task completion."""
+"""Forum publication and explicit, metadata-only topic notifications."""
+import json
+
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from .duet_conversations import require_active
-from .models import Actor, AllowanceGrant, CausalChain, Chat, Message, ReplyRequest
+from .models import Actor, DuetConversation, DuetPostRevision, Message, ReplyRequest, now
 
-SEND_ALLOWANCE = 6
+
+def validate_mentions(service, db, chat, values):
+    if (not isinstance(values, list) or len(values) > 100
+            or any(not isinstance(value, str) for value in values)
+            or len(set(values)) != len(values)):
+        raise HTTPException(400, "mention_owner_ids must contain distinct participant owner IDs")
+    owners = {member.owner_id for member in service.members(db, chat.id)}
+    if not set(values).issubset(owners):
+        raise HTTPException(403, "Only current topic participants can be mentioned; ask the administrator to invite others")
+    return values
+
+
+def notify_update(service, db, chat, owner_id, event, update_id, revision, mentions=()):
+    require_active(db, chat)
+    conversation = db.get(DuetConversation, chat.id)
+    recipients = set(mentions) - {owner_id}
+    recipients.add(conversation.initiating_owner_id)
+    result = []
+    for recipient in sorted(recipients):
+        source = "duet_topic_update" if recipient == conversation.initiating_owner_id else "duet_topic_mention"
+        key = f"duet-topic:{event}:{update_id}:{revision}:{recipient}"
+        payload = {"topic_id": chat.id, "update_id": update_id, "revision": revision,
+            "event": event, "mentioned": recipient in mentions}
+        request = service.accept_request(db, chat, service.twin(db, recipient).id,
+            owner_id, source, key, intent_key=key, source_owner_id=owner_id,
+            input_body=json.dumps(payload, separators=(",", ":")))
+        result.append(request.id)
+    return result
 
 
 def deliver(service, db, chat, message):
     require_active(db, chat)
     if chat.kind != "duet" or message.state != "published":
         return []
-    sender = service.message_owner(db, message)
-    result = []
-    for member in service.members(db, chat.id):
-        if member.owner_id == sender:
-            continue
-        key = f"duet-message:{message.id}:{member.owner_id}"
-        request = service.accept_request(db, chat, service.twin(db, member.owner_id).id,
-            sender, "duet_message", key, source_message_id=message.id, intent_key=key,
-            causal_chain_id=message.causal_chain_id, source_owner_id=sender)
-        result.append(request.id)
-    return result
+    return notify_update(service, db, chat, service.message_owner(db, message),
+        "post_created" if message.revision == 1 else "post_edited", message.id,
+        message.revision, message.mention_owner_ids)
 
 
 def publish(service, db, chat, message):
@@ -32,11 +53,6 @@ def publish(service, db, chat, message):
     if message.state == "published":
         deliver(service, db, chat, message)
         return True
-    chain = db.scalar(select(CausalChain).where(CausalChain.id == message.causal_chain_id).with_for_update().execution_options(populate_existing=True))
-    if not chain:
-        raise HTTPException(409, "A Duet send requires its original causal chain")
-    if chain.spent >= chain.allowance:
-        return False
     if message.request_id:
         request = db.get(ReplyRequest, message.request_id)
         if not request:
@@ -46,21 +62,99 @@ def publish(service, db, chat, message):
             "owner_id": actor.owner_id, "private_generation": request.private_generation})
     sender = db.get(Actor, message.author_id)
     if not sender or sender.kind != "twin":
-        raise HTTPException(403, "Only a participating Duet can publish in this channel")
+        raise HTTPException(403, "Only a participating Duet can publish in this topic")
     member = service.membership(db, sender.owner_id, chat.id)[1]
     if (not service.sources_allowed(db, member, message.source_message_ids, message.source_floor_seq)
             or not service.provenance_allowed(db, member, message.source_provenance)):
-        raise HTTPException(409, "Pending send sources are no longer authorized")
+        raise HTTPException(409, "Pending post sources are no longer authorized")
     if message.reply_to_message_id:
         service.visible_message(db, member, message.reply_to_message_id)
     message.seq, message.state = chat.next_message_seq, "published"
     chat.next_message_seq += 1
-    chain.spent += 1
     db.flush()
     from .memory_dream import message_published
     message_published(service, db, chat, message)
     deliver(service, db, chat, message)
     return True
+
+
+def edit_post(service, db, args, context):
+    _, twin, _, _, _ = service._message_tool_origin(db, context)
+    chat, member = service.membership(db, twin.owner_id, args.get("chat_id"), True)
+    require_active(db, chat)
+    message = service.visible_message(db, member, args.get("message_id"))
+    if chat.kind != "duet" or message.chat_id != chat.id or message.author_id != twin.id:
+        raise HTTPException(403, "A Duet can edit only its own posts in this topic")
+    body = args.get("body")
+    expected = args.get("expected_revision")
+    if not isinstance(body, str) or not body.strip():
+        raise HTTPException(400, "Post body must contain text")
+    if isinstance(expected, bool) or not isinstance(expected, int) or expected < 1:
+        raise HTTPException(400, "expected_revision must be a positive integer")
+    mentions = validate_mentions(service, db, chat, args.get("mention_owner_ids", []))
+    if message.revision != expected:
+        raise HTTPException(409, "Post changed; read it before editing again")
+    if message.body == body.strip() and message.mention_owner_ids == mentions:
+        return {"chat_id": chat.id, "message_id": message.id, "revision": message.revision, "changed": False}
+    db.add(DuetPostRevision(message_id=message.id, revision=message.revision,
+        body=message.body, mention_owner_ids=message.mention_owner_ids,
+        created_at=message.edited_at or message.created_at))
+    message.body = body.strip()
+    message.mention_owner_ids = mentions
+    message.revision += 1
+    message.edited_at = now()
+    db.flush()
+    deliver(service, db, chat, message)
+    return {"chat_id": chat.id, "message_id": message.id, "revision": message.revision,
+        "edited_at": message.edited_at.isoformat(), "changed": True}
+
+
+def post_history(service, db, args, context):
+    owner_id = context["owner_id"]
+    chat, member = service.membership(db, owner_id, args.get("chat_id"))
+    message = service.visible_message(db, member, args.get("message_id"))
+    if chat.kind != "duet" or message.chat_id != chat.id:
+        raise HTTPException(404, "Topic post not found")
+    limit, before = args.get("limit", 30), args.get("before_revision")
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+        raise HTTPException(400, "limit must be between 1 and 100")
+    if before is not None and (isinstance(before, bool) or not isinstance(before, int) or before < 1):
+        raise HTTPException(400, "before_revision must be a positive integer")
+    query = select(DuetPostRevision).where(DuetPostRevision.message_id == message.id)
+    if before is not None:
+        query = query.where(DuetPostRevision.revision < before)
+    rows = list(db.scalars(query.order_by(DuetPostRevision.revision.desc()).limit(limit + 1)))
+    revisions = [{"revision": row.revision, "body": row.body,
+        "mention_owner_ids": row.mention_owner_ids, "created_at": row.created_at.isoformat()} for row in rows]
+    if before is None or message.revision < before:
+        revisions.insert(0, {"revision": message.revision, "body": message.body,
+            "mention_owner_ids": message.mention_owner_ids,
+            "created_at": (message.edited_at or message.created_at).isoformat()})
+    has_more = len(revisions) > limit
+    revisions = revisions[:limit]
+    return {"chat_id": chat.id, "message_id": message.id, "revisions": revisions,
+        "has_more": has_more, "before_revision": revisions[-1]["revision"] if revisions else None}
+
+
+def revision_source(db, message, revision):
+    from .service import digest
+    row = message if message.revision == revision else db.get(DuetPostRevision, (message.id, revision))
+    if row is None:
+        raise HTTPException(404, "Post revision not found")
+    return {"kind": "duet_post_revision", "id": message.id, "revision": revision,
+        "seq": message.seq, "hash": digest([row.body, row.mention_owner_ids])}
+
+
+def revision_allowed(service, db, member, source):
+    message = db.get(Message, source.get("id"))
+    if not message or not service.message_visible(db, member, message):
+        return False
+    row = message if message.revision == source.get("revision") else db.get(
+        DuetPostRevision, (message.id, source.get("revision")))
+    if row is None:
+        return False
+    from .service import digest
+    return source.get("hash") == digest([row.body, row.mention_owner_ids])
 
 
 def pending_dto(message):
@@ -70,83 +164,10 @@ def pending_dto(message):
 
 
 def view(service, db, chat, member):
-    if chat.kind != "duet":
-        return {"send_budgets": [], "pending_messages": []}
-    counts = dict(db.execute(select(Message.causal_chain_id, func.count()).where(
-        Message.chat_id == chat.id, Message.state == "pending").group_by(Message.causal_chain_id)).all())
-    from .models import DuetConversation
-    conversation = db.get(DuetConversation, chat.id)
-    active = bool(conversation and conversation.status == "active")
-    budgets = [{"causal_chain_id": chain.id, "spent": chain.spent, "allowance": chain.allowance,
-        "remaining": max(0, chain.allowance - chain.spent), "pending_count": counts[chain.id],
-        "can_continue": active, "continuation_allowance": SEND_ALLOWANCE}
-        for chain in db.scalars(select(CausalChain).where(CausalChain.id.in_(counts)))] if counts else []
     own_twin = service.twin(db, member.owner_id)
     pending = db.scalars(select(Message).where(Message.chat_id == chat.id,
         Message.state == "pending", Message.author_id == own_twin.id).order_by(Message.created_at, Message.id))
-    return {"send_budgets": budgets, "pending_messages": [pending_dto(message) for message in pending]}
-
-
-def continue_sends(service, owner_id, chat_id, chain_id, key, expected_allowance):
-    with service.transaction() as db:
-        pending_query = select(Message).where(Message.causal_chain_id == chain_id, Message.state == "pending")
-        drafts = list(db.scalars(pending_query))
-        # Use the same source-chat locks as an ordinary prepared send. A reset,
-        # source withdrawal or task stop cannot race the delayed publication.
-        scopes = {chat_id}
-        for message in drafts:
-            request = db.get(ReplyRequest, message.request_id) if message.request_id else None
-            scopes.update(service._message_source_chat_ids(db, request, message.chat_id,
-                [*(message.source_message_ids or []), *([message.reply_to_message_id] if message.reply_to_message_id else [])]))
-        for scope in sorted(scopes):
-            db.scalar(select(Chat).where(Chat.id == scope).with_for_update())
-        db.expire_all()
-        chat, _ = service.membership(db, owner_id, chat_id)
-        require_active(db, chat)
-        if chat.kind != "duet" or not db.scalar(select(Message.id).where(
-                Message.chat_id == chat_id, Message.causal_chain_id == chain_id).limit(1)):
-            raise HTTPException(404, "Send chain is not part of this channel")
-        chain = db.scalar(select(CausalChain).where(CausalChain.id == chain_id).with_for_update().execution_options(populate_existing=True))
-        if not chain:
-            raise HTTPException(404, "Send chain not found")
-        prior = db.scalar(select(AllowanceGrant).where(AllowanceGrant.owner_id == owner_id,
-            AllowanceGrant.client_request_key == key))
-        replay = prior is not None
-        if prior:
-            if (prior.chat_id, prior.causal_chain_id, prior.base_allowance) != (chat_id, chain_id, expected_allowance):
-                raise HTTPException(409, "Continue key belongs to another authorization")
-            grant = prior
-        else:
-            if chain.allowance != expected_allowance:
-                raise HTTPException(409, "Send allowance changed; refresh before continuing")
-            pending = list(db.scalars(select(Message).where(Message.causal_chain_id == chain_id,
-                Message.state == "pending").order_by(Message.created_at, Message.id)))
-            if not pending:
-                raise HTTPException(409, "There are no pending sends")
-            for message in pending:
-                request = db.get(ReplyRequest, message.request_id) if message.request_id else None
-                current = service._message_source_chat_ids(db, request, message.chat_id,
-                    [*(message.source_message_ids or []), *([message.reply_to_message_id] if message.reply_to_message_id else [])])
-                if not current.issubset(scopes):
-                    raise HTTPException(409, "Pending sends changed; retry Continue")
-            chain.allowance += SEND_ALLOWANCE
-            grant = AllowanceGrant(causal_chain_id=chain_id, chat_id=chat_id, owner_id=owner_id,
-                client_request_key=key, amount=SEND_ALLOWANCE, base_allowance=expected_allowance)
-            db.add(grant)
-        published = []
-        if not replay:
-            for message in pending:
-                if chain.spent >= chain.allowance:
-                    break
-                target = db.get(Chat, message.chat_id)
-                if publish(service, db, target, message) and message.chat_id == chat_id:
-                    published.append(message.id)
-        db.flush()
-        count = db.scalar(select(func.count()).select_from(Message).where(Message.chat_id == chat_id,
-            Message.causal_chain_id == chain_id, Message.state == "pending"))
-        return {"causal_chain_id": chain.id, "spent": chain.spent, "allowance": chain.allowance,
-            "remaining": chain.allowance - chain.spent, "grant_id": grant.id,
-            "published_message_ids": published, "pending_count": count, "already_applied": replay}
+    return {"pending_messages": [pending_dto(message) for message in pending]}
 
 
 def cancel_pending(service, owner_id, chat_id, message_id):
@@ -154,8 +175,8 @@ def cancel_pending(service, owner_id, chat_id, message_id):
         service.membership(db, owner_id, chat_id, True)
         message = db.get(Message, message_id)
         if not message or message.chat_id != chat_id or message.author_id != service.twin(db, owner_id).id:
-            raise HTTPException(404, "Pending send not found")
+            raise HTTPException(404, "Pending post not found")
         if message.state == "published":
-            raise HTTPException(409, "This message has already been published")
+            raise HTTPException(409, "This post has already been published")
         message.state = "withdrawn"
         return {"id": message.id, "state": "withdrawn"}

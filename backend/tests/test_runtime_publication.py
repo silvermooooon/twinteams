@@ -75,25 +75,27 @@ class ProductStub:
         return {"chats": []}
 
 
-def test_peer_send_schema_preserves_reply_reference_and_chain():
+def test_topic_post_schema_preserves_explicit_mentions_reply_reference_and_chain():
     product = ProductStub()
     runtime = RuntimeBridge(product)
     context = {"owner_id": "owner-a", "chat": {"id": "private-a", "kind": "private"},
                "request_id": "request", "causal_chain_id": "chain", "origin_request_id": "origin"}
     session = SimpleNamespace(session_id="session", snapshot={"run_id": "run"},
                               tool_operation_id=lambda call: f"operation:{call}")
-    tool = next(tool for tool in runtime._tools(context, session) if tool.name == "send_chat_message")
+    tool = next(tool for tool in runtime._tools(context, session) if tool.name == "post_duet_reply")
     assert tool.replay == "safe"
     assert "wait_for_reply" not in tool.parameters["properties"]
     assert "reply_to_message_id" not in tool.parameters["required"]
-    args = {"chat_id": "existing-group", "body": "Which date works?", "source_message_ids": ["origin-message"],
-            "reply_to_message_id": "target-message"}
+    assert "mention_owner_ids" in tool.parameters["required"]
+    args = {"chat_id": "existing-topic", "body": "Which date works?", "source_message_ids": ["origin-message"],
+            "reply_to_message_id": "target-message", "mention_owner_ids": ["owner-b"]}
     asyncio.run(tool.execute("send", args, AbortSignal(), None))
     assert product.tool_calls[0][1] == args
     assert product.tool_calls[0][2]["causal_chain_id"] == "chain"
     assert product.tool_calls[0][2]["operation_id"] == "operation:send"
     system = runtime._system(context)
-    assert "active approved Duet conversation" in tool.description
+    assert "active authorized forum topic" in tool.description
+    assert "Final assistant output never posts automatically" in tool.description
     assert "audience restrictions" in system
     reaction = next(tool for tool in runtime._tools(context, session) if tool.name == "set_message_reaction")
     assert "courtesy loops" in reaction.description

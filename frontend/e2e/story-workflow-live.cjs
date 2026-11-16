@@ -99,8 +99,6 @@ async function waitFor(label, sessions, predicate, timeout = 180000) {
     const evidence = inspect();
     const identityOwner = sessions.find(session => session.handleIdentity);
     if (identityOwner && await identityOwner.handleIdentity(evidence)) return false;
-    const coordinator = sessions.find(session => session.continueHeld);
-    if (coordinator && await coordinator.continueHeld(evidence)) return false;
     return predicate(evidence);
   }, label, { timeout, interval: 2000 });
 }
@@ -144,53 +142,16 @@ function pairChats(evidence, peer) {
   return evidence.workflow.chats.filter(row => row.kind === 'duet'
     && row.owner_ids.includes('owner-maya') && row.owner_ids.includes(peer));
 }
-async function continueHeldConsultation(sm, t, grants, evidence, allowedChain) {
-  const chats = [...new Map([...pairChats(evidence, 'owner-jordan'), ...pairChats(evidence, 'owner-riley')].map(chat => [chat.id, chat])).values()];
-  for (const chat of chats) {
-    assert.ok(chat.owner_ids.every(id => ['owner-maya', 'owner-jordan', 'owner-riley'].includes(id)), 'continuation is limited to the approved consultation');
-    const detail = await api(sm.page, `/duet-conversations/${chat.id}?limit=100`);
-    for (const budget of detail.send_budgets.filter(row => row.pending_count && row.can_continue && row.causal_chain_id === allowedChain)) {
-      const held = inspect().workflow.messages.filter(row => row.state === 'pending' && row.causal_chain_id === budget.causal_chain_id);
-      if (!held.length || held.filter(row => row.chat_id === chat.id).length !== budget.pending_count) return true;
-      const required = held.some(row => /(?:key|idempoten).*(?:amount|conflict)|(?:amount|conflict).*(?:key|idempoten)|(?:unknown|fail|error).*(?:message|fallback|display)|(?:message|fallback|display).*(?:unknown|fail|error)/is.test(row.body));
-      if (!required) continue;
-      assert.ok(held.every(row => chats.some(item => item.id === row.chat_id)), 'all held messages belong to the approved consultation');
-      assert.ok(held.every(row => ['twin-maya', 'twin-jordan', 'twin-riley'].includes(row.author_id)), 'held messages belong to the authorized participants');
-      assert.ok(!grants.some(row => row.chain === budget.causal_chain_id), 'a second allowance extension requires review');
-      if (!(await sm.page.getByRole('tab', { name: 'Duets', exact: true }).count())) {
-        await sm.page.getByRole('button', { name: 'More tools', exact: true }).click();
-        await sm.page.getByRole('menuitem', { name: 'Duets', exact: true }).click();
-      }
-      await sm.page.getByRole('tab', { name: 'Duets', exact: true }).click();
-      const back = sm.page.getByRole('button', { name: 'Back to Duet conversations', exact: true });
-      if (await back.count()) await back.click();
-      await sm.page.locator('.duet-conversation-card').filter({ hasText: chat.title }).click();
-      const sections = sm.page.locator('.duet-send-budget').filter({ hasText: `${budget.spent} of ${budget.allowance} messages sent` });
-      await sections.first().waitFor({ state: 'visible', timeout: 20000 });
-      assert.equal(await sections.count(), 1, 'the visible control uniquely matches this held exchange');
-      const [response] = await Promise.all([
-        sm.page.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/duet-conversations/${chat.id}/chains/${budget.causal_chain_id}/continue`),
-        sections.getByRole('button', { name: `Continue · ${budget.continuation_allowance} more messages`, exact: true }).click(),
-      ]);
-      assert.ok(response.ok(), 'the owner continuation succeeds');
-      const updated = await response.json();
-      assert.equal(updated.causal_chain_id, budget.causal_chain_id);
-      assert.equal(updated.allowance, budget.allowance + budget.continuation_allowance);
-      assert.ok(updated.published_message_ids.some(id => held.some(row => row.id === id)), 'a held message was released');
-      grants.push({ chat: chat.id, chain: budget.causal_chain_id, before: budget, held, after: updated });
-      t.record('owner_continuation_grants', grants);
-      await privateChat(sm.page);
-      return true;
-    }
-  }
-  return false;
-}
 function peerQuestion(evidence, owner, priorQuestions, priorMessages) {
   function linked(request) {
-    const source = evidence.workflow.messages.find(item => item.id === request?.source_message_id);
-    if (!source || priorMessages.has(source.id)) return false;
-    return source.author_id === 'twin-maya' || (source.causal_chain_id && evidence.workflow.messages.some(item =>
-      item.author_id === 'twin-maya' && item.causal_chain_id === source.causal_chain_id && !priorMessages.has(item.id)));
+    while (request?.continuation_of_request_id) {
+      request = evidence.requests.find(item => item.id === request.continuation_of_request_id);
+    }
+    if (!request || request.target_twin_id !== owner.replace('owner-', 'twin-')) return false;
+    const updateId = request.topic_notification?.update_id || request.source_message_id;
+    return evidence.workflow.messages.some(item => item.chat_id === request.chat_id
+      && (!updateId || item.id === updateId) && item.author_id === 'twin-maya'
+      && item.state === 'published' && !priorMessages.has(item.id));
   }
   const card = evidence.questions.find(row => row.owner_id === owner && row.status === 'pending' && !priorQuestions.has(row.id)
     && pairChats(evidence, owner).some(chat => chat.id === row.origin_chat_id)
@@ -330,12 +291,10 @@ async function afterConsultation(t, sessions, { drafted, revised, consultation, 
 
 async function afterCapacity(t, sessions, { drafted, revised, consultation }) {
     const { sm, dev1, dev2 } = sessions;
-    const continuationGrants = [];
     const roundTwoBaseline = inspect();
     const priorQuestions = new Set(roundTwoBaseline.questions.map(row => row.id));
     const beforeRoundTwo = new Set(roundTwoBaseline.workflow.messages.map(row => row.id));
-    const technicalRequest = await say(sm, 'Before I decide, please ask CCC to confirm with Jordan what should happen if the same refund key is reused with a different amount, and ask DDD to confirm with Riley what customers should see when a payment fails and the failure reason is unknown. Please report their owners’ answers.', [sm, dev1, dev2]);
-    sm.continueHeld = evidence => continueHeldConsultation(sm, t, continuationGrants, evidence, technicalRequest.request.causal_chain_id);
+    await say(sm, 'Before I decide, please ask CCC to confirm with Jordan what should happen if the same refund key is reused with a different amount, and ask DDD to confirm with Riley what customers should see when a payment fails and the failure reason is unknown. Please report their owners’ answers.', [sm, dev1, dev2]);
     const secondQuestions = await waitFor('second owner questions', [sm, dev1, dev2], evidence => {
       const selected = {
         'owner-jordan': peerQuestion(evidence, 'owner-jordan', priorQuestions, beforeRoundTwo),
@@ -361,13 +320,8 @@ async function afterCapacity(t, sessions, { drafted, revised, consultation }) {
       clarificationSamples = consultationSettled(evidence) ? clarificationSamples + 1 : 0;
       return clarificationSamples >= 2 && evidence;
     });
-    const counts = new Map();
-    const duetIds = new Set(clarification.evidence.workflow.chats.filter(row => row.kind === 'duet').map(row => row.id));
-    for (const row of clarification.evidence.workflow.messages.filter(row => duetIds.has(row.chat_id) && row.kind === 'twin' && row.state === 'published' && row.causal_chain_id)) counts.set(row.causal_chain_id, (counts.get(row.causal_chain_id) || 0) + 1);
-    assert.ok([...counts].every(([chain, count]) => count <= (continuationGrants.find(row => row.chain === chain)?.after.allowance || 6)), 'published messages respect each global chain allowance and explicit owner grants');
     const clarificationReports = settledClarification.workflow.messages.filter(row => row.chat_id === sm.chat.id && row.author_id === 'twin-maya' && !beforeClarifications.has(row.id));
-    t.record('developer_clarifications', { left: clarification.left, right: clarification.right, reports: clarificationReports, continuationGrants });
-    delete sm.continueHeld;
+    t.record('developer_clarifications', { left: clarification.left, right: clarification.right, reports: clarificationReports });
     await reviewReports(t, 'decision', {
       questions: secondQuestions,
       peerReplies: [...clarification.left, ...clarification.right],
@@ -504,8 +458,8 @@ const cases = [{
     await previewFile(ba, revised.files[0], path.join(t.artifactDir, 'ba-file-preview.png'));
     ba.allowedPeers = ['owner-maya']; sm.allowedPeers = ['owner-alex'];
     ba.allowedFiles = revised.files;
-    await say(ba, 'Please open an approved Duet conversation with BBB, our Scrum Master, and share the three revised story documents with BBB. I authorize sharing these specific files with BBB so BBB can read and plan them. Then publish three separate messages through Message Center, one per story, with its shared document attached. My analysis and handoff are finished only when BBB receives all three; the development work itself remains open.', [ba, sm]);
-    const connection = await waitFor('BA and Scrum Master approve their Duet conversation', [ba, sm], evidence => {
+    await say(ba, 'Please create an approved Duet topic with BBB, our Scrum Master, and share the three revised story documents with BBB. I authorize sharing these specific files with BBB so BBB can read and plan them. Then publish three separate messages through Message Center, one per story, with its shared document attached. My analysis and handoff are finished only when BBB receives all three; the development work itself remains open.', [ba, sm]);
+    const connection = await waitFor('BA and Scrum Master approve their Duet topic', [ba, sm], evidence => {
       const chats = evidence.workflow.chats.filter(row => row.kind === 'duet' && row.duet_status === 'active'
         && row.owner_ids.length === 2 && row.owner_ids.includes('owner-alex') && row.owner_ids.includes('owner-maya'));
       const openings = evidence.workflow.messages.filter(row => chats.some(chat => chat.id === row.chat_id && chat.opening_message === row.body) && row.kind === 'twin' && row.author_id === 'twin-alex' && row.state === 'published');
@@ -540,11 +494,11 @@ const cases = [{
       const response = await entry.page.request.get(new URL(attachmentURL, entry.page.url()).href);
       assert.ok([403, 404].includes(response.status()), 'unapproved developers cannot read BA snapshots');
     }
-    if (!(await sm.page.getByRole('tab', { name: 'Duets', exact: true }).count())) {
+    if (!(await sm.page.getByRole('tab', { name: 'Topics', exact: true }).count())) {
       await sm.page.getByRole('button', { name: 'More tools', exact: true }).click();
       await sm.page.getByRole('menuitem', { name: 'Workspace', exact: true }).click();
     }
-    await sm.page.getByRole('tab', { name: 'Duets', exact: true }).click();
+    await sm.page.getByRole('tab', { name: 'Topics', exact: true }).click();
     await sm.page.locator('.duet-conversation-card').filter({ hasText: connection.chat.title }).click();
     const card = sm.page.locator(`[data-attachment-id="${firstAttachment.id}"]`);
     await card.getByRole('button', { name: `Preview ${firstAttachment.name}`, exact: true }).click();
@@ -591,4 +545,4 @@ const cases = [{
     await afterConsultation(t, sessions, { drafted, revised, consultation, beforeConsultationQuestions, beforeConsultationMessages });
   },
 }];
-module.exports = { cases, selectStories, initialRequest, isSettled, peerQuestion, sharedReadHashes, consultationSettled, continueHeldConsultation, afterConsultation, afterCapacity, afterDeveloperPlans, previewFile, inspect, say, answer, waitFor, reviewReports };
+module.exports = { cases, selectStories, initialRequest, isSettled, peerQuestion, sharedReadHashes, consultationSettled, afterConsultation, afterCapacity, afterDeveloperPlans, previewFile, inspect, say, answer, waitFor, reviewReports };

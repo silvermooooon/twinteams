@@ -94,3 +94,62 @@ def test_old_upgrade_cancels_only_retired_work_preserves_messages_and_releases_b
     upgrade_duet_message_schema(service_module.engine)
     with product.transaction() as db:
         assert db.get(CausalChain, current["causal_chain_id"]).spent == 1
+
+
+def test_forum_upgrade_is_additive_repeatable_and_keeps_pending_drafts(product):
+    from duet_test_support import approved_chat
+
+    from app.duet_forum_schema import check_duet_forum_schema, upgrade_duet_forum_schema
+    from app.models import Chat
+
+    chat = approved_chat(product, 'duet-migration')
+    with product.transaction() as db:
+        chain = product.new_causal_chain(db, 'owner-alex')
+        published = product.append_message(db, db.get(Chat, chat), author_id='twin-alex',
+            kind='twin', body='Existing published post', causal_chain_id=chain.id)
+        pending = Message(chat_id=chat, author_id='twin-alex', kind='twin', body='Unsent legacy draft',
+            causal_chain_id=chain.id, seq=None, state='pending')
+        db.add(pending)
+        db.flush()
+        published_id, pending_id = published.id, pending.id
+        before_requests = list(db.scalars(select(ReplyRequest.id).order_by(ReplyRequest.id)))
+    with service_module.engine.begin() as connection:
+        connection.execute(text('DROP TABLE tt_duet_post_revisions'))
+        connection.execute(text('ALTER TABLE tt_messages DROP COLUMN mention_owner_ids, DROP COLUMN revision, DROP COLUMN edited_at'))
+        connection.execute(text('ALTER TABLE tt_duet_conversations DROP COLUMN opening_mention_owner_ids, DROP COLUMN revision'))
+    with pytest.raises(RuntimeError, match='forum schema'):
+        check_duet_forum_schema(inspect(service_module.engine))
+    for _ in range(2):
+        upgrade_duet_forum_schema(service_module.engine)
+        check_duet_forum_schema(inspect(service_module.engine))
+    with product.transaction() as db:
+        published, pending = db.get(Message, published_id), db.get(Message, pending_id)
+        assert published.body == 'Existing published post' and published.state == 'published'
+        assert published.revision == 1 and published.mention_owner_ids == [] and published.edited_at is None
+        assert pending.body == 'Unsent legacy draft' and pending.state == 'pending' and pending.seq is None
+        assert list(db.scalars(select(ReplyRequest.id).order_by(ReplyRequest.id))) == before_requests
+
+
+def test_forum_upgrade_freezes_existing_file_audience_and_never_expands_it_on_repeat(product):
+    from duet_test_support import approved_chat
+
+    from app.duet_forum_schema import upgrade_duet_forum_schema
+    from app.models import ChatAttachment, Membership
+
+    chat = approved_chat(product, 'duet-file-migration')
+    with product.transaction() as db:
+        attachment = ChatAttachment(chat_id=chat, owner_id='owner-alex', name='Existing.txt',
+            mime_type='text/plain', kind='file', size=10, sha256='a' * 64,
+            relative_path='published/existing.txt')
+        db.add(attachment)
+        db.flush()
+        attachment_id = attachment.id
+    upgrade_duet_forum_schema(service_module.engine)
+    with product.transaction() as db:
+        assert db.get(ChatAttachment, attachment_id).granted_owner_ids == ['owner-alex', 'owner-maya']
+        db.add(Membership(chat_id=chat, owner_id='owner-jordan', history_policy='all', lower_seq=1))
+    upgrade_duet_forum_schema(service_module.engine)
+    with product.transaction() as db:
+        attachment = db.get(ChatAttachment, attachment_id)
+        assert attachment.granted_owner_ids == ['owner-alex', 'owner-maya']
+        assert attachment.relative_path == 'published/existing.txt' and attachment.sha256 == 'a' * 64

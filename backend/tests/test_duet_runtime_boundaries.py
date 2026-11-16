@@ -32,18 +32,41 @@ def propose(product, context):
 def test_new_catalog_exposes_connection_contract_and_preserves_legacy_recovery():
     runtime = RuntimeBridge.__new__(RuntimeBridge)
     tools = {tool.name: tool for tool in runtime._tools({}, SimpleNamespace(snapshot={}, resumable=False))}
-    assert "request_duet_conversation" in tools
+    assert "create_duet_topic" in tools
+    assert "request_duet_conversation" not in tools
+    assert {"read_duet_topic", "post_duet_reply", "edit_duet_post", "invite_duet_participants"} <= tools.keys()
     assert {"create_chat", "rename_chat", "add_chat_members"} <= tools.keys()
-    request = tools["request_duet_conversation"]
+    request = tools["create_duet_topic"]
     assert set(request.parameters["required"]) == {"participant_owner_ids", "title", "purpose", "opening_message"}
     assert "connection only" in request.description
     assert "Omit origin_chat_id for a private-origin task" in request.description
-    assert all(name in str(tools["create_approval"].parameters) for name in ("create_chat", "rename_chat", "add_chat_members"))
+    assert all(name in str(tools["create_approval"].parameters) for name in (
+        "create_chat", "rename_chat", "add_chat_members", "post_duet_reply", "invite_duet_participants"))
     frozen = {"name": "create_chat", "description": "Old declaration", "version": "old",
               "parameters": {"type": "object", "properties": {}}, "replay": "safe"}
     recovered = runtime._tools({}, SimpleNamespace(snapshot={"tools": [frozen]}, resumable=True))
     assert len(recovered) == 1 and recovered[0].name == "create_chat"
     assert recovered[0].parameters == frozen["parameters"]
+    frozen = {**frozen, "name": "request_duet_conversation"}
+    recovered = runtime._tools({}, SimpleNamespace(snapshot={"tools": [frozen]}, resumable=True))
+    assert len(recovered) == 1 and recovered[0].name == frozen["name"]
+    assert recovered[0].parameters == frozen["parameters"]
+
+
+def test_topic_discovery_is_paginated_authorized_metadata_without_post_content(product):
+    from duet_test_support import approved_chat
+    for suffix in ("a", "b", "c"):
+        approved_chat(product, "forum-list-" + suffix)
+    approved_chat(product, "forum-list-hidden", ["owner-maya", "owner-jordan"])
+    context = origin(product)
+    first = call(product, context, "list_duet_topics", {"limit": 2})
+    assert [row["chat_id"] for row in first["topics"]] == ["forum-list-a", "forum-list-b"]
+    assert first["next_cursor"] == "forum-list-b"
+    second = call(product, context, "list_duet_topics", {"limit": 2, "after": first["next_cursor"]})
+    assert [row["chat_id"] for row in second["topics"]] == ["forum-list-c"]
+    assert second["next_cursor"] is None
+    assert all(set(row) == {"chat_id", "title", "admin_owner_id", "status", "revision"}
+               for row in first["topics"] + second["topics"])
 
 
 @pytest.mark.parametrize("tool,args", [

@@ -48,11 +48,14 @@ def for_chat(service, db, chat, member, message_ids, *, cache=None):
         .outerjoin(DuetConversation, DuetConversation.chat_id == Chat.id)
         .options(load_only(*[getattr(QuestionRequest, key) for key in
         ("id", "message_id", "origin_chat_id", "owner_id", "question", "options", "status", "answer", "answer_message_id",
-         "owner_reply", "created_at", "answered_at")]),
+         "owner_reply", "created_at", "answered_at", "source_provenance")]),
             load_only(ReplyRequest.id, ReplyRequest.cancel_requested, ReplyRequest.status,
                 ReplyRequest.private_generation, ReplyRequest.source_message_id),
             load_only(*SOURCE_MESSAGE_FIELDS)).where(QuestionRequest.owner_id == member.owner_id,
         QuestionRequest.chat_id == chat.id, QuestionRequest.message_id.in_(message_ids)))
+    rows = list(rows)
+    cache = {} if cache is None else cache
+    service._prime_source_messages(db, [], [source for row, *_ in rows for source in row.source_provenance], cache)
     result, origins = [], {}
     for row, request, origin_chat, origin_member, source, channel_status in rows:
         available = bool(request and origin_chat and origin_member
@@ -61,7 +64,8 @@ def for_chat(service, db, chat, member, message_ids, *, cache=None):
             and (origin_chat.kind != "duet" or channel_status == "active")
             and (origin_chat.kind != "private" or (origin_chat.private_owner_id == member.owner_id
                 and not origin_chat.reset_pending and request.private_generation == origin_chat.reset_generation))
-            and (not request.source_message_id or (source and service.message_visible(db, origin_member, source))))
+            and (not request.source_message_id or (source and service.message_visible(db, origin_member, source)))
+            and service.provenance_allowed(db, origin_member, row.source_provenance, cache=cache))
         if available and row.origin_chat_id not in origins:
             origins[row.origin_chat_id] = service.chat_title(db, origin_chat, member.owner_id)
         result.append(dto(service, db, row,

@@ -115,8 +115,15 @@ def test_pending_duet_send_can_be_cancelled_and_channel_closed(http_product):
     product, client = http_product
     chat = approved_chat(product, "duet-budget")
     _, context = origin(product)
-    sends = [send(product, context, chat, f"Synthetic peer update {index}") for index in range(7)]
-    pending = sends[-1]["message_id"]
+    from app.models import Message
+    sent = send(product, context, chat, "Published forum post")
+    history = client.get(f"/api/duet-conversations/{chat}/posts/{sent['message_id']}/history")
+    assert history.status_code == 200 and history.json()["revisions"][0]["body"] == "Published forum post"
+    with product.transaction() as db:
+        draft = Message(chat_id=chat, author_id="twin-alex", kind="twin", body="Legacy unsent draft", state="pending", seq=None)
+        db.add(draft)
+        db.flush()
+        pending = draft.id
     assert client.delete(f"/api/duet-conversations/{chat}/pending-messages/{pending}").status_code == 200
     response = client.post(f"/api/duet-conversations/{chat}/close")
     assert response.status_code == 200

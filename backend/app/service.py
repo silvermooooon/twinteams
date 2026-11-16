@@ -71,7 +71,8 @@ SOURCE_MESSAGE_FIELDS = (Message.id, Message.chat_id, Message.seq, Message.autho
 DISPLAY_MESSAGE_FIELDS = (Message.id, Message.chat_id, Message.seq, Message.author_id,
     Message.kind, Message.state, Message.body, Message.raw_owner_input, Message.request_id,
     Message.command_owner_id, Message.client_request_key, Message.attachment_ids,
-    Message.causal_chain_id, Message.created_at, Message.reply_to_message_id)
+    Message.causal_chain_id, Message.created_at, Message.reply_to_message_id,
+    Message.mention_owner_ids, Message.revision, Message.edited_at)
 
 
 def iso(value):
@@ -119,10 +120,6 @@ class ProductService:
         self.message_center_loop = None
         self.scheduled_due_index = None
 
-    @property
-    def duet_send_allowance(self):
-        return 6
-
     async def db_call(self, method, *args, **kwargs):
         """One complete transaction/function per bounded pool job; no ORM across awaits."""
         callback = getattr(self, method) if isinstance(method, str) else method
@@ -145,6 +142,7 @@ class ProductService:
         new_members = set()
         tracking_scopes, tracking_owners = set(), set()
         scheduled_owners = set()
+        invitation_owners = set()
         with SessionLocal() as db, db.begin():
             def collect(session, context, instances):
                 from .conversation_context import invalidate_changed_messages
@@ -154,6 +152,8 @@ class ProductService:
                         scheduled_owners.add(row.owner_id)
                     if isinstance(row, Membership) and row in session.new:
                         new_members.add(row.owner_id)
+                    if isinstance(row, Approval) and (row.sdk_reference or {}).get("invitation_key"):
+                        invitation_owners.add(row.approver_id)
                     if isinstance(row, (ChangeOutbox, ViewInterval)) or (isinstance(row, ProductOperation) and row.name == "set_message_reaction"):
                         continue
                     if (isinstance(row, MemoryDreamState) and row not in session.new
@@ -185,6 +185,8 @@ class ProductService:
                 scopes.add(conversation.origin_chat_id)
                 owner_ids = [m.owner_id for m in self.members(db, conversation.chat_id)]
                 scopes.update(db.scalars(select(Chat.id).where(Chat.kind == "private", Chat.private_owner_id.in_(owner_ids))))
+            if invitation_owners:
+                scopes.update(db.scalars(select(Chat.id).where(Chat.kind == "private", Chat.private_owner_id.in_(invitation_owners))))
             if tracking_scopes:
                 tracking_owners.update(db.scalars(select(Membership.owner_id).where(
                     Membership.chat_id.in_(tracking_scopes), Membership.left_at.is_(None)).distinct()))
@@ -233,6 +235,8 @@ class ProductService:
             upgrade_request_concurrency_schema(engine)
             from .duet_message_schema import upgrade_duet_message_schema
             upgrade_duet_message_schema(engine)
+            from .duet_forum_schema import upgrade_duet_forum_schema
+            upgrade_duet_forum_schema(engine)
             from .activity_visibility_schema import upgrade_activity_visibility_schema
             upgrade_activity_visibility_schema(engine)
             with engine.begin() as connection:
@@ -312,6 +316,8 @@ class ProductService:
         check_request_concurrency_schema(inspector)
         from .duet_message_schema import check_duet_message_schema
         check_duet_message_schema(inspector)
+        from .duet_forum_schema import check_duet_forum_schema
+        check_duet_forum_schema(inspector)
         from .activity_visibility_schema import check_activity_visibility_schema
         check_activity_visibility_schema(inspector)
         if not inspector.has_table("tt_message_center_deliveries") or not {"tt_center_result_outbox", "tt_center_pending_digest"}.issubset({index["name"] for index in inspector.get_indexes("tt_message_center_deliveries")}):
@@ -446,7 +452,7 @@ class ProductService:
 
     def new_causal_chain(self, db, owner_id, root_message_id=None):
         chain = CausalChain(root_owner_id=owner_id, root_message_id=root_message_id,
-                            allowance=self.duet_send_allowance, spent=0)
+                            allowance=0, spent=0)
         db.add(chain)
         db.flush()
         return chain
@@ -632,6 +638,10 @@ class ProductService:
                 origin = db.get(Chat, member.chat_id)
                 if not origin or origin.kind != "private" or origin.private_owner_id != source.get("owner_id") or member.owner_id != source.get("owner_id") or origin.reset_pending or origin.reset_generation != source.get("private_generation"):
                     return False
+            elif source.get("kind") == "duet_post_revision":
+                from .duet_messages import revision_allowed
+                if not revision_allowed(self, db, member, source):
+                    return False
             else:
                 return False  # Unrecognized provenance must never broaden access.
         return True
@@ -716,6 +726,7 @@ class ProductService:
 
     def message_json(self, db, msg, member, include_attachments=True, *, cache=None, receipts=None):
         result = {k: getattr(msg, k) for k in ("id", "chat_id", "seq", "author_id", "kind", "body", "raw_owner_input", "request_id", "state")}
+        result.update(mention_owner_ids=msg.mention_owner_ids, revision=msg.revision, edited_at=iso(msg.edited_at))
         if msg.command_owner_id == member.owner_id and msg.client_request_key:
             result["client_request_key"] = msg.client_request_key
         if msg.request_id:
@@ -727,7 +738,7 @@ class ProductService:
             if audit_origin and audit_origin.chat_id != msg.chat_id:
                 result["request_id"] = None
         if include_attachments:
-            result["attachments"] = [self.attachment_json(attachment) for attachment_id in (msg.attachment_ids or []) if (attachment := db.get(ChatAttachment, attachment_id)) and (not attachment.private_owner_input or attachment.owner_id == member.owner_id)]
+            result["attachments"] = [self.attachment_json(attachment) for attachment_id in (msg.attachment_ids or []) if (attachment := db.get(ChatAttachment, attachment_id)) and self.attachment_audience_allowed(attachment, member.owner_id) and (not attachment.private_owner_input or attachment.owner_id == member.owner_id)]
         actor = db.get(Actor, msg.author_id)
         result.update(author_owner_id=actor.owner_id if actor else None, source_owner_id=actor.owner_id if actor else None, author_name=actor.name if actor else "Unknown", causal_chain_id=msg.causal_chain_id)
         from .reactions import projection
@@ -756,6 +767,7 @@ class ProductService:
                 author = db.get(Actor, quoted.author_id)
                 body = quoted.body or ", ".join(row.name for identifier in quoted.attachment_ids or []
                     if (row := db.get(ChatAttachment, identifier)) and row.message_id == quoted.id
+                    and self.attachment_audience_allowed(row, member.owner_id)
                     and (not row.private_owner_input or row.owner_id == member.owner_id))
                 result["reply_to"] = {"id": quoted.id, "author_name": author.name if author else "Unknown", "body": body}
             else:
@@ -842,6 +854,10 @@ class ProductService:
             chat_ids = [chat.id for chat, _ in memberships]
             members = list(db.scalars(select(Membership).where(Membership.chat_id.in_(chat_ids))))
             owners = {owner_id, *(member.owner_id for member in members)}
+            invitations = db.scalars(select(Approval).where(Approval.approver_id == owner_id,
+                Approval.status == "pending", Approval.sdk_reference["type"].as_string() == "duet_conversation"))
+            for invitation in invitations:
+                owners.update(invitation.sdk_reference.get("participant_owner_ids", []))
             actors = list(db.scalars(select(Actor).where(Actor.owner_id.in_(owners)).order_by(Actor.kind, Actor.name)))
             names = {(actor.owner_id, actor.kind): actor.name for actor in actors}
             member_ids = {chat_id: [] for chat_id in chat_ids}
@@ -1044,7 +1060,7 @@ class ProductService:
             return {"tracking": [row[3] for row in self._tracking_scope(db, chat, member)]}
 
     def approval_json(self, row):
-        return {**{k: getattr(row, k) for k in ("id", "chat_id", "approver_id", "title", "description", "target", "impact", "status")}, "created_at": iso(row.created_at), "action": row.sdk_reference.get("action"), "type": row.sdk_reference.get("type"), "scope": row.sdk_reference.get("scope"), "peer_owner_ids": row.sdk_reference.get("peer_owner_ids", [])}
+        return {**{k: getattr(row, k) for k in ("id", "chat_id", "approver_id", "title", "description", "target", "impact", "status")}, "created_at": iso(row.created_at), "action": row.sdk_reference.get("action"), "type": row.sdk_reference.get("type"), "scope": row.sdk_reference.get("scope"), "peer_owner_ids": row.sdk_reference.get("peer_owner_ids", []), "invitation": bool(row.sdk_reference.get("invitation_key")), "invited_owner_ids": row.sdk_reference.get("invited_owner_ids", []), "participant_owner_ids": row.sdk_reference.get("participant_owner_ids", [])}
 
     def chat_detail(self, owner_id, chat_id, limit=100, before_seq=None):
         from sqlalchemy.orm import aliased, load_only
@@ -1074,10 +1090,19 @@ class ProductService:
                     "accepted_at", "cancel_requested", "client_request_key", "execution_config", "input_body")])).where(
                     ReplyRequest.chat_id == chat_id, ReplyRequest.status.in_(["queued", "running", "failed"]), ~superseded,
                     or_(ReplyRequest.raw_owner_input.is_(None), ReplyRequest.requester_id == owner_id),
-                    or_(request_source, and_(ReplyRequest.source_message_id.is_(None), ReplyRequest.requester_id == owner_id)))
+                    or_(request_source, and_(ReplyRequest.source_message_id.is_(None),
+                        or_(ReplyRequest.requester_id == owner_id, ReplyRequest.target_twin_id == self.twin(db, owner_id).id))))
                 if chat.kind == "private":
                     query = query.where(ReplyRequest.private_generation == chat.reset_generation)
                 requests = list(db.scalars(query.order_by(ReplyRequest.accepted_at.desc(), ReplyRequest.accepted_seq.desc()).limit(200)))
+                if requests:
+                    sources = {request.id: [] for request in requests}
+                    for manifest in db.scalars(select(ContextManifest).where(ContextManifest.request_id.in_(sources))):
+                        sources[manifest.request_id].extend(manifest.sources)
+                    checked = {"projection_hashes": {}, "projection_grants": {(owner_id, chat.id): (chat, member)}}
+                    self._prime_source_messages(db, [], [source for values in sources.values() for source in values], checked)
+                    requests = [request for request in requests
+                        if self.provenance_allowed(db, member, sources[request.id], cache=checked)]
             members = [m.owner_id for m in self.members(db, chat_id)]
             actors = list(db.scalars(select(Actor).where(Actor.owner_id.in_(members),
                 Actor.kind == "human" if chat.kind == "group" else Actor.kind.in_(["human", "twin"]))
@@ -1117,6 +1142,10 @@ class ProductService:
             [source for row in approvals for source in row.source_provenance], checked)
         result = []
         for approval in approvals:
+            from .duet_conversations import invitation_visible
+            if invitation_visible(approval, conversations.get(approval.chat_id), member.owner_id):
+                result.append(self.approval_json(approval))
+                continue
             origin_member, origin_chat = members.get(approval.chat_id), chats.get(approval.chat_id)
             if not origin_member or not origin_chat or (origin_chat.kind == "private" and origin_chat.private_owner_id != member.owner_id):
                 continue
@@ -1165,7 +1194,7 @@ class ProductService:
         Callers authorize the sender and retain all consumed sources in the
         request's ContextManifest. The delivered text is an independent snapshot.
         The Duet publisher rechecks the original request
-        before sending, including a later Continue of a pending payload.
+        before sending. Topic writes explicitly notify their administrator and mentions.
         """
         return self.append_message(db, chat, request_id=request.id,
             causal_chain_id=self.request_chain(db, request).id,
@@ -1223,7 +1252,7 @@ class ProductService:
         db.add(request); db.flush()
         from .request_sessions import legacy_session_id, request_session_id
         request.continuation_of_request_id = continuation_of_request_id
-        request.background = origin.background if origin else source in {"duet_message", "scheduled_task", "system_review", "memory_dream", "message_center", "peer_report_reconcile"}
+        request.background = origin.background if origin else source in {"duet_message", "duet_topic_update", "duet_topic_mention", "scheduled_task", "system_review", "memory_dream", "message_center", "peer_report_reconcile"}
         request.session_id = (origin.session_id or legacy_session_id(origin.chat_id, origin.target_twin_id, origin.private_generation)) if origin else request_session_id(request.id)
         db.add(DispatchCommand(request_id=request.id))
         return request
@@ -1475,6 +1504,10 @@ class ProductService:
             fail(409, "Memory dreams use fresh scheduled attempts; uncertain publication requires reconciliation")
         if old.status != "failed":
             fail(409, "Only failed requests can be retried")
+        inherited = self.manifest_provenance(db, old.id)
+        target_member = self.membership(db, target.owner_id, chat.id)[1]
+        if not self.provenance_allowed(db, target_member, inherited):
+            fail(409, "Runtime sources are no longer authorized")
         prior = db.scalar(select(ReplyRequest).where(ReplyRequest.requester_id == owner_id, ReplyRequest.client_request_key == key))
         if prior:
             if prior.intent_key != old.intent_key:
@@ -1485,8 +1518,12 @@ class ProductService:
         chain = self.request_chain(db, old)
         # Retry is a new generation of this delivery, retaining its private
         # authorization checks and terminal-only/silent output policy.
-        source = old.source if old.source in {"question_result", "duet_message", "scheduled_task", "system_review", "message_center", "peer_report_reconcile"} else "tool_retry" if automatic else "retry"
+        source = old.source if old.source in {"question_result", "duet_message", "duet_topic_update", "duet_topic_mention", "scheduled_task", "system_review", "message_center", "peer_report_reconcile"} else "tool_retry" if automatic else "retry"
         request = self.accept_request(db, chat, old.target_twin_id, owner_id, source, key, source_message_id=old.source_message_id, raw=old.raw_owner_input, prompt=old.frozen_prompt, reply_to=old.reply_to_message_id, generation=generation, intent_key=old.intent_key, input_body=old.input_body, causal_chain_id=chain.id, source_owner_id=old.source_owner_id, input_attachment_ids=old.input_attachment_ids, command_fingerprint=old.command_fingerprint, continuation_of_request_id=old.id)
+        if inherited and not db.scalar(select(ContextManifest.id).where(ContextManifest.request_id == request.id).limit(1)):
+            db.add(ContextManifest(request_id=request.id, owner_id=target.owner_id,
+                grant_version=target_member.grant_version, high_water_seq=chat.next_message_seq - 1,
+                sources=inherited, source_digest=digest(inherited)))
         from .message_center import configured as center_configured, retry as center_retry
         if old.background and (center_configured() or old.source == "message_center"):
             center_retry(db, old, request)
@@ -1576,11 +1613,17 @@ class ProductService:
             twin = db.get(Actor, request.target_twin_id)
             chat, member = self.membership(db, twin.owner_id, request.chat_id)
             from .conversation_context import read_context, read_sources, scope_for
-            _, _, summary_scope = scope_for(self, db, {"chat_id": chat.id, "owner_id": twin.owner_id,
-                "high_water_seq": chat.next_message_seq - 1, "exclude_request_id": request.id})
             checked = {"projection_hashes": {}, "projection_grants": {(member.owner_id, chat.id): (chat, member)}}
-            conversation, sources, rows = read_context(self, db, chat, member, summary_scope, cache=checked)
-            source_message = self.visible_message(db, member, request.source_message_id, cache=checked) if request.source_message_id else None
+            if chat.kind == "duet":
+                # Topic wakes carry only metadata; tools supply content on demand.
+                summary_scope = None
+                conversation, sources = {"messages": [], "summary": None, "context_incomplete": False}, []
+                source_message = None
+            else:
+                _, _, summary_scope = scope_for(self, db, {"chat_id": chat.id, "owner_id": twin.owner_id,
+                    "high_water_seq": chat.next_message_seq - 1, "exclude_request_id": request.id})
+                conversation, sources, _ = read_context(self, db, chat, member, summary_scope, cache=checked)
+                source_message = self.visible_message(db, member, request.source_message_id, cache=checked) if request.source_message_id else None
             from .message_references import referenced_human_message
             reference = referenced_human_message(db, source_message) if source_message else None
             source_projection = self.message_json(db, source_message, member, cache=checked) if source_message else None
@@ -1593,7 +1636,7 @@ class ProductService:
                 fail(409, "Previously supplied runtime context is no longer authorized; explicit retry with a fresh request is required")
             applicable = conversation["summary"]
             tracking = []
-            for topic, origin, _, projection in self._tracking_scope(db, chat, member):
+            for topic, origin, _, projection in ([] if chat.kind == "duet" else self._tracking_scope(db, chat, member)):
                 tracking.append(projection)
                 topic_sources = self._tracking_provenance(topic)
                 sources.extend(topic_sources if origin.id == chat.id else [
@@ -1605,7 +1648,8 @@ class ProductService:
             db.add(manifest)
             request.context_grant_version = member.grant_version
             db.flush()
-            summary_scope["context_manifest_id"] = manifest.id
+            if summary_scope:
+                summary_scope["context_manifest_id"] = manifest.id
             from .scheduled_tasks import snapshot as scheduled_snapshot
             scheduled_payload = scheduled_snapshot(request)
             if scheduled_payload and scheduled_payload.get("kind") == "system_review":
@@ -1740,17 +1784,8 @@ class ProductService:
             target_id = request.chat_id
             chat = db.get(Chat, target_id)
             if chat.kind == "duet":
-                # A final channel reply is a prepared send too. Lock its original
-                # read scopes before the target, in the same order as tool sends.
-                scopes = self._message_source_chat_ids(db, request, target_id, [])
-                for scope in sorted(scopes):
-                    db.scalar(select(Chat).where(Chat.id == scope).with_for_update())
-                db.expire_all()
-                if not self._message_source_chat_ids(db, request, target_id, []).issubset(scopes):
-                    fail(409, "Output source scope changed; retry the same task")
-                chat = db.get(Chat, target_id)
-            else:
-                chat = db.scalar(select(Chat).where(Chat.id == target_id).with_for_update())
+                return None
+            chat = db.scalar(select(Chat).where(Chat.id == target_id).with_for_update())
             from .duet_conversations import require_active
             require_active(db, chat)
             self.request_chain(db, request)
@@ -1813,13 +1848,10 @@ class ProductService:
                     "body": body, "raw_owner_input": request.raw_owner_input,
                     "reply_to_message_id": request.reply_to_message_id or (request.source_message_id if chat.kind != "private" else None),
                     "sdk_output_key": output_key}
-                if chat.kind == "duet":
-                    msg = self.append_prepared_message(db, chat, request, **payload)
-                else:
-                    msg = self.append_message(db, chat, source_provenance=provenance,
-                        source_message_ids=source_ids,
-                        source_floor_seq=min([db.get(Message, sid).seq for sid in source_ids], default=chat.next_message_seq),
-                        request_id=request.id, causal_chain_id=self.request_chain(db, request).id, **payload)
+                msg = self.append_message(db, chat, source_provenance=provenance,
+                    source_message_ids=source_ids,
+                    source_floor_seq=min([db.get(Message, sid).seq for sid in source_ids], default=chat.next_message_seq),
+                    request_id=request.id, causal_chain_id=self.request_chain(db, request).id, **payload)
                 if is_reply_for_me:
                     db.add(ReplyProjection(request_id=request.id, message_id=msg.id, session_id=session_id, run_id=run_id, last_event_id=event_id, last_event_seq=event_seq))
             if is_reply_for_me:
@@ -2370,6 +2402,10 @@ class ProductService:
         kind = preview_kind(attachment.name, attachment.mime_type) if attachment.kind != "image" else None
         return {"preview_kind": kind, "preview_url": f"/api/chats/{attachment.chat_id}/attachments/{attachment.id}/preview" if kind else None} | {key: getattr(attachment, key) for key in ("id", "name", "mime_type", "size", "kind", "width", "height")} | {"url": f"/api/chats/{attachment.chat_id}/attachments/{attachment.id}", "workspace_path": str(settings.workspace_root / attachment.relative_path)}
 
+    @staticmethod
+    def attachment_audience_allowed(attachment, owner_id):
+        return attachment.granted_owner_ids is None or owner_id in attachment.granted_owner_ids
+
     def _attachment_path(self, attachment):
         root = settings.workspace_root
         relative = Path(attachment.relative_path)
@@ -2416,6 +2452,8 @@ class ProductService:
             attachment = db.get(ChatAttachment, attachment_id)
             if not attachment or attachment.chat_id != chat_id:
                 fail(404, "Attachment is unavailable")
+            if not self.attachment_audience_allowed(attachment, owner_id):
+                fail(404, "Attachment is unavailable")
             if attachment.private_owner_input and attachment.owner_id != owner_id:
                 fail(404, "Attachment is unavailable")
             if attachment.message_id:
@@ -2457,6 +2495,8 @@ class ProductService:
         for attachment_id in attachment_ids or []:
             attachment = db.get(ChatAttachment, attachment_id)
             if not attachment or attachment.chat_id != member.chat_id:
+                continue
+            if not self.attachment_audience_allowed(attachment, member.owner_id):
                 continue
             if attachment.private_owner_input:
                 if not private_request or private_request.requester_id != member.owner_id or attachment.owner_id != member.owner_id or attachment_id not in (private_request.input_attachment_ids or []):
@@ -2688,6 +2728,9 @@ class ProductService:
             approval = db.get(Approval, args["id"])
             if not approval or approval.approver_id != owner_id:
                 fail(404, "Approval not found")
+            from .duet_conversations import invitation_visible
+            if invitation_visible(approval, db.get(DuetConversation, approval.chat_id), owner_id):
+                return self.approval_json(approval)
             _, origin_member = self.membership(db, owner_id, approval.chat_id)
             origin = db.get(ReplyRequest, approval.sdk_reference.get("request_id"))
             if not origin or origin.cancel_requested or origin.status == "cancelled":
@@ -2814,7 +2857,11 @@ class ProductService:
         target, target_member = self.membership(db, twin.owner_id, args.get("chat_id"), True)
         from .duet_conversations import require_active
         require_active(db, target)
-        if target.id == origin.id:
+        if name == "post_duet_reply" and target.kind != "duet":
+            fail(400, "post_duet_reply requires a Duet topic")
+        if name == "send_chat_message" and target.kind == "duet":
+            fail(400, "Use post_duet_reply to publish in a Duet topic")
+        if target.id == origin.id and name != "post_duet_reply":
             fail(400, "Use your normal assistant reply for the current chat; send_chat_message is only for other chats")
         if target.kind == "private" and target.reset_pending:
             fail(409, "Private chat reset is pending")
@@ -2843,8 +2890,10 @@ class ProductService:
             fail(409, "Message sources are no longer authorized")
         manifest = db.get(ContextManifest, context["context_manifest_id"])
         manifest.sources, manifest.source_digest = inherited, digest(inherited)
+        from .duet_messages import validate_mentions
+        mentions = validate_mentions(self, db, target, args.get("mention_owner_ids", [])) if target.kind == "duet" else []
         message = self.append_prepared_message(db, target, request, author_id=twin.id, kind="twin",
-            body=body, reply_to_message_id=reply_to,
+            body=body, reply_to_message_id=reply_to, mention_owner_ids=mentions,
             sdk_output_key=f"tool:{digest(context['operation_id'])}")
         published = message.state == "published"
         if (published and origin.kind == "duet" and target.kind == "private"
@@ -2856,7 +2905,7 @@ class ProductService:
             reconcile = self.accept_request(db, target, twin.id, twin.owner_id, "peer_report_reconcile", key,
                 source_message_id=message.id, intent_key=key, causal_chain_id=chain.id)
             reconcile.execution_config = {"version": 1, "skills": [], "credentials": [], "execution_enabled": False}
-        return {"status": "sent" if published else "pending_budget", "sent": published,
+        return {"status": "sent" if published else "pending", "sent": published,
                 "message_id": message.id, "state": message.state,
                 "chat_id": target.id, "causal_chain_id": message.causal_chain_id,
                 "message": self.message_json(db, message, target_member) if published else None,
@@ -2888,6 +2937,9 @@ class ProductService:
         chat_id = chat_value.get("id") if isinstance(chat_value, dict) else chat_value
         chat_id = chat_id or context.get("chat_id")
         owner_id = context.get("owner_id")
+        from .duet_topic_tools import TOOLS as TOPIC_TOOLS
+        from .duet_topic_tools import WRITE_TOOLS as TOPIC_WRITES
+        from .duet_topic_tools import dispatch as topic_dispatch
         from .onboarding import TOOL as ONBOARDING_TOOL
         from .onboarding import finish as finish_onboarding
         from .platform_tools import (
@@ -2904,16 +2956,19 @@ class ProductService:
         from .scheduled_tasks import MUTATIONS as SCHEDULED_MUTATIONS
         from .scheduled_tasks import TOOLS as SCHEDULED_TOOLS
         from .scheduled_tasks import runtime_dispatch
-        mutations = WRITE_TOOLS | {"create_approval", "request_duet_conversation", ONBOARDING_TOOL} | SCHEDULED_MUTATIONS | PROACTIVITY_MUTATIONS
+        mutations = WRITE_TOOLS | TOPIC_WRITES | {"create_approval", "request_duet_conversation", ONBOARDING_TOOL} | SCHEDULED_MUTATIONS | PROACTIVITY_MUTATIONS
         with self.transaction() as db:
-            if name == "request_duet_conversation":
+            if name in {"request_duet_conversation", "create_duet_topic", "invite_duet_participants"}:
                 from .duet_conversations import lock_consent
                 peers = args.get("participant_owner_ids", [])
-                lock_consent(db, [owner_id, *[value for value in peers if isinstance(value, str)]] if isinstance(peers, list) else [owner_id])
+                owners = [owner_id, *[value for value in peers if isinstance(value, str)]] if isinstance(peers, list) else [owner_id]
+                if name == "invite_duet_participants":
+                    owners.extend(m.owner_id for m in self.members(db, args.get("chat_id")))
+                lock_consent(db, owners)
             locked_ids = lock_scope(self, db, name, args, context)
             chat, member = self.membership(db, owner_id, chat_id)
             if chat.kind == "duet" and name in mutations and not context.get("request_id"):
-                fail(403, "Owners can only read, approve, continue, or close Duet conversations")
+                fail(403, "Owners can only read, approve, or close Duet topics")
             self._authorize_generation(db, context)
             if name in TRACKING_TOOLS and chat.kind in {"group", "duet"} and args.get("chat_id", chat.id) != chat.id:
                 fail(403, "Duet Tracking tools are limited to the originating conversation")
@@ -2935,7 +2990,7 @@ class ProductService:
                 if prior:
                     if (prior.chat_id, prior.owner_id, prior.name, prior.arguments_hash) != (chat_id, owner_id, name, arguments_hash):
                         fail(409, "Product operation identity conflicts with its original action")
-                    if name in {"send_chat_message", "present_files", "reply_as_owner"}:
+                    if name in {"send_chat_message", "post_duet_reply", "edit_duet_post", "present_files", "reply_as_owner"}:
                         self._message_tool_origin(db, context)
                         destination_member = self.membership(db, owner_id, prior.result["chat_id"])[1]
                         if prior.result.get("message_id"):
@@ -2974,7 +3029,7 @@ class ProductService:
                 # Citations identify the topic's actual sources. Full model-input
                 # provenance is retained separately and still gates every read.
             target_chat, target_member = chat, member
-            if name in SCOPED_TOOLS and args.get("chat_id"):
+            if name in (SCOPED_TOOLS | TOPIC_TOOLS) and args.get("chat_id"):
                 target_chat, target_member = self.membership(db, owner_id, args["chat_id"])
                 if target_chat.kind == "private" and target_chat.reset_pending:
                     fail(409, "Private chat reset is pending")
@@ -2984,6 +3039,8 @@ class ProductService:
             if name == "request_duet_conversation":
                 from .duet_conversations import propose
                 result = propose(self, db, args, context)
+            elif name in TOPIC_TOOLS:
+                result = topic_dispatch(self, db, name, args, context)
             elif name == ONBOARDING_TOOL:
                 result = finish_onboarding(self, db, args, context, chat)
             elif name in SCHEDULED_TOOLS:
@@ -3004,10 +3061,19 @@ class ProductService:
             if manifest and manifest.owner_id == owner_id:
                 source_ids = []
                 extra_provenance = []
-                if name == "history":
+                if name in {"history", "read_duet_topic"}:
                     from .conversation_context import read_sources
                     extra_provenance = [source for message in result.get("messages", [])
                         for source in read_sources(db, db.get(Message, message["id"]), message)]
+                    if target_chat.kind == "duet":
+                        from .duet_messages import revision_source
+                        extra_provenance = [revision_source(db, db.get(Message, source["id"]), db.get(Message, source["id"]).revision)
+                            if source.get("kind") == "message" and db.get(Message, source["id"]).chat_id == target_chat.id
+                            else source for source in extra_provenance]
+                if name == "read_duet_post_history":
+                    from .duet_messages import revision_source
+                    message = db.get(Message, args["message_id"])
+                    extra_provenance = [revision_source(db, message, row["revision"]) for row in result["revisions"]]
                 tracking_ids = [row["id"] for row in result.get("tracking", [])] if name == "list_tracking" else [result["id"]] if name in {"get_tracking", "create_tracking", "update_tracking", "add_tracking_update"} and result.get("id") else []
                 if tracking_ids:
                     # The response already authorized these exact rows in this transaction.
@@ -3098,6 +3164,7 @@ class ProductService:
                 with self.transaction() as db:
                     row = db.get(Approval, approval_id)
                     participants = [m.owner_id for m in self.members(db, row.chat_id)]
+                    participants.extend(row.sdk_reference.get("participant_owner_ids", []))
                     lock_consent(db, participants)
                     return decide(self, db, owner_id, row, decision, scope)
             result, wake_chat_id = await self.db_call(consent)
@@ -3227,6 +3294,8 @@ class ProductService:
             if attached_path != relative and not (path.is_dir() and attached_path.is_relative_to(relative)):
                 continue
             matched_attachment = True
+            if not self.attachment_audience_allowed(attachment, member.owner_id):
+                continue
             if attachment.private_owner_input and attachment.owner_id != member.owner_id:
                 continue
             if attachment.message_id:

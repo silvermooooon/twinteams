@@ -21,6 +21,8 @@ def snapshot_destination(chat_id, operation_id, position, name):
 def save_snapshots(db, request, owner_id, target, selected):
     from .service import settings
     attachments = []
+    audience = list(db.scalars(select(Membership.owner_id).where(Membership.chat_id == target.id,
+        Membership.left_at.is_(None)).order_by(Membership.owner_id))) if target.kind == "duet" else None
     for identifier, destination, data, info, _source in selected:
         destination.parent.mkdir(parents=True, exist_ok=True)
         if not destination.exists():
@@ -28,7 +30,7 @@ def save_snapshots(db, request, owner_id, target, selected):
                 stream.write(data)
         attachment = ChatAttachment(id=identifier, chat_id=target.id, owner_id=owner_id,
             name=destination.name, relative_path=str(destination.relative_to(settings.workspace_root)),
-            request_id=request.id, **info)
+            request_id=request.id, granted_owner_ids=audience, **info)
         db.add(attachment)
         attachments.append(attachment)
     return attachments
@@ -135,7 +137,7 @@ def present_files(service, db, args, context):
     for attachment in attachments:
         attachment.message_id = message.id
     db.flush()
-    result = {"status": "sent" if message.state == "published" else "pending_budget",
+    result = {"status": "sent" if message.state == "published" else "pending",
         "sent": message.state == "published", "chat_id": target.id,
         "message_id": message.id, "state": message.state,
         "shared_files": [{**scope, "attachment_id": row.id} for scope, row in zip(sharing, attachments)]}
