@@ -112,7 +112,8 @@ def install_fixture(root):
         from agent_runtime.transcript import current_tools
         catalog = current_tools(context.messages)
         tools = {tool['name'] for tool in catalog}
-        results = [row for row in context.messages[position + 1:] if row.get('role') == 'toolResult']
+        results = [row for row in context.messages[position + 1:]
+                   if row.get('role') == 'toolResult' and row.get('toolName') != 'start_work']
         names = [row.get('toolName') for row in results]
 
         def details():
@@ -294,6 +295,10 @@ def install_fixture(root):
             else:
                 returned = json.loads(text_content(next(row for row in reversed(results) if row.get('toolName') == 'get_proactivity')))
                 final = 'E2E proactivity readback ' + label + ': ' + json.dumps(returned, sort_keys=True)
+        elif command == 'EARLY_REPLY':
+            if 'bash' not in names:
+                name, arguments = 'bash', {'command': "sleep 6\npwd\nprintf 'E2E_EARLY_REPLY_TOOL_COMPLETE\\n'"}
+            final = 'E2E early reply complete: ' + label
         elif command == 'SLOW':
             await options['signal'].run(asyncio.sleep(8))
             final = 'E2E slow completed: ' + label
@@ -409,9 +414,16 @@ def install_fixture(root):
                         'requirements': 'Review the revised milestone and add delivery risks.',
                         'mention_owner_ids': ['owner-jordan']}}}
         if name:
+            opening = None
+            if tools == {'start_work'}:
+                opening = ("I'll check the workspace and report the result: " + label + '.'
+                    if command == 'EARLY_REPLY' else "I'll run " + name.replace('_', ' ') + ' for ' + label + '.')
+                name, arguments = 'start_work', {}
             if name not in tools:
                 raise RuntimeError('E2E command requires installed tool: ' + name)
             content = [{'type': 'toolCall', 'id': f'e2e-{len(results)}-{name}', 'name': name, 'arguments': arguments}]
+            if opening:
+                content.insert(0, {'type': 'text', 'text': opening})
             stop = 'toolUse'
         else:
             content, stop = [{'type': 'text', 'text': final}], 'stop'

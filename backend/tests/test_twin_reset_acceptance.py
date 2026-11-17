@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime.memory import LocalMemoryStore, MemorySource
-from duet_test_support import seed_collaborations, send_message
+from duet_test_support import opening_reply, seed_collaborations, send_message
 from fastapi import HTTPException
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
@@ -267,8 +267,10 @@ def test_real_sdk_write_changes_canonical_soul_and_next_run_loads_new_file(produ
         body = "Agent authored personality: concise and warm."
         def offline(model, context, options):
             calls.append(context)
+            if len(calls) == 1 and (opening := opening_reply(model, context, "I'll update SOUL.md to prefer concise, warm replies.")):
+                return opening
             has_result = any(row.get("role") == "toolResult" and row.get("toolName") == "write" for row in context.messages)
-            if len(calls) == 1:
+            if len(calls) == 2:
                 content, stop = [{"type": "toolCall", "id": "soul-write", "name": "write",
                     "arguments": {"path": "SOUL.md", "content": body}}], "toolUse"
             else:
@@ -290,7 +292,7 @@ def test_real_sdk_write_changes_canonical_soul_and_next_run_loads_new_file(produ
             product.complete_request(fresh["id"], fresh_result)
             assert personal.get_execution_config(fresh["id"])["profile"]["soul"] == body
             assert personal.get_execution_config(first["id"])["profile"]["soul"] == original_profile
-            assert len(calls) == 3
+            assert len(calls) == 4
         finally:
             await runtime.close()
     asyncio.run(run())

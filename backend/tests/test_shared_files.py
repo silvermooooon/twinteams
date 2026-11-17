@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
-from duet_test_support import seed_collaborations
+from duet_test_support import opening_reply, seed_collaborations
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from test_chat_attachments_ui_acceptance import attachments as attachments  # noqa: PLC0414
@@ -35,6 +35,10 @@ def test_upload_requires_file_consent_and_sdk_continuation_delivers_to_both_huma
         def provider(model, context, options):
             nonlocal phase
             results.append(json.loads(json.dumps(context.messages)))
+            opening_body = ("I'll prepare the file share for your approval." if phase == "request"
+                            else "I'll find the shared report and read it.")
+            if opening := opening_reply(model, context, opening_body):
+                return opening
             tool = ("present_files", action) if phase == "request" else (
                 ("read_workspace_file", {"chat_id": "group-alex-maya", "id": "shared:" + shared_id})
                     if phase == "read" else (("list_workspace", {"chat_id": "group-alex-maya"})

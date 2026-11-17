@@ -4,7 +4,7 @@ import gc
 from uuid import uuid4
 
 import pytest
-from duet_test_support import send_message
+from duet_test_support import opening_reply, send_message
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from test_credentials import product as product  # noqa: PLC0414
@@ -168,10 +168,13 @@ def test_actual_sdk_answer_restores_exact_task_context_and_child_returns_to_actu
         def offline(model, context, options):
             user = text(next(message for message in reversed(context.messages) if message["role"] == "user"))
             position = max(i for i, message in enumerate(context.messages) if message["role"] == "user")
-            results = [message for message in context.messages[position + 1:] if message["role"] == "toolResult"]
+            results = [message for message in context.messages[position + 1:]
+                       if message["role"] == "toolResult" and message.get("toolName") != "start_work"]
             calls.append((user, context))
             if user == "UNRELATED-NEW-TASK":
                 return response(model, [{"type": "text", "text": "UNRELATED-TASK-COMPLETED"}])
+            if opening := opening_reply(model, context, "I'll check the report requirements and continue the task."):
+                return opening
             if user == "Detailed":
                 if not results:
                     return response(model, call("answer_question", question_id=question_id, message_id=owner_answer_id))

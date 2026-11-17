@@ -8,8 +8,8 @@ import pytest
 from agent_runtime.execution import create_execution_tools
 from agent_runtime.sessions import SessionInfo
 from cryptography.fernet import Fernet
+from duet_test_support import opening_reply, seed_collaborations, send_message
 from duet_test_support import request_duet_reply as receiver_request
-from duet_test_support import seed_collaborations, send_message
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
@@ -324,7 +324,9 @@ def test_credential_continuation_receives_committed_shell_result_once(product, t
         calls = []
         def offline(model, context, options):
             calls.append(context.messages)
-            position = len(calls)
+            if opening := opening_reply(model, context, "I'll prepare the local files, then continue with the authenticated step."):
+                return opening
+            position = len(calls) - 1
             if position == 1:
                 content = [{"type": "toolCall", "id": "prep", "name": "bash", "arguments": {
                     "command": "printf prepared-marker >> prepared.txt && printf preparation-completed"}}]
@@ -361,7 +363,7 @@ def test_credential_continuation_receives_committed_shell_result_once(product, t
             assert "offline-fake-only" not in continuation_input
             assert reads.count((original["session_id"], original["run_id"])) == 1
             assert (personal.resolve_twin_workspace("owner-alex") / "prepared.txt").read_text() == "prepared-marker"
-            assert len(calls) == 4
+            assert len(calls) == 5
         finally:
             await runtime.close()
     asyncio.run(run())

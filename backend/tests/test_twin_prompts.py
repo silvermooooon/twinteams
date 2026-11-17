@@ -16,6 +16,19 @@ def test_mission_is_server_owned_even_without_soul():
     assert len(prompt.split()) < 1000
 
 
+def test_private_opening_and_final_delivery_policy_stays_out_of_workers():
+    context = {"chat": {"kind": "private"}, "reply_first": True}
+    prompt = conversation_system(context)
+    assert "give one complete answer; do not add a filler preamble" in prompt
+    assert "call start_work in the same response" in prompt
+    assert "before any lookup, tool call or delegation" in prompt
+    assert "Lead with a conclusion" in prompt
+    assert "milestones, decisions, blockers or a change of plan" in prompt
+    assert "the opening is never the final delivery" in prompt
+    assert "Do not combine the opening and final into one delayed reply" in prompt
+    assert "Reply before starting work" not in conversation_system(context, worker=True)
+
+
 def test_duet_tool_scope_does_not_displace_private_continuations():
     prompt = runtime_protocol({"chat": {"kind": "duet"}})
     assert "Tools are conversation-scoped" in prompt

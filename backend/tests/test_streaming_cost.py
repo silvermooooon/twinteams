@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AgentTool, AgentToolResult, AssistantMessageEventStream, assistant_message
+from duet_test_support import opening_reply
 from sqlalchemy import event
 from test_memory_dream import product as product  # noqa: PLC0414
 
@@ -49,7 +50,9 @@ async def measure_stream(product, bridge_type=RuntimeBridge, *, deltas=100, owne
 
     def offline(model, context, options):
         user = text_content(next(message for message in reversed(context.messages) if message["role"] == "user"))
-        if not any(message.get("role") == "toolResult" for message in context.messages) and tool_updates is not None:
+        if tool_updates is not None and (opening := opening_reply(model, context, "I'll run the requested progress check.")):
+            return opening
+        if not any(message.get("role") == "toolResult" and message.get("toolName") != "start_work" for message in context.messages) and tool_updates is not None:
             if worker and user != "Synthetic progress child":
                 tool, args = "spawn_agent", {"name": "worker", "task": "Synthetic progress child"}
             else:

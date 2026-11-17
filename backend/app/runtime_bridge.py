@@ -677,6 +677,13 @@ class RuntimeBridge:
                 await self.store.request_cancel(tenant_id, request_id)
             from .twin_execution import assemble
             execution_tools, agent_context, memory_index = await assemble(self.service, session, context)
+            from .runtime_replies import (
+                final_reply_required,
+                install_final_reply,
+                install_reply_first,
+                reply_first,
+            )
+            agent_context = {**agent_context, "reply_first": reply_first(request, agent_context, session)}
             tools = [*self._tools(agent_context, session, execution_tools), *execution_tools]
             if request.get("source") == "peer_report_reconcile":
                 tools = [tool for tool in tools if tool.name in {"list_tracking", "get_tracking", "update_tracking", "add_tracking_update"}]
@@ -748,6 +755,10 @@ class RuntimeBridge:
             agent.subscribe(observe)
             if request.get("source") != "peer_report_reconcile":
                 await self._attach_subagents(agent, agent_context)
+            if agent_context["reply_first"]:
+                install_reply_first(agent)
+            if final_reply_required(request, agent_context, session):
+                install_final_reply(agent, chat_id)
             return agent
 
         executor = DurableExecutor(self.store, factory, host=self._host_for(context))

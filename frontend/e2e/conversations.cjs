@@ -88,6 +88,64 @@ async function workspace(page) {
     .waitFor();
 }
 const cases = [
+  {
+    name: "requests / early reply is visible during tool work and final arrives separately",
+    run: async (t) => {
+      const { page } = await t.session();
+      const chat = await privateChat(page), label = t.unique("early-reply");
+      const openingBody = "I'll check the workspace and report the result: " + label + ".";
+      const finalBody = "E2E early reply complete: " + label;
+      const started = Date.now();
+      const sent = await sendMessage(page, "E2E EARLY_REPLY " + label);
+      const sourceId = await sent.getAttribute("data-message-id");
+      const openingRow = page.locator("article[data-message-id]").filter({
+        has: page.locator(".message-text").getByText(openingBody, { exact: true }),
+      });
+      await openingRow.waitFor();
+      const openingSeenMs = Date.now() - started;
+      const openingId = await openingRow.getAttribute("data-message-id");
+      const early = await detail(page, chat);
+      const request = early.requests.find(row => row.source_message_id === sourceId);
+      assert.equal(request?.status, "running");
+      assert.ok(early.messages.some(row => row.id === openingId && row.body === openingBody));
+      assert.ok(!early.messages.some(row => row.body === finalBody));
+      await page.locator('.typing-row[data-reply-phase="running"]').waitFor();
+
+      const activityPath = `/chats/${chat.id}/activity/${request.session_id}/${request.run_id}`;
+      const running = await poll(async () => {
+        const activity = await api(page, activityPath);
+        const toolStart = activity.events.find(event =>
+          event.type === "tool_started" && event.input.includes("E2E_EARLY_REPLY_TOOL_COMPLETE"));
+        return toolStart && { activity, toolStart };
+      }, "real shell tool started", { timeout: 3000 });
+      assert.ok(!running.activity.events.some(event =>
+        ["tool_returned", "tool_completed", "run_completed"].includes(event.type) && event.seq > running.toolStart.seq),
+      "The persisted opening is visible while the actual shell tool is still running");
+      await page.screenshot({ path: path.join(t.artifactDir, "early-reply-running.png"), fullPage: true });
+
+      const finalRow = page.locator("article[data-message-id]").filter({
+        has: page.locator(".message-text").getByText(finalBody, { exact: true }),
+      });
+      await finalRow.waitFor();
+      const finalSeenMs = Date.now() - started;
+      const finalId = await finalRow.getAttribute("data-message-id");
+      await page.locator(".typing-row").waitFor({ state: "hidden" });
+      const finished = await detail(page, chat);
+      const replies = finished.messages.filter(row => [openingId, finalId].includes(row.id));
+      assert.equal(replies.length, 2);
+      assert.notEqual(openingId, finalId);
+      assert.deepEqual(replies.map(row => row.body), [openingBody, finalBody]);
+      const completedActivity = await api(page, activityPath);
+      assert.equal(completedActivity.run.status, "completed");
+      assert.ok(completedActivity.events.some(event => event.type === "tool_returned" &&
+        event.seq > running.toolStart.seq && event.output.includes("E2E_EARLY_REPLY_TOOL_COMPLETE")));
+      assert.ok(completedActivity.events.some(event => event.type === "tool_completed" &&
+        event.seq > running.toolStart.seq));
+      await page.screenshot({ path: path.join(t.artifactDir, "early-reply-complete.png"), fullPage: true });
+      t.record("early_reply", { request_id: request.id, opening_id: openingId, final_id: finalId,
+        opening_seen_ms: openingSeenMs, final_seen_ms: finalSeenMs, tool_start_seq: running.toolStart.seq });
+    },
+  },
   ...["direct", "group"].map(mode => ({
     name: "references / review an incoming document privately and confirm a reply to the original " + mode + " message",
     run: async (t) => {

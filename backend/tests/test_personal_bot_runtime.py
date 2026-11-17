@@ -4,8 +4,11 @@ import json
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
+from agent_runtime.transcript import current_tools
 from agent_runtime.sessions import SessionInfo
+from duet_test_support import opening_reply
 from sqlalchemy import select
 from test_memory_dream import product as product  # noqa: PLC0414
 
@@ -29,6 +32,7 @@ def test_main_creates_bot_dispatches_and_reports_in_private_chat(product):
     owner_input = "创建一个 bot 用来专门排查 CEAIA 的 bug"
     assignment = "Investigate CEAIA bugs using reproduction steps and authorized project evidence."
     task = "Review available CEAIA bug evidence and identify missing reproduction details."
+    opening = "我先创建这个排查 BOT，再建好后派发调查任务。"
     created = {}
     reported = []
 
@@ -37,9 +41,14 @@ def test_main_creates_bot_dispatches_and_reports_in_private_chat(product):
 
         def offline(model, context, options):
             prompt = text_content(next(row for row in reversed(context.messages) if row["role"] == "user"))
-            results = {row["toolName"]: row for row in context.messages if row["role"] == "toolResult"}
+            results = {row["toolName"]: row for row in context.messages
+                       if row["role"] == "toolResult" and row.get("toolName") != "start_work"}
             assert all(not row.get("isError") for row in results.values()), results
             if prompt == owner_input:
+                if early := opening_reply(model, context, opening):
+                    return early
+                offered = {tool["name"] for tool in current_tools(context.messages)}
+                assert {"create_personal_bot", "dispatch_bot_tasks"} <= offered
                 system = text_content(context.messages[0])
                 assert "Use create_personal_bot when asked" in system
                 if "create_personal_bot" not in results:
@@ -61,15 +70,16 @@ def test_main_creates_bot_dispatches_and_reports_in_private_chat(product):
             request = product.send_message("owner-alex", "private-alex", owner_input, uuid4().hex)["request"]
             context = product.get_runtime_context(request["id"])
             tools = runtime._tools(context, SimpleNamespace(session_id=request["session_id"], snapshot={}, resumable=False))
-            assert {"create_personal_bot", "dispatch_bot_tasks"} <= {tool.name for tool in tools}
+            assert {tool.name for tool in tools} == {"start_work"}
             await product.execute_request(request["id"])
             completed = product.get_request(request["id"])
             assert completed["status"] == "completed", completed["error"]
             bot, = personal_bots.list_bots(product, "owner-alex")
             assert bot["id"] == created["id"] and bot["assignment"] == assignment
-            main = product.chat_detail("owner-alex", "private-alex")["messages"]
-            assert main[-1]["author_id"] == "twin-alex" and main[-1]["body"] == reported[-1]
-            assert main[-1]["request_id"] == request["id"]
+            main = [message for message in product.chat_detail("owner-alex", "private-alex")["messages"]
+                    if message["author_id"] == "twin-alex"]
+            assert [message["body"] for message in main] == [opening, reported[-1]]
+            assert main[0]["id"] != main[1]["id"] and main[0]["request_id"] == main[1]["request_id"] == request["id"]
             with product.transaction() as db:
                 dispatched, = list(db.scalars(select(ReplyRequest).where(ReplyRequest.source == "bot_dispatch")))
                 work_id = dispatched.id
@@ -87,7 +97,8 @@ def test_main_creates_bot_dispatches_and_reports_in_private_chat(product):
     asyncio.run(run())
 
 
-def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(product):
+@pytest.mark.parametrize("empty_review", [False, True])
+def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(product, empty_review):
     bot = personal_bots.create_bot(product, "owner-alex", "Evidence", "Verify claims and retain useful evidence.")
     peer = personal_bots.create_bot(product, "owner-alex", "Planning", "Plan next steps.")
 
@@ -98,8 +109,10 @@ def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(produc
         def offline(model, context, options):
             messages = context.messages
             prompt = text_content(next(row for row in reversed(messages) if row["role"] == "user"))
-            results = [row for row in messages if row["role"] == "toolResult"]
+            results = [row for row in messages if row["role"] == "toolResult" and row.get("toolName") != "start_work"]
             if prompt == "SUPERVISE":
+                if opening := opening_reply(model, context, "I'll assign the evidence check and review its result."):
+                    return opening
                 if not results:
                     return response(model, call("dispatch_bot_tasks", bot_ids=[bot["id"]], body="VERIFY"))
                 assert not results[-1].get("isError"), results[-1]
@@ -116,7 +129,7 @@ def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(produc
                 assert bot["chat_id"] in text_content(results[-1])
                 return response(model, [{"type": "text", "text": "Verified BOT result"}])
             assert "internal personal agent returned a result" in prompt and "Verified BOT result" in prompt
-            return response(model, [{"type": "text", "text": "Reviewed main Duet result"}])
+            return response(model, [] if empty_review else [{"type": "text", "text": "Reviewed main Duet result"}])
 
         runtime.models.register_api("offline-regression", offline)
         await runtime.start()
@@ -142,10 +155,10 @@ def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(produc
                 assert returned.session_id == original["session_id"]
                 returned_id = returned.id
             await product.execute_request(returned_id)
-            assert product.get_request(returned_id)["status"] == "completed"
+            assert product.get_request(returned_id)["status"] == ("failed" if empty_review else "completed")
             main = product.chat_detail("owner-alex", "private-alex")["messages"]
-            assert [row["body"] for row in main] == ["SUPERVISE", "VERIFY", "Verified BOT result", "Reviewed main Duet result"]
-            assert main[2]["author_id"] == bot["id"] and main[2]["coordination"]["kind"] == "result"
+            assert [row["body"] for row in main] == ["SUPERVISE", "I'll assign the evidence check and review its result.", "VERIFY", "Verified BOT result", *([] if empty_review else ["Reviewed main Duet result"])]
+            assert main[3]["author_id"] == bot["id"] and main[3]["coordination"]["kind"] == "result"
             identity = SessionInfo("inspect-memory", runtime.tenant_id, "owner-alex")
             own = personal.make_bot_memory_store(identity, bot["id"])
             other = personal.make_bot_memory_store(identity, peer["id"])
