@@ -16,3 +16,31 @@ os.environ.update(
     AGENT_MEMORY_DIR=str(Path(_directory.name) / "memory"),
     TWINTEAMS_WORKSPACE_ROOT=str(Path(_directory.name) / "workspace"),
 )
+
+
+import pytest
+from agent_runtime import AssistantMessageEventStream, Models, assistant_message
+
+
+@pytest.fixture(autouse=True)
+def isolate_activity_title_calls(request, monkeypatch):
+    """Keep Activity title generation from reaching conversation scripted providers."""
+    if request.module.__name__.rsplit(".", 1)[-1] == "test_activity_titles":
+        return
+    original = Models.register_api
+
+    def register_api(self, api, stream_fn):
+        def wrapped(model, context, options=None):
+            if (options or {}).get("_purpose") == "activity_title":
+                stream = AssistantMessageEventStream()
+                stream.push({"type": "done", "message": assistant_message(
+                    model, content=[{"type": "text", "text": "Review the request"}],
+                    stopReason="stop")})
+                return stream
+            try:
+                return stream_fn(model, context, options)
+            except TypeError:
+                return stream_fn(model, context)
+        return original(self, api, wrapped)
+
+    monkeypatch.setattr(Models, "register_api", register_api)

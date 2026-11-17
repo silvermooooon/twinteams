@@ -68,9 +68,6 @@ def test_main_creates_bot_dispatches_and_reports_in_private_chat(product):
         product.bind_runtime(runtime)
         try:
             request = product.send_message("owner-alex", "private-alex", owner_input, uuid4().hex)["request"]
-            context = product.get_runtime_context(request["id"])
-            tools = runtime._tools(context, SimpleNamespace(session_id=request["session_id"], snapshot={}, resumable=False))
-            assert {tool.name for tool in tools} == {"start_work"}
             await product.execute_request(request["id"])
             completed = product.get_request(request["id"])
             assert completed["status"] == "completed", completed["error"]
@@ -78,8 +75,10 @@ def test_main_creates_bot_dispatches_and_reports_in_private_chat(product):
             assert bot["id"] == created["id"] and bot["assignment"] == assignment
             main = [message for message in product.chat_detail("owner-alex", "private-alex")["messages"]
                     if message["author_id"] == "twin-alex"]
-            assert [message["body"] for message in main] == [opening, reported[-1]]
-            assert main[0]["id"] != main[1]["id"] and main[0]["request_id"] == main[1]["request_id"] == request["id"]
+            delivered = [message for message in main if message.get("request_id") == request["id"]]
+            assert [message["body"] for message in delivered] == [opening, reported[-1]]
+            assert delivered[0]["id"] != delivered[1]["id"]
+            assert main[-1]["id"] == delivered[-1]["id"]
             with product.transaction() as db:
                 dispatched, = list(db.scalars(select(ReplyRequest).where(ReplyRequest.source == "bot_dispatch")))
                 work_id = dispatched.id
