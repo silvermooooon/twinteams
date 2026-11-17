@@ -98,15 +98,23 @@ tool-free summary of up to 2,000 input characters with the configured model
 (128 output tokens, reasoning off, five-second timeout). The prompt requests about
 8–12 Chinese characters or 2–6 words in the input's language; generated titles
 are normalized and bounded to 32 display units (wide characters count as two).
-Empty, copied, incomplete or failed titles retain the fallback. The title request
-runs before the main reply model call, holds no database transaction, and never
-publishes a chat message. Creation of the projection records the attempt: later
+Empty, copied, incomplete or failed titles retain the fallback. The projection
+and its revision commit before title generation starts in a tracked asynchronous
+task. Neither SDK events, the opening reply nor task completion wait for the title.
+A later title update produces another existing chat revision hint. Generation
+holds no database transaction and never publishes a chat message; Stop aborts its
+provider signal, publication rechecks authorization/reset generation, and worker
+shutdown cancels outstanding title tasks. Creation of the projection records the attempt: later
 events, recovery and reads do not regenerate it, including after a process loss.
 Owner-answer continuations retain “Continuing your task”; hidden maintenance and
 topic runs do not spend an extra title call. Child runs use their assigned task.
 The additive `app.init_db` upgrade gives legacy projections a stored generic title
 without rewriting old title data or journals. List and bootstrap reads perform no
 title generation, and the detail journal retains the original request input.
+The Activity sidebar finishes its current authorized list read when newer chat
+revisions arrive, then performs one coalesced follow-up for the latest changes.
+It cancels pending reads when the account, chat or tab changes. Revisions therefore
+cannot repeatedly abort the first list response and keep a running task invisible.
 
 ## Presence and I/O
 

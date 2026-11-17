@@ -25,7 +25,7 @@ from agent_runtime import AssistantMessageEventStream, Models, assistant_message
 @pytest.fixture(autouse=True)
 def isolate_activity_title_calls(request, monkeypatch):
     """Keep Activity title generation from reaching conversation scripted providers."""
-    if request.module.__name__.rsplit(".", 1)[-1] == "test_activity_titles":
+    if request.module.__name__.rsplit(".", 1)[-1] in {"test_activity_titles", "test_activity_visibility"}:
         return
     original = Models.register_api
 

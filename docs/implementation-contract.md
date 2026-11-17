@@ -68,7 +68,9 @@ ActivityEvent {id,seq,type,time,label,input?:string,output?:string,status?:strin
 WorkspaceEntry {id,name,kind:'file'|'folder',path,workspace_path?:string,size?:number,children?:WorkspaceEntry[]}
 
 ActivityRun `title` is the persisted short `summary_title`, with a generic fallback
-for unavailable generation or legacy runs. It is never the raw request input.
+while asynchronous generation is pending, for unavailable generation or for legacy
+runs. The row is visible before generation completes; a later title revision
+refreshes the same row. It is never the raw request input.
 ActivityEvent `input` on the request event retains that input for detail inspection.
 Provision the additive title column with `app.init_db` before API/worker rollout;
 see [Activity title generation](architecture.md#browser-transport-and-permissions).
