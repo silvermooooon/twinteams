@@ -8,8 +8,15 @@ controls. Editing its name or assignment affects new executions. Recovery retain
 the execution configuration already frozen for the task.
 
 The primary `kind=private` conversation remains the owner's main Duet and external
-entry. Main Duet dispatches suitable work to personal BOTs, reviews returned
-results and prepares external messages. Temporary SDK children remain task
+entry. Owners can ask main Duet to create a BOT there. `create_personal_bot` accepts
+`{name, assignment}` and reuses the sidebar/API creation transaction to save the
+BOT and its owner-only conversation. Runtime operation replay returns the same
+BOT. This tool is unavailable to BOTs, internal rooms and external conversations.
+After success, Duet reports the saved name and assignment, explains how to open
+the BOT under **BOTs**, and uses the returned ID to dispatch authorized work.
+It does not send the owner to a separate creation entry or ask for a BOT ID.
+Creation alone needs no Tracking item. Main Duet dispatches suitable work to
+personal BOTs, reviews returned results and prepares external messages. Temporary SDK children remain task
 workers, without BOT entries. Creating a BOT does not run onboarding or a provider
 call; its assignment is available on the first message.
 
@@ -126,7 +133,9 @@ chat lookup; existing BOT ID uniqueness supports exact target lookup. The partia
 `tt_bot_handoff_pending` index supports completion checks by the requesting SDK
 session while work remains queued or running.
 
-Create/edit responses merge into the local catalog. Profile changes emit a
+Create/edit responses merge into the local catalog. New BOT membership emits the
+existing owner-only `personal_changed` hint with `section=chats`, refreshing
+bootstrap and the sidebar even when Duet created the BOT. Profile edits emit a
 `personal_changed` hint with `section=bots`; dispatch and messaging use existing
 chat revision refreshes. The UI does not add periodic catalog or transcript reads.
 New UI labels, empty states, actions and result statuses use `t()` and `i18n/en.ts`.

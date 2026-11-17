@@ -26,6 +26,28 @@ def test_duet_tool_scope_does_not_displace_private_continuations():
     assert "Tools are conversation-scoped" not in runtime_protocol({"chat": {"kind": "private"}})
 
 
+@pytest.mark.parametrize("kind", ["private", "bot", "internal", "group", "duet"])
+def test_create_personal_bot_tool_is_available_only_in_primary_private_scope(kind):
+    context = {"chat": {"kind": kind}}
+    if kind == "bot":
+        context["bot"] = {"id": "personal-bot"}
+    runtime = RuntimeBridge.__new__(RuntimeBridge)
+    tools = {tool.name: tool for tool in runtime._tools(context, SimpleNamespace(snapshot={}, resumable=False))}
+    assert ("create_personal_bot" in tools) == (kind == "private")
+    prompt = runtime_protocol(context)
+    assert ("Use create_personal_bot when asked" in prompt) == (kind == "private")
+    if kind == "private":
+        create = tools["create_personal_bot"]
+        assert create.parameters["required"] == ["name", "assignment"]
+        assert create.parameters["properties"]["name"]["maxLength"] == 128
+        assert "owner_id" not in create.parameters["properties"]
+        assert "report name, assignment, sidebar access and dispatch" in prompt
+        assert "Creation alone needs no Tracking item" in create.description
+        assert "BOTs in the sidebar" in create.description
+        assert "use its returned id with dispatch_bot_tasks for authorized work" in create.description
+        assert "Do not ask the owner to create it elsewhere or supply an ID" in create.description
+
+
 def test_topic_notifications_require_explicit_read_and_allow_silence():
     request = {"source": "duet_topic_update", "input_body": '{"topic_id":"topic-a","update_id":"post-b"}'}
     prompt = request_prompt(request, {"owner_id": "owner-self"})

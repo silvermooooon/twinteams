@@ -12,7 +12,7 @@ from test_memory_dream import product as product  # noqa: PLC0414
 
 from app import api, bot_api, personal_api, personal_bots
 from app import service as service_module
-from app.models import Actor, Chat, ContextManifest, ReplyRequest
+from app.models import Actor, Chat, ContextManifest, Membership, ProductOperation, ReplyRequest
 from app.personal_bots_schema import check_personal_bots_schema, upgrade_personal_bots_schema
 
 
@@ -215,6 +215,79 @@ def test_owner_bot_lifecycle_api_and_other_owner_isolation(product, client):
     assert client.post("/api/bots", json={"name": " ", "assignment": "x"}).status_code == 400
 
 
+def test_private_tool_creates_owner_only_bot_once_and_notifies_sidebar(product, client, monkeypatch):
+    from app.notifications import notifications
+
+    context = origin(product, body="创建一个 bot 用来专门排查 CEAIA 的 bug")
+    events = []
+    monkeypatch.setattr(notifications, "_emit", events.append)
+    args = {"name": "  CEAIA Bug Investigator  ", "assignment": "  Investigate CEAIA bugs.  "}
+    operation = uuid4().hex
+    bot = call(product, context, "create_personal_bot", args, operation)
+    assert (bot["name"], bot["assignment"]) == ("CEAIA Bug Investigator", "Investigate CEAIA bugs.")
+    assert bot["actor"]["kind"] == bot["chat"]["kind"] == "bot"
+    assert bot["chat"]["bot_id"] == bot["id"]
+    assert bot["chat"]["member_actor_ids"] == [bot["id"]]
+    assert bot["chat"]["member_owner_ids"] == ["owner-alex"]
+    hints = [event for event in events if event.get("type") == "personal_changed" and event["section"] == "chats"]
+    assert hints == [{"type": "personal_changed", "owner_id": "owner-alex", "section": "chats"}]
+    events.clear()
+    assert call(product, context, "create_personal_bot", args, operation) == bot
+    assert not events
+    with pytest.raises(HTTPException) as conflict:
+        call(product, context, "create_personal_bot", {**args, "name": "Changed"}, operation)
+    assert conflict.value.status_code == 409
+    with product.transaction() as db:
+        assert db.get(ProductOperation, operation).result == bot
+        assert list(db.scalars(select(Membership.owner_id).where(Membership.chat_id == bot["chat_id"]))) == ["owner-alex"]
+    own = client.get("/api/bootstrap").json()
+    assert [row["id"] for row in own["bots"]] == [bot["id"]]
+    assert bot["chat_id"] in {row["id"] for row in own["chats"]}
+    assert client.get(f"/api/bots/{bot['id']}/history").json()["messages"] == []
+    other = {"x-test-owner": "owner-maya"}
+    foreign = client.get("/api/bootstrap", headers=other).json()
+    assert foreign["bots"] == []
+    assert bot["id"] not in {row["id"] for row in foreign["actors"]}
+    assert bot["chat_id"] not in {row["id"] for row in foreign["chats"]}
+    assert client.get("/api/bots", headers=other).json() == []
+    for path in (f"/api/chats/{bot['chat_id']}", f"/api/bots/{bot['id']}/history", f"/api/actors/{bot['id']}"):
+        assert client.get(path, headers=other).status_code in {403, 404}
+
+
+@pytest.mark.parametrize("name,assignment", [(" ", "Investigate bugs"), ("x" * 129, "Investigate bugs"), ("CEAIA", " ")])
+def test_create_bot_tool_uses_existing_profile_validation(product, name, assignment):
+    with pytest.raises(HTTPException) as denied:
+        call(product, origin(product), "create_personal_bot", {"name": name, "assignment": assignment})
+    assert denied.value.status_code == 400
+    assert personal_bots.list_bots(product, "owner-alex") == []
+
+
+@pytest.mark.parametrize("scope", ["bot", "internal", "duet"])
+def test_create_bot_tool_rejects_non_private_origins(product, scope):
+    if scope == "duet":
+        from duet_test_support import append_duet, approved_chat, request_duet_reply
+        approved_chat(product, "foreign-admin-topic", ["owner-maya", "owner-alex"])
+        message = append_duet(product, "foreign-admin-topic", "owner-maya", "Create a BOT")
+        request = request_duet_reply(product, "owner-maya", "foreign-admin-topic", message["id"], "twin-alex")
+        context = product.get_runtime_context(request["id"])
+    else:
+        bot = create(product)
+        if scope == "bot":
+            context = origin(product, bot["chat_id"])
+        else:
+            room = personal_bots.create_room(product, "owner-alex", "Internal work", [bot["id"]])
+            sent = product.send_message("owner-alex", room["id"], "Create a BOT", uuid4().hex,
+                                        recipient_actor_ids=["twin-alex"])
+            with product.transaction() as db:
+                request_id = db.scalar(select(ReplyRequest.id).where(ReplyRequest.source_message_id == sent["message"]["id"]))
+            context = product.get_runtime_context(request_id)
+    before = personal_bots.list_bots(product, "owner-alex")
+    with pytest.raises(HTTPException) as denied:
+        call(product, context, "create_personal_bot", {"name": "Not permitted", "assignment": "Investigate bugs"})
+    assert denied.value.status_code == 403
+    assert personal_bots.list_bots(product, "owner-alex") == before
+
+
 def test_main_dispatch_is_visible_independent_and_returns_once_to_original_task(product):
     bot = create(product)
     context = origin(product)
@@ -318,9 +391,11 @@ def test_main_inspection_is_explicit_paged_and_retains_sources(product, client):
     assert len(product.chat_detail("owner-alex", "private-alex")["messages"]) == 1
 
 
-def test_bots_cannot_join_external_chats_topics_or_other_owner_agents(product):
+@pytest.mark.parametrize("runtime_created", [False, True])
+def test_bots_cannot_join_external_chats_topics_or_other_owner_agents(product, runtime_created):
     from duet_test_support import approved_chat
-    bot = create(product)
+    bot = (call(product, origin(product), "create_personal_bot", {"name": "CEAIA", "assignment": "Investigate bugs"})
+           if runtime_created else create(product))
     approved_chat(product, "approved-topic")
     for chat_id in ("group-team", "approved-topic", "private-maya"):
         with product.transaction() as db, pytest.raises(HTTPException) as denied:

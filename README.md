@@ -9,8 +9,9 @@ Business tables (`tt_*`) and canonical Runtime tables (`agent_*`) share one data
 Redis is required for notification hints and presence TTLs. API and execution run in separate processes.
 The current architecture is documented in [architecture.md](docs/architecture.md).
 
-Owners can create durable **BOTs** in the sidebar, each with an assignment,
-conversation and separate Memory. Main Duet dispatches work, receives results,
+Owners can ask their main private Duet to create durable **BOTs**, or use the
+sidebar. Each BOT has an assignment, conversation and separate Memory. Main Duet
+dispatches work, receives results,
 exchanges internal messages and explicitly inspects BOT history. Same-owner
 collaboration rooms share one thread; BOTs cannot join human groups or Duet topics.
 See [Personal BOTs](docs/personal-bots.md) for the model, API and explicit schema

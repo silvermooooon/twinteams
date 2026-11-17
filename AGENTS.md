@@ -96,8 +96,9 @@ second general orchestration layer.
   Its creating Duet administers it and alone invites new participants. A person
   cannot directly chat with someone else’s Duet.
 - Personal BOTs are durable `kind=bot` actors/conversations with assignments and
-  separate Memory. Main Duet dispatches tasks, reviews visible returned results
-  and can explicitly inspect a BOT transcript. Same-owner agents exchange messages
+  separate Memory. Main private Duet creates them through `create_personal_bot`,
+  reusing the sidebar create path, then dispatches tasks, reviews visible returned
+  results and can explicitly inspect a BOT transcript. Same-owner agents exchange messages
   and share `kind=internal` rooms with selected actor recipients. These paths are
   owner-only and cannot admit BOTs to human groups or Duet topics. Primary private
   Duet remains the supervisor and external entry. Its topic publications require
