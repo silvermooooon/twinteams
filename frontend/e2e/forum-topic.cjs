@@ -77,6 +77,14 @@ const cases = [{
     const jordanTopics = await topics(jordan.page);
     assert.equal(await jordan.page.locator('.approvals-drawer').count(), 0);
     await sendMessage(page, 'E2E FORUM_INVITE');
+    const publicationCard = page.locator('.approvals-drawer .approval-card');
+    await publicationCard.getByRole('heading', { name: 'Approve topic invitation', exact: true }).waitFor();
+    await publicationCard.getByRole('button', { name: 'View details', exact: true }).click();
+    await publicationCard.getByText('invite_duet_participants', { exact: true }).waitFor();
+    assert.equal((await api(page, '/duet-conversations/' + seed.chat_id)).messages.length, seed.post_count);
+    assert.equal((await api(jordan.page, '/chats/private-jordan')).approvals.length, 0,
+      'the invite is not sent before the initiating owner approves its exact content');
+    await publicationCard.getByRole('button', { name: 'Approve once', exact: true }).click();
     await jordan.page.locator('.approvals-drawer .duet-approval').getByText('Invited Duets:', { exact: true }).waitFor();
     const before = await api(jordan.page, '/duet-conversations');
     assert.equal(before.conversations.some(row => row.chat_id === seed.chat_id), false);
@@ -113,7 +121,8 @@ const cases = [{
     t.record('forum', { chatId: seed.chat_id, initialPosts: seed.post_count, finalPosts: admitted.messages.length,
       admin: 'owner-alex', mentions: ['owner-maya'], lazyHistoryRequests: historyRequests,
       versions: [2, 1], pendingInviteReadStatus: denied.status(), ownerDecisions: [jordanApproval, alexApproval, mayaApproval],
-      invitationAppearedWithoutReload: true, completedMetadataOnlyNotices: notices.length, noAutomaticPosts: true, noContinue: true,
+      exactInvitationApprovedBeforeSend: true, invitationAppearedWithoutReload: true,
+      completedMetadataOnlyNotices: notices.length, noAutomaticPosts: true, noContinue: true,
       businessAPIInterception: false, provider: 'deterministic-offline' });
     await jordan.page.screenshot({ path: path.join(t.artifactDir, 'forum-topic-admitted.png'), fullPage: true });
   },

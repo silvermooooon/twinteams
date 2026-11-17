@@ -3,7 +3,7 @@ from dataclasses import replace
 from uuid import uuid4
 
 import pytest
-from duet_test_support import approved_chat
+from duet_test_support import approved_action_context, approved_chat
 from fastapi import HTTPException
 from test_deliverables import present
 from test_duet_message_delivery import origin, tool
@@ -28,7 +28,8 @@ def test_standing_invitation_keeps_old_file_private_until_explicit_reshare(produ
     assert first["status"] == "approval_required"
     with product.transaction() as db:
         db.get(Approval, first["approval"]["id"]).status = "approved"
-    published = present(product, context, [path], chat_id=chat, caption="Published report")
+    published = present(product, {**context, "approved_approval_id": first["approval"]["id"]},
+        [path], chat_id=chat, caption="Published report")
     attachment = published["message"]["attachments"][0]
     with product.transaction() as db:
         old = db.get(ChatAttachment, attachment["id"])
@@ -40,9 +41,11 @@ def test_standing_invitation_keeps_old_file_private_until_explicit_reshare(produ
                     db.add(DuetContactGrant(owner_id=owner, peer_owner_id=peer))
     assert product.attachment_content("owner-maya", chat, attachment["id"])[0] == path.read_bytes()
 
-    invitation = tool(product, context, "invite_duet_participants", {"chat_id": chat,
+    args = {"chat_id": chat,
         "participant_owner_ids": ["owner-jordan"], "requirements": "Review the published discussion",
-        "mention_owner_ids": []}, operation=uuid4().hex)
+        "mention_owner_ids": []}
+    approved = approved_action_context(product, context, "invite_duet_participants", args)
+    invitation = tool(product, approved, "invite_duet_participants", args, operation=uuid4().hex)
     assert invitation["status"] == "active"
     jordan = product.chat_detail("owner-jordan", chat)
     report = next(message for message in jordan["messages"] if message["id"] == published["message_id"])
@@ -63,7 +66,8 @@ def test_standing_invitation_keeps_old_file_private_until_explicit_reshare(produ
         decision = db.get(Approval, expanded["approval"]["id"])
         assert decision.sdk_reference["file_shares"][0]["peer_owner_ids"] == ["owner-jordan", "owner-maya"]
         decision.status = "approved"
-    reshared = present(product, context, [path], chat_id=chat)
+    reshared = present(product, {**context, "approved_approval_id": expanded["approval"]["id"]},
+        [path], chat_id=chat)
     new_attachment = reshared["message"]["attachments"][0]
     assert product.attachment_content("owner-jordan", chat, new_attachment["id"])[0] == path.read_bytes()
     with product.transaction() as db:

@@ -14,6 +14,7 @@ class TwinExecutionBackend(LocalExecutionBackend):
     def __init__(self, identity, workspace, *, directory=None):
         from .config import ROOT
         super().__init__(identity, directory or ROOT / "data" / "runtime-execution")
+        Path(workspace).mkdir(parents=True, exist_ok=True)
         self.cwd = str(Path(workspace).resolve())
 
 
@@ -33,7 +34,15 @@ async def assemble(service, session, context):
         # prompts in an idle session still freeze the current configuration.
         frozen = {"version": 0, "skills": [], "credentials": [], "execution_enabled": False}
     elif frozen is None:
-        workspace = await service.db_call(personal.resolve_twin_workspace, owner_id)
+        bot = context.get("bot")
+        if bot:
+            from .config import settings
+            workspace = settings.workspace_root / bot["chat_id"]
+            profile = {"assignment": bot["assignment"], "bot_id": bot["id"]}
+        else:
+            workspace = await service.db_call(personal.resolve_twin_workspace, owner_id)
+            soul = await service.db_call(personal.get_soul, owner_id)
+            profile = {"soul": soul["content"], "soul_version": soul["version"]}
         catalog = []
         if authorized and credentials.configured():
             catalog = [{"ref": info.ref, "description": info.description, "env_names": list(info.env_names)}
@@ -42,8 +51,7 @@ async def assemble(service, session, context):
             "version": 1, "workspace": str(workspace),
             "skills": await personal.build_skill_config(owner_id),
             "credentials": catalog, "execution_enabled": authorized,
-            "profile": {"soul": (soul := await service.db_call(personal.get_soul, owner_id))["content"],
-                        "soul_version": soul["version"]},
+            "profile": profile,
         })
     config = deepcopy(frozen)
     enabled = bool(authorized and config.get("execution_enabled"))
@@ -57,9 +65,10 @@ async def assemble(service, session, context):
         backend = TwinExecutionBackend(session.info, config["workspace"])
         tools.extend(await create_execution_tools(session=session, backend=backend,
             secrets=secret_store, credential_refs=[item["ref"] for item in config.get("credentials", [])]))
-    # Every context uses the same owner store and its existing Git CAS/reset guard.
+    # A BOT and its task children use that durable BOT's own Git Memory.
     if authorized and (enabled or legacy and context.get("chat", {}).get("kind") == "private"):
-        store = await service.db_call(personal.make_memory_store, session.info)
+        store = (await service.db_call(personal.make_bot_memory_store, session.info, context["bot"]["id"])
+                 if context.get("bot") else await service.db_call(personal.make_memory_store, session.info))
         if store is not None:
             tools.extend(create_memory_tools(session=session, store=store))
             memory = await store.read("MEMORY")

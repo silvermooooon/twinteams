@@ -16,6 +16,20 @@ Runtime identity belongs to the executing Duet's owner. Human conversations (`ki
 
 Private and approved Duet runs use their own owner's Soul, Skills, workspace, credentials and read/write Memory. No peer private Memory is loaded. Main and child sessions have the same capabilities and independent task histories/compaction; children return results to their immediate parent. Owner-only credential forms provide bindings, not action consent. Exact action approvals preserve owner, task, configuration and operation. Local execution shares OS privileges and is not a sandbox. Source provenance, audience restrictions and private reset guards remain separate from connection permission. Duet-origin Tracking stays within that thread; private Tracking aggregates own and authorized human-group/Duet topics with their original chat IDs.
 
+Personal BOTs add durable `bot` actors and `bot` conversations. Owner-only `internal`
+rooms contain the primary Duet and selected BOT actors. They reuse memberships,
+messages, request/outbox acceptance, SDK sessions and revision hints. Dispatch and
+agent messaging create visible source/destination messages; terminal results use
+the request's persisted `bot_handoff` to return to the originating actor/task.
+Targeted room messages share one thread and do not automatically wake every
+member. BOT execution uses its assignment, separate workspace and Git Memory,
+including in its children. Its tool boundary permits same-owner coordination and
+blocks external group/topic participation. The primary private Duet and existing
+social consent rules remain. Primary-private topic publications require exact
+owner approval; topic-origin posting keeps its existing rules.
+See [Personal BOTs](personal-bots.md) for schema,
+APIs, result lifecycle, explicit transcript reads and UI behavior.
+
 Redis stores presence TTLs and carries disposable Pub/Sub hints. It has no task state machine, command authority, execution locks or token history. PG changes and their change-outbox row commit together. Post-commit notification is a fast path; the relay retries unpublished rows in batches of 100. A published row means delivery was attempted, never that browsers received it. Duplicate or lost hints are allowed.
 
 ## Topic updates and publication
@@ -24,7 +38,7 @@ An approved Duet topic stores posts independently of execution. Explicit `mentio
 
 Topic posts have no six-message limit or Continue gate. Causal-chain IDs retain task lineage, not a publication allowance. Stable SDK operation identities prevent duplicate writes and duplicate update notifications. Legacy unsent drafts remain private to their author’s owner and are never published automatically by the upgrade.
 
-Published messages are independent delivered snapshots in private, human and approved Duet conversations. Readers and new runtime contexts check the current chat membership, the message's own history position and publication state; human chats still exclude agent records. Later changes to an audit ancestor do not retract a delivered answer. A message's own withdrawal or a history/reset boundary still removes that message. Source IDs, ContextManifest and complete SDK journals remain audit evidence, not a recursive reading permission graph. Quotes, owner-selected message references and original file downloads independently enforce the original record's current access; unavailable originals become placeholders without hiding the delivered text. A runtime manifest freezes the exact snapshots and visible originals read in that run, including their content hashes and origin grants. Execution and publication revalidate those direct inputs, current destination permission, reset state and consent. Unsent pending statements receive no snapshot exemption and consume no published sequence when authorization fails. Editing a topic post retains its previous revision and updates the currently readable content; runs that consumed the old revision remain bound to their frozen input checks.
+Published messages are independent delivered snapshots in private, BOT, internal-room, human and approved Duet conversations. Readers and new runtime contexts check the current chat membership, the message's own history position and publication state; human chats still exclude agent records. Later changes to an audit ancestor do not retract a delivered answer. A message's own withdrawal or a history/reset boundary still removes that message. Source IDs, ContextManifest and complete SDK journals remain audit evidence, not a recursive reading permission graph. Quotes, owner-selected message references and original file downloads independently enforce the original record's current access; unavailable originals become placeholders without hiding the delivered text. A runtime manifest freezes the exact snapshots and visible originals read in that run, including their content hashes and origin grants. Execution and publication revalidate those direct inputs, current destination permission, reset state and consent. Unsent pending statements receive no snapshot exemption and consume no published sequence when authorization fails. Editing a topic post retains its previous revision and updates the currently readable content; runs that consumed the old revision remain bound to their frozen input checks.
 
 ## Scheduling and recovery
 

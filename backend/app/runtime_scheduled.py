@@ -22,8 +22,8 @@ def is_scheduled_request(request, context=None):
 
 def terminal_output_only(request, context=None):
     context = context or {}
-    return (request.get("chat_kind") == "duet" or context.get("chat", {}).get("kind") == "duet"
-            or request.get("source") in {"duet_message", "duet_topic_update", "duet_topic_mention", "message_center", "peer_report_reconcile"} or bool(context.get("message_center")) or is_scheduled_request(request, context))
+    return (request.get("chat_kind") in {"duet", "bot", "internal"} or context.get("chat", {}).get("kind") in {"duet", "bot", "internal"}
+            or request.get("source") in {"bot_message", "bot_result", "duet_message", "duet_topic_update", "duet_topic_mention", "message_center", "peer_report_reconcile"} or bool(context.get("message_center")) or is_scheduled_request(request, context))
 
 
 def scheduled_prompt(request, context):

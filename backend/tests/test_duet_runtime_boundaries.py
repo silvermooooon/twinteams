@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from duet_test_support import approved_action_context
 from fastapi import HTTPException
 from sqlalchemy import select
 from test_memory_dream import product as product  # noqa: PLC0414
@@ -25,8 +26,10 @@ def call(product, context, name, args, operation=None):
 
 
 def propose(product, context):
-    return call(product, context, "request_duet_conversation", {"participant_owner_ids": ["owner-maya"],
-        "title": "Task coordination", "purpose": "Verify the plan", "opening_message": "Please verify the agreed plan."})
+    args = {"participant_owner_ids": ["owner-maya"],
+        "title": "Task coordination", "purpose": "Verify the plan", "opening_message": "Please verify the agreed plan."}
+    approved = approved_action_context(product, context, "create_duet_topic", args)
+    return call(product, approved, "create_duet_topic", args)
 
 
 def test_new_catalog_exposes_connection_contract_and_preserves_legacy_recovery():
@@ -115,13 +118,14 @@ def test_active_duet_files_and_reactions_close_on_revocation(product, monkeypatc
     consent = call(product, {**context, "runtime_session_id": "offline-file-session", "runtime_run_id": "offline-file-run"}, "present_files", args)
     with product.transaction() as db:
         db.get(Approval, consent["approval"]["id"]).status = "approved"
-    delivered = call(product, context, "present_files", args)
+    approved = {**context, "approved_approval_id": consent["approval"]["id"]}
+    delivered = call(product, approved, "present_files", args)
     reaction = {"chat_id": pending["chat_id"], "message_id": delivered["message_id"], "emoji": "👍", "active": True}
     assert call(product, context, "set_message_reaction", reaction)["active"]
     duet_conversations.revoke(product, "owner-alex", "owner-maya")
     for tool, arguments in (("present_files", args), ("set_message_reaction", reaction)):
         with pytest.raises(HTTPException) as denied:
-            call(product, context, tool, arguments)
+            call(product, approved if tool == "present_files" else context, tool, arguments)
         assert denied.value.status_code == 409
 
 

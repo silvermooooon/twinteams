@@ -75,8 +75,11 @@ def test_reset_preserves_groups_other_owner_configuration_and_idempotent_new_wor
         actor.name, actor.avatar_preset, actor.enabled_skill_names = "Keep this Twin", "orbit", ["keep-skill"]
     request = send_message(product, "owner-alex", "private-alex", "Old private text", key())["request"]
     context = product.get_runtime_context(request["id"])
-    sent = product._runtime_tool_transaction("post_duet_reply", {"chat_id": "duet-team", "body": "Public group text remains",
-        "source_message_ids": [request["source_message_id"]]}, {**context, "operation_id": key()})
+    from duet_test_support import approved_action_context
+    args = {"chat_id": "duet-team", "body": "Public group text remains",
+        "source_message_ids": [request["source_message_id"]], "mention_owner_ids": []}
+    approved = approved_action_context(product, context, "post_duet_reply", args)
+    sent = product._runtime_tool_transaction("post_duet_reply", args, {**approved, "operation_id": key()})
     from duet_test_support import append_duet, request_duet_reply
     incoming = append_duet(product, "duet-team", "owner-maya", "Independent existing peer work")
     group_request_id = request_duet_reply(product, "owner-maya", "duet-team", incoming["id"], "twin-alex")["id"]

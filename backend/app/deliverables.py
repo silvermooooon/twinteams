@@ -52,10 +52,11 @@ def prepare_files(service, db, args, context):
             or any(not isinstance(path, str) or not path.strip() for path in paths)
             or not isinstance(caption, str)):
         fail(400, "Present one to four file paths and an optional text caption")
-    private_id = db.scalar(select(Chat.id).where(Chat.private_owner_id == twin.owner_id, Chat.kind == "private"))
-    owner_root = settings.workspace_root / private_id
-    roots = [(private_id, owner_root)]
-    if origin.id != private_id:
+    home_id = db.scalar(select(Chat.id).where(Chat.bot_id == twin.id) if twin.kind == "bot" else
+                        select(Chat.id).where(Chat.private_owner_id == twin.owner_id, Chat.kind == "private"))
+    owner_root = settings.workspace_root / home_id
+    roots = [(home_id, owner_root)]
+    if origin.id != home_id:
         roots.append((origin.id, settings.workspace_root / origin.id))
     selected, seen, total = [], set(), 0
     for position, value in enumerate(paths):
@@ -100,7 +101,7 @@ def present_files(service, db, args, context):
             Approval.status.in_(["approved", "pending"]))))
         granted = [file for approval in approvals if approval.status == "approved"
                    for file in approval.sdk_reference.get("file_shares", [])]
-        authorized = all(all(any(file["path"] == prior["path"] and file["sha256"] == prior["sha256"]
+        authorized = (origin.kind != "private" or bool(context.get("approved_approval_id"))) and all(all(any(file["path"] == prior["path"] and file["sha256"] == prior["sha256"]
             and peer in prior["peer_owner_ids"] for prior in granted) for peer in file["peer_owner_ids"]) for file in sharing)
         if not authorized:
             if context.get("approved_approval_id"):
@@ -118,7 +119,9 @@ def present_files(service, db, args, context):
                     "title": "Share files: " + names,
                     "description": "Allow your Duet to share these file versions: " + names,
                     "target": ", ".join(service.twin(db, peer).name for peer in sharing[0]["peer_owner_ids"]),
-                    "impact": "Recipients can read and download these files. This authorization is reused for the same files and recipients.",
+                    "impact": ("Recipients can read and download these files. Confirm this exact topic publication, including its caption."
+                               if origin.kind == "private" else
+                               "Recipients can read and download these files. This authorization is reused for the same files and recipients."),
                     "action": action,
                 }, context, origin, member)
             return {"status": "approval_required", "sent": False, "chat_id": target.id, "approval": approval}

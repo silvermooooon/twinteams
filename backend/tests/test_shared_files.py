@@ -87,8 +87,9 @@ def test_upload_requires_file_consent_and_sdk_continuation_delivers_to_both_huma
                 assert client.get(rows[0]["preview_url"], headers={"x-test-owner": owner}).text == "# Owner approved report\n"
                 assert client.get(rows[0]["url"], headers={"x-test-owner": owner}).content == path.read_bytes()
             assert client.get(shared[0]["url"], headers={"x-test-owner": "owner-jordan"}).status_code in {403, 404}
-            # A later share of identical bytes and recipients reuses the approved file grant.
-            again = await product.runtime_tool("present_files", action, {**context, "operation_id": uuid4().hex})
+            # Reusing file permission still requires the exact approved primary publication.
+            again = await product.runtime_tool("present_files", action, {**context,
+                "operation_id": uuid4().hex, "approved_approval_id": approval_id})
             assert again["sent"]
             with product.transaction() as db:
                 assert db.scalar(select(func.count()).select_from(Approval).where(Approval.approver_id == "owner-alex",
@@ -117,7 +118,8 @@ def test_approval_is_bound_to_file_version_and_recipients_and_rejection_shares_n
     assert retry["status"] == "approval_required" and retry["approval"]["id"] != first["approval"]["id"]
     with product.transaction() as db:
         db.get(Approval, retry["approval"]["id"]).status = "approved"
-    assert present(product, context, [path], chat_id="duet-alex-maya")["sent"]
+    approved = {**context, "approved_approval_id": retry["approval"]["id"]}
+    assert present(product, approved, [path], chat_id="duet-alex-maya")["sent"]
     assert present(product, context, [path], chat_id="duet-team")["status"] == "approval_required"
     path.write_text("Changed file version")
     with pytest.raises(HTTPException, match="changed since owner approval"):

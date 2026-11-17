@@ -73,6 +73,19 @@ def make_memory_store(identity):
         generation_guard=lambda **kw: memory_generation_guard(identity.user_id, generation, **kw))
 
 
+def make_bot_memory_store(identity, bot_id):
+    directory = os.getenv("AGENT_MEMORY_DIR")
+    if not directory and not settings.local_identity_enabled:
+        return None
+    with service.transaction() as db:
+        bot = db.get(Actor, bot_id)
+        if not bot or bot.kind != "bot" or bot.owner_id != identity.user_id:
+            fail(404, "Personal BOT is unavailable to this owner")
+    from .git_memory import ManagedGitMemoryStore
+    root = Path(directory or ROOT / "data" / "runtime-memory")
+    return ManagedGitMemoryStore(identity, root / "bots" / bot_id)
+
+
 def get_soul(owner_id):
     from . import soul_file
     with service.transaction() as db:
@@ -197,7 +210,7 @@ def get_actor(owner_id, actor_id):
     # Actor profile metadata is already visible in authenticated bootstrap/people.
     with service.transaction() as db:
         actor = db.get(Actor, actor_id)
-        if not actor:
+        if not actor or actor.kind == "bot" and actor.owner_id != owner_id:
             fail(404, "Actor not found")
         return service.actor_json(actor)
 
@@ -278,7 +291,7 @@ def set_avatar(owner_id, data):
 def avatar_file(owner_id, actor_id, etag=None):
     with service.transaction() as db:
         actor = db.get(Actor, actor_id)
-        if actor is None or actor.avatar_digest is None:
+        if actor is None or actor.avatar_digest is None or actor.kind == "bot" and actor.owner_id != owner_id:
             fail(404, "Actor avatar not found")
         current = '"' + actor.avatar_digest + '"'
         if etag == current:

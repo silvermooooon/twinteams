@@ -113,7 +113,8 @@ def test_topic_notification_loads_no_files_and_explicit_read_returns_references(
         {**context, "operation_id": uuid4().hex, "runtime_session_id": "offline-file-session", "runtime_run_id": "offline-file-run"})
     with product.transaction() as db:
         db.get(Approval, pending["approval"]["id"]).status = "approved"
-    result = product._runtime_tool_transaction("present_files", args, {**context, "operation_id": uuid4().hex})
+    result = product._runtime_tool_transaction("present_files", args, {**context,
+        "operation_id": uuid4().hex, "approved_approval_id": pending["approval"]["id"]})
     delivered = result["message"]["attachments"]
     image, document = delivered
     from duet_test_support import request_duet_reply

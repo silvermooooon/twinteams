@@ -151,20 +151,20 @@ async def run(root, report):
 
         report["stage"] = "forum-metadata-and-explicit-reads"
         from app.models import ReplyRequest
-        root_request = product.send_message("owner-alex", "private-alex", "Create the authorized synthetic context topic", uuid4().hex)["request"]
-        creation_context = {**product.get_runtime_context(root_request["id"]), "operation_id": uuid4().hex}
-        proposed = product._runtime_tool_transaction("create_duet_topic", {
+        from checks.browser_e2e_fixture import approved_fixture_action
+        creation_context = product.get_runtime_context(payload["id"], include_completed=True)
+        proposed = await approved_fixture_action(product, creation_context, "create_duet_topic", {
             "participant_owner_ids": ["owner-maya", "owner-jordan"], "title": "Synthetic context topic",
             "purpose": "Read only the owners' authorized release context", "opening_message": "Synthetic shared release context",
-            "mention_owner_ids": []}, creation_context)
+            "mention_owner_ids": []})
         for approval in proposed["conversation"]["approvals"]:
             await product.decide_approval(approval["approver_id"], approval["id"], "approved", "once")
         topic_id = proposed["chat_id"]
         report["synthetic_topic_rows"] = seed(product, topic_id, 60,
             "Synthetic release validation assignment: BBB (owner-maya) owns validation; CCC observes.")
-        published = product._runtime_tool_transaction("post_duet_reply", {"chat_id": topic_id,
+        published = await approved_fixture_action(product, creation_context, "post_duet_reply", {"chat_id": topic_id,
             "body": "Read the topic and confirm the release validation status.",
-            "mention_owner_ids": ["owner-maya"]}, {**creation_context, "operation_id": uuid4().hex})
+            "mention_owner_ids": ["owner-maya"]})
         assert published["sent"]
         with product.transaction() as db:
             receiver = db.scalar(select(ReplyRequest).where(ReplyRequest.source == "duet_topic_mention",

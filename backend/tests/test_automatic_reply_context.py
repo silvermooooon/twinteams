@@ -2,7 +2,7 @@
 import json
 from uuid import uuid4
 
-from duet_test_support import request_duet_reply
+from duet_test_support import approved_action_context, request_duet_reply
 from sqlalchemy import select
 from test_credentials import product as product  # noqa: PLC0414
 from test_duet_conversations import active
@@ -13,10 +13,12 @@ from app.models import ReplyRequest
 def test_mentioned_update_is_accepted_before_read_and_retry_preserves_its_chain(product):
     row, context, _ = active(product)
     chat_id = row['chat_id']
-    posted = product._runtime_tool_transaction('post_duet_reply', {
+    args = {
         'chat_id': chat_id, 'body': 'Please review this specific requirement.',
         'mention_owner_ids': ['owner-maya'],
-    }, {**context, 'operation_id': uuid4().hex})
+    }
+    approved = approved_action_context(product, context, 'post_duet_reply', args)
+    posted = product._runtime_tool_transaction('post_duet_reply', args, {**approved, 'operation_id': uuid4().hex})
     receiver = request_duet_reply(product, 'owner-alex', chat_id, posted['message_id'], 'twin-maya')
     request_id = receiver['id']
     product.read('owner-maya', chat_id, [posted['message_id']])

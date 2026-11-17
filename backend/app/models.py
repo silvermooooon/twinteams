@@ -54,11 +54,16 @@ class OnboardingState(Base):
 
 class Actor(Base):
     __tablename__ = "tt_actors"
-    __table_args__ = (UniqueConstraint("owner_id", "kind"), CheckConstraint("kind IN ('human','twin')", name="tt_actor_kind"))
+    __table_args__ = (
+        Index("tt_owner_primary_actors", "owner_id", "kind", unique=True,
+              postgresql_where=text("kind IN ('human','twin')")),
+        CheckConstraint("kind IN ('human','twin','bot')", name="tt_actor_kind"),
+    )
     id: Mapped[str] = mapped_column(String(80), primary_key=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), index=True)
     kind: Mapped[str] = mapped_column(String(16))
     name: Mapped[str] = mapped_column(String(128))
+    assignment: Mapped[str | None] = mapped_column(Text)
     initials: Mapped[str] = mapped_column(String(8))
     color: Mapped[str] = mapped_column(String(32))
     avatar_data: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
@@ -70,11 +75,19 @@ class Actor(Base):
 
 class Chat(Base):
     __tablename__ = "tt_chats"
-    __table_args__ = (CheckConstraint("(kind = 'private' AND private_owner_id IS NOT NULL) OR (kind IN ('group','duet') AND private_owner_id IS NULL)", name="tt_chat_kind_owner"), Index("tt_direct_pair_key", "direct_pair_key", unique=True))
+    __table_args__ = (
+        CheckConstraint("(kind = 'private' AND private_owner_id IS NOT NULL AND internal_owner_id IS NULL AND bot_id IS NULL) OR (kind IN ('group','duet') AND private_owner_id IS NULL AND internal_owner_id IS NULL AND bot_id IS NULL) OR (kind = 'bot' AND private_owner_id IS NULL AND internal_owner_id IS NOT NULL AND bot_id IS NOT NULL) OR (kind = 'internal' AND private_owner_id IS NULL AND internal_owner_id IS NOT NULL AND bot_id IS NULL)", name="tt_chat_kind_owner"),
+        Index("tt_direct_pair_key", "direct_pair_key", unique=True),
+        Index("tt_internal_owner_chats", "internal_owner_id", "kind",
+              postgresql_where=text("internal_owner_id IS NOT NULL")),
+    )
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
     kind: Mapped[str] = mapped_column(String(16))
     title: Mapped[str] = mapped_column(String(256))
     private_owner_id: Mapped[str | None] = mapped_column(ForeignKey("tt_owners.id"), unique=True)
+    internal_owner_id: Mapped[str | None] = mapped_column(ForeignKey("tt_owners.id"))
+    bot_id: Mapped[str | None] = mapped_column(ForeignKey("tt_actors.id"), unique=True)
+    member_actor_ids: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     direct_pair_key: Mapped[str | None] = mapped_column(String(64))
     revision: Mapped[int] = mapped_column(BigInteger, default=1)
     next_message_seq: Mapped[int] = mapped_column(Integer, default=1)
@@ -181,6 +194,7 @@ class Message(Base):
     author_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id"))
     kind: Mapped[str] = mapped_column(String(20), default="human")
     body: Mapped[str] = mapped_column(Text)
+    coordination: Mapped[dict | None] = mapped_column(JSON)
     mention_owner_ids: Mapped[list] = mapped_column(JSON, default=list)
     revision: Mapped[int] = mapped_column(Integer, default=1)
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -263,7 +277,7 @@ class ReplyLane(Base):
 
 class ReplyRequest(Base):
     __tablename__ = "tt_reply_requests"
-    __table_args__ = (UniqueConstraint("intent_key", "generation"), UniqueConstraint("requester_id", "client_request_key"), UniqueConstraint("chat_id", "target_twin_id", "accepted_seq"), CheckConstraint("status IN ('queued','running','completed','failed','cancelled')", name="tt_request_status"), Index("tt_queue_order", "chat_id", "target_twin_id", "status", "accepted_seq"))
+    __table_args__ = (UniqueConstraint("intent_key", "generation"), UniqueConstraint("requester_id", "client_request_key"), UniqueConstraint("chat_id", "target_twin_id", "accepted_seq"), CheckConstraint("status IN ('queued','running','completed','failed','cancelled')", name="tt_request_status"), Index("tt_queue_order", "chat_id", "target_twin_id", "status", "accepted_seq"), Index("tt_bot_handoff_pending", text("(bot_handoff ->> 'session_id')"), postgresql_where=text("status IN ('queued','running')")))
     id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
     causal_chain_id: Mapped[str | None] = mapped_column(ForeignKey("tt_causal_chains.id"), index=True)
     source_owner_id: Mapped[str | None] = mapped_column(ForeignKey("tt_owners.id"))
@@ -293,6 +307,7 @@ class ReplyRequest(Base):
     context_grant_version: Mapped[int | None] = mapped_column(Integer)
     execution_config: Mapped[dict | None] = mapped_column(JSON)
     private_generation: Mapped[int | None] = mapped_column(Integer)
+    bot_handoff: Mapped[dict | None] = mapped_column(JSON)
 
 
 class PendingChildResult(Base):

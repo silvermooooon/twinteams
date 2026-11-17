@@ -29,8 +29,8 @@ export function chatTitle(chat: Chat, actors: Actor[], ownerId: string) {
 }
 export function ChatAvatar({ chat, actors, ownerId, size = 40 }: { chat: Chat; actors: Actor[]; ownerId: string; size?: number }) {
   const peer = chat.kind === 'group' && chat.member_owner_ids.length === 2 ? chat.member_owner_ids.find(id => id !== ownerId) : null;
-  const group = chat.kind === 'group' && chat.member_owner_ids.length >= 3;
-  const actor = group ? undefined : peer ? actors.find(item => item.kind === 'human' && item.id === peer) : actors.find(item => item.kind === 'twin' && item.owner_id === chat.member_owner_ids[0]);
+  const group = chat.kind === 'internal' || chat.kind === 'group' && chat.member_owner_ids.length >= 3;
+  const actor = chat.kind === 'bot' ? actors.find(item => item.id === chat.bot_id) : group ? undefined : peer ? actors.find(item => item.kind === 'human' && item.id === peer) : actors.find(item => item.kind === 'twin' && item.owner_id === chat.member_owner_ids[0]);
   return <Avatar actor={actor} size={size} group={group} />;
 }
 export function IconButton({ icon, label, onClick, disabled, active, size = 20, className = '' }: { icon: IconName; label: string; onClick?: () => void; disabled?: boolean; active?: boolean; size?: number; className?: string }) { return <button type="button" className={`icon-button ${active ? 'active' : ''} ${className}`} title={label} aria-label={label} onClick={onClick} disabled={disabled}><Icon name={icon} size={size} /></button>; }

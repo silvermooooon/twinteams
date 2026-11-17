@@ -196,7 +196,7 @@ class Client:
                     await authenticate(self.socket)
                 if command == 'send':
                     data = SendMessage.model_validate({**payload, 'client_request_key': command_id})
-                    result = await service.db_call('send_message', self.owner, chat_id, data.body, command_id, data.reply_to_message_id, data.reply_for_me, data.attachment_ids, data.reference_message_id)
+                    result = await service.db_call('send_message', self.owner, chat_id, data.body, command_id, data.reply_to_message_id, data.reply_for_me, data.attachment_ids, data.reference_message_id, recipient_actor_ids=data.recipient_actor_ids)
                 elif command == 'reply':
                     data = RequestReply.model_validate({**payload, 'client_request_key': command_id})
                     await service.db_call('manual_request', self.owner, chat_id, data.message_id, data.target_twin_id, command_id)

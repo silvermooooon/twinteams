@@ -3,6 +3,7 @@ import asyncio
 from uuid import uuid4
 
 import pytest
+from duet_test_support import approved_action_context
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from test_credentials import product as product  # noqa: PLC0414
@@ -33,7 +34,8 @@ def proposal(product, peers=None, origin=None, context=None):
             'opening_message': 'Could we find an agreed time?'}
     if origin:
         args['origin_chat_id'] = origin
-    return product._runtime_tool_transaction('create_duet_topic', args, context), context, args
+    approved = approved_action_context(product, context, 'create_duet_topic', args)
+    return product._runtime_tool_transaction('create_duet_topic', args, approved), context, args
 
 
 def consent(product, row, owner='owner-alex', scope='once', decision='approved'):
@@ -53,7 +55,8 @@ def test_pending_unanimous_consent_then_atomic_opening_and_receiver(product):
     row, context, args = proposal(product, origin='group-alex-maya')
     chat_id = row['chat_id']
     assert row['status'] == 'pending'
-    assert product._runtime_tool_transaction('create_duet_topic', args, context) == row
+    approved = approved_action_context(product, context, 'create_duet_topic', args)
+    assert product._runtime_tool_transaction('create_duet_topic', args, approved) == row
     with product.transaction() as db:
         assert db.scalar(select(func.count()).select_from(Message).where(Message.chat_id == chat_id)) == 0
         assert db.scalar(select(func.count()).select_from(ReplyRequest).where(ReplyRequest.chat_id == chat_id)) == 0
@@ -245,7 +248,7 @@ def test_concurrent_proposal_and_revoke_never_admit_revoked_standing_consent(pro
         assert release.wait(5)
         return original(*values)
     monkeypatch.setattr(duet, 'propose', held)
-    context = {**context, 'operation_id': key()}
+    context = approved_action_context(product, {**context, 'operation_id': key()}, 'create_duet_topic', args)
     def revoke():
         revoking.set()
         return duet.revoke(product, 'owner-alex', 'owner-maya')
@@ -261,6 +264,30 @@ def test_concurrent_proposal_and_revoke_never_admit_revoked_standing_consent(pro
     assert duet.detail(product, 'owner-alex', created['chat_id'])['conversation']['status'] == 'closed'
     next_row, _, _ = proposal(product)
     assert next(a for a in next_row['conversation']['approvals'] if a['approver_id'] == 'owner-alex')['status'] == 'pending'
+
+
+def test_consent_lock_allows_running_topic_context_foreign_keys(product):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    row, _, _ = active(product)
+    with product.transaction() as db:
+        request_id = db.scalar(select(ReplyRequest.id).where(ReplyRequest.chat_id == row['chat_id']))
+    locked, release = Event(), Event()
+    def hold_consent():
+        with product.transaction() as db:
+            duet.lock_consent(db, ['owner-alex', 'owner-maya'])
+            locked.set()
+            assert release.wait(10)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        consent_task = pool.submit(hold_consent)
+        assert locked.wait(5)
+        try:
+            context = pool.submit(product.get_runtime_context, request_id).result(timeout=5)
+        finally:
+            release.set()
+        consent_task.result(timeout=5)
+    assert context['chat']['id'] == row['chat_id']
 
 
 
@@ -348,10 +375,12 @@ def test_solo_topic_is_immediately_active_and_creator_is_administrator(product):
 
 
 def invitation(product, row, context, mentions=None):
-    return product._runtime_tool_transaction('invite_duet_participants',
-        {'chat_id': row['chat_id'], 'participant_owner_ids': ['owner-jordan'],
-            'requirements': 'Check the release requirements and append findings',
-            'mention_owner_ids': mentions or []}, {**context, 'operation_id': key()})
+    args = {'chat_id': row['chat_id'], 'participant_owner_ids': ['owner-jordan'],
+        'requirements': 'Check the release requirements and append findings',
+        'mention_owner_ids': mentions or []}
+    approved = approved_action_context(product, context, 'invite_duet_participants', args)
+    return product._runtime_tool_transaction('invite_duet_participants', args,
+        {**approved, 'operation_id': key()})
 
 
 def invitation_approvals(row):

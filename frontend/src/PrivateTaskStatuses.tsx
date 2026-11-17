@@ -1,9 +1,11 @@
-import type { Actor, Message, ReplyRequest } from './api/client';
+import type { Actor, Chat, Message, ReplyRequest } from './api/client';
 import { t } from './i18n';
 import { Avatar, IconButton } from './ui';
 import './PrivateTaskStatuses.css';
 
-export function isBackgroundPrivateTask(request: Pick<ReplyRequest, 'background' | 'source'>) {
+export function isBackgroundPrivateTask(request: Pick<ReplyRequest, 'background' | 'source' | 'source_message_id'>, kind?: Chat['kind'], messages: Message[] = []) {
+  if (kind === 'bot' || kind === 'internal' || ['bot_dispatch', 'bot_message', 'bot_result'].includes(request.source)
+    || messages.some(message => message.id === request.source_message_id && message.coordination)) return false;
   return request.background ?? ['system_review', 'scheduled_task', 'memory_dream'].includes(request.source);
 }
 
@@ -15,10 +17,10 @@ export function privateTaskSourceLabel(source: string) {
 }
 
 /** Describe the request's own source. A background run never borrows the latest input. */
-export function privateTaskLabel(request: ReplyRequest, messages: Message[]) {
+export function privateTaskLabel(request: ReplyRequest, messages: Message[], kind?: Chat['kind']) {
   const sourceLabel = privateTaskSourceLabel(request.source);
   if (sourceLabel) return sourceLabel;
-  if (isBackgroundPrivateTask(request)) return t('chat.backgroundTask');
+  if (isBackgroundPrivateTask(request, kind, messages)) return t('chat.backgroundTask');
   const message = messages.find(item => item.id === request.source_message_id && item.kind === 'human');
   const body = message?.body.replace(/\s+/g, ' ').trim();
   return body ? t('chat.replyTask', { message: body.length > 100 ? body.slice(0, 100) + '…' : body }) : t('chat.privateTask');
@@ -27,7 +29,7 @@ export function privateTaskLabel(request: ReplyRequest, messages: Message[]) {
 type ResponseStatus = Pick<ReplyRequest, 'id' | 'source' | 'status' | 'can_cancel' | 'quiet_background' | 'background' | 'cancel_requested'>;
 
 export function PrivateTaskStatuses({ requests, actor, busy, onCancel }: { requests: ResponseStatus[]; actor?: Actor; busy: Set<string>; onCancel: (ids: string[]) => void }) {
-  const active = requests.filter(request => !request.quiet_background && !isBackgroundPrivateTask(request) && (request.status === 'queued' || request.status === 'running'));
+  const active = requests.filter(request => !request.quiet_background && (request.status === 'queued' || request.status === 'running'));
   if (!active.length) return null;
   const cancellable = active.filter(request => request.can_cancel && !request.cancel_requested);
   const stopping = active.every(request => busy.has(request.id) || request.cancel_requested);

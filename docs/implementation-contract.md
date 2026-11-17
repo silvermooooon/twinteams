@@ -13,17 +13,18 @@ Implemented integration contract. For prior release evidence, see `implementatio
 - WebSocket sends commands, opaque changed revisions and bounded sender-only send acknowledgments containing correlation metadata, never chat content. HTTP reads content with authoritative permissions. Reconnect subscribes before refreshing bounded history windows. Semantic outputs remain durable SDK facts; no token tables.
 - Human pair/multi-person chats are `kind=group`, owner-to-own-Duet chats are `kind=private`, and owner-approved Duet threads are `kind=duet`. Humans cannot post or react in Duet threads; agents cannot publish in human chats. Every Duet participant owner approves once or has active directed grants to every peer before opening and execution. Revocation closes dependent threads and cancels pending work. Connection permission grants no arbitrary action authority.
 - Topic posts have no six-message limit or Continue gate. Causal-chain IDs retain task lineage, not a publication allowance. Stable SDK operation identities prevent duplicate writes and duplicate update notifications. Legacy unsent drafts remain private to their author’s owner and are never published automatically by the upgrade.
+- Durable personal BOTs are `bot` actors with assignments and own Memory, using `bot` conversations. Same-owner collaboration rooms use `internal`, with explicit actor recipients. Both use existing requests, SDK execution and visible message handoffs. They are owner-only; the primary private Duet remains the supervisor and external entry, with exact owner confirmation for its topic publications. [Personal BOTs](personal-bots.md) defines their APIs and tools.
 
 
 ## HTTP
 Prefix /api. JSON uses snake_case. All errors `{detail:string}`. Reads enforce owner membership/history. GET /health and GET /api/config expose backend/provider state without secrets.
 - POST /auth/login {username} -> {owner,...}; GET /auth/me; POST /auth/logout
-- GET /bootstrap -> {current_owner_id, actors:Actor[], chats:Chat[], reminders:Reminder[], model_configured:boolean, development_mode:boolean}
+- GET /bootstrap -> {current_owner_id, actors:Actor[], chats:Chat[], bots:PersonalBot[], reminders:Reminder[], model_configured:boolean, development_mode:boolean}
 - GET /people?q= -> Actor[] humans
 - POST /chats {owner_ids:string[],title?:string,history_policy?:'all'|'fixed_7d'|'no_prior'} -> Chat
 - POST /chats/{id}/members {owner_ids:string[],history_policy} -> Chat
 - GET /chats/{id} -> {chat:Chat,messages:Message[],requests:ReplyRequest[],approvals:Approval[],questions:UserQuestion[],settings:ChatSettings,members:Actor[]}
-- POST /chats/{id}/messages {body,client_request_key,reply_to_message_id?:string,reply_for_me?:boolean} -> {message:Message|null,request:ReplyRequest|null}
+- POST /chats/{id}/messages {body,client_request_key,reply_to_message_id?:string,reply_for_me?:boolean,recipient_actor_ids?:string[]} -> {message:Message|null,request:ReplyRequest|null}; recipients apply only to internal rooms
 - POST /chats/{id}/reply-requests {message_id,target_twin_id,client_request_key} -> ReplyRequest (own private chat only; human-group and peer-Duet invocation rejected)
 - POST /reply-requests/{id}/cancel -> ReplyRequest (requester or owner; running only owner)
 - POST /reply-requests/{id}/retry {client_request_key} -> ReplyRequest (target Twin owner only; can_retry is authoritative)
@@ -32,7 +33,7 @@ Prefix /api. JSON uses snake_case. All errors `{detail:string}`. Reads enforce o
 - PATCH /chats/{id}/settings {reply_for_me_enabled?,prompt_override?,sidebar_open?,sidebar_tab?} -> ChatSettings
 - PATCH /settings {default_reply_prompt:string} -> {default_reply_prompt}
 - GET /settings -> {default_reply_prompt}
-- GET /chats/{id}/activity -> ActivityRun[] (private own chat only)
+- GET /chats/{id}/activity -> ActivityRun[] (own private, BOT and internal-room chats)
 - GET /chats/{id}/activity/{session_id}/{run_id} -> {run:ActivityRun,events:ActivityEvent[]}
 - POST /approvals/{id}/decision {decision:'approved'|'rejected',scope?:'once'|'always'} -> Approval
 - GET /chats/{id}/workspace?path=<relative-directory> -> WorkspaceEntry[] (direct children)
@@ -50,9 +51,10 @@ Prefix /api. JSON uses snake_case. All errors `{detail:string}`. Reads enforce o
 - GET /chats/{id}/activity?limit=50&before={cursor}: {items,has_more,next_cursor}; details accept limit/after_seq and return has_more/next_seq.
 
 ## Shapes
-Actor {id,kind:'human'|'twin',owner_id?:string,name,initials,color}
-Chat {id,kind:'private'|'group'|'duet',title,member_owner_ids:string[],unread_count:number,last_message?:string}
-Message {id,chat_id,seq,author_id,kind:'human'|'twin'|'reply_for_me'|'system',body,raw_owner_input?:string,created_at,mention_owner_ids:string[],revision:number,edited_at:string|null,reply_to?:{id,author_name,body,unavailable?:boolean},read_by:string[],request_id?:string,state:'published'|'withdrawn'}
+Actor {id,kind:'human'|'twin'|'bot',owner_id?:string,name,initials,color}
+Chat {id,kind:'private'|'group'|'duet'|'bot'|'internal',title,member_owner_ids:string[],bot_id?:string,member_actor_ids:string[],unread_count:number,last_message?:string}
+PersonalBot {id,chat_id,name,assignment,actor:Actor,chat:Chat}
+Message {id,chat_id,seq,author_id,kind:'human'|'twin'|'reply_for_me'|'system',body,raw_owner_input?:string,created_at,mention_owner_ids:string[],revision:number,edited_at:string|null,reply_to?:{id,author_name,body,unavailable?:boolean},read_by:string[],request_id?:string,state:'published'|'withdrawn',coordination?:{kind:'assignment'|'message'|'result',source_chat_id?:string,target_chat_id?:string,actor_ids:string[],status?:string,has_result?:boolean}}
 ReplyRequest {id,chat_id,source_message_id:string|null,target_twin_id,requester_id,source,status:'queued'|'running'|'completed'|'failed'|'cancelled',accepted_at,error?:string,can_cancel:boolean,can_retry:boolean,session_id?:string,run_id?:string}
 ChatSettings {reply_for_me_enabled:boolean,prompt_override:string|null,sidebar_open:boolean,sidebar_tab:'activity'|'workspace'|'tracking'|'duets'}
 

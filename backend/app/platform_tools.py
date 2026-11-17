@@ -77,6 +77,10 @@ def scope_ids(service, db, name, args, context):
         if approval:
             target_id = approval.chat_id
     ids = {origin_id, target_id}
+    from .personal_bots import TOOLS as BOT_TOOLS
+    from .personal_bots import scope_ids as bot_scope_ids
+    if name in BOT_TOOLS:
+        ids.update(bot_scope_ids(db, name, args, context))
     if name in {"request_duet_conversation", "create_duet_topic"} and args.get("origin_chat_id"):
         ids.add(args["origin_chat_id"])
     request = db.get(ReplyRequest, context.get("request_id")) if context.get("request_id") else None

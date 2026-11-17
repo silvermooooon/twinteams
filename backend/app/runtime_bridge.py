@@ -524,6 +524,14 @@ class RuntimeBridge:
             ("answer_question", "Associate this fresh owner's human input with a pending question only when it clearly answers that question, including an unquoted main-chat answer. Supply the current source message ID; the server uses its exact text. The original task resumes separately; after association do not also perform its remaining work in this turn. Unrelated or ambiguous input remains a new request; never invent or rewrite an owner's decision. This grants no action approval and cannot confirm an owner reply.",
              {"question_id": text, "message_id": text}, ["question_id", "message_id"]),
         ])
+        from .bot_tools import INTERNAL_TOOLS
+        from .bot_tools import tool_schemas as bot_tool_schemas
+        if context.get("chat", {}).get("kind") in {"private", "bot", "internal"}:
+            schemas.extend(bot_tool_schemas())
+        if context.get("bot") or context.get("chat", {}).get("kind") == "internal":
+            schemas = [schema for schema in schemas if schema[0] in INTERNAL_TOOLS]
+        if context.get("bot"):
+            schemas = [schema for schema in schemas if schema[0] not in {"dispatch_bot_tasks", "create_bot_room", "inspect_bot_history"}]
         result = []
         for name, description, properties, required in schemas:
             def make_execute(tool_name):
@@ -784,7 +792,12 @@ class RuntimeBridge:
                 raise RuntimeError("The SDK reply has not reached durable completion.")
             if terminal_only:
                 await self._project_outputs(request_id, tenant_id, session_id, run_id, records, terminal_only=True)
+            handoff_pending = False
+            if request.get("bot_handoff"):
+                from .runtime_scheduled import has_unresolved_children
+                handoff_pending = await has_unresolved_children(self, {"session_id": session_id, "run_id": run_id})
             return {"session_id": session_id, "run_id": run_id,
+                    "bot_handoff_pending": handoff_pending,
                     "body": output_text_content(final["data"].get("message")) if final else "",
                     "event_id": final["id"] if final else None,
                     "event_seq": final["seq"] if final else None}

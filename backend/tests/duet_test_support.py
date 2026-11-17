@@ -6,6 +6,20 @@ from sqlalchemy import select
 from app.models import Approval, Chat, DuetConversation, Membership, uid
 
 
+def approved_action_context(product, context, tool, arguments):
+    """Prepare a real exact-action card and seed its completed owner decision."""
+    approval = product._runtime_tool_transaction('create_approval', {
+        'title': 'Approve fixture publication', 'description': 'Review this exact fixture action',
+        'target': 'Explicit fixture audience', 'impact': 'Publish the reviewed content',
+        'action': {'tool': tool, 'arguments': arguments},
+    }, {**context, 'operation_id': uuid4().hex,
+        'runtime_session_id': context.get('runtime_session_id') or 'fixture-session',
+        'runtime_run_id': context.get('runtime_run_id') or 'fixture-run'})
+    with product.transaction() as db:
+        db.get(Approval, approval['id']).status = 'approved'
+    return {**context, 'approved_approval_id': approval['id']}
+
+
 def approved_chat(product, chat_id, owner_ids=None, *, origin_chat_id=None):
     """Seed completed consent facts for unit fixtures, without a model call."""
     owner_ids = owner_ids or (['owner-alex', 'owner-maya', 'owner-jordan'] if chat_id == 'duet-team'

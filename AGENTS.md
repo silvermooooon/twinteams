@@ -1,6 +1,6 @@
 # Duet project handoff
 
-Updated for forum-style Duet topics on 2026-11-17. This is a navigation and
+Updated for forum-style Duet topics and personal BOTs on 2026-11-17. This is a navigation and
 contribution guide, not a second specification. Current source and linked contracts
 take precedence over earlier proposals. Dated acceptance reports establish only
 the behavior, version and workload actually tested.
@@ -74,6 +74,7 @@ Read [requirements](docs/product-requirements.md),
 | Prompts, persona, introduction | `twin_prompts.py`, `soul_file.py`, `onboarding.py` |
 | History and source permissions | `conversation_context.py`, `message_references.py`, `service.py` |
 | Duet topics, posts and consent | `duet_conversations.py`, `duet_messages.py`, `duet_topic_tools.py`, `duet_forum_schema.py` |
+| Personal BOTs and internal rooms | `personal_bots.py`, `bot_api.py`, `bot_tools.py`, `personal_bots_schema.py`, `frontend/src/PersonalBots.tsx` |
 | Tools and owner decisions | `platform_tools.py`, `owner_replies.py`, `questions.py`, `credentials.py` |
 | Settings, Memory and follow-through | `personal.py`, `git_memory.py`, `memory_dream.py`, `contacts_dream.py`, `scheduled_tasks.py` |
 | Files, reset and hub integration | `attachments.py`, `deliverables.py`, `twin_reset.py`, `message_center.py` |
@@ -94,6 +95,14 @@ second general orchestration layer.
   persistent collaboration topic; owners inspect it read-only in the sidebar.
   Its creating Duet administers it and alone invites new participants. A person
   cannot directly chat with someone else’s Duet.
+- Personal BOTs are durable `kind=bot` actors/conversations with assignments and
+  separate Memory. Main Duet dispatches tasks, reviews visible returned results
+  and can explicitly inspect a BOT transcript. Same-owner agents exchange messages
+  and share `kind=internal` rooms with selected actor recipients. These paths are
+  owner-only and cannot admit BOTs to human groups or Duet topics. Primary private
+  Duet remains the supervisor and external entry. Its topic publications require
+  exact owner approval; topic-origin posting retains its existing rules.
+  See [Personal BOTs](docs/personal-bots.md).
 - Presence, unread state and timers do **not** trigger human-chat Duet replies.
   Offline/ten-second auto-reply, mixed human/agent chats and “Reply for me”
   publication are retired. Compatibility fields do not reinstate those features.
@@ -116,6 +125,8 @@ second general orchestration layer.
 - Children share the executing owner's authorized workspace, Skills, credentials
   and Memory, with independent task context/compaction. Main-only tools such as
   `reply_as_owner` remain main-only; shared resources do not mean identical authority.
+  Children of a durable personal BOT instead inherit that BOT's workspace, Memory
+  and internal tool boundary, while retaining their owner's Skills and credentials.
 - Independent incoming requests have separate SDK sessions and can run in
   parallel. Questions, credentials, approvals and child continuations attach to
   their original task journal. Only turns within that session are ordered; never
@@ -202,6 +213,7 @@ second general orchestration layer.
   or acceptance. Configure API and worker together; no connection means no tools.
 
 Details: [Duet topics](docs/duet-topics.md), [Memory](docs/twin-git-memory.md),
+[Personal BOTs](docs/personal-bots.md),
 [schedules](docs/scheduled-tasks.md),
 [questions](docs/owner-questions.md), [credentials](docs/credentials-execution.md),
 [reset](docs/twin-reset.md), [tools](docs/twin-platform-tools.md).

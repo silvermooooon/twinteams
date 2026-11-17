@@ -21,9 +21,8 @@ from .service import digest, fail, iso
 
 
 def lock_consent(db, owner_ids):
-    # Grant changes and standing-consent admission lock the same bounded owner
-    # rows in stable order, always before any conversation Chat lock.
-    db.scalars(select(Owner).where(Owner.id.in_(set(owner_ids))).order_by(Owner.id).with_for_update()).all()
+    # Serialize consent before Chat locks without blocking owner foreign-key inserts.
+    db.scalars(select(Owner).where(Owner.id.in_(set(owner_ids))).order_by(Owner.id).with_for_update(key_share=True)).all()
 
 
 def approvals(db, chat_id):

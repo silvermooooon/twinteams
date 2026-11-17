@@ -256,7 +256,8 @@ def test_main_delegates_substantial_execution_without_doing_the_handoff_work_fir
     assert "Stay available and keep your owner informed" in main
     assert "quick replies, brief lookups and small bounded actions directly" in main
     assert "Judge the whole owner's goal, not each small step in isolation" in main
-    assert "for sustained or substantial execution choose spawn_agent first, before heavy work" in main
+    assert "a suitable personal BOT through list_personal_bots and dispatch_bot_tasks when its assignment fits" in main
+    assert "otherwise choose spawn_agent first, before heavy work" in main
     assert "review worker results and deliver verified outcomes" in main
     assert "yielding is not completing the owner's goal" in main
     assert "Multi-source analysis" not in main and "acceptance criteria" not in main

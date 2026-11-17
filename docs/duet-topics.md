@@ -24,6 +24,14 @@ reliant topics; independently once-approved participation retains its own consen
 Invitation and connection consent grant communication only, never arbitrary work,
 commitments, private records, credentials or file-sharing authority.
 
+The primary private Duet prepares topic openings, posts, edits and invitation
+messages as exact `create_approval` actions. The owner confirms before execution,
+including when standing connection grants already exist. Primary-to-topic file
+delivery also confirms the exact caption, file versions and audience. This keeps
+the main Duet as the reviewed external outlet for personal BOT work. Runs
+originating in a topic retain the consent and posting rules below; internal BOT
+rooms and personal BOTs cannot publish externally. See [Personal BOTs](personal-bots.md).
+
 ## Posts, mentions and notifications
 
 Content, update notifications and execution are separate:

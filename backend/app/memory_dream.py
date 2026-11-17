@@ -116,12 +116,16 @@ def message_published(service, db, chat, message):
             or message.kind not in {"human", "twin", "reply_for_me"}
             or not (os.getenv("AGENT_MEMORY_DIR") or settings.local_identity_enabled)):
         return
-    state = db.get(MemoryDreamState, chat.private_owner_id)
+    states = db.info.setdefault("published_memory_dream_states", {})
+    if chat.private_owner_id not in states:
+        states[chat.private_owner_id] = db.get(MemoryDreamState, chat.private_owner_id)
+    state = states[chat.private_owner_id]
     if state is None:
         state = MemoryDreamState(owner_id=chat.private_owner_id, chat_id=chat.id,
             cursor_seq=0, message_cursor_seq=0, last_status="scheduled",
             due_at=now() + timedelta(seconds=settings.memory_dream_interval_seconds))
         db.add(state)
+        states[chat.private_owner_id] = state
     elif (state.last_status != "recovery_required"
             and state.due_at is None and message.seq > (state.message_cursor_seq or 0)):
         state.due_at = now() + timedelta(seconds=settings.memory_dream_interval_seconds)

@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
-from duet_test_support import approved_chat
+from duet_test_support import approved_action_context, approved_chat
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from test_memory_dream import product as product  # noqa: PLC0414
@@ -23,8 +23,16 @@ def tool(product, context, name, args, *, operation=None):
 
 
 def send(product, context, chat_id, body, mentions=(), *, operation=None):
-    return tool(product, context, "post_duet_reply", {"chat_id": chat_id, "body": body,
-        "source_message_ids": [], "mention_owner_ids": list(mentions)}, operation=operation)
+    args = {"chat_id": chat_id, "body": body,
+        "source_message_ids": [], "mention_owner_ids": list(mentions)}
+    if context["chat"]["kind"] == "private":
+        context = approved_action_context(product, context, "post_duet_reply", args)
+    return tool(product, context, "post_duet_reply", args, operation=operation)
+
+
+def edit(product, context, args, *, operation=None):
+    approved = approved_action_context(product, context, "edit_duet_post", args)
+    return tool(product, approved, "edit_duet_post", args, operation=operation)
 
 
 def receipts(db, message_id, revision=1):
@@ -156,9 +164,9 @@ def test_edit_own_post_preserves_history_and_sends_metadata_notification_once(pr
     args = {"chat_id": chat, "message_id": sent["message_id"], "expected_revision": 1,
         "body": "Revised post", "mention_owner_ids": ["owner-maya"]}
     operation = uuid4().hex
-    edited = tool(product, context, "edit_duet_post", args, operation=operation)
+    edited = edit(product, context, args, operation=operation)
     assert edited["revision"] == 2
-    assert tool(product, context, "edit_duet_post", args, operation=operation) == edited
+    assert edit(product, context, args, operation=operation) == edited
     with product.transaction() as db:
         rows = receipts(db, sent["message_id"], 2)
         assert len(rows) == 2 and all("Revised post" not in row.input_body for row in rows)
@@ -167,17 +175,17 @@ def test_edit_own_post_preserves_history_and_sends_metadata_notification_once(pr
     older = tool(product, context, "read_duet_post_history", {"chat_id": chat, "message_id": sent["message_id"], "before_revision": 2})
     assert older["revisions"][0]["body"] == "Original post" and not older["has_more"]
     with pytest.raises(HTTPException, match="Post changed"):
-        tool(product, context, "edit_duet_post", args)
+        edit(product, context, args)
     _, other = origin(product, "owner-maya")
     with pytest.raises(HTTPException, match="only its own"):
-        tool(product, other, "edit_duet_post", {**args, "expected_revision": 2})
+        edit(product, other, {**args, "expected_revision": 2})
 
 
 def test_history_rechecks_current_post_access(product):
     chat = approved_chat(product, "duet-history")
     _, context = origin(product)
     sent = send(product, context, chat, "Original")
-    tool(product, context, "edit_duet_post", {"chat_id": chat, "message_id": sent["message_id"],
+    edit(product, context, {"chat_id": chat, "message_id": sent["message_id"],
         "expected_revision": 1, "body": "Revision", "mention_owner_ids": []})
     with product.transaction() as db:
         db.get(Message, sent["message_id"]).state = "withdrawn"
@@ -203,6 +211,6 @@ def test_read_then_edit_keeps_consumed_revision_valid_for_followup_tools(product
     _, context = origin(product)
     sent = send(product, context, chat, "Original finding")
     tool(product, context, "read_duet_topic", {"chat_id": chat, "limit": 10})
-    tool(product, context, "edit_duet_post", {"chat_id": chat, "message_id": sent["message_id"],
+    edit(product, context, {"chat_id": chat, "message_id": sent["message_id"],
         "expected_revision": 1, "body": "Corrected finding", "mention_owner_ids": []})
     assert send(product, context, chat, "Correction is complete")["sent"]

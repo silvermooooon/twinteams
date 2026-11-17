@@ -397,14 +397,17 @@ def install_fixture(root):
             final = f'E2E CHAIN {label} {step}' if step <= 12 else 'E2E chain complete: ' + label
         if results and results[-1].get('isError'):
             name, arguments, final = None, None, 'E2E tool failed: ' + str(results[-1].get('toolName'))
-        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'forum-topic':
+        if os.environ.get('TWINTEAMS_E2E_SCENARIO') == 'forum-topic' and info.get('source') != 'approval_result':
             name, arguments, final = None, None, 'No additional response is needed.'
-            if command == 'FORUM_INVITE' and 'invite_duet_participants' not in names:
+            if command == 'FORUM_INVITE' and 'create_approval' not in names:
                 topic = json.loads((root / 'forum-topic.json').read_text())
-                name, arguments = 'invite_duet_participants', {'chat_id': topic['chat_id'],
-                    'participant_owner_ids': ['owner-jordan'],
-                    'requirements': 'Review the revised milestone and add delivery risks.',
-                    'mention_owner_ids': ['owner-jordan']}
+                name, arguments = 'create_approval', {'title': 'Approve topic invitation',
+                    'description': 'Review the invitation requirements and audience.',
+                    'target': "Jordan's Duet", 'impact': 'Publish the requirements after all owners consent.',
+                    'action': {'tool': 'invite_duet_participants', 'arguments': {'chat_id': topic['chat_id'],
+                        'participant_owner_ids': ['owner-jordan'],
+                        'requirements': 'Review the revised milestone and add delivery risks.',
+                        'mention_owner_ids': ['owner-jordan']}}}
         if name:
             if name not in tools:
                 raise RuntimeError('E2E command requires installed tool: ' + name)
@@ -485,32 +488,61 @@ def seed(root):
         (root / 'forum-topic.json').write_text(json.dumps(asyncio.run(forum_topic_fixture())))
 
 
+async def approved_fixture_action(service, context, name, arguments):
+    """Execute an exact fixture action through the real owner/SDK approval path."""
+    from app.models import Approval
+
+    origin = service.get_request(context['request_id'])
+    assert origin['run_id'], 'Fixture approval must belong to an executed SDK run'
+    approval = await service.runtime_tool('create_approval', {
+        'title': 'Approve fixture topic publication', 'description': 'Review the exact fixture action.',
+        'target': 'Synthetic topic participants', 'impact': 'Publish the reviewed topic content.',
+        'action': {'tool': name, 'arguments': arguments},
+    }, {**context, 'operation_id': uuid4().hex,
+        'runtime_session_id': origin['session_id'], 'runtime_run_id': origin['run_id']})
+    await service.decide_approval(context['owner_id'], approval['id'], 'approved')
+    await service.reconcile_approvals({context['chat']['id']})
+    with service.transaction() as db:
+        continuation_id = db.get(Approval, approval['id']).continuation_request_id
+    continued = service.get_runtime_context(continuation_id)
+    result = await service.runtime_tool('execute_approved_action', {'id': approval['id']}, continued)
+    service.finish_request(continuation_id, 'completed')
+    return result
+
+
 async def forum_topic_fixture():
     """Seed canonical forum facts through production tools and owner decisions."""
     if (os.environ.get('TWINTEAMS_E2E_SCENARIO') != 'forum-topic'
             or os.environ.get('TWINTEAMS_E2E_MODEL_MODE', 'deterministic-offline') != 'deterministic-offline'):
         raise RuntimeError('Forum acceptance requires its isolated offline scenario')
+    from app.runtime_bridge import RuntimeBridge
     from app.service import service
 
     request = service.send_message('owner-alex', 'private-alex',
         'Coordinate the isolated forum acceptance topic.', uuid4().hex)['request']
-    context = service.get_runtime_context(request['id'])
-
-    def tool(name, arguments):
-        return service._runtime_tool_transaction(name, arguments, {**context, 'operation_id': uuid4().hex})
-
-    created = tool('create_duet_topic', {'participant_owner_ids': ['owner-maya'],
-        'title': 'Forum acceptance topic', 'purpose': 'Review the synthetic delivery plan.',
-        'opening_message': 'Opening: review the delivery milestones.', 'mention_owner_ids': []})
-    for approval in created['conversation']['approvals']:
-        await service.decide_approval(approval['approver_id'], approval['id'], 'approved')
-    chat_id = created['chat_id']
-    posted = [tool('post_duet_reply', {'chat_id': chat_id, 'body': f'Delivery checkpoint {index}.',
-        'mention_owner_ids': ['owner-maya'] if index == 2 else []}) for index in range(1, 9)]
-    edited_id = posted[1]['message_id']
-    tool('edit_duet_post', {'chat_id': chat_id, 'message_id': edited_id,
-        'body': 'Delivery checkpoint 2: revised milestone.', 'mention_owner_ids': ['owner-maya'],
-        'expected_revision': 1})
+    runtime = RuntimeBridge(service)
+    await runtime.start()
+    service.bind_runtime(runtime)
+    try:
+        await service.execute_request(request['id'])
+        context = service.get_runtime_context(request['id'], include_completed=True)
+        created = await approved_fixture_action(service, context, 'create_duet_topic', {
+            'participant_owner_ids': ['owner-maya'], 'title': 'Forum acceptance topic',
+            'purpose': 'Review the synthetic delivery plan.',
+            'opening_message': 'Opening: review the delivery milestones.', 'mention_owner_ids': []})
+        for approval in created['conversation']['approvals']:
+            await service.decide_approval(approval['approver_id'], approval['id'], 'approved')
+        chat_id = created['chat_id']
+        posted = [await approved_fixture_action(service, context, 'post_duet_reply', {
+            'chat_id': chat_id, 'body': f'Delivery checkpoint {index}.',
+            'mention_owner_ids': ['owner-maya'] if index == 2 else []}) for index in range(1, 9)]
+        edited_id = posted[1]['message_id']
+        await approved_fixture_action(service, context, 'edit_duet_post', {
+            'chat_id': chat_id, 'message_id': edited_id,
+            'body': 'Delivery checkpoint 2: revised milestone.', 'mention_owner_ids': ['owner-maya'],
+            'expected_revision': 1})
+    finally:
+        await runtime.close()
     return {'browser_e2e': True, 'e2e_instance_id': os.environ['TWINTEAMS_E2E_INSTANCE_ID'],
         'test_only_product_tool_seed': True, 'chat_id': chat_id, 'title': created['conversation']['title'],
         'post_count': 9, 'edited_message_id': edited_id, 'origin_request_id': request['id'],
@@ -523,6 +555,7 @@ def api_app():
     from starlette.staticfiles import StaticFiles
 
     from app import api, main
+    from app.bot_api import router as bots
     from app.contact_api import router as contacts
     from app.credential_api import router as credentials
     from app.message_center import router as message_center
@@ -538,7 +571,7 @@ def api_app():
     def fixture_config():
         return {**api.config(), 'acceptance_fixture': os.environ.get('TWINTEAMS_E2E_MODEL_MODE') != 'live-gpt-6-luna'}
 
-    for router in (api.router, message_center, credentials, personal, provider, scheduled_tasks, onboarding, questions, contacts):
+    for router in (api.router, bots, message_center, credentials, personal, provider, scheduled_tasks, onboarding, questions, contacts):
         app.include_router(router)
 
     @app.get('/health')

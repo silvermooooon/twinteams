@@ -391,11 +391,12 @@ def test_reminder_alone_eligible_and_forum_notification_runs_independently(produ
     request_id = schedules.process_due(product)[0]
     context = product.get_runtime_context(request_id)
     assert context["system_review"]["deadlines"][0]["title"] == "Deadline tomorrow"
-    from duet_test_support import approved_chat
+    from duet_test_support import approved_action_context, approved_chat
     approved_chat(product, "duet-alex-maya")
-    sent = product._runtime_tool_transaction("post_duet_reply", {"chat_id": "duet-alex-maya",
-        "body": "An authorized peer subtask", "source_message_ids": [], "mention_owner_ids": ["owner-maya"]},
-        {**context, "operation_id": uuid4().hex})
+    args = {"chat_id": "duet-alex-maya", "body": "An authorized peer subtask",
+        "source_message_ids": [], "mention_owner_ids": ["owner-maya"]}
+    approved = approved_action_context(product, context, "post_duet_reply", args)
+    sent = product._runtime_tool_transaction("post_duet_reply", args, {**approved, "operation_id": uuid4().hex})
     from duet_test_support import request_duet_reply
     peer = request_duet_reply(product, "owner-alex", "duet-alex-maya", sent["message_id"], "twin-maya")
     with product.transaction() as db:

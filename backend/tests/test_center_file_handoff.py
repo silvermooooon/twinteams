@@ -23,7 +23,8 @@ def test_center_handoff_requires_existing_share_and_retains_source(files, monkey
     pending = present(product, context, [path], chat_id="duet-alex-maya")
     with product.transaction() as db:
         db.get(Approval, pending["approval"]["id"]).status = "approved"
-    delivered = present(product, context, [path], chat_id="duet-alex-maya")
+    delivered = present(product, {**context, "approved_approval_id": pending["approval"]["id"]},
+        [path], chat_id="duet-alex-maya")
     attachment_id = delivered["message"]["attachments"][0]["id"]
     private_id = present(product, context, [path])["message"]["attachments"][0]["id"]
     calls = []

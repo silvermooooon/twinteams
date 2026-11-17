@@ -7,7 +7,7 @@ import { Avatar, Icon, time } from './ui';
 import { MessageAttachments } from './Attachments';
 import { t } from './i18n';
 
-type Payload = { body: string; attachment_ids: string[]; client_request_key: string; reply_to_message_id?: string; reference_message_id?: string };
+type Payload = { recipient_actor_ids?: string[]; body: string; attachment_ids: string[]; client_request_key: string; reply_to_message_id?: string; reference_message_id?: string };
 export type LocalSend = {
   key: string; ownerId: string; chatId: string; epoch: number; payload: Payload; message: Message;
   phase: 'sending' | 'sent' | 'failed'; error?: string; uncertain?: boolean; acceptedAt?: number;

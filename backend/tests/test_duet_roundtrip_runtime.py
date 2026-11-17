@@ -32,9 +32,16 @@ def test_topic_mention_owner_answer_and_admin_report_settle_without_final_posts(
             content = []
             if user == "ROOT-ASK-PEER":
                 if not results:
-                    content = [tool("create_duet_topic", participant_owner_ids=["owner-maya"],
-                        title="Authorized coordination", purpose="Ask the owner to choose a time",
-                        opening_message="PEER-ASK-OWNER", mention_owner_ids=["owner-maya"])]
+                    content = [tool("create_approval", title="Approve topic invitation",
+                        description="Review the opening post and its audience", target="Maya's Duet",
+                        impact="Create a topic after connection consent", action={"tool": "create_duet_topic",
+                            "arguments": {"participant_owner_ids": ["owner-maya"],
+                                "title": "Authorized coordination", "purpose": "Ask the owner to choose a time",
+                                "opening_message": "PEER-ASK-OWNER", "mention_owner_ids": ["owner-maya"]}})]
+            elif user.startswith("Owner decision for approval "):
+                if not results:
+                    approval_id = user.split("Owner decision for approval ", 1)[1].split(":", 1)[0]
+                    content = [tool("execute_approved_action", id=approval_id)]
             elif user.startswith("All owners approved Duet topic "):
                 pass
             elif user.startswith("A Duet topic update notification arrived."):
@@ -97,6 +104,15 @@ def test_topic_mention_owner_answer_and_admin_report_settle_without_final_posts(
         try:
             original = product.send_message("owner-alex", "private-alex", "ROOT-ASK-PEER", uuid4().hex)["request"]
             await product.execute_request(original["id"])
+            with product.transaction() as db:
+                publication = db.scalar(select(Approval).where(Approval.status == "pending"))
+                assert publication.sdk_reference["action"]["tool"] == "create_duet_topic"
+                publication_id = publication.id
+            await product.decide_approval("owner-alex", publication_id, "approved")
+            await product.reconcile_approvals()
+            with product.transaction() as db:
+                continuation_id = db.get(Approval, publication_id).continuation_request_id
+            await product.execute_request(continuation_id)
             with product.transaction() as db:
                 approvals = [(row.approver_id, row.id, row.chat_id) for row in db.scalars(select(Approval).where(Approval.status == "pending"))]
             assert len(approvals) == 2

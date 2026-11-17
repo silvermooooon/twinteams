@@ -8,7 +8,7 @@ def upgrade_duet_conversation_schema(engine):
         connection.execute(text("ALTER TABLE tt_chats DROP CONSTRAINT IF EXISTS tt_chat_kind_owner"))
         connection.execute(text("""ALTER TABLE tt_chats ADD CONSTRAINT tt_chat_kind_owner CHECK
             ((kind='private' AND private_owner_id IS NOT NULL) OR
-             (kind IN ('group','duet') AND private_owner_id IS NULL))"""))
+             (kind IN ('group','duet','bot','internal') AND private_owner_id IS NULL))"""))
         DuetConversation.__table__.create(connection, checkfirst=True)
         DuetContactGrant.__table__.create(connection, checkfirst=True)
         # Historical accepted mixed-chat work cannot start or publish after upgrade.

@@ -132,6 +132,10 @@ def install_offline(root):
             final = 'Completed independent task: ' + body.removeprefix('CONCURRENCY COMPLETE').strip()
         elif info.get('source') == 'approval_result' and info.get('approval_tool') == 'present_files':
             final = 'The approved file sharing action is complete.' if info.get('approval_status') == 'approved' else 'The file sharing request was rejected.'
+        elif info.get('source') == 'approval_result' and info.get('approval_tool') == 'create_duet_topic':
+            if info.get('approval_status') == 'approved' and 'execute_approved_action' not in tool_names:
+                name, args = 'execute_approved_action', {'id': info['approval_id']}
+            final = 'The reviewed topic proposal was submitted.' if info.get('approval_status') == 'approved' else 'The topic proposal was rejected.'
         elif body.startswith('ACCEPTANCE FILE_SHARE '):
             payload = json.loads(body.removeprefix('ACCEPTANCE FILE_SHARE '))
             path = root / 'workspaces' / ('private-' + info['owner_id'].removeprefix('owner-')) / 'shared-approval.md'
@@ -141,9 +145,12 @@ def install_offline(root):
             final = 'The file sharing request has been processed.'
         elif 'ACCEPTANCE PROPOSE ' in body:
             payload = json.loads(body.split('ACCEPTANCE PROPOSE ', 1)[1])
-            if info.get('source') != 'approval_result' and 'create_duet_topic' not in tool_names:
-                name, args = 'create_duet_topic', payload
-            final = 'The topic is requested. Each owner can approve it in their private inbox or Topics sidebar.'
+            if info.get('source') != 'approval_result' and 'create_approval' not in tool_names:
+                name, args = 'create_approval', {'title': 'Approve topic proposal',
+                    'description': 'Review the opening post and its audience.',
+                    'target': 'Selected Duet participants', 'impact': 'Create the topic after connection consent.',
+                    'action': {'tool': 'create_duet_topic', 'arguments': payload}}
+            final = 'The exact topic proposal is ready for owner approval; participant connection consent follows.'
         elif body.startswith('ACCEPTANCE ANSWER'):
             if info.get('pending_question_id') and 'answer_question' not in tool_names:
                 name, args = 'answer_question', {'question_id': info['pending_question_id'], 'message_id': info['source_message_id']}
@@ -325,7 +332,9 @@ def verify_stage(value, stage):
                 {'topic_id', 'update_id', 'revision', 'event', 'mentioned'} for row in updates)
         assert all(row['status'] == 'completed' and not row['error'] for row in value['requests'])
         calls = {row['tool'] for row in value['provider_calls']}
-        assert {'create_duet_topic', 'read_duet_topic', 'post_duet_reply'} <= calls
+        assert {'create_approval', 'execute_approved_action', 'read_duet_topic', 'post_duet_reply'} <= calls
+        assert any(row['status'] == 'approved' and row['sdk_reference'].get('action', {}).get('tool') == 'create_duet_topic'
+            for row in value['approvals'])
         assert not value['send_grants'] and value['provider_http_attempts'] == 0
         return {'stage': stage, 'passed': True, 'posts': len(posts), 'notifications': len(notifications),
                 'provider_decisions': len(value['provider_calls']), 'provider_http_attempts': 0}
@@ -353,7 +362,7 @@ def verify_stage(value, stage):
         for row in pending:
             assert not any(message['chat_id'] == row['chat_id'] for message in value['messages'])
             assert not any(request['chat_id'] == row['chat_id'] for request in value['requests'])
-        assert any(call['tool'] == 'create_duet_topic' for call in value['provider_calls'])
+        assert any(call['tool'] == 'execute_approved_action' for call in value['provider_calls'])
     elif stage == 'directional':
         assert value['grants'] == [{'owner_id': 'owner-maya', 'peer_owner_id': 'owner-alex'}]
         assert any(row['status'] == 'pending' for row in value['conversations'])
@@ -458,6 +467,18 @@ async def smoke(url, state, artifacts):
             'opening_message': 'ACCEPTANCE CHAIN 0', 'mention_owner_ids': ['owner-maya']}
         await request(alex, 'POST', '/chats/private-alex/messages', json={
             'body': 'ACCEPTANCE PROPOSE ' + json.dumps(proposal), 'client_request_key': uuid4().hex})
+        deadline = asyncio.get_running_loop().time() + 90
+        while asyncio.get_running_loop().time() < deadline:
+            inbox = await request(alex, 'GET', '/chats/private-alex')
+            approval = next((row for row in inbox['approvals'] if row['status'] == 'pending'
+                and row.get('action') == {'tool': 'create_duet_topic', 'arguments': proposal}), None)
+            if approval:
+                break
+            await asyncio.sleep(.25)
+        else:
+            raise RuntimeError('Offline topic publication approval timed out')
+        assert not (await request(alex, 'GET', '/duet-conversations'))['conversations']
+        await request(alex, 'POST', '/approvals/' + approval['id'] + '/decision', json={'decision': 'approved'})
         deadline = asyncio.get_running_loop().time() + 90
         while asyncio.get_running_loop().time() < deadline:
             topics = (await request(alex, 'GET', '/duet-conversations'))['conversations']

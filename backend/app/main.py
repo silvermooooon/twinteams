@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 
 from .api import router
+from .bot_api import router as bot_router
 from .config import settings
 from .contact_api import router as contact_router
 from .credential_api import router as credential_router
@@ -54,6 +55,7 @@ async def lifespan(app):
 app = FastAPI(title="Duet API", version="0.2.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_credentials=False, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization", "X-Owner-Id"])
 app.include_router(router)
+app.include_router(bot_router)
 app.include_router(message_center_router)
 app.include_router(provider_config_router)
 app.include_router(personal_router)
