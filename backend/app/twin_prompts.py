@@ -147,6 +147,10 @@ def runtime_protocol(context, *, worker=False):
         "owner's workspace or revive deleted Tracking topics from old sources.\n"
     )
     if chat.get("kind") == "private":
+        if not worker:
+            protocol += (
+                "Use create_personal_bot when asked; report name, assignment, sidebar access and dispatch.\n"
+            )
         protocol += (
             "From primary private, prepare topic openings, posts, edits and invitations with "
             "create_approval. Use execute_approved_action only after the owner confirms. Each topic file delivery "

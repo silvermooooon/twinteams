@@ -1,8 +1,11 @@
 /** Synthetic HTTP/WS browser coverage; no real owners, model calls or business writes. */
 const assert = require('node:assert/strict');
+const { mkdirSync } = require('node:fs');
 const { chromium } = require('playwright');
 const { fixture } = require('./my-twin-ui.cjs');
 const base = process.env.TWINTEAMS_UI_URL || 'http://127.0.0.1:5199';
+const artifacts = process.env.TWINTEAMS_UI_ARTIFACT_DIR || '/tmp/duet-bots';
+mkdirSync(artifacts, { recursive: true });
 let browser; let activePage;
 
 async function botFixture(page) {
@@ -21,6 +24,11 @@ async function botFixture(page) {
     return message;
   }
   function hint(chatId) { socket.send(JSON.stringify({ v: 1, type: 'changed', chat_id: chatId, revision: chats.find(chat => chat.id === chatId).revision })); }
+  function addBot(name, assignment) {
+    const id = `bot-${bots.length + 1}`; const actor = { id, owner_id: owner.id, kind: 'bot', name, initials: name.slice(0, 2), color: '#666', profile_revision: 1 };
+    const chat = { id: `chat-${id}`, bot_id: id, kind: 'bot', title: name, member_owner_ids: [owner.id], member_actor_ids: [id], unread_count: 0, revision: 1 };
+    const bot = { id, chat_id: chat.id, name, assignment, actor, chat }; bots.push(bot); chats.push(chat); messages.set(chat.id, []); return bot;
+  }
   await page.routeWebSocket('**/api/ws', ws => {
     socket = ws;
     ws.onMessage(raw => {
@@ -43,9 +51,7 @@ async function botFixture(page) {
     if (path === '/api/bots' && method === 'GET') return reply(route, bots);
     if (path === '/api/bots' && method === 'POST') {
       if (failCreate) return reply(route, { detail: 'Synthetic create failure' }, 503);
-      const id = `bot-${bots.length + 1}`; const actor = { id, owner_id: owner.id, kind: 'bot', name: body.name, initials: body.name.slice(0, 2), color: '#666', profile_revision: 1 };
-      const chat = { id: `chat-${id}`, bot_id: id, kind: 'bot', title: body.name, member_owner_ids: [owner.id], member_actor_ids: [id], unread_count: 0, revision: 1 };
-      const bot = { id, chat_id: chat.id, name: body.name, assignment: body.assignment, actor, chat }; bots.push(bot); chats.push(chat); messages.set(chat.id, []); return reply(route, bot);
+      return reply(route, addBot(body.name, body.assignment));
     }
     if (path === '/api/bots/dispatch') {
       for (const id of body.bot_ids) { const bot = bots.find(bot => bot.id === id); const coordination = { kind: 'assignment', source_chat_id: mock.chat.id, target_chat_id: bot.chat_id, actor_ids: [main.id, id] }; append(mock.chat.id, main.id, body.body, { coordination }); append(bot.chat_id, main.id, body.body, { coordination }); hint(bot.chat_id); }
@@ -77,7 +83,7 @@ async function botFixture(page) {
     if (/\/chats\/[^/]+$/.test(path)) return reply(route, details(chat));
     return route.fallback();
   });
-  return { bots, chats, main, calls, append, hint, startWork(chatId, actorId, source, status = 'running', quiet = false) { const chat = chats.find(chat => chat.id === chatId); requests.set(chatId, [{ id: `work-${source}`, chat_id: chatId, source_message_id: messages.get(chatId).at(-1)?.id, target_twin_id: actorId, requester_id: owner.id, source, status, background: true, quiet_background: quiet, can_cancel: true, can_retry: false, accepted_at: '2026-11-17T05:00:00Z' }]); chat.revision++; hint(chatId); }, finish(chatId, body, authorId) { requests.set(chatId, []); append(chatId, authorId, body); hint(chatId); }, setFailCreate(value) { failCreate = value; }, setFailHistory(value) { failHistory = value; }, setHiddenChat(value) { hiddenChat = value; }, setHistoryDelay(value) { historyDelay = value; }, bootstrapReads: () => bootstrapReads };
+  return { bots, chats, main, calls, append, hint, createFromDuet(name, assignment) { const bot = addBot(name, assignment); socket.send(JSON.stringify({ v: 1, type: 'personal_changed', section: 'chats' })); return bot; }, startWork(chatId, actorId, source, status = 'running', quiet = false) { const chat = chats.find(chat => chat.id === chatId); requests.set(chatId, [{ id: `work-${source}`, chat_id: chatId, source_message_id: messages.get(chatId).at(-1)?.id, target_twin_id: actorId, requester_id: owner.id, source, status, background: true, quiet_background: quiet, can_cancel: true, can_retry: false, accepted_at: '2026-11-17T05:00:00Z' }]); chat.revision++; hint(chatId); }, finish(chatId, body, authorId) { requests.set(chatId, []); append(chatId, authorId, body); hint(chatId); }, setFailCreate(value) { failCreate = value; }, setFailHistory(value) { failHistory = value; }, setHiddenChat(value) { hiddenChat = value; }, setHistoryDelay(value) { historyDelay = value; }, bootstrapReads: () => bootstrapReads };
 }
 
 async function run() {
@@ -130,7 +136,7 @@ async function run() {
   assert.equal(await page.getByLabel('Room members').locator(':scope > span').count(), 3);
   await page.getByRole('group', { name: 'Ask to respond', exact: true }).getByRole('checkbox').nth(1).check(); await page.getByRole('group', { name: 'Ask to respond', exact: true }).getByRole('checkbox').nth(2).check(); await page.locator('.composer textarea').fill('Discuss both proposals together.'); await page.getByRole('button', { name: 'Send message', exact: true }).click();
   await page.locator('.message-area').getByText('Discuss both proposals together.', { exact: true }).waitFor(); assert.equal(mock.calls.filter(call => call.command === 'send').at(-1).body.recipient_actor_ids.length, 3);
-  mock.finish('room-1', 'Here is my review in the room.', mock.bots[1].id); await page.locator('.message-area').getByText('Here is my review in the room.', { exact: true }).waitFor(); await page.screenshot({ path: '/tmp/duet-bots/ui-room.png', fullPage: true });
+  mock.finish('room-1', 'Here is my review in the room.', mock.bots[1].id); await page.locator('.message-area').getByText('Here is my review in the room.', { exact: true }).waitFor(); await page.screenshot({ path: `${artifacts}/ui-room.png`, fullPage: true });
   await page.locator('.conversation-list .chat-item').filter({ hasText: "AAA's Duet" }).click();
   for (const status of ['failed', 'cancelled', 'completed']) mock.append(mock.bots[0].chat_id, mock.bots[1].id, '', { coordination: { kind: 'result', source_chat_id: mock.bots[1].chat_id, target_chat_id: mock.bots[0].chat_id, actor_ids: [mock.bots[1].id, mock.bots[0].id], status, has_result: false } });
   mock.setHistoryDelay(250); await page.getByRole('button', { name: 'Inspect BOT transcript', exact: true }).click(); dialog = page.getByRole('dialog'); await dialog.getByRole('status').filter({ hasText: 'Loading' }).waitFor(); await dialog.getByText('I will research assigned product questions.', { exact: true }).waitFor();
@@ -142,11 +148,26 @@ async function run() {
   mock.setFailHistory(false); await dialog.getByRole('button', { name: 'Refresh', exact: true }).click(); await dialog.getByText('I will research assigned product questions.', { exact: true }).waitFor(); await dialog.getByRole('button', { name: 'Ask Duet to review', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
   assert.match(mock.calls.filter(call => call.command === 'send').at(-1).body.body, /Review the conversation with Research partner/);
   assert.equal(mock.bootstrapReads(), reads, 'BOT actions and messages use local merges and targeted chat reads');
+  const creates = mock.calls.filter(call => call.path === '/api/bots' && call.method === 'POST').length;
+  await page.locator('.composer textarea').fill('Keep this draft while Duet creates a BOT.');
+  const created = mock.createFromDuet('CEAIA Bug Investigator', 'Investigate CEAIA bugs using authorized evidence.');
+  const newEntry = page.locator('.conversation-list .chat-item').filter({ has: page.locator('.chat-name').filter({ hasText: /^CEAIA Bug Investigator$/ }) });
+  await newEntry.waitFor();
+  assert.equal(await page.locator('.chat-header h2').innerText(), "AAA's Duet");
+  assert.equal(await page.locator('.composer textarea').inputValue(), 'Keep this draft while Duet creates a BOT.');
+  assert.ok(await page.locator('.composer textarea').evaluate(element => element === document.activeElement));
+  assert.equal(mock.bootstrapReads(), reads + 1, 'The existing membership hint refreshes the BOT catalog');
+  assert.equal(mock.calls.filter(call => call.path === '/api/bots' && call.method === 'POST').length, creates, 'No manual creation request is needed');
+  await newEntry.click(); await page.locator('.chat-header h2').filter({ hasText: created.name }).waitFor();
+  await page.getByText('Start with your BOT’s assignment or give it a task.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Edit BOT', exact: true }).click(); dialog = page.getByRole('dialog');
+  assert.equal(await dialog.getByLabel('Assignment', { exact: true }).inputValue(), created.assignment);
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.locator('.conversation-list .chat-item').filter({ hasText: 'Shared team' }).click(); await page.locator('.chat-header h2').filter({ hasText: 'Shared team' }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Assign to BOTs', exact: true }).count(), 0);
   mock.setHiddenChat(mock.bots[0].chat_id); await page.locator('.conversation-list .chat-item').filter({ has: page.locator('.chat-name').filter({ hasText: /^Research partner$/ }) }).click(); await page.getByRole('alert').filter({ hasText: 'This conversation is not available to your account.' }).waitFor(); assert.equal(await page.locator('.composer textarea').count(), 0);
-  await page.setViewportSize({ width: 390, height: 844 }); await page.getByRole('button', { name: 'Create BOT', exact: true }).click(); dialog = page.getByRole('dialog'); const bounds = await dialog.boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390); await page.screenshot({ path: '/tmp/duet-bots/ui-mobile-create.png', fullPage: true }); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 }); await page.getByRole('button', { name: 'Create BOT', exact: true }).click(); dialog = page.getByRole('dialog'); const bounds = await dialog.boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390); await page.screenshot({ path: `${artifacts}/ui-mobile-create.png`, fullPage: true }); await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   assert.deepEqual(errors, []);
   await context.close(); await browser.close();
-  console.log('PASS personal BOT UI: create/edit/error, direct chat/status, background dispatch/child/result visibility, quiet review hidden, multi-dispatch/results, agent messaging, room members/recipients, transcript loading/unavailable/review and empty-body handoff status/navigation, local refresh, group navigation, mobile modal');
+  console.log('PASS personal BOT UI: create/edit/error, direct chat/status, background dispatch/child/result visibility, quiet review hidden, multi-dispatch/results, agent messaging, room members/recipients, transcript loading/unavailable/review and empty-body handoff status/navigation, local refresh, Duet creation hint preserves chat/draft/focus and opens BOT, group navigation, mobile modal');
 }
-run().catch(async error => { console.error(error); if (activePage) await activePage.screenshot({ path: '/tmp/duet-bots/ui-failure.png', fullPage: true }).catch(() => {}); await browser?.close(); process.exitCode = 1; });
+run().catch(async error => { console.error(error); if (activePage) await activePage.screenshot({ path: `${artifacts}/ui-failure.png`, fullPage: true }).catch(() => {}); await browser?.close(); process.exitCode = 1; });

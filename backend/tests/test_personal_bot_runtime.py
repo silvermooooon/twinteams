@@ -1,5 +1,6 @@
 """Real SDK runs, tools and Git Memory against disposable product storage."""
 import asyncio
+import json
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -22,6 +23,68 @@ def response(model, content):
 
 def call(tool_name, **arguments):
     return [{"type": "toolCall", "id": uuid4().hex, "name": tool_name, "arguments": arguments}]
+
+
+def test_main_creates_bot_dispatches_and_reports_in_private_chat(product):
+    owner_input = "创建一个 bot 用来专门排查 CEAIA 的 bug"
+    assignment = "Investigate CEAIA bugs using reproduction steps and authorized project evidence."
+    task = "Review available CEAIA bug evidence and identify missing reproduction details."
+    created = {}
+    reported = []
+
+    async def run():
+        runtime = RuntimeBridge(product)
+
+        def offline(model, context, options):
+            prompt = text_content(next(row for row in reversed(context.messages) if row["role"] == "user"))
+            results = {row["toolName"]: row for row in context.messages if row["role"] == "toolResult"}
+            assert all(not row.get("isError") for row in results.values()), results
+            if prompt == owner_input:
+                system = text_content(context.messages[0])
+                assert "Use create_personal_bot when asked" in system
+                if "create_personal_bot" not in results:
+                    return response(model, call("create_personal_bot", name="CEAIA Bug Investigator", assignment=assignment))
+                created.update(json.loads(text_content(results["create_personal_bot"])))
+                if "dispatch_bot_tasks" not in results:
+                    return response(model, call("dispatch_bot_tasks", bot_ids=[created["id"]], body=task))
+                reported.append(f"已创建 {created['name']}。职责：{created['assignment']} "
+                                f"可在侧栏 BOTs 中打开 {created['name']}；已派发 CEAIA bug 调查任务，结果返回后我会复核。")
+                return response(model, [{"type": "text", "text": reported[-1]}])
+            assert prompt == task
+            assert assignment in text_content(context.messages[0])
+            return response(model, [{"type": "text", "text": "Please provide the failing request and reproduction steps."}])
+
+        runtime.models.register_api("offline-regression", offline)
+        await runtime.start()
+        product.bind_runtime(runtime)
+        try:
+            request = product.send_message("owner-alex", "private-alex", owner_input, uuid4().hex)["request"]
+            context = product.get_runtime_context(request["id"])
+            tools = runtime._tools(context, SimpleNamespace(session_id=request["session_id"], snapshot={}, resumable=False))
+            assert {"create_personal_bot", "dispatch_bot_tasks"} <= {tool.name for tool in tools}
+            await product.execute_request(request["id"])
+            completed = product.get_request(request["id"])
+            assert completed["status"] == "completed", completed["error"]
+            bot, = personal_bots.list_bots(product, "owner-alex")
+            assert bot["id"] == created["id"] and bot["assignment"] == assignment
+            main = product.chat_detail("owner-alex", "private-alex")["messages"]
+            assert main[-1]["author_id"] == "twin-alex" and main[-1]["body"] == reported[-1]
+            assert main[-1]["request_id"] == request["id"]
+            with product.transaction() as db:
+                dispatched, = list(db.scalars(select(ReplyRequest).where(ReplyRequest.source == "bot_dispatch")))
+                work_id = dispatched.id
+                assert dispatched.chat_id == bot["chat_id"] and dispatched.target_twin_id == bot["id"]
+                assert dispatched.bot_handoff["request_id"] == request["id"]
+            await product.execute_request(work_id)
+            completed = product.get_request(work_id)
+            assert completed["status"] == "completed", completed["error"]
+            messages = product.chat_detail("owner-alex", bot["chat_id"])["messages"]
+            assert messages[0]["body"] == task
+            assert messages[-1]["author_id"] == bot["id"]
+        finally:
+            await runtime.close()
+
+    asyncio.run(run())
 
 
 def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(product):

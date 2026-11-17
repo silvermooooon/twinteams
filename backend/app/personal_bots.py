@@ -13,9 +13,9 @@ from .models import (
 )
 from .service import digest, fail
 
-TOOLS = {"list_personal_bots", "dispatch_bot_tasks", "message_personal_agent",
+TOOLS = {"list_personal_bots", "create_personal_bot", "dispatch_bot_tasks", "message_personal_agent",
          "create_bot_room", "post_bot_room", "inspect_bot_history"}
-WRITE_TOOLS = {"dispatch_bot_tasks", "message_personal_agent", "create_bot_room", "post_bot_room"}
+WRITE_TOOLS = {"create_personal_bot", "dispatch_bot_tasks", "message_personal_agent", "create_bot_room", "post_bot_room"}
 
 
 def bot_rows(db, owner_id, bot_ids=None):
@@ -49,21 +49,25 @@ def list_bots(service, owner_id):
 
 
 def create_bot(service, owner_id, name, assignment):
-    name, assignment = bot_profile(name, assignment)
     with service.transaction() as db:
-        service.twin(db, owner_id)
-        actor = Actor(id=uid(), owner_id=owner_id, kind="bot", name=name,
-                      assignment=assignment, initials=name[:2].upper(), color="#595c63")
-        db.add(actor)
-        db.flush()
-        chat = Chat(kind="bot", title=name, internal_owner_id=owner_id,
-                    bot_id=actor.id, member_actor_ids=[actor.id])
-        db.add(chat)
-        db.flush()
-        member = Membership(chat_id=chat.id, owner_id=owner_id, history_policy="all", lower_seq=1)
-        db.add(member)
-        db.flush()
-        return bot_json(service, db, actor, chat, member, summaries=({}, {}))
+        return create_bot_db(service, db, owner_id, name, assignment)
+
+
+def create_bot_db(service, db, owner_id, name, assignment):
+    name, assignment = bot_profile(name, assignment)
+    service.twin(db, owner_id)
+    actor = Actor(id=uid(), owner_id=owner_id, kind="bot", name=name,
+                  assignment=assignment, initials=name[:2].upper(), color="#595c63")
+    db.add(actor)
+    db.flush()
+    chat = Chat(kind="bot", title=name, internal_owner_id=owner_id,
+                bot_id=actor.id, member_actor_ids=[actor.id])
+    db.add(chat)
+    db.flush()
+    member = Membership(chat_id=chat.id, owner_id=owner_id, history_policy="all", lower_seq=1)
+    db.add(member)
+    db.flush()
+    return bot_json(service, db, actor, chat, member, summaries=({}, {}))
 
 
 def edit_bot(service, owner_id, bot_id, name, assignment):
@@ -232,6 +236,10 @@ def dispatch(service, db, name, args, context, actor, origin):
         return {"main_duet": {"id": main.id, "name": main.name},
                 "bots": [{"id": bot.id, "chat_id": chat.id, "name": bot.name, "assignment": bot.assignment}
                          for bot, chat, _ in bot_rows(db, owner_id)]}
+    if name == "create_personal_bot":
+        if origin.kind != "private" or actor.kind != "twin":
+            fail(403, "Create personal BOTs from your primary private Duet conversation")
+        return create_bot_db(service, db, owner_id, args["name"], args["assignment"])
     if name == "dispatch_bot_tasks":
         return dispatch_tasks_db(service, db, origin, actor, args["bot_ids"], args["body"], context.get("request_id"))
     if name == "message_personal_agent":
