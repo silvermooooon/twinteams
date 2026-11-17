@@ -1,4 +1,4 @@
-/** Real business traffic; only the browser Notification boundary is controlled. */
+/** Real business traffic; Notification is controlled, plus one explicit failed-read transport test. */
 const {
   assert,
   api,
@@ -194,7 +194,145 @@ async function recipientPair(t) {
   return { recipient, peer, chat };
 }
 
+async function unreadGroup(t) {
+  const recipient = await probeSession(t);
+  const peer = await t.session("DEV-BBB", { baseURL: t.secondaryURL });
+  const chat = await startChat(peer.page, ["AAA", "CCC"], t.unique("Unread group"));
+  const row = recipient.page.locator(".chat-item").filter({ hasText: chat.title });
+  await row.waitFor();
+  await mode(recipient.page, "hidden");
+  return { recipient, peer, chat, row, badge: row.locator(".chat-unread") };
+}
+
+async function readSummary(page, chat) {
+  return api(page, `/chats/${chat.id}/summary`);
+}
+
+function closed(probe, notice) {
+  return probe.events.some(event => event.type === "close" && event.id === notice.id);
+}
+
 const cases = [
+  {
+    name: "notifications unread / notification click closes the alert and visible read clears the badge",
+    run: async (t) => {
+      const { recipient: a, peer: b, chat, badge } = await unreadGroup(t);
+      const label = t.unique("Click to read");
+      await sendMessage(b.page, label);
+      const [notice] = await notification(a, label);
+      await badge.waitFor();
+      assert.equal(await badge.innerText(), "1");
+      await a.page.evaluate(() => window.__notificationProbe.notices.at(-1).onclick(new Event("click")));
+      await a.page.locator(".chat-header h2").filter({ hasText: chat.title }).waitFor();
+      await poll(() => closed(a, notice), "clicked notification closes");
+      assert.equal((await readSummary(a.page, chat)).unread_count, 1, "navigation while hidden does not mark a message read");
+      await mode(a.page, "focused");
+      await badge.waitFor({ state: "hidden" });
+      const saved = await readSummary(a.page, chat);
+      assert.equal(saved.unread_count, 0);
+      assert.equal(saved.last_message_meta.unread, false);
+      const message = (await detail(a.page, chat)).messages.find(message => message.body === label);
+      assert.ok(message.read_by.includes("owner-alex"));
+      await mode(a.page, "hidden");
+      await a.page.reload();
+      await a.page.getByRole("button", { name: "Account", exact: true }).waitFor();
+      await settled();
+      assert.equal(a.notices().filter(entry => entry.options.body === label).length, 1, "read messages do not replay after reload");
+      t.record("notification_boundary", "controlled Notification click and focus; real read HTTP, receipts, revision hints and badge");
+    },
+  },
+  {
+    name: "notifications unread / failed read retains badge and reminder until explicit retry succeeds",
+    run: async (t) => {
+      const { recipient: a, peer: b, chat, row, badge } = await unreadGroup(t);
+      const label = t.unique("Retry read");
+      await sendMessage(b.page, label);
+      const [notice] = await notification(a, label);
+      await mode(a.page, "focused");
+      assert.equal(closed(a, notice), false, "focusing a different conversation preserves the reminder");
+      let attempts = 0;
+      await a.page.route(`**/api/chats/${chat.id}/read`, route => {
+        attempts++;
+        return attempts === 1 ? route.abort("failed") : route.continue();
+      });
+      await row.click();
+      const failure = a.page.locator(".read-error");
+      await failure.waitFor();
+      assert.equal(await badge.innerText(), "1");
+      assert.equal((await readSummary(a.page, chat)).unread_count, 1);
+      assert.equal(closed(a, notice), false, "a failed save does not dismiss the unread reminder");
+      await sleep(4500);
+      assert.equal(attempts, 1, "presence heartbeats do not poll failed reads");
+      await failure.getByRole("button", { name: "Retry", exact: true }).click();
+      await failure.waitFor({ state: "hidden" });
+      await badge.waitFor({ state: "hidden" });
+      await poll(() => closed(a, notice), "saved read closes the corresponding reminder");
+      assert.equal((await readSummary(a.page, chat)).unread_count, 0);
+      assert.equal(attempts, 2);
+      t.record("transport_fault", "one /read request aborted before server delivery; retry and all business responses are real");
+    },
+  },
+  {
+    name: "notifications unread / group reads leave unloaded and offscreen history unread while closing the seen alert",
+    run: async (t) => {
+      const { recipient: a, peer: b, chat, row, badge } = await unreadGroup(t);
+      const label = t.unique("Visible group history");
+      for (let index = 1; index <= 35; index++) {
+        const response = await b.page.request.post(new URL(`/api/chats/${chat.id}/messages`, b.page.url()).href, {
+          data: { body: `${label} ${index}\n\nContext for this message.`, client_request_key: `${label}-${index}` },
+        });
+        assert.equal(response.status(), 200);
+      }
+      const [notice] = await notification(a, `${label} 35`);
+      await row.click();
+      await a.page.locator(".chat-header h2").filter({ hasText: chat.title }).waitFor();
+      await poll(async () => await a.page.locator("article[data-message-id]").count() === 30, "bounded latest page");
+      await settled();
+      assert.equal((await readSummary(a.page, chat)).unread_count, 35, "a hidden loaded page has no receipts");
+      await mode(a.page, "focused");
+      await poll(() => closed(a, notice), "viewing the latest message closes its reminder");
+      const current = await detail(a.page, chat);
+      const seen = current.messages.filter(message => message.read_by.includes("owner-alex"));
+      assert.ok(seen.length > 0 && seen.length < 30);
+      assert.ok(current.messages.slice(0, 6).every(message => !message.read_by.includes("owner-alex")), "unloaded and loaded offscreen messages remain unread");
+      assert.ok(current.messages.at(-1).read_by.includes("owner-alex"));
+      assert.equal(current.chat.unread_count, 35 - seen.length);
+      await poll(async () => Number(await badge.innerText()) === current.chat.unread_count, "partial badge matches persisted unread count");
+      t.record("read_window", { messages: 35, loaded: 30, seen: seen.length, remaining_unread: current.chat.unread_count });
+    },
+  },
+  {
+    name: "notifications unread / another tab reading an older alert dismisses it while a newer message stays unread",
+    run: async (t) => {
+      const { recipient: a, peer: b, chat, row } = await unreadGroup(t);
+      const label = t.unique("Older alert");
+      await sendMessage(b.page, `${label}\n\n${Array.from({ length: 60 }, (_, index) => `Older message paragraph ${index + 1}.`).join("\n\n")}`);
+      const [notice] = await notification(a, label);
+      await mode(a.page, "focused");
+      const newer = t.unique("Newer unread");
+      await sendMessage(b.page, newer);
+      await poll(async () => (await row.locator(".chat-preview").innerText()) === newer, "newer message summary in original tab");
+      assert.equal(closed(a, notice), false);
+      const second = await a.context.newPage();
+      await second.goto(t.baseURL);
+      await second.getByRole("button", { name: "Account", exact: true }).waitFor();
+      await mode(second, "hidden");
+      await chooseChat(second, chat.title);
+      await settled();
+      await second.locator(".message-area").evaluate(element => { element.scrollTop = 0; });
+      await sleep(100);
+      await mode(second, "focused");
+      await poll(() => closed(a, notice), "exact read acknowledgement dismisses older alert in original tab");
+      const current = await detail(second, chat);
+      assert.ok(current.messages[0].read_by.includes("owner-alex"));
+      assert.equal(current.messages[1].read_by.includes("owner-alex"), false);
+      assert.equal(current.chat.unread_count, 1);
+      assert.equal(current.chat.last_message_meta.unread, true);
+      assert.equal(a.notices().filter(entry => entry.options.body.includes(label)).length, 1);
+      await second.close();
+      t.record("cross_tab_read", "two real same-origin tabs; older alert dismissed by exact saved IDs with newer message still unread");
+    },
+  },
   {
     name: "notifications platform stub / permission is requested only by a user gesture; grant and opt-out persist",
     run: async (t) => {

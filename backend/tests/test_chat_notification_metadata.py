@@ -44,6 +44,7 @@ def test_empty_chat_and_rejected_reply_for_me_have_no_message_metadata(attachmen
 
 @pytest.mark.parametrize(("author", "kind", "owner"), [
     ("owner-alex", "human", "owner-alex"),
+    ("owner-maya", "human", "owner-maya"),
     ("twin-alex", "twin", "owner-alex"),
     ("twin-alex", "reply_for_me", "owner-alex"),
     ("twin-maya", "reply_for_me", "owner-maya"),
@@ -56,11 +57,12 @@ def test_summary_preserves_actual_actor_kind_and_existing_owner_mapping(attachme
     if kind != "human":
         assert meta is None and summary["last_message"] is None
         return
-    assert set(meta) == {"id", "seq", "author_id", "kind", "created_at"}
+    assert set(meta) == {"id", "seq", "author_id", "kind", "created_at", "unread"}
     assert meta["id"] == message_id and meta["seq"] == 1
     assert meta["author_id"] == author and meta["kind"] == kind and meta["created_at"]
     actor = next(row for row in bootstrap["actors"] if row["id"] == meta["author_id"])
     assert actor["owner_id"] == owner
+    assert meta["unread"] is (author != "owner-alex")
 
 
 def test_metadata_uses_same_authorized_last_and_rechecks_withdrawal(attachments):

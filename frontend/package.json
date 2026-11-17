@@ -12,7 +12,8 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test:e2e": "node e2e/run.cjs",
-    "test:duet-ui": "node e2e/duet-ui.cjs"
+    "test:duet-ui": "node e2e/duet-ui.cjs",
+    "test:unread-ui": "node e2e/unread-ui.cjs"
   },
   "dependencies": {
     "react": "19.3.1",

@@ -29,7 +29,7 @@ Prefix /api. JSON uses snake_case. All errors `{detail:string}`. Reads enforce o
 - POST /reply-requests/{id}/cancel -> ReplyRequest (requester or owner; running only owner)
 - POST /reply-requests/{id}/retry {client_request_key} -> ReplyRequest (target Twin owner only; can_retry is authoritative)
 - POST /presence {device_id,focused_chat_id:string|null,visible:boolean} -> {ok:true}
-- POST /chats/{id}/read {message_ids:string[]} -> {ok:true}
+- POST /chats/{id}/read {message_ids:string[]} -> {ok:true,message_ids:string[],chat:Chat}; acknowledges exactly the authorized IDs, including an idempotent replay, and returns the saved summary/revision. The client submits only visible loaded messages, applies the summary immediately and exposes Retry on failure; presence renewal does not retry reads.
 - PATCH /chats/{id}/settings {reply_for_me_enabled?,prompt_override?,sidebar_open?,sidebar_tab?} -> ChatSettings
 - PATCH /settings {default_reply_prompt:string} -> {default_reply_prompt}
 - GET /settings -> {default_reply_prompt}
@@ -52,7 +52,7 @@ Prefix /api. JSON uses snake_case. All errors `{detail:string}`. Reads enforce o
 
 ## Shapes
 Actor {id,kind:'human'|'twin'|'bot',owner_id?:string,name,initials,color}
-Chat {id,kind:'private'|'group'|'duet'|'bot'|'internal',title,member_owner_ids:string[],bot_id?:string,member_actor_ids:string[],unread_count:number,last_message?:string}
+Chat {id,revision,kind:'private'|'group'|'duet'|'bot'|'internal',title,member_owner_ids:string[],bot_id?:string,member_actor_ids:string[],unread_count:number,last_message?:string,last_message_meta?:{id,seq,author_id,kind,created_at,unread:boolean}|null}
 PersonalBot {id,chat_id,name,assignment,actor:Actor,chat:Chat}
 Message {id,chat_id,seq,author_id,kind:'human'|'twin'|'reply_for_me'|'system',body,raw_owner_input?:string,created_at,mention_owner_ids:string[],revision:number,edited_at:string|null,reply_to?:{id,author_name,body,unavailable?:boolean},read_by:string[],request_id?:string,state:'published'|'withdrawn',coordination?:{kind:'assignment'|'message'|'result',source_chat_id?:string,target_chat_id?:string,actor_ids:string[],status?:string,has_result?:boolean}}
 ReplyRequest {id,chat_id,source_message_id:string|null,target_twin_id,requester_id,source,status:'queued'|'running'|'completed'|'failed'|'cancelled',accepted_at,error?:string,can_cancel:boolean,can_retry:boolean,session_id?:string,run_id?:string}
