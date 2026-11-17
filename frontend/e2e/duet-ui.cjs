@@ -13,6 +13,7 @@ async function main() {
   try {
     await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(Error('Vite startup timed out')), 15000); vite.stdout.on('data', data => { if (data.toString().includes('Local:')) { clearTimeout(timer); resolve(); } }); vite.once('exit', code => { clearTimeout(timer); reject(Error(`Vite exited: ${code}`)); }); });
     browser = await chromium.launch({ headless: true, channel: process.env.TWINTEAMS_BROWSER_CHANNEL || 'chrome' });
+    if (process.argv.includes('--activity-only')) { await require('./activity-sync.cjs').activitySyncRegression(browser, origin); return; }
     const page = await browser.newPage({ viewport: { width: 1280, height: 1100 } });
     const failures = []; page.on('pageerror', error => failures.push(error.message));
     let releaseCancel; let draftCancelled = false, invitation = false;
@@ -185,6 +186,7 @@ async function main() {
     await page.getByText('No trusted Duets yet', { exact: true }).waitFor(); assert.equal(revoked, true);
     assert.equal(failures.length, 0, failures.join('\n')); assert.ok(reads > 0);
     await require('./chat-sync.cjs').chatSyncRegression(browser, origin);
+    await require('./activity-sync.cjs').activitySyncRegression(browser, origin);
     console.log('Duet UI regression passed: file approval explains reusable file/recipient consent while ordinary approval retains its exact-action copy; Shared files keeps existing upload/tree access, renders both owners’ approved shares and reuses file previews; private Workspace stays separate; single minimal typing indicator across concurrent foreground work, all background work hidden, completion preserves other work, icon Stop cancels only foreground responses through reorder, plus pair/multi/private sidebar, read-only transcript/history, all-owner decisions, once/always consent, own-only retry, topic administrator, explicit mentions, lazy paginated edit history and preserved private pending drafts with no send allowance, close, permanent permission revocation.');
   } finally { await browser?.close(); vite.kill('SIGTERM'); }
 }

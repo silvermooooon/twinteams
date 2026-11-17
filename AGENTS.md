@@ -235,6 +235,8 @@ Details: [Duet topics](docs/duet-topics.md), [Memory](docs/twin-git-memory.md),
   is hidden from ordinary Activity; internal journals remain. Required decisions,
   unsent messages and actionable failures still need visible controls. Do not
   steal focus, automatically expand panels or add another composer input.
+- Activity commits a short fallback title before asynchronous summary generation;
+  title generation must not block row visibility, opening replies or SDK events.
 - History pages fetch related display records in batches. GET bootstrap/chat must
   not create settings, provision schedules or take write locks. Tracking is a
   lazy tab read, not a `ChatDetail` field.

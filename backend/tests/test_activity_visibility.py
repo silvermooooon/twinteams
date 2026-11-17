@@ -243,6 +243,7 @@ def test_actual_main_and_nested_child_factories_inherit_visibility_and_keep_fina
                 await child.prompt("Assigned synthetic subtask")
                 assert child.state.error_message is None
                 parent_session, parent_run = session.session_id, session.snapshot["run_id"]
+            await asyncio.gather(*runtime.activity_title_tasks)
             with product.transaction() as db:
                 rows = list(db.scalars(select(ActivityProjection).where(ActivityProjection.owner_id == "owner-alex")))
                 assert len(rows) == 3

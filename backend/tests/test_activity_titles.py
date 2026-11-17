@@ -2,6 +2,7 @@
 import asyncio
 import json
 import unicodedata
+from time import perf_counter
 from uuid import uuid4
 
 import httpx
@@ -14,10 +15,12 @@ from agent_runtime import (
     assistant_message,
 )
 from agent_runtime.sessions import DatabaseSession
-from sqlalchemy import event, inspect, text
+from sqlalchemy import event, inspect, select, text
 from test_api_success_paths import http_product as http_product  # noqa: PLC0414
 from test_api_success_paths import product as product  # noqa: PLC0414
 from test_context_acceptance import sql_reads
+from test_early_reply import FINAL, OPENING
+from test_early_reply import response as reply_response
 from test_native_web_search import response
 
 from app import activity_titles, backfill_activity
@@ -29,10 +32,171 @@ from app.activity_titles import (
     generate_title,
     normalize_title,
 )
-from app.models import ActivityProjection
+from app.models import ActivityProjection, ChangeOutbox
 from app.runtime_bridge import RuntimeBridge
 
 LONG_INPUT = "Please review the project delivery plan. " + "Check dependencies and explain the unresolved risks in detail. " * 30
+
+
+def test_activity_and_opening_are_visible_while_title_is_pending(http_product, monkeypatch, record_property):
+    product, client = http_product
+    monkeypatch.setattr(activity_titles, "TITLE_TIMEOUT_SECONDS", 20)
+
+    async def run():
+        runtime = RuntimeBridge(product)
+        title_started, release_title = asyncio.Event(), asyncio.Event()
+        work_started, release_work = asyncio.Event(), asyncio.Event()
+        actual_tool = product.runtime_tool
+        calls = []
+
+        async def work(name, args, context):
+            assert name == "list_authorized_chats"
+            work_started.set()
+            await release_work.wait()
+            return await actual_tool(name, args, context)
+
+        monkeypatch.setattr(product, "runtime_tool", work)
+
+        async def offline(model, context, options):
+            if options.get("_purpose") == "activity_title":
+                title_started.set()
+                await release_title.wait()
+                return reply_response(model, "Review delivery risks")
+            calls.append(context)
+            if len(calls) == 1:
+                return reply_response(model, OPENING, "start_work")
+            if len(calls) == 2:
+                return reply_response(model, tool="list_authorized_chats")
+            assert len(calls) == 3
+            return reply_response(model, FINAL)
+
+        runtime.models.register_api("offline-regression", offline)
+        await runtime.start()
+        product.bind_runtime(runtime)
+        execution = None
+        try:
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(client.app), base_url="http://testserver", cookies=dict(client.cookies)) as browser:
+                sent = await browser.post("/api/chats/private-alex/messages", json={"body": LONG_INPUT, "client_request_key": uuid4().hex})
+                assert sent.status_code == 200
+                request = sent.json()["request"]
+                accepted = perf_counter()
+                initial = await browser.get("/api/chats/private-alex")
+                execution = asyncio.create_task(product.execute_request(request["id"]))
+                await asyncio.wait_for(title_started.wait(), 3)
+                page = await browser.get("/api/chats/private-alex/activity")
+                elapsed = (perf_counter() - accepted) * 1000
+                record_property("accept_to_activity_ms", round(elapsed, 3))
+                assert page.status_code == 200 and elapsed < 3000
+                item, = page.json()["items"]
+                assert item["status"] == "running" and item["title"] == DEFAULT_TITLE
+                assert not release_title.is_set() and not execution.done()
+                visible = await browser.get("/api/chats/private-alex")
+                assert visible.json()["revision"] > initial.json()["revision"]
+                with product.transaction() as db:
+                    assert db.scalar(select(ChangeOutbox.id).where(
+                        ChangeOutbox.chat_id == "private-alex", ChangeOutbox.revision == visible.json()["revision"]))
+                # Neither the opening, work tools nor completion may wait on a title.
+                await asyncio.wait_for(work_started.wait(), 3)
+                opening = await browser.get("/api/chats/private-alex")
+                assert [row["body"] for row in opening.json()["messages"] if row["kind"] == "twin"] == [OPENING]
+                assert product.get_request(request["id"])["status"] == "running"
+                record_property("accept_to_opening_ms", round((perf_counter() - accepted) * 1000, 3))
+                release_work.set()
+                await asyncio.wait_for(asyncio.shield(execution), 3)
+                assert product.get_request(request["id"])["status"] == "completed"
+                assert product.activity_page("owner-alex", "private-alex")["items"][0]["title"] == DEFAULT_TITLE
+                before_title = (await browser.get("/api/chats/private-alex")).json()["revision"]
+                release_title.set()
+                await asyncio.wait_for(asyncio.gather(*runtime.activity_title_tasks), 3)
+                updated = (await browser.get("/api/chats/private-alex/activity")).json()["items"]
+                assert len(updated) == 1 and updated[0]["run_id"] == item["run_id"]
+                assert updated[0]["title"] == "Review delivery risks"
+                assert updated[0]["status"] == "completed"
+                detail = (await browser.get("/api/chats/private-alex")).json()
+                assert detail["revision"] > before_title
+                assert [row["body"] for row in detail["messages"] if row["kind"] == "twin"] == [OPENING, FINAL]
+        finally:
+            release_title.set()
+            release_work.set()
+            if execution:
+                await execution
+            await runtime.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("boundary", ["stop", "reset", "shutdown", "failure"])
+def test_pending_title_obeys_stop_reset_shutdown_and_failure(product, monkeypatch, boundary, caplog):
+    monkeypatch.setattr(activity_titles, "TITLE_TIMEOUT_SECONDS", 20)
+
+    async def run():
+        runtime = RuntimeBridge(product)
+        title_started, release_title = asyncio.Event(), asyncio.Event()
+        reply_started, release_reply = asyncio.Event(), asyncio.Event()
+        title_signals = []
+
+        async def offline(model, context, options):
+            if options.get("_purpose") == "activity_title":
+                title_signals.append(options["signal"])
+                title_started.set()
+                await release_title.wait()
+                return reply_response(model, "Review delivery risks")
+            reply_started.set()
+            if boundary == "stop":
+                await options["signal"].run(release_reply.wait())
+            return reply_response(model, FINAL, error=boundary == "failure")
+
+        runtime.models.register_api("offline-regression", offline)
+        await runtime.start()
+        product.bind_runtime(runtime)
+        request = product.send_message("owner-alex", "private-alex", LONG_INPUT, uuid4().hex)["request"]
+        execution = asyncio.create_task(product.execute_request(request["id"]))
+        closed = False
+        try:
+            await asyncio.wait_for(title_started.wait(), 3)
+            await asyncio.wait_for(reply_started.wait(), 3)
+            pending = tuple(runtime.activity_title_tasks)
+            assert len(pending) == 1 and not pending[0].done()
+            if boundary == "stop":
+                await product.cancel_request("owner-alex", request["id"])
+                await runtime.signal_stop(product.get_request(request["id"]))
+            await asyncio.wait_for(asyncio.shield(execution), 3)
+            if boundary == "reset":
+                result = await product.db_call("personal_reset", "owner-alex", uuid4().hex, 0)
+                assert result["generation"] == 1
+            if boundary == "shutdown":
+                await asyncio.wait_for(runtime.close(), 3)
+                closed = True
+            elif boundary != "stop":
+                release_title.set()
+            await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), 3)
+            assert title_signals[0].aborted
+            assert not runtime.activity_title_tasks
+            rows = product.activity_page("owner-alex", "private-alex")["items"]
+            assert rows == [] if boundary == "reset" else len(rows) == 1 and rows[0]["title"] == DEFAULT_TITLE
+        finally:
+            release_reply.set()
+            release_title.set()
+            await execution
+            if not closed:
+                await runtime.close()
+
+    asyncio.run(run())
+    assert "Task exception was never retrieved" not in caplog.text
+
+
+@pytest.mark.parametrize("owners", [["owner-maya"], ["owner-maya", "owner-jordan"]])
+def test_human_pair_and_group_sends_have_no_activity(http_product, owners):
+    product, client = http_product
+    created = client.post("/api/chats", json={"owner_ids": owners})
+    assert created.status_code == 200
+    chat = created.json()
+    assert chat["kind"] == "group"
+    sent = client.post(f"/api/chats/{chat['id']}/messages", json={"body": "Human conversation", "client_request_key": uuid4().hex})
+    assert sent.status_code == 200 and sent.json()["request"] is None
+    assert client.get(f"/api/chats/{chat['id']}/activity").status_code == 403
+    with product.transaction() as db:
+        assert db.scalar(select(ActivityProjection).where(ActivityProjection.chat_id == chat["id"])) is None
 
 
 @pytest.mark.parametrize("title,task,expected", [
@@ -95,6 +259,7 @@ def test_generated_title_is_stored_once_and_detail_retains_input(http_product, c
         try:
             request_id = product.send_message("owner-alex", "private-alex", owner_input, uuid4().hex)["request"]["id"]
             await product.execute_request(request_id)
+            await asyncio.gather(*runtime.activity_title_tasks)
             request = product.get_request(request_id)
             assert request["status"] == "completed"
             key = request["session_id"], request["run_id"]
@@ -128,11 +293,15 @@ def test_child_title_survives_later_events_and_historical_import(product, monkey
     async def run():
         runtime = RuntimeBridge(product)
         title_calls = []
+        child_title_started, release_title = asyncio.Event(), asyncio.Event()
 
-        def offline(model, context, options):
+        async def offline(model, context, options):
             is_title = options.get("_purpose") == "activity_title"
             if is_title:
                 title_calls.append(context)
+                if len(title_calls) == 2:
+                    child_title_started.set()
+                    await release_title.wait()
             stream = AssistantMessageEventStream()
             stream.push({"type": "done", "message": assistant_message(model,
                 content=[{"type": "text", "text": "Audit dependencies" if is_title else "Reviewed the dependencies."}], stopReason="stop")})
@@ -149,7 +318,13 @@ def test_child_title_survives_later_events_and_historical_import(product, monkey
             await child.commit("subagent_created", parent_session_id=root["session_id"], parent_run_id=root["run_id"],
                 root_run_id=root["session_id"] + "/" + root["run_id"], name="worker", task=LONG_INPUT, operation_id=uuid4().hex)
             agent = await runtime._child_factory(child)
-            await agent.prompt(LONG_INPUT)
+            execution = asyncio.create_task(agent.prompt(LONG_INPUT))
+            await asyncio.wait_for(child_title_started.wait(), 3)
+            await asyncio.wait_for(asyncio.shield(execution), 3)
+            pending = next(row for row in product.activity_page("owner-alex", "private-alex")["items"] if row["source"] == "subagent")
+            assert pending["title"] == "Background task" and pending["status"] == "completed"
+            release_title.set()
+            await asyncio.gather(*runtime.activity_title_tasks)
             assert agent.state.error_message is None
             rows = product.activity_page("owner-alex", "private-alex")["items"]
             assert len(rows) == 2 and all(row["title"] == "Audit dependencies" for row in rows)
@@ -164,6 +339,7 @@ def test_child_title_survives_later_events_and_historical_import(product, monkey
             assert imported["title"] == DEFAULT_TITLE
             assert len(title_calls) == 2
         finally:
+            release_title.set()
             await runtime.close()
     asyncio.run(run())
 

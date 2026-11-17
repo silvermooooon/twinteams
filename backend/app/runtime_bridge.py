@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 import os
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -24,6 +25,7 @@ from agent_runtime import (
     AgentToolResult,
     CompactionSettings,
     Models,
+    OperationAborted,
     ProviderTool,
     RuntimeConfig,
 )
@@ -33,6 +35,8 @@ from agent_runtime.storage.coordination import ExecutionLeaseError
 
 from .config import settings
 from .prompt_safety import safe_text, safe_value
+
+logger = logging.getLogger(__name__)
 
 
 class ModelNotConfigured(RuntimeError):
@@ -180,6 +184,7 @@ class RuntimeBridge:
         self.host = None
         self.background_host = None
         self.recovery_tasks = {}
+        self.activity_title_tasks: set[asyncio.Task] = set()
         self.recovery_cursor = None
         self.notification_cursor = None
         self.tenant_id = os.getenv("TWINTEAMS_TENANT_ID", "local")
@@ -250,6 +255,10 @@ class RuntimeBridge:
         for host in (self.host, self.background_host):
             if host:
                 await host.close()
+        for task in self.activity_title_tasks:
+            task.cancel()
+        if self.activity_title_tasks:
+            await asyncio.gather(*self.activity_title_tasks, return_exceptions=True)
         if self.store:
             await self.store.close()
 
@@ -305,9 +314,22 @@ class RuntimeBridge:
         from .twin_prompts import conversation_system
         return conversation_system(context, worker=worker)
 
-    async def _summarize_activity(self, context, session_id, run_id, task, signal):
-        if not context.get("activity_user_visible", True) or context["chat"]["kind"] not in {"private", "bot", "internal"}:
+    def _start_activity_title(self, context, session_id, run_id, task, signal):
+        if self._closing or not context.get("activity_user_visible", True) or context["chat"]["kind"] not in {"private", "bot", "internal"}:
             return
+        # The projection and its revision are committed before this independent call.
+        # A slow title must not hold the SDK event callback or the opening reply.
+        pending = asyncio.create_task(self._summarize_activity(context, session_id, run_id, task, signal))
+        self.activity_title_tasks.add(pending)
+        pending.add_done_callback(self._activity_title_done)
+
+    def _activity_title_done(self, task):
+        self.activity_title_tasks.discard(task)
+        if not task.cancelled() and (error := task.exception()) is not None and not isinstance(error, OperationAborted):
+            # Exceptions can contain private provider or authorization diagnostics.
+            logger.warning("Activity title update failed (%s); keeping fallback", type(error).__name__)
+
+    async def _summarize_activity(self, context, session_id, run_id, task, signal):
         from .activity_titles import generate_title
         title = await signal.run(generate_title(self.models, task))
         if title:
@@ -744,7 +766,7 @@ class RuntimeBridge:
                     created = await self.service.db_call("record_activity", chat_id, owner_id, session_id, session.snapshot["run_id"], {"user_visible": agent_context.get("activity_user_visible", True), "title": activity_title, "initial_title": activity_title, "source": request.get("source") if terminal_only else "user", "status": "running", "private_generation": agent_context.get("private_generation") or 0})
                     await self.emit(chat_id, type="changed", request_id=request_id)
                     if created and request.get("source") != "question_result":
-                        await self._summarize_activity(agent_context, session_id, session.snapshot["run_id"], activity_input, signal)
+                        self._start_activity_title(agent_context, session_id, session.snapshot["run_id"], activity_input, signal)
                 elif (kind == "message_start" and not terminal_only
                       and event.get("message", {}).get("role") == "assistant"):
                     await self.emit(chat_id, type="operation_started", request_id=request_id,
@@ -908,7 +930,7 @@ class RuntimeBridge:
                     created = await self.service.db_call("record_activity", context["chat"]["id"], context["owner_id"], session.session_id, run_id,
                         {"user_visible": context.get("activity_user_visible", True), "private_generation": context.get("private_generation") or 0, "parent_run_id": origin.get("parent_run_id") or origin.get("root_run_id"), "source": "subagent", "title": "Background task", "initial_title": "Background task", "status": snapshot.get("status", "running"), "finished_at": datetime.now(UTC) if event.get("type") == "agent_end" else None})
                     if created:
-                        await self._summarize_activity(context, session.session_id, run_id, origin.get("task", ""), signal)
+                        self._start_activity_title(context, session.session_id, run_id, origin.get("task", ""), signal)
         agent.subscribe(child_activity)
         await self._attach_subagents(agent, context)
         return agent
