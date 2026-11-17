@@ -26,6 +26,7 @@ TRANSFER_ROUTES = {
     ("GET", "/{path:path}"),
     ("POST", "/api/me/twin/avatar"),
     ("POST", "/api/me/twin/skills/upload"),
+    ("POST", "/api/bots/{bot_id}/skills/upload"),
     ("POST", "/api/chats/{chat_id}/attachments"),
     ("POST", "/api/chats/{chat_id}/workspace/files"),
     ("GET", "/api/actors/{actor_id}/avatar"),

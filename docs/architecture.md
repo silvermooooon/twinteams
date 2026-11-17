@@ -23,7 +23,12 @@ agent messaging create visible source/destination messages; terminal results use
 the request's persisted `bot_handoff` to return to the originating actor/task.
 Targeted room messages share one thread and do not automatically wake every
 member. BOT execution uses its assignment, separate workspace and Git Memory,
-including in its children. Its tool boundary permits same-owner coordination and
+including in its children. It uses its own immutable Skill pack, with pack changes
+affecting only new executions. Snapshot sharing freezes configuration and the
+current Memory tree into shared content-addressed assets. Installation creates a
+new owner-only BOT and a private Memory repo borrowing those objects through Git
+alternates; its new commits stay local. The original installed node remains
+available for re-sharing. Its tool boundary permits same-owner coordination and
 blocks external group/topic participation. The primary private Duet and existing
 social consent rules remain. Primary-private topic publications require exact
 owner approval; topic-origin posting keeps its existing rules.

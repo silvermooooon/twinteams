@@ -77,6 +77,7 @@ Read [requirements](docs/product-requirements.md),
 | Activity summary titles | `activity_titles.py`, `runtime_bridge.py`, `ActivityProjection` in `models.py` |
 | Duet topics, posts and consent | `duet_conversations.py`, `duet_messages.py`, `duet_topic_tools.py`, `duet_forum_schema.py` |
 | Personal BOTs and internal rooms | `personal_bots.py`, `bot_api.py`, `bot_tools.py`, `personal_bots_schema.py`, `frontend/src/PersonalBots.tsx` |
+| BOT snapshot sharing and scoped Skills | `bot_sharing.py`, `bot_snapshot_store.py`, `bot_skills.py`, `bot_sharing_schema.py`, `frontend/src/BotSharing.tsx`, `BotSkills.tsx`; [contract](docs/personal-bots.md#snapshot-sharing) |
 | Tools and owner decisions | `platform_tools.py`, `owner_replies.py`, `questions.py`, `credentials.py` |
 | Settings, Memory and follow-through | `personal.py`, `git_memory.py`, `memory_dream.py`, `contacts_dream.py`, `scheduled_tasks.py` |
 | Files, reset and hub integration | `attachments.py`, `deliverables.py`, `twin_reset.py`, `message_center.py` |
@@ -106,6 +107,12 @@ second general orchestration layer.
   Duet remains the supervisor and external entry. Its topic publications require
   exact owner approval; topic-origin posting retains its existing rules.
   See [Personal BOTs](docs/personal-bots.md).
+- Personal BOT sharing freezes an immutable node and installs a new owner-only
+  BOT. The original and each copy evolve independently. Skill packs and Memory
+  objects are shared immutably with copy-on-write evolution; credentials and
+  transcripts never travel. Tokens are revocable for new installs only. An
+  installed BOT can re-share its original node or freeze its current state.
+  Main Duet cannot be shared. See the [snapshot contract](docs/personal-bots.md#snapshot-sharing).
 - Presence, unread state and timers do **not** trigger human-chat Duet replies.
   Offline/ten-second auto-reply, mixed human/agent chats and “Reply for me”
   publication are retired. Compatibility fields do not reinstate those features.
@@ -133,7 +140,8 @@ second general orchestration layer.
   and Memory, with independent task context/compaction. Main-only tools such as
   `reply_as_owner` remain main-only; shared resources do not mean identical authority.
   Children of a durable personal BOT instead inherit that BOT's workspace, Memory
-  and internal tool boundary, while retaining their owner's Skills and credentials.
+  and internal tool boundary, including its own frozen Skill pack; execution
+  permissions and credentials still belong to the executing owner.
 - Independent incoming requests have separate SDK sessions and can run in
   parallel. Questions, credentials, approvals and child continuations attach to
   their original task journal. Only turns within that session are ordered; never

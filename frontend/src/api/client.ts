@@ -1,6 +1,10 @@
 export type Actor = { id: string; kind: 'human' | 'twin' | 'bot'; owner_id?: string; name: string; initials: string; color: string; avatar_url?: string | null; avatar_preset?: string | null; profile_revision?: number };
 export type Chat = { id: string; revision?: number; kind: 'private' | 'group' | 'duet' | 'bot' | 'internal'; member_actor_ids?: string[]; bot_id?: string | null; title: string; member_owner_ids: string[]; unread_count: number; last_message?: string; last_message_meta?: { id: string; seq: number; author_id: string; kind: Message['kind']; created_at: string } | null; can_rename?: boolean };
-export type PersonalBot = { id: string; chat_id: string; name: string; assignment: string; actor: Actor; chat: Chat };
+export type PersonalBot = { id: string; chat_id: string; name: string; assignment: string; actor: Actor; chat: Chat; installed_snapshot_id: string | null };
+export type BotShareToken = { id: string; token: string; created_at: string; revoked_at: string | null };
+export type BotSnapshot = { id: string; parent_snapshot_id: string | null; source_bot_id: string; source_owner_id: string; name: string; assignment: string; skill_count: number; memory_included: boolean; created_at: string; tokens: BotShareToken[] };
+export type BotShareCatalog = { snapshots: BotSnapshot[]; installed_snapshot: BotSnapshot | null };
+export type BotSharePreview = { snapshot: Omit<BotSnapshot, 'tokens'>; installed_bot: PersonalBot | null; source_explanation: string };
 export type Coordination = { kind: 'assignment' | 'message' | 'result'; source_chat_id?: string; target_chat_id?: string; actor_ids?: string[]; status?: 'completed' | 'failed' | 'cancelled'; has_result?: boolean };
 export type ChatAttachment = { id: string; name: string; mime_type: string; size: number; kind: 'image' | 'file' | 'unsupported'; url: string; workspace_path?: string; width?: number | null; height?: number | null; preview_kind?: 'markdown' | 'text' | 'pdf' | 'html' | null; preview_url?: string | null };
 export type SharedFile = ChatAttachment & { owner_id: string; shared_by_name: string; created_at: string; chat_id: string; message_id: string };

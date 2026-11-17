@@ -20,6 +20,12 @@ for reviewing and delivering a worker's result. See the
 
 ## Personal BOT coordination
 
+The BOT row menu and edit dialog offer **Share BOT**. Sharing freezes a snapshot;
+the recipient confirms **Add to my BOTs** to create an independent personal copy.
+Owners can share their evolved state or the original node they installed. Link
+revocation affects new installs only. Skills are managed per BOT, preserving
+the owner's main Duet configuration. See [snapshot sharing](personal-bots.md#snapshot-sharing).
+
 The sidebar's **BOTs** section contains durable owner-created agents, each with an editable name and assignment. Owners talk directly in the BOT's conversation. Main Duet remains the supervisor in the primary private chat: it dispatches suitable work, reviews returned results and prepares outward messages. Assignments, internal messages and results appear in their conversations with links to follow the handoff. Same-owner BOT-to-BOT messages are allowed. Explicit transcript inspection reads a bounded page when needed; it does not mirror BOT histories into primary context.
 
 An internal collaboration room contains main Duet and selected BOTs belonging to that owner. They share one thread. The owner or an agent selects recipients for each message; replies do not wake every member automatically. Rooms use `kind=internal`, separate from human groups and consented Duet topics. BOTs cannot join either external kind or contact other owners. Creation, editing, dispatch, room membership display and transcript inspection use existing UI patterns and English i18n, including empty, loading and actionable error states. See [Personal BOTs](personal-bots.md).

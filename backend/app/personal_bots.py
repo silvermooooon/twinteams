@@ -31,6 +31,7 @@ def bot_rows(db, owner_id, bot_ids=None):
 
 def bot_json(service, db, actor, chat, member, *, summaries=None):
     return {"id": actor.id, "chat_id": chat.id, "name": actor.name,
+            "installed_snapshot_id": actor.installed_snapshot_id,
             "assignment": actor.assignment, "actor": service.actor_json(actor),
             "chat": service.chat_json(db, chat, member, [actor.owner_id], summaries=summaries)}
 
@@ -53,10 +54,10 @@ def create_bot(service, owner_id, name, assignment):
         return create_bot_db(service, db, owner_id, name, assignment)
 
 
-def create_bot_db(service, db, owner_id, name, assignment):
+def create_bot_db(service, db, owner_id, name, assignment, *, bot_id=None):
     name, assignment = bot_profile(name, assignment)
     service.twin(db, owner_id)
-    actor = Actor(id=uid(), owner_id=owner_id, kind="bot", name=name,
+    actor = Actor(id=bot_id or uid(), owner_id=owner_id, kind="bot", name=name,
                   assignment=assignment, initials=name[:2].upper(), color="#595c63")
     db.add(actor)
     db.flush()
