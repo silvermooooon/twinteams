@@ -7,7 +7,7 @@ import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from agent_runtime.memory import MemoryConflict
 from agent_runtime.sessions import SessionInfo
-from duet_test_support import seed_collaborations, send_message
+from duet_test_support import opening_reply, seed_collaborations, send_message
 from fastapi import HTTPException
 from sqlalchemy import select
 from test_credentials import product as product  # noqa: PLC0414
@@ -33,8 +33,8 @@ def call(tool_name, **args):
     return [{"type": "toolCall", "id": uuid4().hex, "name": tool_name, "arguments": args}]
 
 
-@pytest.mark.parametrize("restart", [False, True, "stop"])
-def test_nested_result_resumes_actual_parent_with_shared_git_memory_and_recovery(product, monkeypatch, restart):
+@pytest.mark.parametrize("restart,empty_review", [(False, False), (True, False), ("stop", False), (False, True)])
+def test_nested_result_resumes_actual_parent_with_shared_git_memory_and_recovery(product, monkeypatch, restart, empty_review):
     async def run():
         runtime = RuntimeBridge(product)
         key = "nested-" + uuid4().hex
@@ -53,8 +53,10 @@ def test_nested_result_resumes_actual_parent_with_shared_git_memory_and_recovery
         def offline(model, context, options):
             messages = context.messages
             user = text(next(m for m in reversed(messages) if m["role"] == "user"))
-            results = [m for m in messages if m["role"] == "toolResult"]
+            results = [m for m in messages if m["role"] == "toolResult" and m.get("toolName") != "start_work"]
             captured.append((user, context))
+            if opening := opening_reply(model, context, "I'll delegate the preference update and review the saved result."):
+                return opening
             if "GRAND-TASK" == user:
                 if not results:
                     return response(model, call("memory_write", key=key, content="Owner prefers concise factual updates.", expected_version=None))
@@ -82,7 +84,7 @@ def test_nested_result_resumes_actual_parent_with_shared_git_memory_and_recovery
                 if not any(m.get("toolName") == "memory_read" for m in results):
                     return response(model, call("memory_read", key=key))
                 assert "concise factual" in text(results[-1])
-                return response(model, [{"type": "text", "text": "ROOT-REVIEWED-RESULT"}])
+                return response(model, [] if empty_review else [{"type": "text", "text": "ROOT-REVIEWED-RESULT"}])
             if not results:
                 return response(model, call("spawn_agent", name="worker", task="WORKER-TASK"))
             return response(model, [])
@@ -153,8 +155,11 @@ def test_nested_result_resumes_actual_parent_with_shared_git_memory_and_recovery
             await product.execute_request(ids[0])
             with product.transaction() as db:
                 outputs = db.scalars(select(Message).where(Message.request_id == ids[0])).all()
-                assert [row.body for row in outputs] == ["ROOT-REVIEWED-RESULT"]
+                assert [row.body for row in outputs] == ([] if empty_review else ["ROOT-REVIEWED-RESULT"])
                 root_continuation = db.get(ReplyRequest, ids[0])
+                assert root_continuation.status == ("failed" if empty_review else "completed")
+                if empty_review:
+                    assert "without delivering a final result" in root_continuation.error
                 assert root_continuation.causal_chain_id == request["causal_chain_id"]
             owner_store = personal.make_memory_store(SessionInfo("parent-reader", "local", "owner-alex"))
             entry = await owner_store.read(key)

@@ -1,9 +1,23 @@
 """Explicit approved-conversation fixtures; production admission guards stay enabled."""
 from uuid import uuid4
 
+from agent_runtime import AssistantMessageEventStream, assistant_message
+from agent_runtime.transcript import current_tools
 from sqlalchemy import select
 
 from app.models import Approval, Chat, DuetConversation, Membership, uid
+
+
+def opening_reply(model, context, body):
+    """Let scripted tool-work providers honor the actual offered opening contract."""
+    if {tool["name"] for tool in current_tools(context.messages)} != {"start_work"}:
+        return None
+    stream = AssistantMessageEventStream()
+    stream.push({"type": "done", "message": assistant_message(model, content=[
+        {"type": "text", "text": body},
+        {"type": "toolCall", "id": "opening", "name": "start_work", "arguments": {}},
+    ], stopReason="toolUse")})
+    return stream
 
 
 def approved_action_context(product, context, tool, arguments):

@@ -8,6 +8,16 @@ Human pair and multi-person chats contain human participants and human messages.
 
 An owner addresses their own Duet in their private conversation. The Duet handles quick replies, brief lookups and small bounded actions directly. It judges the whole owner goal, not each small step in isolation. Beyond those bounds it chooses delegation first after brief scope discovery: multi-source analysis or research, implementation or debugging, and creating and validating nontrivial deliverables belong to a worker. The main role keeps the owner informed and stays available; the delegation tools specify handoff materials, independent task concurrency and notification behavior. It does not do the heavy work merely to prepare a handoff or repeat assigned work. After independent coordination it ends the current turn normally; automatic completion notifications resume the original task for review and delivery. Ending that turn does not mark the owner’s goal complete. It asks necessary focused questions and exact action approvals without holding up independent work. Ordinary assistant output is the private chat’s reply outlet. Topic posts use explicit tools, and `send_chat_message` remains available for private owner reports. Finishing a topic execution produces no automatic post.
 
+For a new owner request in the primary private chat, Duet answers before starting
+tools or delegation. An immediate answer is one complete message. When work is
+needed, the opening is one or two short sentences: the known conclusion first,
+otherwise the concrete first step. Empty acknowledgments and uncertainty filler
+are omitted. The opening is a persisted message while the task stays running.
+Useful milestones, decisions, blockers and changes of plan can produce additional
+messages; completed work requires a final delivery. An opening never substitutes
+for reviewing and delivering a worker's result. See the
+[execution mechanism](architecture.md#private-reply-publication).
+
 ## Personal BOT coordination
 
 The sidebar's **BOTs** section contains durable owner-created agents, each with an editable name and assignment. Owners talk directly in the BOT's conversation. Main Duet remains the supervisor in the primary private chat: it dispatches suitable work, reviews returned results and prepares outward messages. Assignments, internal messages and results appear in their conversations with links to follow the handoff. Same-owner BOT-to-BOT messages are allowed. Explicit transcript inspection reads a bounded page when needed; it does not mirror BOT histories into primary context.

@@ -60,7 +60,9 @@ produce a clear failure; the app never substitutes a test response.
 
 New Duet conversation and subagent runs using `openai-responses` enable OpenAI's
 native [`web_search`](https://developers.openai.com/api/docs/guides/tools-web-search)
-tool by default, including supported page opening and in-page search. The model
+tool by default, including supported page opening and in-page search. For new
+owner-private requests, it becomes available after the visible opening reply;
+immediate answers need no preamble. See [private reply publication](docs/architecture.md#private-reply-publication). The model
 decides when to use it. Other APIs and internal Dream calls keep their
 existing tool policy. Interrupted runs retain their exact frozen tool declarations
 and options; older runs without search do not gain it during recovery. Citation

@@ -7,6 +7,7 @@ import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from agent_runtime.memory import MemoryConflict, MemorySource
 from agent_runtime.sessions import SessionInfo
+from duet_test_support import opening_reply
 from sqlalchemy import select
 from test_memory_dream import product as product  # noqa: PLC0414
 
@@ -103,7 +104,8 @@ def test_legacy_accepted_sdk_command_keeps_its_session_and_immutable_input(produ
             await product.execute_request(request["id"])
             restored = product.get_request(request["id"])
             assert restored["status"] == "completed" and restored["session_id"] == sid
-            assert text_content(calls[0][-1]) == "FROZEN-ACCEPTED-INPUT"
+            assert text_content(next(message for message in reversed(calls[0])
+                                     if message["role"] == "user")) == "FROZEN-ACCEPTED-INPUT"
             await product.execute_request(request["id"])
             assert len(calls) == 1
         finally:
@@ -118,10 +120,12 @@ def test_answer_waits_only_for_its_origin_while_unrelated_private_task_finishes(
         producers = []
         def offline(model, context, options):
             user = text_content(next(message for message in reversed(context.messages) if message["role"] == "user"))
+            if user == "ORIGINAL-QUESTION-TASK" and (opening := opening_reply(model, context, "I'll check which report format you need.")):
+                return opening
             stream = AssistantMessageEventStream()
             async def finish():
                 if user == "ORIGINAL-QUESTION-TASK":
-                    if not any(message.get("role") == "toolResult" for message in context.messages):
+                    if not any(message.get("role") == "toolResult" and message.get("toolName") != "start_work" for message in context.messages):
                         content = [{"type": "toolCall", "id": "question", "name": "ask_question",
                                     "arguments": {"question": "Which format?", "options": ["Short", "Detailed"]}}]
                         stop = "toolUse"

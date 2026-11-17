@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
+from duet_test_support import opening_reply
 from sqlalchemy import func, select
 from test_memory_dream import product as product  # noqa: PLC0414
 
@@ -26,7 +27,10 @@ def test_topic_mention_owner_answer_and_admin_report_settle_without_final_posts(
         def offline(model, context, options):
             position = max(index for index, row in enumerate(context.messages) if row["role"] == "user")
             user = text_content(context.messages[position])
-            results = [row for row in context.messages[position + 1:] if row["role"] == "toolResult"]
+            if opening := opening_reply(model, context, "I'll prepare the coordination request and check the required decisions."):
+                return opening
+            results = [row for row in context.messages[position + 1:]
+                       if row["role"] == "toolResult" and row.get("toolName") != "start_work"]
             calls.append(user)
             assert not any(result.get("isError") for result in results), results
             content = []

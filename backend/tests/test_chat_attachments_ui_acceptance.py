@@ -13,6 +13,7 @@ from uuid import uuid4
 
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
+from duet_test_support import opening_reply
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
@@ -87,8 +88,12 @@ async def run_offline(product, request, history=False, first_tools=()):
     def provider(model, context, options):
         # Copy the actual SDK model boundary, including system and tool messages.
         calls.append(json.loads(json.dumps(context.messages)))
+        if (history or first_tools) and (opening := opening_reply(model, context, "I'll inspect the authorized files and conversation references.")):
+            return opening
         stream = AssistantMessageEventStream()
-        tools = ([("history", {})] if history else first_tools) if len(calls) == 1 else []
+        has_results = any(message.get("role") == "toolResult" and message.get("toolName") != "start_work"
+                          for message in context.messages)
+        tools = ([("history", {})] if history else first_tools) if not has_results else []
         content = ([{"type": "toolCall", "id": f"attachment-{name}", "name": name, "arguments": args}
                     for name, args in tools] or [{"type": "text", "text": "Offline attachment accepted."}])
         stream.push({"type": "done", "message": assistant_message(
@@ -196,7 +201,7 @@ def test_text_with_file_supplies_references_without_content_to_sdk(attachments):
     response = send(client, body="Reply only to this visible text.", ids=[item["id"]])
     assert response.status_code == 200, response.text
     calls = asyncio.run(run_offline(product, response.json()["request"], history=True))
-    assert len(calls) == 2
+    assert len(calls) == 3
     wire = json.dumps(calls)
     assert "Reply only to this visible text." in wire
     assert filename in wire and item["workspace_path"] in wire and content not in wire

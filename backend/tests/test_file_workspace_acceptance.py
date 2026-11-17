@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from cryptography.fernet import Fernet
+from duet_test_support import opening_reply
 from fastapi import HTTPException
 from sqlalchemy import inspect, select, text
 from test_chat_attachments_ui_acceptance import attachments as attachments  # noqa: PLC0414
@@ -67,11 +68,13 @@ def test_actual_sdk_reads_image_only_on_demand_and_generated_file_is_browsable(f
 
         def offline(model, context, options):
             calls.append(json.loads(json.dumps(context.messages)))
+            if opening := opening_reply(model, context, "I'll inspect the image and prepare the requested report."):
+                return opening
             stream = AssistantMessageEventStream()
             content = ([{"type": "toolCall", "id": "choose-image-read", "name": "read", "arguments": {"path": image["workspace_path"]}},
                         {"type": "toolCall", "id": "create-agent-artifact", "name": "write", "arguments": {"path": "generated/reports/result.md", "content": "Synthetic generated result."}}]
-                       if len(calls) == 1 else [{"type": "text", "text": "Offline file work complete."}])
-            stream.push({"type": "done", "message": assistant_message(model, content=content, stopReason="toolUse" if len(calls) == 1 else "stop")})
+                       if len(calls) == 2 else [{"type": "text", "text": "Offline file work complete."}])
+            stream.push({"type": "done", "message": assistant_message(model, content=content, stopReason="toolUse" if len(calls) == 2 else "stop")})
             return stream
 
         runtime.models.register_api("offline-regression", offline)
@@ -82,10 +85,10 @@ def test_actual_sdk_reads_image_only_on_demand_and_generated_file_is_browsable(f
             await runtime.close()
 
     asyncio.run(run())
-    assert len(calls) == 2
+    assert len(calls) == 3
     assert image["workspace_path"] in json.dumps(calls[0])
     assert not any(part.get("type") == "image" for msg in calls[0] if isinstance(msg.get("content"), list) for part in msg["content"])
-    images = [part for msg in calls[1] if msg.get("role") == "toolResult" for part in msg["content"] if part.get("type") == "image"]
+    images = [part for msg in calls[-1] if msg.get("role") == "toolResult" for part in msg["content"] if part.get("type") == "image"]
     assert len(images) == 1 and base64.b64decode(images[0]["data"]) == raw
     cwd = personal.resolve_twin_workspace("owner-alex")
     assert cwd == root / "private-alex"
@@ -279,6 +282,7 @@ def test_platform_file_requires_live_source_until_output_is_published(files, del
     identifier = file_id("generated.txt")
     request = send(client, body="Synthetic platform file task").json()["request"]
     calls = []
+    opening_body = "I'll read the generated file and check its evidence."
 
     async def run():
         runtime = RuntimeBridge(product)
@@ -287,15 +291,17 @@ def test_platform_file_requires_live_source_until_output_is_published(files, del
 
         def offline(model, context, options):
             calls.append(json.loads(json.dumps(context.messages)))
+            if opening := opening_reply(model, context, opening_body):
+                return opening
             stream = AssistantMessageEventStream()
-            if len(calls) == 1:
+            if len(calls) == 2:
                 content = [{"type": "toolCall", "id": "generated-platform-read", "name": "read_workspace_file", "arguments": {"id": identifier}}]
             else:
                 if delete_before_publish:
                     path.unlink()
                 content = [{"type": "text", "text": "Synthetic answer based on generated source."}]
             stream.push({"type": "done", "message": assistant_message(model, content=content,
-                stopReason="toolUse" if len(calls) == 1 else "stop")})
+                stopReason="toolUse" if len(calls) == 2 else "stop")})
             return stream
 
         runtime.models.register_api("offline-regression", offline)
@@ -305,19 +311,21 @@ def test_platform_file_requires_live_source_until_output_is_published(files, del
             await runtime.close()
 
     asyncio.run(run())
-    assert len(calls) == 2
-    tool_result = next(message for message in calls[1] if message.get("role") == "toolResult")
+    assert len(calls) == 3
+    tool_result = next(message for message in calls[-1] if message.get("toolName") == "read_workspace_file")
     assert not tool_result.get("isError"), tool_result
     assert "Synthetic generated source evidence." in json.dumps(tool_result)
     with product.transaction() as db:
         outputs = list(db.scalars(select(Message).where(Message.request_id == request["id"])))
         if delete_before_publish:
-            assert outputs == []
+            assert [output.body for output in outputs] == [opening_body]
+            assert {"kind": "workspace", "id": identifier} not in outputs[0].source_provenance
             assert product.get_request(request["id"])["status"] == "failed"
         else:
-            assert len(outputs) == 1
-            output_id = outputs[0].id
-            assert {"kind": "workspace", "id": identifier} in outputs[0].source_provenance
+            assert len(outputs) == 2
+            answer = next(output for output in outputs if output.body == "Synthetic answer based on generated source.")
+            output_id = answer.id
+            assert {"kind": "workspace", "id": identifier} in answer.source_provenance
     if not delete_before_publish:
         assert output_id in {row["id"] for row in product.chat_detail("owner-alex", "private-alex")["messages"]}
         path.unlink()

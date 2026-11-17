@@ -262,6 +262,21 @@ def conversation_system(context, *, worker=False):
     history = history_messages(context.get("messages", []))
     from .onboarding import temporary_prompt
     extension = platform_prompt(context, worker=worker) + temporary_prompt(context, worker=worker)
+    if not worker and context.get("reply_first"):
+        extension += (
+            "\nReply before starting work. If the request can be answered immediately, give one "
+            "complete answer; do not add a filler preamble. Otherwise write one or two short "
+            "sentences of assistant text and call start_work in the same response, before any "
+            "lookup, tool call or delegation. Lead with a conclusion when you already have one; "
+            "otherwise state the first concrete step you will take. Do not open with 'I don't "
+            "know yet', 'got it' or 'received'. This text is published immediately in the private "
+            "conversation; start_work then enables the work tools, including web search. "
+            "Continue the authorized work after that reply. Publish concise additional replies "
+            "for milestones, decisions, blockers or a change of plan, without narrating every "
+            "tool call. Deliver a final result after completing the work; the opening is never "
+            "the final delivery. If you delegate, review the returned result and deliver it in "
+            "the continuation. Do not combine the opening and final into one delayed reply.\n"
+        )
     from .message_center import configured as center_configured
     if center_configured() and context.get("chat", {}).get("kind") == "private":
         extension += ("For owner-organized announcements or invitations that collect responses from "

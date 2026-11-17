@@ -4,6 +4,7 @@ import gc
 from uuid import uuid4
 
 from agent_runtime import AssistantMessageEventStream, assistant_message
+from duet_test_support import opening_reply
 from sqlalchemy import select
 from test_memory_dream import product as product  # noqa: PLC0414
 from test_request_concurrency import accept
@@ -145,8 +146,11 @@ def test_background_child_pool_cannot_consume_eight_foreground_child_slots(produ
             user = latest_user(context)
             if user.startswith(("BG-CHILD-", "FG-CHILD-")):
                 return held.stream(model, options, user)
+            if opening := opening_reply(model, context, "I'll delegate the checks and review their results."):
+                return opening
             stream = AssistantMessageEventStream()
-            if any(message.get("role") == "toolResult" for message in context.messages):
+            if any(message.get("role") == "toolResult" and message.get("toolName") != "start_work"
+                   for message in context.messages):
                 content = []
             else:
                 background = "BACKGROUND-SPAWNER" in user

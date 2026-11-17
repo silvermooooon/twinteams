@@ -16,9 +16,13 @@ ANNOTATION = {"type": "url_citation", "start_index": 0, "end_index": 6,
               "url": URL, "title": "Source documentation"}
 
 
-def response(api, *, body="Answer from a source.", searched=True):
+def response(api, *, body="Answer from a source.", searched=True, start=False):
     if api == "openai-completions":
-        events = [{"choices": [{"index": 0, "delta": {"content": body}, "finish_reason": "stop"}]}]
+        delta = {"content": body}
+        if start:
+            delta["tool_calls"] = [{"index": 0, "id": "opening", "type": "function",
+                                    "function": {"name": "start_work", "arguments": "{}"}}]
+        events = [{"choices": [{"index": 0, "delta": delta, "finish_reason": "tool_calls" if start else "stop"}]}]
     else:
         events = [{"type": "response.completed", "response": {
             "id": "response", "status": "completed", "output": [
@@ -26,6 +30,8 @@ def response(api, *, body="Answer from a source.", searched=True):
                     "action": {"type": "search", "queries": ["documentation"]}}] if searched else []),
                 {"type": "message", "id": "answer", "role": "assistant", "status": "completed",
                  "content": [{"type": "output_text", "text": body, "annotations": [ANNOTATION] if searched else []}]},
+                *([{"type": "function_call", "id": "opening-call", "call_id": "opening",
+                    "name": "start_work", "arguments": "{}", "status": "completed"}] if start else []),
             ], "usage": {"input_tokens": 3, "output_tokens": 4}}}]
     return httpx.Response(200, text="".join("data: " + json.dumps(event) + "\n\n" for event in events))
 
@@ -146,12 +152,19 @@ def test_new_factories_default_native_search_only_for_responses(monkeypatch, tmp
 
         def handler(request):
             payloads.append(json.loads(request.content))
+            if role == "main" and len(payloads) == 1:
+                return response(api, body="I'll look up the documentation.", searched=False, start=True)
+            if role == "main":
+                assert harness.product.outputs == ["I'll look up the documentation."]
             return response(api)
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             harness = FactoryHarness(monkeypatch, tmp_path, client, api)
             agent = await harness.agent(role)
-            native = [tool for tool in payloads[0].get("tools", []) if tool["type"] == "web_search"]
+            if role == "main":
+                assert [tool.get("function", tool)["name"] for tool in payloads[0]["tools"]] == ["start_work"]
+                assert len(payloads) == 2
+            native = [tool for tool in payloads[-1].get("tools", []) if tool["type"] == "web_search"]
             assert native == ([{"type": "web_search"}] if api == "openai-responses" else [])
             assert payloads[0]["model"] == "test"
             if api == "openai-responses":
@@ -163,22 +176,32 @@ def test_new_factories_default_native_search_only_for_responses(monkeypatch, tmp
                 assert restored.snapshot["messages"][-1] == raw
                 assert text_content(raw) == "Answer from a source."
                 if role == "main":
-                    assert harness.product.outputs and all(URL in output for output in harness.product.outputs)
+                    assert URL in harness.product.outputs[-1]
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("role", ["main", "child"])
+@pytest.mark.parametrize("role,after_opening", [("main", False), ("main", True), ("child", False)])
 @pytest.mark.parametrize("native", [False, True])
-def test_recovery_preserves_frozen_tools_and_resolved_api(monkeypatch, tmp_path, role, native):
+def test_recovery_preserves_frozen_tools_and_resolved_api(monkeypatch, tmp_path, role, native, after_opening):
     async def run():
         payloads = []
 
         def handler(request):
             payloads.append(json.loads(request.content))
+            if role == "main" and len(payloads) == 1:
+                return response("openai-responses", body="I'll look up the documentation.", searched=False, start=True)
             return response("openai-responses")
 
-        def crash(*args):
-            raise ProcessLost()
+        def interrupt(agent):
+            original_stream = agent.stream_function
+
+            def stream(model, context, options):
+                if not after_opening or any(message.get("toolName") == "start_work"
+                                            for message in context.messages):
+                    raise ProcessLost()
+                return original_stream(model, context, options)
+
+            agent.stream_function = stream
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             harness = FactoryHarness(monkeypatch, tmp_path, client, "openai-responses")
@@ -187,13 +210,13 @@ def test_recovery_preserves_frozen_tools_and_resolved_api(monkeypatch, tmp_path,
             # Model a deployment's exact accepted contract, including legacy runs without search.
             monkeypatch.setattr(harness.runtime, "_add_web_search",
                 lambda agent: agent.state.tools.extend([frozen_tool] if native else []))
-            harness.before_run = lambda agent: setattr(agent, "stream_function", crash)
+            harness.before_run = interrupt
             with pytest.raises(ProcessLost):
                 await harness.agent(role)
             await harness.agents[-1].session.commit("run_interrupted", status="failed", reason="Offline model request failed")
             frozen = harness.agents[-1].session.snapshot
             assert frozen["phase"] == "model" and frozen["request"] and frozen["status"] == "failed"
-            assert payloads == []
+            assert len(payloads) == int(after_opening)
             # A later deployment selects another API. The accepted model and tools still win.
             harness.runtime.config.api = "openai-completions"
             harness.before_run = None
@@ -201,9 +224,14 @@ def test_recovery_preserves_frozen_tools_and_resolved_api(monkeypatch, tmp_path,
             recovered = await harness.agent(role)
             assert recovered.state.model.api == "openai-responses"
             assert tool_records(recovered.state.tools) == frozen["tools"]
-            search = [tool for tool in payloads[0].get("tools", []) if tool["type"] == "web_search"]
+            if role == "main":
+                assert [tool["name"] for tool in payloads[0]["tools"]] == ["start_work"]
+            search = [tool for tool in payloads[-1].get("tools", []) if tool["type"] == "web_search"]
             assert search == ([frozen_tool.options] if native else [])
-            assert len(payloads) == 1
+            assert len(payloads) == (2 if role == "main" else 1)
+            openings = [row for row in recovered.session.read_records() if row["type"] == "model_completed"
+                        and any(block.get("name") == "start_work" for block in row["data"]["message"]["content"])]
+            assert len(openings) == (1 if role == "main" else 0)
     asyncio.run(run())
 
 
@@ -213,6 +241,8 @@ def test_new_main_uses_restored_idle_model_and_child_uses_resolved_model(monkeyp
 
         def handler(request):
             payloads.append(json.loads(request.content))
+            if len(payloads[-1]["tools"]) == 1 and payloads[-1]["tools"][0].get("name") == "start_work":
+                return response("openai-responses", body="I'll look up the documentation.", searched=False, start=True)
             return response("openai-responses")
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
@@ -224,8 +254,8 @@ def test_new_main_uses_restored_idle_model_and_child_uses_resolved_model(monkeyp
             # Explicit registered metadata overrides the configured API for fresh child runs.
             harness.runtime.models.register_model(Model("test", "openai", "openai-responses", "https://provider.invalid/v1"))
             await harness.agent("child")
-            assert len(payloads) == 3
-            assert all({"type": "web_search"} in payload["tools"] for payload in payloads)
+            assert len(payloads) == 5
+            assert all({"type": "web_search"} in payloads[index]["tools"] for index in (1, 3, 4))
     asyncio.run(run())
 
 

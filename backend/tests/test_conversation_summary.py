@@ -67,6 +67,8 @@ def test_native_sdk_compaction_shortens_real_tool_loop_and_recovery(monkeypatch,
             payloads.append(payload)
             if "tools" not in payload:
                 return response("openai-responses", body="Both reads completed; continue the original task.", searched=False)
+            if {tool["name"] for tool in payload["tools"]} == {"start_work"}:
+                return response("openai-responses", body="I'll read the evidence and summarize the result.", searched=False, start=True)
             normal_count += 1
             return tool_response(normal_count) if normal_count <= 2 else response("openai-responses", searched=False)
 
@@ -134,7 +136,7 @@ def test_native_sdk_compaction_shortens_real_tool_loop_and_recovery(monkeypatch,
             assert request_references(sent_system) == references
             assert "not-a-reference" not in serialized
             # Original large tool results remain in the journal, despite the shorter request.
-            assert len([row for row in records if row["type"] == "tool_completed"]) == 2
+            assert len([row for row in records if row["type"] == "tool_completed"]) == 2 + (role == "main")
             assert "result-1" in json.dumps(records)
     asyncio.run(run())
 
@@ -166,6 +168,8 @@ def test_native_compaction_failure_preserves_tool_journal_then_recovers(monkeypa
                 if fail_summary:
                     return httpx.Response(503, json={"error": {"message": "Offline summary outage"}})
                 return response("openai-responses", body="Earlier reads completed.", searched=False)
+            if {tool["name"] for tool in payload["tools"]} == {"start_work"}:
+                return response("openai-responses", body="I'll read the evidence and summarize the result.", searched=False, start=True)
             normal += 1
             return tool_response(normal) if normal <= 2 else response("openai-responses", searched=False)
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:

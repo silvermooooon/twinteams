@@ -71,6 +71,7 @@ Read [requirements](docs/product-requirements.md),
 | HTTP/auth/config | `backend/app/main.py`, `api.py` (`identity`), `config.py` |
 | Business transactions/queries | `backend/app/service.py`, `models.py` |
 | SDK assembly and execution | `worker.py`, `runtime_bridge.py`, `twin_execution.py`, `request_sessions.py` |
+| Private opening replies and work gate | `runtime_replies.py`; [publication contract](docs/architecture.md#private-reply-publication) |
 | Prompts, persona, introduction | `twin_prompts.py`, `soul_file.py`, `onboarding.py` |
 | History and source permissions | `conversation_context.py`, `message_references.py`, `service.py` |
 | Duet topics, posts and consent | `duet_conversations.py`, `duet_messages.py`, `duet_topic_tools.py`, `duet_forum_schema.py` |
@@ -122,6 +123,10 @@ second general orchestration layer.
 - Main Duet is the owner's front-facing representative: quick replies, small
   investigations and coordination. Delegate substantial work, review results and
   report privately. Peer requests do not grant authority over the owner.
+- New foreground private requests answer before tools: either one complete answer,
+  or a short persisted opening followed by work, useful milestones and final delivery.
+  `start_work` gates work tools, including native search, in the existing SDK run.
+  See [private reply publication](docs/architecture.md#private-reply-publication).
 - Children share the executing owner's authorized workspace, Skills, credentials
   and Memory, with independent task context/compaction. Main-only tools such as
   `reply_as_owner` remain main-only; shared resources do not mean identical authority.

@@ -40,6 +40,38 @@ Topic posts have no six-message limit or Continue gate. Causal-chain IDs retain 
 
 Published messages are independent delivered snapshots in private, BOT, internal-room, human and approved Duet conversations. Readers and new runtime contexts check the current chat membership, the message's own history position and publication state; human chats still exclude agent records. Later changes to an audit ancestor do not retract a delivered answer. A message's own withdrawal or a history/reset boundary still removes that message. Source IDs, ContextManifest and complete SDK journals remain audit evidence, not a recursive reading permission graph. Quotes, owner-selected message references and original file downloads independently enforce the original record's current access; unavailable originals become placeholders without hiding the delivered text. A runtime manifest freezes the exact snapshots and visible originals read in that run, including their content hashes and origin grants. Execution and publication revalidate those direct inputs, current destination permission, reset state and consent. Unsent pending statements receive no snapshot exemption and consume no published sequence when authorization fails. Editing a topic post retains its previous revision and updates the currently readable content; runs that consumed the old revision remain bound to their frozen input checks.
 
+## Private reply publication
+
+New foreground `source=private` requests offer only `start_work` on their first
+model call. Duet can give a complete answer without a tool, or emit a concise
+opening and call `start_work` in the same response. `runtime_replies.py` uses SDK
+context transformation to restrict provider declarations, including native web
+search. The complete authorized execution catalog stays frozen in the SDK; the
+first provider request also retains its exact restricted declarations for recovery.
+A tool hook refuses work before the opening. Successful `start_work` results in
+the same run's journal enable the normal tools on subsequent model calls.
+
+The SDK commits each complete assistant message before emitting `message_end`.
+`RuntimeBridge` awaits its existing `publish_runtime_output` projection at that
+boundary, before the SDK starts tools. Each output has its own SDK event key,
+product message, revision and change-outbox entry. HTTP reads can therefore see
+the opening while the request remains running; existing WebSocket revision hints
+refresh the chat. Later milestones and the terminal result use the same path.
+Reconciliation replays those discrete messages idempotently. No token writes,
+new transport, polling or separate execution runtime are involved.
+
+The opening does not finish the request or change its foreground authorization.
+Worker results still resume the original task for review and final delivery.
+Stop retains the existing withdrawal of that request's projected messages; a
+failure retains earlier messages and shows the failed request. Legacy interrupted
+runs keep their frozen tool policy. An empty terminal reply after work fails
+explicitly unless a durable tool receipt records a decision/worker handoff or
+files already delivered to this private chat; an opening alone is not completion.
+Foreground child/BOT result continuations require a final delivery too, without
+adding another opening gate.
+Scheduled, topic, BOT, internal-room and
+Message Center runs retain their existing terminal-only publication policy.
+
 ## Scheduling and recovery
 
 Normal work hints include a chat/session scope. Only that scope's indexed candidates, approvals, pending child results, task-session heads and deadlines are read. Output/activity-only changes do not trigger a global task sweep. Worker status and already-relayed notifications do not feed back into task scheduling. Earliest known due times arm an in-memory timer. Owner admission is applied before candidate limits so one owner's old queues cannot hide another owner's work.

@@ -3,8 +3,10 @@ import asyncio
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
 from agent_runtime import AssistantMessageEventStream, assistant_message
 from agent_runtime.sessions import SessionInfo
+from duet_test_support import opening_reply
 from sqlalchemy import select
 from test_memory_dream import product as product  # noqa: PLC0414
 
@@ -24,7 +26,8 @@ def call(tool_name, **arguments):
     return [{"type": "toolCall", "id": uuid4().hex, "name": tool_name, "arguments": arguments}]
 
 
-def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(product):
+@pytest.mark.parametrize("empty_review", [False, True])
+def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(product, empty_review):
     bot = personal_bots.create_bot(product, "owner-alex", "Evidence", "Verify claims and retain useful evidence.")
     peer = personal_bots.create_bot(product, "owner-alex", "Planning", "Plan next steps.")
 
@@ -35,8 +38,10 @@ def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(produc
         def offline(model, context, options):
             messages = context.messages
             prompt = text_content(next(row for row in reversed(messages) if row["role"] == "user"))
-            results = [row for row in messages if row["role"] == "toolResult"]
+            results = [row for row in messages if row["role"] == "toolResult" and row.get("toolName") != "start_work"]
             if prompt == "SUPERVISE":
+                if opening := opening_reply(model, context, "I'll assign the evidence check and review its result."):
+                    return opening
                 if not results:
                     return response(model, call("dispatch_bot_tasks", bot_ids=[bot["id"]], body="VERIFY"))
                 assert not results[-1].get("isError"), results[-1]
@@ -53,7 +58,7 @@ def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(produc
                 assert bot["chat_id"] in text_content(results[-1])
                 return response(model, [{"type": "text", "text": "Verified BOT result"}])
             assert "internal personal agent returned a result" in prompt and "Verified BOT result" in prompt
-            return response(model, [{"type": "text", "text": "Reviewed main Duet result"}])
+            return response(model, [] if empty_review else [{"type": "text", "text": "Reviewed main Duet result"}])
 
         runtime.models.register_api("offline-regression", offline)
         await runtime.start()
@@ -79,10 +84,10 @@ def test_main_dispatches_real_bot_and_reviews_return_with_separate_memory(produc
                 assert returned.session_id == original["session_id"]
                 returned_id = returned.id
             await product.execute_request(returned_id)
-            assert product.get_request(returned_id)["status"] == "completed"
+            assert product.get_request(returned_id)["status"] == ("failed" if empty_review else "completed")
             main = product.chat_detail("owner-alex", "private-alex")["messages"]
-            assert [row["body"] for row in main] == ["SUPERVISE", "VERIFY", "Verified BOT result", "Reviewed main Duet result"]
-            assert main[2]["author_id"] == bot["id"] and main[2]["coordination"]["kind"] == "result"
+            assert [row["body"] for row in main] == ["SUPERVISE", "I'll assign the evidence check and review its result.", "VERIFY", "Verified BOT result", *([] if empty_review else ["Reviewed main Duet result"])]
+            assert main[3]["author_id"] == bot["id"] and main[3]["coordination"]["kind"] == "result"
             identity = SessionInfo("inspect-memory", runtime.tenant_id, "owner-alex")
             own = personal.make_bot_memory_store(identity, bot["id"])
             other = personal.make_bot_memory_store(identity, peer["id"])

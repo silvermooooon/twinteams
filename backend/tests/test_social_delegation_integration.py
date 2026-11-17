@@ -9,7 +9,7 @@ from agent_runtime import Agent, AssistantMessageEventStream, assistant_message
 from agent_runtime.sessions import DatabaseSession
 from agent_runtime.subagents import create_subagent_tools
 from agent_runtime.transcript import current_tools
-from duet_test_support import append_duet, approved_chat, request_duet_reply
+from duet_test_support import append_duet, approved_chat, opening_reply, request_duet_reply
 from sqlalchemy import func, select
 from test_memory_dream import product as product  # noqa: PLC0414
 
@@ -29,7 +29,7 @@ def call(tool_name, **arguments):
 
 
 @pytest.mark.parametrize("kind", ["private", "duet"])
-def test_actual_reaction_only_turn_is_persisted_and_does_not_create_a_conversation_loop(product, kind):
+def test_reactions_persist_without_conversation_loops_and_private_replies_are_visible(product, kind):
     async def run():
         if kind == "private":
             sent = product.send_message("owner-alex", "private-alex", "Thanks, that helped", uuid4().hex)
@@ -46,33 +46,39 @@ def test_actual_reaction_only_turn_is_persisted_and_does_not_create_a_conversati
             request_ids = set(db.scalars(select(ReplyRequest.id)))
         runtime = RuntimeBridge(product)
         calls = []
+        opening = "I'll add a heart reaction to your message."
+        final = "I've added a heart reaction to your message."
 
         def offline(model, context, options):
             calls.append(context)
+            if first_reply := opening_reply(model, context, opening):
+                return first_reply
             tools = {tool["name"]: tool for tool in current_tools(context.messages)}
             assert tools["set_message_reaction"]["parameters"]["required"] == ["message_id", "emoji", "active"]
             if kind == "duet" and len(calls) == 1:
                 assert "Thanks, that helped" not in "\n".join(text_content(row) for row in context.messages)
                 return response(model, call("read_duet_topic", chat_id=chat_id))
-            if len(calls) == (2 if kind == "duet" else 1):
+            if len(calls) == 2:
                 if kind == "duet":
                     assert any(row.get("toolName") == "read_duet_topic" and "Thanks, that helped" in text_content(row)
                                for row in context.messages)
                 return response(model, call("set_message_reaction", message_id=message_id, emoji="❤️", active=True))
-            return response(model)
+            return response(model, [{"type": "text", "text": final}] if kind == "private" else [])
 
         runtime.models.register_api("offline-regression", offline)
         await runtime.start(); product.bind_runtime(runtime)
         try:
             await product.execute_request(request["id"])
             assert product.get_request(request["id"])["status"] == "completed", product.get_request(request["id"])
-            expected_calls = 3 if kind == "duet" else 2
+            expected_calls = 3
             assert len(calls) == expected_calls
             with product.transaction() as db:
                 reaction = db.get(MessageReaction, (message_id, "twin-alex", "❤️"))
                 assert reaction is not None
-                assert not db.scalar(select(Message.id).where(Message.request_id == request["id"]))
-                assert db.scalar(select(func.count()).select_from(Message)) == before[0]
+                replies = list(db.scalars(select(Message.body).where(Message.request_id == request["id"])
+                    .order_by(Message.seq)))
+                assert replies == ([opening, final] if kind == "private" else [])
+                assert db.scalar(select(func.count()).select_from(Message)) == before[0] + len(replies)
                 new_requests = list(db.scalars(select(ReplyRequest).where(ReplyRequest.id.not_in(request_ids))))
                 assert len(new_requests) == (1 if kind == "duet" else 0)
                 if new_requests:
@@ -103,6 +109,8 @@ def test_real_spawn_payload_matches_worker_and_completion_returns_only_to_origin
 
         def offline(model, context, options):
             user = text_content(next(row for row in reversed(context.messages) if row["role"] == "user"))
+            if user == "ORIGINAL-TASK" and (opening := opening_reply(model, context, "I'll delegate the investigation and review its result.")):
+                return opening
             payloads.setdefault(user, context)
             if user == "WORKER-ASSIGNMENT":
                 stream = AssistantMessageEventStream()
@@ -114,7 +122,7 @@ def test_real_spawn_payload_matches_worker_and_completion_returns_only_to_origin
                 producers.append(asyncio.create_task(finish()))
                 return stream
             if user == "ORIGINAL-TASK":
-                results = [row for row in context.messages if row["role"] == "toolResult"]
+                results = [row for row in context.messages if row["role"] == "toolResult" and row.get("toolName") != "start_work"]
                 return response(model, [] if results else call("spawn_agent", name="worker", task="WORKER-ASSIGNMENT"))
             if user == "UNRELATED-TASK":
                 return response(model, [{"type": "text", "text": "UNRELATED-RESULT"}])
