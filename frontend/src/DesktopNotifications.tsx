@@ -12,9 +12,10 @@ import { chatTitle, Icon, IconButton, Modal } from "./ui";
 import "./DesktopNotifications.css";
 
 type Preferences = { enabled: boolean; dismissed: boolean };
-type Latest = { id: string | null; revision?: number };
+type Latest = { id: string | null; revision?: number; unread: boolean };
 const BRAND_ICON = "/assets/duet-symbol.svg";
 const MAX_CLAIMS = 100;
+const MAX_READ_IDS = 1000;
 function readPreferences(key: string): Preferences {
   try {
     const saved = JSON.parse(localStorage.getItem(key) || "{}");
@@ -57,18 +58,21 @@ export function useDesktopNotifications(
       ownerId,
       preferenceKey,
       claimKey: `twinteams.notifications.claims:${encodeURIComponent(ownerId)}`,
+      readKey: `twinteams.notifications.read:${encodeURIComponent(ownerId)}`,
       preferences: readPreferences(preferenceKey),
       active: true,
       initializedAt: 0,
       seen: new Map<string, number>(),
+      read: new Set<string>(),
       latest: new Map<string, Latest>(),
-      notifications: new Map<string, Notification>(),
+      notifications: new Map<string, { notification: Notification; messageId: string }>(),
     };
   }, [ownerId]);
   const close = useCallback(
-    (chatId?: string) => {
-      for (const [id, notification] of scope.notifications) {
+    (chatId?: string, messageIds?: string[]) => {
+      for (const [id, { notification, messageId }] of scope.notifications) {
         if (chatId !== undefined && id !== chatId) continue;
+        if (messageIds && !messageIds.includes(messageId)) continue;
         notification.close();
         scope.notifications.delete(id);
       }
@@ -83,6 +87,21 @@ export function useDesktopNotifications(
     },
     [scope, close],
   );
+  const applyRead = useCallback((chatId: string, messageIds: string[]) => {
+    for (const id of messageIds) scope.read.add(id);
+    while (scope.read.size > MAX_READ_IDS) scope.read.delete(scope.read.values().next().value!);
+    close(chatId, messageIds);
+    const latest = scope.latest.get(chatId);
+    if (latest?.id && messageIds.includes(latest.id)) latest.unread = false;
+  }, [scope, close]);
+  const acknowledgeRead = useCallback((chatId: string, messageIds: string[]) => {
+    applyRead(chatId, messageIds);
+    try {
+      localStorage.setItem(scope.readKey, JSON.stringify({ chat_id: chatId, message_ids: messageIds }));
+    } catch {
+      /* Exact dismissal still works in this tab when browser storage is unavailable. */
+    }
+  }, [scope, applyRead]);
   const stop = useCallback(() => {
     scope.active = false;
     close();
@@ -111,9 +130,18 @@ export function useDesktopNotifications(
     setRuntimeError(false);
     const focus = () => {
       setPermission(browserPermission());
-      if (!background()) close();
     };
     const storage = (event: StorageEvent) => {
+      if (event.key === scope.readKey && event.newValue && scope.active && currentOwner.current === ownerId) {
+        try {
+          const read = JSON.parse(event.newValue);
+          if (read && typeof read.chat_id === "string" && Array.isArray(read.message_ids) &&
+              read.message_ids.length <= 1000 && read.message_ids.every((id: unknown) => typeof id === "string"))
+            applyRead(read.chat_id, read.message_ids);
+        } catch {
+          /* Ignore malformed cross-tab metadata; it cannot grant read access. */
+        }
+      }
       if (event.key === scope.preferenceKey) {
         scope.preferences = readPreferences(scope.preferenceKey);
         if (!scope.preferences.enabled) close();
@@ -133,13 +161,15 @@ export function useDesktopNotifications(
       window.removeEventListener("storage", storage);
       window.removeEventListener("pagehide", pagehide);
     };
-  }, [scope, close]);
+  }, [scope, ownerId, close, applyRead]);
 
   const notify = useCallback(
     (chat: Chat, actors: Actor[]) => {
       const meta = chat.last_message_meta;
       if (
         !meta ||
+        !meta.unread ||
+        scope.read.has(meta.id) ||
         !ownerId ||
         !scope.active ||
         currentOwner.current !== ownerId ||
@@ -164,7 +194,9 @@ export function useDesktopNotifications(
         scope.preferences.enabled &&
         browserPermission() === "granted" &&
         background() &&
-        scope.latest.get(chat.id)?.id === meta.id;
+        scope.latest.get(chat.id)?.id === meta.id &&
+        scope.latest.get(chat.id)?.unread === true &&
+        !scope.read.has(meta.id);
       const claimAndShow = () => {
         if (!eligible()) return;
         // Web Locks serializes this short, synchronous claim. Only bounded metadata is stored.
@@ -206,7 +238,7 @@ export function useDesktopNotifications(
             tag: `twinteams:${ownerId}:${chat.id}`,
           });
           close(chat.id);
-          scope.notifications.set(chat.id, notification);
+          scope.notifications.set(chat.id, { notification, messageId: meta.id });
           try {
             localStorage.setItem(
               scope.claimKey,
@@ -218,6 +250,8 @@ export function useDesktopNotifications(
           notification.onclick = (event) => {
             event.preventDefault();
             notification.close();
+            if (scope.notifications.get(chat.id)?.notification === notification)
+              scope.notifications.delete(chat.id);
             if (
               scope.active &&
               currentOwner.current === ownerId &&
@@ -228,7 +262,7 @@ export function useDesktopNotifications(
             }
           };
           notification.onclose = () => {
-            if (scope.notifications.get(chat.id) === notification)
+            if (scope.notifications.get(chat.id)?.notification === notification)
               scope.notifications.delete(chat.id);
           };
         } catch {
@@ -242,7 +276,8 @@ export function useDesktopNotifications(
             claimAndShow();
           })
           .catch(() => {
-            /* No retry on an uncertain claim, to avoid duplicate alerts. */
+            if (scope.active && currentOwner.current === ownerId)
+              setRuntimeError(true);
           });
       else claimAndShow();
     },
@@ -276,6 +311,7 @@ export function useDesktopNotifications(
         scope.latest.set(chat.id, {
           id: meta?.id || null,
           revision: chat.revision,
+          unread: meta?.unread === true && !scope.read.has(meta.id),
         });
         if (!meta) {
           close(chat.id);
@@ -283,7 +319,8 @@ export function useDesktopNotifications(
         }
         if (
           scope.notifications.has(chat.id) &&
-          (chat.unread_count === 0 || meta.seq < (previous || 0))
+          (chat.unread_count === 0 || meta.seq < (previous || 0) ||
+            scope.notifications.get(chat.id)?.messageId === meta.id && !meta.unread)
         )
           close(chat.id);
         // Never lower a high-water mark after withdrawal, stale responses, or history changes.
@@ -356,6 +393,7 @@ export function useDesktopNotifications(
     disable: () => savePreferences({ enabled: false }),
     dismiss: () => savePreferences({ dismissed: true }),
     close,
+    acknowledgeRead,
     revoke,
     stop,
     observeBootstrap,

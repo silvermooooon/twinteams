@@ -820,7 +820,9 @@ class ProductService:
             func.substr(Message.body, 1, 300).label("body")).where(Message.chat_id == Chat.id,
                 Message.seq >= Membership.lower_seq, Message.state == "published",
                 or_(Chat.kind != "group", Message.kind == "human")).order_by(Message.seq.desc()).limit(1).lateral()
-        previews = db.execute(select(Chat.id.label("chat_id"), preview).select_from(Chat).join(Membership,
+        last_unread = and_(preview.c.author_id != owner_id, ~select(Receipt.message_id).where(
+            Receipt.message_id == preview.c.id, Receipt.owner_id == owner_id).exists())
+        previews = db.execute(select(Chat.id.label("chat_id"), preview, last_unread.label("unread")).select_from(Chat).join(Membership,
             Membership.chat_id == Chat.id).join(preview, true()).where(Chat.id.in_(chat_ids),
                 Membership.owner_id == owner_id, Membership.left_at.is_(None)))
         last = {row.chat_id: row for row in previews}
@@ -841,7 +843,8 @@ class ProductService:
                 "member_owner_ids": owner_ids, "unread_count": counts.get(chat.id, 0),
                 "last_message": last.body if last else None,
                 "last_message_meta": {"id": last.id, "seq": last.seq, "author_id": last.author_id,
-                                      "kind": last.kind, "created_at": iso(last.created_at)} if last else None}
+                                      "kind": last.kind, "created_at": iso(last.created_at),
+                                      "unread": last.unread} if last else None}
 
     def settings_row(self, db, owner_id, chat):
         row = db.get(ChatSetting, (owner_id, chat.id))
@@ -1454,19 +1457,26 @@ class ProductService:
         return {"ok": True}
 
     def read(self, owner_id, chat_id, message_ids):
+        from sqlalchemy.orm import load_only
+
         with self.transaction() as db:
             chat, member = self.membership(db, owner_id, chat_id, True)
+            snapshot_revision = chat.revision
             ids = set(message_ids)
-            query = select(Message.id).where(Message.id.in_(ids), Message.chat_id == chat_id,
+            query = select(Message).options(load_only(Message.id, Message.chat_id)).where(Message.id.in_(ids), Message.chat_id == chat_id,
                 Message.seq >= member.lower_seq, Message.state == "published")
             if chat.kind == "group":
                 query = query.where(Message.kind == "human")
-            if set(db.scalars(query)) != ids:
+            # Keep the batch alive for transaction revision collection on Receipt flush.
+            messages = list(db.scalars(query))
+            if {message.id for message in messages} != ids:
                 fail(404, "Message is unavailable in your authorized history")
             existing = set(db.scalars(select(Receipt.message_id).where(Receipt.message_id.in_(ids), Receipt.owner_id == owner_id)))
             db.add_all(Receipt(message_id=identifier, owner_id=owner_id) for identifier in ids - existing)
+            summary = self.chat_json(db, chat, member)
         self.publish_event(chat_id, {"type": "changed"})
-        return {"ok": True}
+        summary["revision"] = db.info.get("chat_revisions", {}).get(chat_id, snapshot_revision)
+        return {"ok": True, "message_ids": sorted(ids), "chat": summary}
 
 
     def patch_chat_settings(self, owner_id, chat_id, values):

@@ -86,6 +86,7 @@ export const en = {
   'notifications.unavailable': 'This browser could not show desktop notifications. Check browser and system notification settings.',
   'notifications.limit': 'Notifications work while Duet is open in your browser. Browser and system settings, including Do Not Disturb, control how alerts appear.',
   'notifications.attachment': 'Sent an attachment',
+  'chat.readFailed': 'Couldn’t mark messages as read. Try again.',
   "reactions.moreTypes": "{count} more reaction types",
   "reactions.actions": "Message actions and reactions",
   "reactions.react": "React {emoji}",

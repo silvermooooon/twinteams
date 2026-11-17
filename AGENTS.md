@@ -245,6 +245,10 @@ Details: [Duet topics](docs/duet-topics.md), [Memory](docs/twin-git-memory.md),
 - Sender-local echo is immediate/in-memory; retry retains the submission key.
   Reload fetches canonical data, not a durable offline outbox. Message text has no
   business character cap; large WebSocket sends fall back to HTTP.
+- Read acknowledgements update sidebar counts directly from the saved summary.
+  Only visible loaded messages are submitted; failed reads expose Retry without
+  presence-timer retries. Notification dismissal uses exact acknowledged IDs and
+  owner-scoped cross-tab metadata. See [notifications](docs/browser-notifications.md).
 - All file types, including images, live in workspace and enter model context
   as references for inspection. Four attachments/20 MiB limits remain. Delivered
   chat files are snapshots; Markdown/text/PDF preview in-app, HTML opens through

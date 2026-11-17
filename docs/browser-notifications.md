@@ -21,12 +21,35 @@ notify while the page is hidden or its window is unfocused. The alert includes
 the author and chat, a bounded preview, and a brand icon. Clicking it focuses the
 existing page and opens that chat; it does not automatically send a reply.
 
+Opening a chat marks only loaded, published incoming messages that meet the
+viewport visibility threshold as read, while the page is visible and focused.
+The read response returns the saved message IDs and the canonical chat summary;
+the sidebar applies that summary immediately, without waiting for a WebSocket
+hint. Older bootstrap, detail and summary responses cannot restore an older
+unread count. Earlier or offscreen messages remain unread, so a partially viewed
+chat can correctly retain a smaller badge.
+
+A failed read keeps the badge and shows **Retry** in the conversation. Retry
+checks the current viewport again; presence heartbeats do not retry reads.
+Clicking a desktop notification closes that notification and navigates to its
+chat, but navigation alone does not create receipts. A saved read closes alerts
+for its exact messages. Focusing another conversation does not dismiss them.
+Authorized summaries include whether the latest message is unread, so a message
+read in another tab also stops its alert even when older messages remain unread.
+Same-origin tabs also exchange the exact acknowledged message IDs through
+owner-scoped browser metadata, dismissing an older alert when a newer message
+remains unread. That metadata contains no message text and does not create server
+receipts. A mobile chat-list overlay prevents messages behind it from being
+marked read. Unavailable-history read failures reauthorize the conversation before
+retrying, so withdrawn messages do not remain in a failed batch.
+
 | Message or refresh | Expected result |
 | --- | --- |
 | Your Duet's private answer or a message in an authorized Duet thread | Notify when the page is in the background. |
 | Someone else's human message in a human chat | Notify when the page is in the background. |
 | Your own human message | No notification; a local echo or acknowledgment is not an incoming message. |
 | Focused page, initial history, reaction/read-state change | No desktop alert for the old message. |
+| Latest message already read, with earlier unread history | No alert for that latest message; keep the remaining unread count. |
 | Reconnect | Do not replay the same last message. A newer reply committed during the gap can notify once after reauthorization. |
 | New conversation | A new incoming first message can notify; newly authorized old history is not a new message. |
 | Attachment without text | Show the attachment fallback rather than an empty preview. |
@@ -74,12 +97,24 @@ The launcher provisions temporary PostgreSQL/Redis/files, two real loopback API
 processes and the worker/SDK with the deterministic offline provider. It rejects
 production origins. No real model calls or production messages are needed. The
 notification cases are also registered in the default offline suite, before the
-final Reset workflow. There are **eight notification workflows**; a filtered run
+final Reset workflow. The four `notifications unread /` cases cover notification
+clicks, a failed read followed by retry, partial group-history visibility and
+exact-message dismissal across tabs.
+Use `TWINTEAMS_E2E_CASE='^notifications unread /'` for that subset. A filtered run
 is not the full offline suite.
 
-`frontend/e2e/notifications.cjs` controls only the browser Notification boundary
-for seven cases: permission result, constructor observation, close and click.
-These cases do not intercept business HTTP or WebSocket traffic. The own-Twin case also moves only browser `Date.now()` one day ahead; real
+From `frontend/`, `npm run test:unread-ui` runs the real App and layout with
+explicitly mocked HTTP, WebSocket and Notification boundaries. Its eight cases
+cover read acknowledgements without hints, delayed snapshots, pagination,
+failed/uncertain saves and retry, responsive overlays, unavailable-history
+reauthorization and cross-tab dismissal. It does not assert database persistence
+or operating-system presentation.
+
+`frontend/e2e/notifications.cjs` controls the browser Notification boundary:
+permission result, constructor observation, close and click. The failed-read case
+also aborts exactly one `/read` request before server delivery; its retry and all
+business responses are real. Other cases do not intercept business HTTP or
+WebSocket traffic. The own-Twin case also moves only browser `Date.now()` one day ahead; real
 server timestamps and the monotonic performance clock remain unchanged. This
 checks the server-provided initialization baseline without pretending that a day
 has elapsed. The general focused/blurred inputs are explicitly controlled rather than passed off as
