@@ -19,7 +19,7 @@ class TwinExecutionBackend(LocalExecutionBackend):
 
 
 async def assemble(service, session, context):
-    from . import personal
+    from . import bot_skills, personal
     request_id = context.get("request_id") or context.get("origin_request_id")
     owner_id = context["owner_id"]
     if request_id or context.get("private_generation") is not None:
@@ -36,20 +36,29 @@ async def assemble(service, session, context):
     elif frozen is None:
         bot = context.get("bot")
         if bot:
+            from .bot_snapshot_store import read_rules
             from .config import settings
             workspace = settings.workspace_root / bot["chat_id"]
-            profile = {"assignment": bot["assignment"], "bot_id": bot["id"]}
+            profile = {"assignment": bot["assignment"], "bot_id": bot["id"],
+                       "soul": await service.db_call(read_rules, workspace)}
+            bot_skill_config = await bot_skills.build_skill_config(owner_id, bot["id"])
+            skills = bot_skill_config["skills"]
         else:
             workspace = await service.db_call(personal.resolve_twin_workspace, owner_id)
             soul = await service.db_call(personal.get_soul, owner_id)
             profile = {"soul": soul["content"], "soul_version": soul["version"]}
+            bot_skill_config = None
+            skills = await personal.build_skill_config(owner_id)
         catalog = []
         if authorized and credentials.configured():
             catalog = [{"ref": info.ref, "description": info.description, "env_names": list(info.env_names)}
                        for info in await credentials.make_secret_store(session.info).list()]
         frozen = await service.db_call(personal.freeze_execution_config, request_id, {
             "version": 1, "workspace": str(workspace),
-            "skills": await personal.build_skill_config(owner_id),
+            "skills": skills,
+            **({"bot_skill_pack_digest": bot_skill_config["pack_digest"],
+                "bot_skill_directory": str(bot_skills.skill_pack_path(bot_skill_config["pack_digest"]))}
+               if bot_skill_config else {}),
             "credentials": catalog, "execution_enabled": authorized,
             "profile": profile,
         })
@@ -57,7 +66,10 @@ async def assemble(service, session, context):
     enabled = bool(authorized and config.get("execution_enabled"))
     tools = []
     if config.get("skills"):
-        store = await service.db_call(personal.create_enabled_skill_store, owner_id, config["skills"])
+        if config.get("bot_skill_pack_digest"):
+            store = bot_skills.create_enabled_skill_store(config["bot_skill_pack_digest"], config["skills"])
+        else:
+            store = await service.db_call(personal.create_enabled_skill_store, owner_id, config["skills"])
         tools.extend(create_skill_tools(store=store))
     memory_index = None
     if enabled:

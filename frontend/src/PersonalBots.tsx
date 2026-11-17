@@ -16,17 +16,24 @@ function BotChoices({ bots, selected, onChange, disabled }: { bots: PersonalBot[
   return <fieldset className="bot-choices" disabled={disabled}><legend>{t('bots.select')}</legend>{bots.length ? bots.map(bot => <label className="bot-choice" key={bot.id}><input type="checkbox" checked={selected.includes(bot.id)} onChange={() => onChange(selected.includes(bot.id) ? selected.filter(id => id !== bot.id) : [...selected, bot.id])} /><Avatar actor={bot.actor} size={30} /><span><strong>{bot.name}</strong><small>{bot.assignment}</small></span></label>) : <p className="form-note">{t('bots.emptyDetail')}</p>}</fieldset>;
 }
 
-export function BotEditorDialog({ api, bot, onClose, onSaved }: { api: ApiClient; bot?: PersonalBot; onClose: () => void; onSaved: (bot: PersonalBot) => void }) {
+export function BotEditorDialog({ api, bot, onClose, onSaved, onShare, onSkills }: { api: ApiClient; bot?: PersonalBot; onClose: () => void; onSaved: (bot: PersonalBot) => void; onShare?: () => void; onSkills?: () => void }) {
   const [name, setName] = useState(bot?.name || '');
   const [assignment, setAssignment] = useState(bot?.assignment || '');
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  return <Modal title={t(bot ? 'bots.edit' : 'bots.create')} closeDisabled={busy} onClose={onClose}><form onSubmit={async event => {
-    event.preventDefault(); if (!name.trim() || !assignment.trim() || busy) return;
+  const changed = name.trim() !== bot?.name || assignment.trim() !== bot?.assignment;
+  async function save(next?: () => void) {
+    if (!name.trim() || !assignment.trim() || busy) return;
+    if (next && !changed) { next(); return; }
     setBusy(true); setError('');
-    try { const data = { name: name.trim(), assignment: assignment.trim() }; const saved = bot ? await api.patch<PersonalBot>(`/bots/${encodeURIComponent(bot.id)}`, data) : await api.post<PersonalBot>('/bots', data); onSaved(saved); onClose(); }
+    try { const data = { name: name.trim(), assignment: assignment.trim() }; const saved = bot ? await api.patch<PersonalBot>(`/bots/${encodeURIComponent(bot.id)}`, data) : await api.post<PersonalBot>('/bots', data); onSaved(saved); if (next) next(); else onClose(); }
     catch (error) { setError(errorText(error)); }
     finally { setBusy(false); }
-  }}><p className="form-note">{t('bots.personalHint')}</p><label>{t('bots.name')}<input aria-label={t('bots.name')} required maxLength={128} value={name} disabled={busy} onChange={event => setName(event.target.value)} /></label><label>{t('bots.assignment')}<textarea aria-label={t('bots.assignment')} required rows={5} value={assignment} disabled={busy} onChange={event => setAssignment(event.target.value)} placeholder={t('bots.assignmentPlaceholder')} /></label><p className="form-note">{t('bots.assignmentHint')}</p>{error && <p className="twin-inline-error" role="alert">{error}</p>}<div className="modal-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('common.cancel')}</button><button className="primary-button" disabled={busy || !name.trim() || !assignment.trim()}>{t(busy ? 'common.loading' : bot ? 'common.save' : 'bots.create')}</button></div></form></Modal>;
+  }
+  return <Modal title={t(bot ? 'bots.edit' : 'bots.create')} closeDisabled={busy} onClose={onClose}><form onSubmit={event => { event.preventDefault(); void save(); }}>
+    <p className="form-note">{t('bots.personalHint')}</p><label>{t('bots.name')}<input aria-label={t('bots.name')} required maxLength={128} value={name} disabled={busy} onChange={event => setName(event.target.value)} /></label><label>{t('bots.assignment')}<textarea aria-label={t('bots.assignment')} required rows={5} value={assignment} disabled={busy} onChange={event => setAssignment(event.target.value)} placeholder={t('bots.assignmentPlaceholder')} /></label><p className="form-note">{t('bots.assignmentHint')}</p>
+    {bot && <div className="bot-editor-links">{onShare && <button type="button" className="text-button" disabled={busy || !name.trim() || !assignment.trim()} onClick={() => { void save(onShare); }}><Icon name="arrow" size={15} />{t(changed ? 'botShare.saveAndShare' : 'botShare.title')}</button>}{onSkills && <button type="button" className="text-button" disabled={busy || !name.trim() || !assignment.trim()} onClick={() => { void save(onSkills); }}><Icon name="spark" size={15} />{t(changed ? 'botSkills.saveAndManage' : 'botSkills.manage')}</button>}</div>}
+    {error && <p className="twin-inline-error" role="alert">{error}</p>}<div className="modal-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t('common.cancel')}</button><button className="primary-button" disabled={busy || !name.trim() || !assignment.trim()}>{t(busy ? 'common.loading' : bot ? 'common.save' : 'bots.create')}</button></div>
+  </form></Modal>;
 }
 
 export function BotDispatchDialog({ api, bots, onClose, onSent }: { api: ApiClient; bots: PersonalBot[]; onClose: () => void; onSent: (chatId: string) => void }) {

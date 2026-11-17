@@ -298,6 +298,9 @@ def avatar_file(owner_id, actor_id, etag=None):
             return None, current
         # Only this dedicated route opts in to the deferred binary column.
         actor = db.scalar(select(Actor).options(undefer(Actor.avatar_data)).where(Actor.id == actor_id))
+        if actor.kind == "bot" and actor.avatar_data is None:
+            from .bot_snapshot_store import blob_path
+            return blob_path(actor.avatar_digest).read_bytes(), current
         return actor.avatar_data, current
 
 

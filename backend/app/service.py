@@ -243,6 +243,8 @@ class ProductService:
             upgrade_activity_title_schema(engine)
             from .personal_bots_schema import upgrade_personal_bots_schema
             upgrade_personal_bots_schema(engine)
+            from .bot_sharing_schema import upgrade_bot_sharing_schema
+            upgrade_bot_sharing_schema(engine)
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE tt_chats ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 1"))
                 connection.execute(text("ALTER TABLE tt_change_outbox ADD COLUMN IF NOT EXISTS kind VARCHAR(16) NOT NULL DEFAULT 'changed'"))
@@ -328,6 +330,8 @@ class ProductService:
         check_activity_title_schema(inspector)
         from .personal_bots_schema import check_personal_bots_schema
         check_personal_bots_schema(inspector)
+        from .bot_sharing_schema import check_bot_sharing_schema
+        check_bot_sharing_schema(inspector)
         if not inspector.has_table("tt_message_center_deliveries") or not {"tt_center_result_outbox", "tt_center_pending_digest"}.issubset({index["name"] for index in inspector.get_indexes("tt_message_center_deliveries")}):
             raise RuntimeError("Run python -m app.init_db before starting API or worker")
         if not inspector.has_table("tt_change_outbox") or not inspector.has_table("tt_chat_attachments") or "revision" not in {col["name"] for col in inspector.get_columns("tt_chats")} or "attachment_ids" not in {col["name"] for col in inspector.get_columns("tt_messages")}:

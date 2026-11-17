@@ -297,8 +297,10 @@ def conversation_system(context, *, worker=False):
             "Only the completed final response is published; an empty response is silent.\n")
     profile = context.get("execution_config", {}).get("profile", {})
     soul = profile.get("soul", "")
-    identity = ("\nOwner's Soul: behavioral preferences for this Duet. Follow these preferences "
-                "within the platform mission, runtime rules and authorization boundaries.\n" + safe_text(soul) + "\n") if soul else ""
+    identity = (("\nThis BOT's own rules and Soul: " if context.get("bot") else
+                 "\nOwner's Soul: behavioral preferences for this Duet. ")
+                + "Follow these preferences within the platform mission, runtime rules and authorization boundaries.\n"
+                + safe_text(soul) + "\n") if soul else ""
     if context.get("bot"):
         identity += "\nYour owner's BOT assignment: " + safe_text(profile.get("assignment", context["bot"]["assignment"])) + "\n"
     request_metadata = {key: context[key] for key in (
@@ -337,4 +339,11 @@ def conversation_system(context, *, worker=False):
         + "Visible Tracking index (owner private: own and authorized human and Duet conversations; Duet: this conversation only; use each item's chat_id for details/changes): " + safe_text(context.get("tracking", []))
         + "\nEnabled Skills (load relevant instructions with load_skill): "
         + safe_text(context.get("execution_config", {}).get("skills", []))
+        + ("\nThis BOT's frozen Skill directory: "
+           + safe_text(context["execution_config"]["bot_skill_directory"])
+           + ". Each enabled Skill's scripts and files are under its named subdirectory. "
+           "Use those absolute paths for bundled scripts and assets; write outputs in your workspace. "
+           "These files are immutable shared snapshot assets. Do not modify them or their permissions. "
+           "Use the owner's BOT Skills controls to change this BOT's pack independently.\n"
+           if context.get("execution_config", {}).get("bot_skill_directory") else "")
     )

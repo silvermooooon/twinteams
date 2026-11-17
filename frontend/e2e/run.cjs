@@ -164,6 +164,7 @@ async function main() {
         require("./avatar.cjs"),
         require("./personal.cjs"),
         require("./personal-bots.cjs"),
+        require("./bot-sharing.cjs"),
         require("./scheduled-tasks.cjs"),
         require("./scheduled-task-dispatch.cjs"),
       ];

@@ -71,6 +71,58 @@ class Actor(Base):
     avatar_preset: Mapped[str | None] = mapped_column(String(24))
     profile_revision: Mapped[int] = mapped_column(BigInteger, default=1)
     enabled_skill_names: Mapped[list] = mapped_column(JSON, default=list)
+    bot_skill_pack_digest: Mapped[str | None] = mapped_column(String(64))
+    installed_snapshot_id: Mapped[str | None] = mapped_column(ForeignKey(
+        "tt_bot_snapshots.id", use_alter=True, name="tt_actor_installed_snapshot"))
+
+
+class BotSnapshot(Base):
+    __tablename__ = "tt_bot_snapshots"
+    __table_args__ = (Index("tt_bot_snapshot_source", "source_owner_id", "source_bot_id", "created_at"),)
+    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
+    parent_snapshot_id: Mapped[str | None] = mapped_column(ForeignKey("tt_bot_snapshots.id"))
+    source_bot_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id"))
+    source_owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
+    name: Mapped[str] = mapped_column(String(128))
+    assignment: Mapped[str] = mapped_column(Text, deferred=True)
+    assignment_summary: Mapped[str] = mapped_column(String(500))
+    initials: Mapped[str] = mapped_column(String(8))
+    color: Mapped[str] = mapped_column(String(32))
+    avatar_digest: Mapped[str | None] = mapped_column(String(64))
+    avatar_preset: Mapped[str | None] = mapped_column(String(24))
+    skill_pack_digest: Mapped[str] = mapped_column(String(64))
+    skill_count: Mapped[int] = mapped_column(Integer)
+    rules_digest: Mapped[str] = mapped_column(String(64))
+    memory_commit: Mapped[str | None] = mapped_column(String(40))
+    memory_included: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class BotShareToken(Base):
+    __tablename__ = "tt_bot_share_tokens"
+    __table_args__ = (
+        UniqueConstraint("bot_id", "client_request_key", name="tt_bot_share_request"),
+        Index("tt_bot_share_catalog", "owner_id", "bot_id", "snapshot_id"),
+    )
+    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=uid)
+    token: Mapped[str] = mapped_column(String(64), unique=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"))
+    bot_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id"))
+    snapshot_id: Mapped[str] = mapped_column(ForeignKey("tt_bot_snapshots.id"))
+    client_request_key: Mapped[str] = mapped_column(String(160))
+    request_kind: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BotInstall(Base):
+    __tablename__ = "tt_bot_installs"
+    owner_id: Mapped[str] = mapped_column(ForeignKey("tt_owners.id"), primary_key=True)
+    snapshot_id: Mapped[str] = mapped_column(ForeignKey("tt_bot_snapshots.id"), primary_key=True)
+    # Reserve the unique install before creating its actor in the same transaction.
+    bot_id: Mapped[str] = mapped_column(ForeignKey("tt_actors.id", deferrable=True,
+                                                initially="DEFERRED"), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class Chat(Base):

@@ -41,12 +41,79 @@ these actors through bootstrap, list their BOTs, open their chats or inspect the
 profiles. Human `group` and forum `duet` roles and membership remain distinct.
 
 Each BOT uses its own conversation workspace and SDK Git Memory under its actor
-identity. Its children inherit that same BOT scope. The owner's enabled Skills
-and configured execution credentials remain available through existing assembly.
+identity. Its children inherit that same BOT scope. Each BOT has its own immutable
+Skill pack and enabled catalog. A BOT without a pack takes its initial active
+Skills from the owner's main Duet at its first execution, share, or Skill change;
+later main-Duet Skill changes do not change that BOT. Configured execution
+permissions and credentials still come from the executing owner.
 Local execution retains the existing host-privilege boundary; this is not OS
 isolation. BOT Memory uses existing memory tools and Git CAS. Automatic Dream
 continues to operate on the primary private conversation, not on BOT transcripts.
 Primary private reset does not delete BOT conversations or their separate Memory.
+
+## Snapshot sharing
+
+**Share BOT** in a BOT row menu or its edit dialog freezes a new immutable node.
+The dialog lists saved nodes and the owner's links, supports copying or issuing
+another link, and revokes individual links. A signed-in recipient opens
+`#/bots/share/{token}`, reviews the name, assignment summary, enabled Skill count
+and Memory indication, then chooses **Add to my BOTs**. The existing login flow
+preserves that hash. Installation creates a new owner-only BOT/chat/membership;
+the same owner and snapshot always return the same installed BOT. Even the source
+owner's self-install creates a separate copy, leaving the source BOT intact.
+
+Snapshots include name/assignment, active Skill folder contents and enabled names,
+the current BOT Git Memory tree, optional avatar and the BOT's own rule files.
+Rule files are `SOUL.md`, `AGENTS.md`, `RULES.md`, `rules.md`, and text files under
+`rules/` in its own chat workspace. Rule entries already in Git Memory travel with
+that Memory. New executions freeze the workspace rules into the BOT profile.
+Main-Duet Soul, transcripts, requests, Tracking, contacts, credentials and other
+workspace artifacts are not copied. Symlinks and credential/login files in a
+Skill or rules folder are rejected. User-authored Skill/Memory/rule prose remains
+content, not a semantic secret-redaction service; configured credential stores
+are never exported. Installed execution uses the recipient's existing credential
+and permission paths, including missing-credential failures.
+
+Each installed BOT keeps its original node ID even after edits. Sharing its current
+version creates a child of its latest published node (or its originally installed
+node for its first share). **Share original snapshot** creates a new link to that
+original immutable node. Each link belongs to its issuer; an installer cannot
+revoke someone else's link. Revocation stops new installs through that link and
+does not change installed copies or other links. Main Duet, other owners' BOTs,
+human groups and Duet topics retain their existing boundaries; a share is an
+installation invitation, not membership or communication authority.
+
+An existing installer can still reopen its own copy through a revoked link;
+preview/install through that link fail for owners without an existing install.
+
+Storage under `workspace_root/.bot-share` uses SHA-256 blobs and manifests.
+Skill packs hardlink read-only blobs and are materialized once per digest.
+Installed BOTs point to that pack, with no per-install Skill directory. The BOT
+Skills UI uploads folders, toggles, edits `SKILL.md`, and removes Skills; each
+mutation publishes a new pack and changes only that BOT's pointer. Running tasks
+retain their frozen pack. Runtime prompts expose that fixed directory so bundled
+scripts and companion files can be used directly, with outputs in the BOT's own
+workspace. Full folder replacement is remove then upload; nested
+references and executable metadata are retained. Main Duet's Skill folder is
+never overwritten or populated by installation.
+
+Memory freezing reads one current commit, creates a parentless commit for its
+tree, and pins an immutable `refs/bot-snapshots/{snapshot_id}` before transferring
+that commit into the shared bare `memory.git`. Removed/historical Memory versions
+do not travel. Snapshot rows store the fixed commit, never the live source HEAD.
+Each install initializes a small private bare repo at the existing
+`runtime-memory/bots/{bot_id}` scope with `objects/info/alternates` pointing to the
+shared objects. Subsequent SDK commits go only to that BOT's repo. Avatars reuse
+the blob digest; small editable rule files are copied to the new BOT workspace.
+
+Snapshot rows reject SQL updates. Foreign keys retain snapshots referenced by
+tokens, installs, actors and lineage, and Git refs retain shared Memory objects.
+There is currently no snapshot/object deletion or garbage collector: revoked
+tokens, old packs and failed-operation orphan files are retained. Future cleanup
+must first establish zero database references and account for frozen execution
+configs and all Git alternate borrowers. Backups and multi-host storage must keep
+the shared assets together with the private repositories and preserve/rewrite
+the absolute alternate paths when moving storage.
 
 ## Internal coordination
 
@@ -119,8 +186,20 @@ All paths use `/api` and authenticated owner identity:
 | `POST /bots/dispatch` | `{bot_ids, body, client_request_key}` from primary Duet |
 | `POST /bots/messages` | `{sender_actor_id, recipient_actor_id, body, client_request_key}` |
 | `POST /bot-rooms` | Create from `{title, bot_ids}`, returning a Chat |
+| `GET /bots/{bot_id}/shares` | Owner's saved nodes and tokens, plus originally installed node |
+| `POST /bots/{bot_id}/shares` | Freeze current state and issue a token; `{client_request_key}` |
+| `POST /bots/{bot_id}/shares/{snapshot_id}/tokens` | Issue a token for this BOT's node or its original installed node; `{client_request_key}` |
+| `DELETE /bots/{bot_id}/shares/tokens/{token_id}` | Revoke the caller's token |
+| `POST /bot-shares/preview` | `{token}`; authenticated metadata preview and caller's existing install, if any |
+| `POST /bot-shares/install` | `{token}`; idempotent installation returning a PersonalBot |
+| `GET /bots/{bot_id}/skills` | BOT Skill catalog without file bodies |
+| `POST /bots/{bot_id}/skills/upload` | Existing multipart folder format; starts disabled |
+| `GET /bots/{bot_id}/skills/{name}` | Full editable `SKILL.md` and reference names |
+| `PATCH /bots/{bot_id}/skills/{name}` | Set `{enabled}` for this BOT |
+| `PUT /bots/{bot_id}/skills/{name}` | Replace `SKILL.md` using `{content}` |
+| `DELETE /bots/{bot_id}/skills/{name}` | Remove a Skill only from this BOT |
 
-BOT records contain `{id, chat_id, name, assignment, actor, chat}`. Bootstrap includes
+BOT records contain `{id, chat_id, name, assignment, installed_snapshot_id, actor, chat}`. Bootstrap includes
 the owner's `bots` plus BOT and internal-room chats in its existing `chats` list;
 forum topics keep their separate listing. Lists use owner-filtered joined queries
 and batched summaries. Dispatch resolves all target agents and lanes in batches;
@@ -141,10 +220,24 @@ chat revision refreshes. The UI does not add periodic catalog or transcript read
 New UI labels, empty states, actions and result statuses use `t()` and `i18n/en.ts`.
 API permission failures follow the existing `{detail}` error path.
 
+Snapshot lists select owner/source metadata and load tokens in one batch. Assignment
+summaries are explicitly limited to 500 characters; installation uses the full
+assignment. List and preview endpoints do not read Skill file bodies or Memory.
+The source index supports node listing/parent selection; the token catalog index
+supports owner/BOT lists. Unique token and owner/snapshot install constraints
+support lookup and idempotence. Install reserves that uniqueness in PostgreSQL
+before creating the actor; a shared token row lock orders installs against revoke
+without serializing different recipients with one another. Share/token command
+retries reuse their client key. No polling or model calls are introduced.
+Bearer share tokens travel in JSON request bodies; they remain in the browser's
+hash link and do not enter HTTP URL/access-log paths.
+
 ## Provisioning
 
 Run the explicit `python -m app.init_db` upgrade before starting the new API and
 worker. `personal_bots_schema.py` applies `sql/008_personal_bots.sql`: additive
 columns and revised actor/chat constraints, preserving existing identities and
-history. Ordinary startup checks the installed schema. No SDK migration or sibling
-repository change is required by this feature.
+history. `bot_sharing_schema.py` applies `sql/009_bot_sharing.sql`, adding
+`tt_bot_snapshots`, `tt_bot_share_tokens`, `tt_bot_installs` and Actor pack/original
+node pointers, plus the immutable-node trigger. Ordinary startup checks the
+installed schema. No SDK migration or sibling repository change is required.

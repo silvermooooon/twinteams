@@ -17,6 +17,14 @@ collaboration rooms share one thread; BOTs cannot join human groups or Duet topi
 See [Personal BOTs](docs/personal-bots.md) for the model, API and explicit schema
 upgrade. The primary private Duet remains the owner's main entry.
 
+**Share BOT** freezes its current configuration, active Skills and Memory into an
+immutable snapshot. A signed-in recipient installs an independent personal copy.
+Each BOT has its own Skill pack; edits do not change main Duet or anyone else's
+copy. Owners can re-share an originally installed node and revoke individual
+links without changing installed BOTs. Provision `009_bot_sharing.sql` through
+`app.init_db` before starting the updated API/worker; see the
+[storage and sharing contract](docs/personal-bots.md#snapshot-sharing).
+
 ## Run locally
 
 Keep `twinteams/` and `agent-runtime/` as sibling checkouts. The backend installs
