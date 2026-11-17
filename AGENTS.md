@@ -74,6 +74,7 @@ Read [requirements](docs/product-requirements.md),
 | Private opening replies and work gate | `runtime_replies.py`; [publication contract](docs/architecture.md#private-reply-publication) |
 | Prompts, persona, introduction | `twin_prompts.py`, `soul_file.py`, `onboarding.py` |
 | History and source permissions | `conversation_context.py`, `message_references.py`, `service.py` |
+| Activity summary titles | `activity_titles.py`, `runtime_bridge.py`, `ActivityProjection` in `models.py` |
 | Duet topics, posts and consent | `duet_conversations.py`, `duet_messages.py`, `duet_topic_tools.py`, `duet_forum_schema.py` |
 | Personal BOTs and internal rooms | `personal_bots.py`, `bot_api.py`, `bot_tools.py`, `personal_bots_schema.py`, `frontend/src/PersonalBots.tsx` |
 | Tools and owner decisions | `platform_tools.py`, `owner_replies.py`, `questions.py`, `credentials.py` |

@@ -206,7 +206,7 @@ def test_actual_main_and_nested_child_factories_inherit_visibility_and_keep_fina
         runtime = RuntimeBridge(product)
         calls = []
         def offline(model, context, options):
-            calls.append(1)
+            calls.append(options.get("_purpose"))
             stream = AssistantMessageEventStream()
             stream.push({"type": "done", "message": assistant_message(model,
                 content=[{"type": "text", "text": "Verified synthetic result"}], stopReason="stop")})
@@ -249,6 +249,7 @@ def test_actual_main_and_nested_child_factories_inherit_visibility_and_keep_fina
                 assert all(row.user_visible is (not scheduled) for row in rows)
                 assert db.scalar(select(Message.id).where(Message.request_id == original, Message.body == "Verified synthetic result"))
             assert len(ids(product)) == (0 if scheduled else 3)
+            assert calls.count("activity_title") == (0 if scheduled else 3)
             if scheduled:
                 current = next(item for item in scheduled_tasks.list_tasks(product, "owner-alex")["items"] if item["id"] == task["id"])
                 assert {key: current[key] for key in saved_task} == saved_task

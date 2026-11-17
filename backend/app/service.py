@@ -239,6 +239,8 @@ class ProductService:
             upgrade_duet_forum_schema(engine)
             from .activity_visibility_schema import upgrade_activity_visibility_schema
             upgrade_activity_visibility_schema(engine)
+            from .activity_titles import upgrade_activity_title_schema
+            upgrade_activity_title_schema(engine)
             from .personal_bots_schema import upgrade_personal_bots_schema
             upgrade_personal_bots_schema(engine)
             with engine.begin() as connection:
@@ -322,6 +324,8 @@ class ProductService:
         check_duet_forum_schema(inspector)
         from .activity_visibility_schema import check_activity_visibility_schema
         check_activity_visibility_schema(inspector)
+        from .activity_titles import check_activity_title_schema
+        check_activity_title_schema(inspector)
         from .personal_bots_schema import check_personal_bots_schema
         check_personal_bots_schema(inspector)
         if not inspector.has_table("tt_message_center_deliveries") or not {"tt_center_result_outbox", "tt_center_pending_digest"}.issubset({index["name"] for index in inspector.get_indexes("tt_message_center_deliveries")}):
@@ -3455,12 +3459,14 @@ class ProductService:
             if chat.kind == "private" and (chat.reset_pending or generation != chat.reset_generation):
                 return
             row = db.get(ActivityProjection, (session_id, run_id))
+            created = row is None
             if not row:
-                row = ActivityProjection(session_id=session_id, run_id=run_id, chat_id=chat_id, owner_id=owner_id, private_generation=generation, user_visible=values.get("user_visible", True))
+                row = ActivityProjection(session_id=session_id, run_id=run_id, chat_id=chat_id, owner_id=owner_id, private_generation=generation, user_visible=values.get("user_visible", True), summary_title=values.get("initial_title", "Duet response"))
                 db.add(row)
-            for name in ("parent_run_id", "source", "status", "title", "summary", "started_at", "finished_at"):
+            for name in ("parent_run_id", "source", "status", "title", "summary_title", "summary", "started_at", "finished_at"):
                 if values.get(name) is not None:
                     setattr(row, name, values[name])
+            return created
 
     def _activity_scope(self, owner_id, chat_id, session_id=None, run_id=None, user_visible_only=True):
         with self.transaction() as db:
@@ -3474,7 +3480,7 @@ class ProductService:
                 return self._activity_json(row)
 
     def _activity_json(self, row):
-        return {name: iso(getattr(row, name)) if name in ("started_at", "finished_at") else getattr(row, name) for name in ("session_id", "run_id", "parent_run_id", "source", "status", "title", "summary", "started_at", "finished_at")}
+        return {"title": row.summary_title, **{name: iso(getattr(row, name)) if name in ("started_at", "finished_at") else getattr(row, name) for name in ("session_id", "run_id", "parent_run_id", "source", "status", "summary", "started_at", "finished_at")}}
 
     def activity_page(self, owner_id, chat_id, limit=50, before=None, user_visible_only=True):
         self._activity_scope(owner_id, chat_id)
