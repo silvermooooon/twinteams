@@ -60,6 +60,22 @@ HTTP chat snapshots contain the latest 100 messages by default (maximum page siz
 
 Activity lists read `tt_activity_runs` with keyset pagination; details read a bounded run/sequence page from the SDK journal. Owner-facing lists and details include only the projection's `user_visible` runs: scheduled tasks, system reviews, memory reviews and their continuations/children are hidden; user-conversation work and ordinary Duet collaboration remain visible. The flag is fixed on projection creation from the triggering request context; it does not restrict internal activity, task coordination, execution journals or owner messages. A partial index filters before pagination. The additive activity-visibility upgrade classifies existing projections once in the same transaction that adds the field; subsequent startup checks never traverse historical ancestry. Parent/child identity and summary/status are projected on writes. Older Activity is imported only by explicit `app.init_db --backfill-activity`, using indexed business/run projections rather than replaying journals at API startup.
 
+Activity JSON `title` reads the stored `summary_title` projection. A new visible
+private/BOT/internal run first stores a short English fallback, then attempts one
+tool-free summary of up to 2,000 input characters with the configured model
+(128 output tokens, reasoning off, five-second timeout). The prompt requests about
+8–12 Chinese characters or 2–6 words in the input's language; generated titles
+are normalized and bounded to 32 display units (wide characters count as two).
+Empty, copied, incomplete or failed titles retain the fallback. The title request
+runs before the main reply model call, holds no database transaction, and never
+publishes a chat message. Creation of the projection records the attempt: later
+events, recovery and reads do not regenerate it, including after a process loss.
+Owner-answer continuations retain “Continuing your task”; hidden maintenance and
+topic runs do not spend an extra title call. Child runs use their assigned task.
+The additive `app.init_db` upgrade gives legacy projections a stored generic title
+without rewriting old title data or journals. List and bootstrap reads perform no
+title generation, and the detail journal retains the original request input.
+
 ## Presence and I/O
 
 Redis TTL renewal does not write PostgreSQL. Presence, focus and read receipts describe human attention and do not trigger Duet participation. Topic updates create durable, metadata-only administrator and explicit-mention requests subject to current consent and membership. Reading a topic creates no update or wakeup. A recipient may finish silently. Human-group projections and reconstructed context hide historical agent messages; checkpoints depending on those messages cannot be reused. Notification hints contain no message bodies and metadata uses current authorization.

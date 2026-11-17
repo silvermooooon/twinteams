@@ -305,6 +305,17 @@ class RuntimeBridge:
         from .twin_prompts import conversation_system
         return conversation_system(context, worker=worker)
 
+    async def _summarize_activity(self, context, session_id, run_id, task, signal):
+        if not context.get("activity_user_visible", True) or context["chat"]["kind"] not in {"private", "bot", "internal"}:
+            return
+        from .activity_titles import generate_title
+        title = await signal.run(generate_title(self.models, task))
+        if title:
+            await self._check_generation(context)
+            await self.service.db_call("record_activity", context["chat"]["id"], context["owner_id"], session_id, run_id,
+                {"summary_title": title, "private_generation": context.get("private_generation") or 0})
+            await self.emit(context["chat"]["id"], type="changed")
+
     async def _summarize_conversation(self, prepared):
         """One isolated durable model operation; no chat projection or platform tools."""
         from agent_runtime.execution import DurableExecutor
@@ -664,7 +675,8 @@ class RuntimeBridge:
         }
         from .twin_prompts import request_prompt
         prompt = request_prompt(request, context)
-        activity_title = "Continuing your task" if request.get("source") == "question_result" else safe_text(prompt)[:180]
+        activity_title = "Continuing your task" if request.get("source") == "question_result" else "Duet response"
+        activity_input = request.get("input_body") or context.get("raw_owner_input") or (context.get("source_message") or {}).get("body") or prompt
         # The stable command body identifies the accepted request. Fresh context is provided
         # by the factory and frozen by the SDK's model_request boundary on recovery.
         message = {"role": "user", "content": [{"type": "text", "text": prompt}],
@@ -722,8 +734,10 @@ class RuntimeBridge:
                         signal.abort()
                         await self.store.request_cancel(tenant_id, request_id)
                     await self.service.db_call("bind_runtime_run", request_id, session_id, session.snapshot["run_id"])
-                    await self.service.db_call("record_activity", chat_id, owner_id, session_id, session.snapshot["run_id"], {"user_visible": agent_context.get("activity_user_visible", True), "title": activity_title, "source": request.get("source") if terminal_only else "user", "status": "running", "private_generation": agent_context.get("private_generation") or 0})
+                    created = await self.service.db_call("record_activity", chat_id, owner_id, session_id, session.snapshot["run_id"], {"user_visible": agent_context.get("activity_user_visible", True), "title": activity_title, "initial_title": activity_title, "source": request.get("source") if terminal_only else "user", "status": "running", "private_generation": agent_context.get("private_generation") or 0})
                     await self.emit(chat_id, type="changed", request_id=request_id)
+                    if created and request.get("source") != "question_result":
+                        await self._summarize_activity(agent_context, session_id, session.snapshot["run_id"], activity_input, signal)
                 elif (kind == "message_start" and not terminal_only
                       and event.get("message", {}).get("role") == "assistant"):
                     await self.emit(chat_id, type="operation_started", request_id=request_id,
@@ -778,7 +792,7 @@ class RuntimeBridge:
             run_id = result.get("run_id") or snapshot.get("run_id")
             if not run_id:
                 raise RuntimeError("The SDK command has no durable run identity.")
-            await self.service.db_call("record_activity", chat_id, owner_id, session_id, run_id, {"user_visible": context.get("activity_user_visible", True), "title": activity_title, "status": status, "private_generation": context.get("private_generation") or 0, "finished_at": datetime.now(UTC) if status in ("completed", "failed", "stopped", "cancelled") else None})
+            await self.service.db_call("record_activity", chat_id, owner_id, session_id, run_id, {"user_visible": context.get("activity_user_visible", True), "title": activity_title, "initial_title": activity_title, "status": status, "private_generation": context.get("private_generation") or 0, "finished_at": datetime.now(UTC) if status in ("completed", "failed", "stopped", "cancelled") else None})
             records = await self._run_records(tenant_id, session_id, run_id)
             if not terminal_only:
                 await self._project_outputs(request_id, tenant_id, session_id, run_id, records, terminal_only=False)
@@ -880,8 +894,10 @@ class RuntimeBridge:
                 if run_id:
                     if question_request and event.get("type") == "agent_start":
                         await self.service.db_call("bind_runtime_run", question_request, session.session_id, run_id)
-                    await self.service.db_call("record_activity", context["chat"]["id"], context["owner_id"], session.session_id, run_id,
-                        {"user_visible": context.get("activity_user_visible", True), "private_generation": context.get("private_generation") or 0, "parent_run_id": origin.get("parent_run_id") or origin.get("root_run_id"), "source": "subagent", "title": safe_text(origin.get("task", "Background task"))[:180], "status": snapshot.get("status", "running"), "finished_at": datetime.now(UTC) if event.get("type") == "agent_end" else None})
+                    created = await self.service.db_call("record_activity", context["chat"]["id"], context["owner_id"], session.session_id, run_id,
+                        {"user_visible": context.get("activity_user_visible", True), "private_generation": context.get("private_generation") or 0, "parent_run_id": origin.get("parent_run_id") or origin.get("root_run_id"), "source": "subagent", "title": "Background task", "initial_title": "Background task", "status": snapshot.get("status", "running"), "finished_at": datetime.now(UTC) if event.get("type") == "agent_end" else None})
+                    if created:
+                        await self._summarize_activity(context, session.session_id, run_id, origin.get("task", ""), signal)
         agent.subscribe(child_activity)
         await self._attach_subagents(agent, context)
         return agent

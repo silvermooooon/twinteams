@@ -67,6 +67,12 @@ ActivityRun {session_id,run_id,parent_run_id?:string,source,status,started_at,fi
 ActivityEvent {id,seq,type,time,label,input?:string,output?:string,status?:string}
 WorkspaceEntry {id,name,kind:'file'|'folder',path,workspace_path?:string,size?:number,children?:WorkspaceEntry[]}
 
+ActivityRun `title` is the persisted short `summary_title`, with a generic fallback
+for unavailable generation or legacy runs. It is never the raw request input.
+ActivityEvent `input` on the request event retains that input for detail inspection.
+Provision the additive title column with `app.init_db` before API/worker rollout;
+see [Activity title generation](architecture.md#browser-transport-and-permissions).
+
 Own-Duet private output does not automatically set a visible reply quote from `source_message_id`. Topic execution finals do not publish. Explicit human quotes and topic tool reply references remain available. Private child continuations inherit only an explicitly selected parent quote. Source IDs, provenance, request identity and causal chain remain intact independently of quote presentation; no historical rows or Soul are rewritten.
 
 
