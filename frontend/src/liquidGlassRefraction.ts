@@ -179,7 +179,19 @@ function applyRefraction(el: HTMLElement): void {
   bezel = Math.min(bezel, Math.min(w, h) * 0.3);
 
   const isClear = el.classList.contains('lg-glass-clear');
-  const blur = readAttrNumber(el, 'data-refract-blur', isClear ? 1.5 : 14);
+  const isSheet = el.classList.contains('lg-glass-sheet');
+  const isText = el.classList.contains('lg-glass-text');
+  // Chromium's SVG feDisplacementMap inside backdrop-filter can clip blur near
+  // element edges under DPR scaling or filter bounds, causing sharp text bleed
+  // on menus, popovers, modals, and text-bearing chrome. Keep pure CSS
+  // backdrop-filter on sheets and text-bearing glass; apply SVG rim lensing
+  // only to clear media overlays and non-text glass emblems.
+  if (isSheet || isText) {
+    removeRefraction(el);
+    return;
+  }
+  const defaultBlur = isClear ? 1.5 : 14;
+  const blur = readAttrNumber(el, 'data-refract-blur', defaultBlur);
   const dispersion = Math.max(
     0,
     Math.min(0.14, readAttrNumber(el, 'data-refract-dispersion', 0.035)),
@@ -214,15 +226,16 @@ function applyRefraction(el: HTMLElement): void {
     filter.appendChild(node);
   };
 
-  addNode('feImage', {
-    href: mapUrl,
-    x: 0,
-    y: 0,
-    width: w,
-    height: h,
-    preserveAspectRatio: 'none',
-    result: 'raw',
-  });
+  const feImage = document.createElementNS(SVG_NS, 'feImage');
+  feImage.setAttribute('href', mapUrl);
+  feImage.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', mapUrl);
+  feImage.setAttribute('x', '0');
+  feImage.setAttribute('y', '0');
+  feImage.setAttribute('width', String(w));
+  feImage.setAttribute('height', String(h));
+  feImage.setAttribute('preserveAspectRatio', 'none');
+  feImage.setAttribute('result', 'raw');
+  filter.appendChild(feImage);
 
   addNode('feGaussianBlur', {
     in: 'raw',
@@ -283,7 +296,7 @@ function applyRefraction(el: HTMLElement): void {
 
   ensureDefs().appendChild(filter);
 
-  const filterValue = `url(#${id}) blur(${blur}px) saturate(180%)`;
+  const filterValue = `url(#${id}) blur(${blur}px) saturate(${isSheet ? 195 : 185}%)`;
   el.style.setProperty('backdrop-filter', filterValue);
   el.style.setProperty('-webkit-backdrop-filter', filterValue);
   el.classList.add('is-refracting');

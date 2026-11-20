@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { Actor, Chat } from './api/client';
 import { t, formatDate, formatTime } from './i18n';
 import { PresetAvatar } from './TwinAvatars';
@@ -52,7 +53,7 @@ export function Modal({ title, children, onClose, wide = false, closeDisabled = 
     document.addEventListener('keydown', handleKey);
     return () => { cancelAnimationFrame(frame); document.removeEventListener('keydown', handleKey); if (previous?.isConnected) previous.focus({ preventScroll: true }); };
   }, []);
-  return <div className="twins-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !closeDisabled) onClose(); }}><section ref={container} tabIndex={-1} className={`modal lg-glass-sheet lg-glass-text ${wide ? 'wide' : ''}`} data-refract="0.72" role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading"><h2>{title}</h2><IconButton icon="close" label={t('common.close')} onClick={onClose} disabled={closeDisabled} /></div>{children}</section></div>;
+  return createPortal(<div className="twins-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !closeDisabled) onClose(); }}><section ref={container} tabIndex={-1} className={`modal lg-glass-sheet lg-glass-text ${wide ? 'wide' : ''}`} data-refract="0.72" role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading"><h2>{title}</h2><IconButton icon="close" label={t('common.close')} onClick={onClose} disabled={closeDisabled} /></div>{children}</section></div>, document.body);
 }
 export function Empty({ icon, title, detail }: { icon: IconName; title: string; detail?: string }) { return <div className="empty-state"><span className="empty-state-icon lg-glass-pill" data-refract="0.85"><Icon name={icon} size={28} /></span><h3>{title}</h3>{detail && <p>{detail}</p>}</div>; }
 export function time(value?: string | null) { if (!value) return ''; const date = new Date(value); return isNaN(date.getTime()) ? value : formatTime(date); }

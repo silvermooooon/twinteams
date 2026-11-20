@@ -14,15 +14,17 @@
 }
 
 body, .app-shell, .workspace {
-  background-color: var(--lg-ground, #eff1f5);
+  background-color: var(--lg-ground, #eef1f7);
 }
 .app-shell {
   background-image:
-    radial-gradient(circle at 12% 0%, rgba(215, 25, 32, 0.045), transparent 36%),
-    radial-gradient(circle at 86% 10%, rgba(120, 145, 190, 0.08), transparent 42%);
+    radial-gradient(960px 620px at 4% -6%, rgba(215, 25, 32, 0.085), transparent 54%),
+    radial-gradient(940px 680px at 96% 4%, rgba(74, 114, 192, 0.145), transparent 56%),
+    radial-gradient(840px 580px at 52% 106%, rgba(114, 134, 178, 0.115), transparent 56%),
+    linear-gradient(165deg, var(--lg-ground, #f2f4f9) 0%, var(--lg-ground-2, #e9edf5) 100%);
 }
 .topbar {
-  box-shadow: inset 0 -0.5px 0 var(--lg-separator, rgba(32, 33, 36, 0.11));
+  box-shadow: none;
 }
 .global-search {
   border: 0;
@@ -31,51 +33,88 @@ body, .app-shell, .workspace {
 .global-search:focus-within {
   border: 0;
   box-shadow:
-    inset 0 0.5px 0 var(--lg-glass-inner-hi),
-    0 0 0 1.5px rgba(32, 33, 36, 0.28),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    0 0 0 1.5px rgba(32, 33, 36, 0.24),
     var(--lg-glass-shadow);
 }
-.chat-main, .chat-main.with-side-panel, .my-twin-page {
+/* Center content surfaces are clean, open canvases (no nested card-in-card),
+   allowing floating Liquid Glass sidebars, header, and composer to float above them. */
+.chat-main, .chat-main.with-side-panel, .my-twin-page, .reminders-main, .provider-config-page {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+.chat-main.new-chat-main {
   background: var(--lg-content-surface, #ffffff);
-  border-radius: var(--lg-r-panel, 18px);
+  border-radius: var(--lg-r-shell, 24px);
   box-shadow: var(--lg-content-shadow);
 }
-.chat-main.with-side-panel {
-  border-radius: var(--lg-r-panel, 18px) 0 0 var(--lg-r-panel, 18px);
-}
 .chat-header {
-  border-bottom: 1px solid var(--lg-separator, rgba(32, 33, 36, 0.11));
+  border-bottom: 0;
   z-index: 6;
 }
 .chat-header-copy h2, .sidebar-heading h1, .detail-heading h2 { color: var(--accent); }
+.chat-list-row { border-radius: var(--lg-r-card, 14px); }
+.chat-item { border-radius: var(--lg-r-card, 14px); }
 .chat-list-row.selected, .chat-list-row.selected .chat-item {
-  background-color: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  background-color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.075), 0 0 0 0.5px rgba(15, 23, 42, 0.06);
 }
 .chat-list-row.selected .chat-item {
-  box-shadow: inset 3px 0 var(--brand-red), 0 1px 3px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
+  background-color: transparent;
 }
-.chat-item, .chat-list-row { border-radius: var(--lg-r-row, 10px); }
-.pill { border-radius: var(--lg-r-pill, 999px); border-color: var(--lg-separator-strong, rgba(32, 33, 36, 0.22)); background: rgba(255, 255, 255, 0.52); }
-.pill.active, .pill.selected { background-color: var(--lg-tint-glass, rgba(32, 33, 36, 0.84)); color: #fff; border-color: transparent; }
-.fluent-menu, .account-menu { border-radius: var(--lg-r-panel, 18px); border: 0; }
-.rail-item { border-radius: var(--lg-r-control, 11px); }
+.chat-list-row.selected::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--brand-red);
+  pointer-events: none;
+  z-index: 2;
+}
+.pill { border-radius: var(--lg-r-pill, 999px); border-color: var(--lg-separator-strong, rgba(32, 33, 36, 0.22)); background: rgba(255, 255, 255, 0.56); }
+.pill.active, .pill.selected { background-color: var(--lg-tint-glass, rgba(32, 33, 36, 0.86)); color: #fff; border-color: transparent; }
+.fluent-menu, .account-menu { border-radius: var(--lg-r-panel, 20px); border: 0; }
+.rail-item { border-radius: 14px; }
 .rail-item.active, .rail-item.active .rail-icon { color: var(--brand-red-text); }
-.rail-item.active::before { background-color: var(--brand-red); }
+.rail-item.active { background: var(--lg-red-soft, rgba(215, 25, 32, 0.11)); }
+.rail-item.active::before { display: none; }
 .rail-item.active .rail-icon > svg { fill: var(--brand-red-text); stroke: #fff; }
-.message-bubble { background-color: var(--lg-content-subtle, #f6f7f9); border-color: var(--lg-separator, rgba(32, 33, 36, 0.11)); border-radius: 4px var(--lg-r-card, 14px) var(--lg-r-card, 14px) var(--lg-r-card, 14px); }
-.own .message-bubble { background-color: #eceef2; border-color: rgba(32, 33, 36, 0.08); border-radius: var(--lg-r-card, 14px) 4px var(--lg-r-card, 14px) var(--lg-r-card, 14px); }
+.message-bubble {
+  background-color: var(--lg-content-surface, #ffffff);
+  border-color: rgba(15, 23, 42, 0.08);
+  border-radius: 6px var(--lg-r-card, 16px) var(--lg-r-card, 16px) var(--lg-r-card, 16px);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 4px 14px rgba(15, 23, 42, 0.045);
+}
+.own .message-bubble {
+  background-color: #e4e9f2;
+  border-color: rgba(15, 23, 42, 0.08);
+  border-radius: var(--lg-r-card, 16px) 6px var(--lg-r-card, 16px) var(--lg-r-card, 16px);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.045), 0 3px 10px rgba(15, 23, 42, 0.04);
+}
+.twin-message .message-bubble {
+  border-left: 2px solid var(--accent);
+}
+.own.twin-message .message-bubble {
+  background-color: #e4e9f2;
+}
 .message-meta, .chat-preview, .panel-label { color: var(--muted); }
 .composer {
   border: 0;
-  border-radius: var(--lg-r-sheet, 22px);
+  border-radius: var(--lg-r-composer, 26px);
 }
 .composer:focus-within {
   border: 0;
-  padding-bottom: 5px;
+  padding-bottom: 7px;
+}
+.composer.lg-glass:has(> textarea:focus) {
   box-shadow:
-    inset 0 0.5px 0 var(--lg-glass-inner-hi),
-    0 0 0 1.5px rgba(215, 25, 32, 0.35),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    0 0 0 1.5px rgba(32, 33, 36, 0.24),
     var(--lg-glass-shadow);
 }
 .detail-sidebar .detail-tabs > button.selected::after { background-color: var(--brand-red); border-radius: 2px 2px 0 0; }
@@ -139,7 +178,7 @@ body, .app-shell, .workspace {
   background: var(--lg-red-glass-hover, rgba(176, 22, 33, 0.92));
 }
 .twin-tabs > button.selected { color: var(--accent); border-bottom-color: var(--brand-red); }
-.provider-config-page { background: var(--lg-ground, #eff1f5); color: var(--accent); }
+.provider-config-page { background: transparent; color: var(--accent); }
 .login-page > footer { color: var(--muted); }
 button:focus-visible, a:focus-visible, summary:focus-visible {
   outline-color: var(--accent);
