@@ -19,7 +19,7 @@ function ShareLink({ token, busy, onRevoke }: { token: BotShareToken; busy: bool
   const link = new URL(location.href); link.hash = `/bots/share/${token.token}`;
   return <div className={`bot-share-link ${token.revoked_at ? 'revoked' : ''}`}>
     <div className="bot-share-link-heading"><time>{t('botShare.linkCreated', { time: dateTime(token.created_at) })}</time>{token.revoked_at && <span>{t('botShare.revoked')}</span>}</div>
-    {!token.revoked_at && <><div className="bot-share-link-actions"><input aria-label={t('botShare.link')} value={link.href} readOnly onFocus={event => event.currentTarget.select()} /><button type="button" className="secondary-button" onClick={async () => { setCopyError(false); setCopied(false); try { await navigator.clipboard.writeText(link.href); setCopied(true); } catch { setCopyError(true); } }}>{t(copied ? 'botShare.copied' : 'botShare.copy')}</button><button type="button" className="text-button" disabled={busy} onClick={onRevoke}>{t('botShare.revoke')}</button></div>{copied && <span className="bot-share-feedback" role="status">{t('botShare.copiedDetail')}</span>}{copyError && <p className="twin-inline-error" role="alert">{t('botShare.copyFailed')}</p>}</>}
+    {!token.revoked_at && <><div className="bot-share-link-actions"><input aria-label={t('botShare.link')} value={link.href} readOnly onFocus={event => event.currentTarget.select()} /><button type="button" className="secondary-button lg-interactive" onClick={async () => { setCopyError(false); setCopied(false); try { await navigator.clipboard.writeText(link.href); setCopied(true); } catch { setCopyError(true); } }}>{t(copied ? 'botShare.copied' : 'botShare.copy')}</button><button type="button" className="text-button lg-interactive" disabled={busy} onClick={onRevoke}>{t('botShare.revoke')}</button></div>{copied && <span className="bot-share-feedback" role="status">{t('botShare.copiedDetail')}</span>}{copyError && <p className="twin-inline-error" role="alert">{t('botShare.copyFailed')}</p>}</>}
   </div>;
 }
 
@@ -67,7 +67,7 @@ export function BotShareDialog({ api, bot, onClose }: { api: ApiClient; bot: Per
   }
   function snapshotCard(snapshot: BotSnapshot, original = false) {
     return <article className="bot-snapshot-card" key={snapshot.id} data-snapshot-id={snapshot.id}>
-      <div className="bot-snapshot-heading"><div><h3>{original ? t('botShare.original') : snapshot.name}</h3><time>{dateTime(snapshot.created_at)}</time></div><button type="button" className="secondary-button" disabled={busy || loading} onClick={() => { void issueToken(snapshot); }}>{t(original ? 'botShare.shareOriginal' : 'botShare.issueLink')}</button></div>
+      <div className="bot-snapshot-heading"><div><h3>{original ? t('botShare.original') : snapshot.name}</h3><time>{dateTime(snapshot.created_at)}</time></div><button type="button" className="secondary-button lg-interactive" disabled={busy || loading} onClick={() => { void issueToken(snapshot); }}>{t(original ? 'botShare.shareOriginal' : 'botShare.issueLink')}</button></div>
       {original && <p className="form-note">{t('botShare.originalHint')}</p>}
       <p className="bot-snapshot-assignment">{snapshot.assignment}</p><SnapshotFacts snapshot={snapshot} />
       {snapshot.parent_snapshot_id && <p className="bot-snapshot-lineage">{t('botShare.lineage', { id: snapshot.parent_snapshot_id.slice(0, 12) })}</p>}
@@ -77,10 +77,10 @@ export function BotShareDialog({ api, bot, onClose }: { api: ApiClient; bot: Per
   return <Modal wide title={t('botShare.title')} closeDisabled={busy} onClose={onClose}><div className="bot-share-dialog">
     <div className="bot-share-profile"><Avatar actor={bot.actor} size={42} /><strong>{bot.name}</strong></div>
     <p className="form-note">{t('botShare.explanation')}</p><p className="form-note">{t('botShare.exclusions')}</p>
-    <div className="bot-share-current"><div><h3>{t('botShare.current')}</h3><p>{t('botShare.currentHint')}</p></div><button type="button" className="primary-button" disabled={busy || loading || !!loadError} onClick={() => { void freeze(); }}>{t(busy ? 'common.loading' : 'botShare.freeze')}</button></div>
+    <div className="bot-share-current"><div><h3>{t('botShare.current')}</h3><p>{t('botShare.currentHint')}</p></div><button type="button" className="primary-button lg-interactive" disabled={busy || loading || !!loadError} onClick={() => { void freeze(); }}>{t(busy ? 'common.loading' : 'botShare.freeze')}</button></div>
     {error && <p className="twin-inline-error" role="alert">{error}</p>}{notice && <p className="bot-share-notice" role="status"><Icon name="check" size={16} />{notice}</p>}
-    <div className="bot-share-history-heading"><h3>{t('botShare.history')}</h3><button type="button" className="text-button" disabled={loading || busy} onClick={() => setRevision(value => value + 1)}><Icon name="refresh" size={14} />{t('common.refresh')}</button></div>
-    {loading ? <div className="loading-row" role="status">{t('common.loading')}</div> : loadError ? <div role="alert" className="twin-inline-error"><p>{loadError}</p><button type="button" className="secondary-button" onClick={() => setRevision(value => value + 1)}>{t('common.retry')}</button></div> : catalog && <>
+    <div className="bot-share-history-heading"><h3>{t('botShare.history')}</h3><button type="button" className="text-button lg-interactive" disabled={loading || busy} onClick={() => setRevision(value => value + 1)}><Icon name="refresh" size={14} />{t('common.refresh')}</button></div>
+    {loading ? <div className="loading-row" role="status">{t('common.loading')}</div> : loadError ? <div role="alert" className="twin-inline-error"><p>{loadError}</p><button type="button" className="secondary-button lg-interactive" onClick={() => setRevision(value => value + 1)}>{t('common.retry')}</button></div> : catalog && <>
       {catalog.installed_snapshot && snapshotCard(catalog.installed_snapshot, true)}
       {catalog.snapshots.length ? catalog.snapshots.map(snapshot => snapshotCard(snapshot)) : <Empty icon="file" title={t('botShare.empty')} detail={t('botShare.emptyDetail')} />}
     </>}
@@ -105,13 +105,13 @@ export function BotInstallPage({ api, token, onInstalled, onBack }: { api: ApiCl
     catch (error) { setError(failureText(error)); }
     finally { setBusy(false); }
   }
-  return <main className="bot-install-page"><div className="bot-install-card"><button type="button" className="text-button" disabled={busy} onClick={onBack}>{t('botShare.back')}</button><p className="bot-share-eyebrow">{t('botShare.sharedBot')}</p>
-    {loading ? <div className="loading-row" role="status"><span className="spinner" />{t('botShare.loadingPreview')}</div> : loadError ? <><Empty icon="info" title={t('botShare.unavailable')} /><p className="twin-inline-error" role="alert">{loadError}</p><button type="button" className="secondary-button" onClick={() => setRevision(value => value + 1)}>{t('common.retry')}</button></> : preview && <>
+  return <main className="bot-install-page"><div className="bot-install-card lg-glass-sheet lg-glass-text" data-refract="0.72"><button type="button" className="text-button lg-interactive" disabled={busy} onClick={onBack}>{t('botShare.back')}</button><p className="bot-share-eyebrow">{t('botShare.sharedBot')}</p>
+    {loading ? <div className="loading-row" role="status"><span className="spinner" />{t('botShare.loadingPreview')}</div> : loadError ? <><Empty icon="info" title={t('botShare.unavailable')} /><p className="twin-inline-error" role="alert">{loadError}</p><button type="button" className="secondary-button lg-interactive" onClick={() => setRevision(value => value + 1)}>{t('common.retry')}</button></> : preview && <>
       <h1>{preview.snapshot.name}</h1><p className="bot-install-assignment">{preview.snapshot.assignment}</p><SnapshotFacts snapshot={preview.snapshot} />
       <p className="bot-install-source">{t('botShare.sourceExplanation')}</p><p className="form-note">{t('botShare.installHint')}</p><p className="form-note">{t('botShare.permissionsHint')}</p>
       {preview.installed_bot && <p className="bot-share-notice" role="status"><Icon name="check" size={16} />{t('botShare.alreadyInstalled')}</p>}
       {error && <p className="twin-inline-error" role="alert">{error}</p>}
-      <button type="button" className="primary-button bot-install-action" disabled={busy} onClick={() => { void install(); }}>{t(busy ? 'botShare.installing' : preview.installed_bot ? 'botShare.openInstalled' : 'botShare.install')}</button>
+      <button type="button" className="primary-button bot-install-action lg-interactive" disabled={busy} onClick={() => { void install(); }}>{t(busy ? 'botShare.installing' : preview.installed_bot ? 'botShare.openInstalled' : 'botShare.install')}</button>
     </>}
   </div></main>;
 }

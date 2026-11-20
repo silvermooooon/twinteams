@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { i18n } from './i18n';
 import './Duet.css';
+import './liquidGlass.css';
+import { initLiquidGlassRefraction } from './liquidGlassRefraction';
 
 document.documentElement.lang = i18n.locale;
 
@@ -14,3 +16,5 @@ createRoot(root).render(
     <App />
   </StrictMode>,
 );
+
+initLiquidGlassRefraction();

@@ -1,2 +1,2 @@
-.private-task-status{flex-shrink:0}
-.private-task-status .stop-responses{margin-left:auto;width:26px;height:26px}
+.private-task-status{flex-shrink:0;width:fit-content;max-width:100%;padding:5px 10px 5px 8px;margin-bottom:8px}
+.private-task-status .stop-responses{margin-left:auto;width:26px;height:26px;border-radius:var(--lg-r-pill,999px)}

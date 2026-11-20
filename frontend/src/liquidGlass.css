@@ -1,0 +1,683 @@
+/* ============================================================================
+   Duet Liquid Glass Material Layer
+   ----------------------------------------------------------------------------
+   Implements Apple HIG Liquid Glass for the control and navigation chrome:
+   - Two-layer separation: translucent, refractive Liquid Glass floats above
+     opaque content surfaces so scrolling content passes beneath chrome.
+   - Two material variants: regular (.lg-glass) for chrome/sidebars/dialogs/
+     popovers/toolbars, and clear (.lg-glass-clear + .lg-glass-dim 35% scrim)
+     for controls over rich media (file/image previews).
+   - Specular bevel rim (::before) and top sheen (::after) plus progressive
+     SVG edge refraction hooks (.is-refracting) for Chromium.
+   - Accessibility fallbacks: @supports, prefers-reduced-transparency,
+     prefers-contrast: more, prefers-reduced-motion, and forced-colors.
+   ========================================================================== */
+
+:root {
+  /* --- Ambient ground & opaque content-layer surfaces --------------------- */
+  --lg-ground:            #eff1f5;
+  --lg-ground-2:          #e6e9f0;
+  --lg-content-surface:   #ffffff;
+  --lg-content-subtle:    #f6f7f9;
+  --lg-content-card:      #ffffff;
+  --lg-content-shadow:    0 1px 2px rgba(15, 23, 42, 0.045),
+                          0 8px 24px rgba(15, 23, 42, 0.05);
+  --lg-content-shadow-h:  0 2px 6px rgba(15, 23, 42, 0.06),
+                          0 14px 32px rgba(15, 23, 42, 0.085);
+
+  /* --- Semantic labels & hairlines (graphite + selective Duet red) -------- */
+  --lg-label:             #1d1d1f;
+  --lg-label-2:           #555860;
+  --lg-label-3:           #6e717a;
+  --lg-separator:         rgba(32, 33, 36, 0.11);
+  --lg-separator-strong:  rgba(32, 33, 36, 0.22);
+  --lg-fill:              rgba(110, 114, 128, 0.12);
+  --lg-fill-hover:        rgba(110, 114, 128, 0.17);
+  --lg-fill-subtle:       rgba(110, 114, 128, 0.075);
+
+  /* --- Brand accents (rationed: primary graphite, selective brand red) ---- */
+  --lg-tint:              #202124;
+  --lg-tint-hover:        #34373c;
+  --lg-tint-glass:        rgba(32, 33, 36, 0.84);
+  --lg-tint-glass-hover:  rgba(46, 48, 54, 0.90);
+  --lg-on-tint:           #ffffff;
+  --lg-red:               #d71920;
+  --lg-red-text:          #b5121b;
+  --lg-red-soft:          rgba(215, 25, 32, 0.11);
+  --lg-red-glass:         rgba(196, 30, 42, 0.86);
+  --lg-red-glass-hover:   rgba(176, 22, 33, 0.92);
+
+  /* --- Liquid Glass: Regular variant --------------------------------------
+     Readable, high-clarity frosted/refractive chrome with distinct bevel rim. */
+  --lg-glass:             rgba(252, 253, 255, 0.72);
+  --lg-glass-elevated:    rgba(254, 254, 255, 0.80);
+  --lg-glass-subtle:      rgba(250, 251, 254, 0.62);
+  --lg-glass-thick:       rgba(252, 253, 255, 0.95);
+  --lg-glass-refract:     rgba(252, 253, 255, 0.48);
+  --lg-glass-blur:        saturate(185%) blur(24px);
+  --lg-glass-blur-sheet:  saturate(190%) blur(30px);
+  --lg-glass-rim-top:     rgba(255, 255, 255, 0.92);
+  --lg-glass-rim-mid:     rgba(255, 255, 255, 0.22);
+  --lg-glass-rim-bot:     rgba(255, 255, 255, 0.62);
+  --lg-glass-inner-hi:    rgba(255, 255, 255, 0.86);
+  --lg-glass-inner-lo:    rgba(255, 255, 255, 0.34);
+  --lg-glass-edge:        rgba(15, 23, 42, 0.085);
+  --lg-glass-sheen:       0.34;
+  --lg-glass-shadow:      0 8px 26px rgba(15, 23, 42, 0.095),
+                          0 1.5px 4px rgba(15, 23, 42, 0.055);
+  --lg-glass-shadow-sm:   0 4px 14px rgba(15, 23, 42, 0.075),
+                          0 1px 2.5px rgba(15, 23, 42, 0.045);
+  --lg-glass-shadow-lg:   0 22px 56px rgba(15, 23, 42, 0.16),
+                          0 4px 12px rgba(15, 23, 42, 0.08);
+
+  /* --- Liquid Glass: Clear variant (media/preview overlays only) ---------- */
+  --lg-clear-fill:        rgba(255, 255, 255, 0.20);
+  --lg-clear-blur:        saturate(165%) blur(12px);
+  --lg-clear-dim:         rgba(16, 18, 24, 0.35);
+
+  /* --- Concentric radii --------------------------------------------------- */
+  --lg-r-sheet:           22px;
+  --lg-r-panel:           18px;
+  --lg-r-card:            14px;
+  --lg-r-control:         11px;
+  --lg-r-row:             10px;
+  --lg-r-pill:            999px;
+
+  /* --- Purposeful fluid motion (cancellable, brief, never animates blur) -- */
+  --lg-ease:              cubic-bezier(0.22, 1, 0.36, 1);
+  --lg-ease-spring:       cubic-bezier(0.32, 0.72, 0, 1);
+  --lg-dur-fast:          120ms;
+  --lg-dur-normal:        210ms;
+  --lg-dur-slow:          300ms;
+
+  /* --- Typography stack --------------------------------------------------- */
+  --lg-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+             "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+
+/* ============================================================================
+   Core Liquid Glass Primitives (Control & Navigation Layer Only)
+   ========================================================================== */
+
+.lg-glass,
+.lg-glass-sheet,
+.lg-glass-pill,
+.lg-glass-group {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--lg-glass);
+  -webkit-backdrop-filter: var(--lg-glass-blur);
+  backdrop-filter: var(--lg-glass-blur);
+  box-shadow:
+    inset 0 0.5px 0 var(--lg-glass-inner-hi),
+    inset 0 0 0 0.5px var(--lg-glass-inner-lo),
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow);
+}
+
+.lg-glass-sheet {
+  background-color: var(--lg-glass-elevated);
+  -webkit-backdrop-filter: var(--lg-glass-blur-sheet);
+  backdrop-filter: var(--lg-glass-blur-sheet);
+  border-radius: var(--lg-r-sheet);
+  box-shadow:
+    inset 0 0.5px 0 var(--lg-glass-inner-hi),
+    inset 0 0 0 0.5px var(--lg-glass-inner-lo),
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow-lg);
+}
+
+.lg-glass-pill {
+  border-radius: var(--lg-r-pill);
+  box-shadow:
+    inset 0 0.5px 0 var(--lg-glass-inner-hi),
+    inset 0 0 0 0.5px var(--lg-glass-inner-lo),
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow-sm);
+}
+
+/* Shared glass cluster: one backdrop-filter on container, transparent children */
+.lg-glass-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--lg-r-pill);
+  box-shadow:
+    inset 0 0.5px 0 var(--lg-glass-inner-hi),
+    inset 0 0 0 0.5px var(--lg-glass-inner-lo),
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow-sm);
+}
+
+.lg-glass-group > button,
+.lg-glass-group > a {
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--lg-r-pill);
+}
+
+.lg-glass-group > button:hover:not(:disabled),
+.lg-glass-group > a:hover {
+  background: var(--lg-fill);
+}
+
+/* Directional bevel rim (upper-left bright catchlight -> lower-right return) */
+.lg-glass::before,
+.lg-glass-sheet::before,
+.lg-glass-pill::before,
+.lg-glass-group::before,
+.lg-glass-clear::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    var(--lg-glass-rim-top) 0%,
+    var(--lg-glass-rim-mid) 46%,
+    var(--lg-glass-rim-bot) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+/* Specular top sheen — separates Liquid Glass from flat 2020 frosting */
+.lg-glass::after,
+.lg-glass-sheet::after,
+.lg-glass-pill::after,
+.lg-glass-group::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, var(--lg-glass-sheen)) 0%,
+    rgba(255, 255, 255, calc(var(--lg-glass-sheen) * 0.22)) 36%,
+    transparent 64%
+  );
+}
+
+/* Clear variant: strictly for controls floating over rich media / previews */
+.lg-glass-clear {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--lg-clear-fill);
+  -webkit-backdrop-filter: var(--lg-clear-blur);
+  backdrop-filter: var(--lg-clear-blur);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.72),
+    0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+/* 35% dimming layer per Apple HIG when clear glass floats over bright media */
+.lg-glass-dim {
+  background-image: linear-gradient(var(--lg-clear-dim), var(--lg-clear-dim));
+  color: #ffffff;
+}
+
+/* Tinted prominent primary glass action (rationed to primary CTA) */
+.lg-glass-prominent {
+  background-color: var(--lg-tint-glass);
+  color: var(--lg-on-tint);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.34),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    0 6px 18px rgba(15, 23, 42, 0.18),
+    0 1px 3px rgba(15, 23, 42, 0.10);
+}
+.lg-glass-prominent:hover:not(:disabled) {
+  background-color: var(--lg-tint-glass-hover);
+}
+
+/* Destructive tinted glass action */
+.lg-glass-destructive {
+  background-color: var(--lg-red-glass);
+  color: #ffffff;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.36),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.16),
+    0 6px 18px rgba(196, 30, 42, 0.22),
+    0 1px 3px rgba(196, 30, 42, 0.12);
+}
+.lg-glass-destructive:hover:not(:disabled) {
+  background-color: var(--lg-red-glass-hover);
+}
+
+/* Purposeful interactive press feedback (no blur animation) */
+.lg-interactive {
+  transition:
+    background-color var(--lg-dur-fast) var(--lg-ease),
+    border-color var(--lg-dur-fast) var(--lg-ease),
+    color var(--lg-dur-fast) var(--lg-ease),
+    box-shadow var(--lg-dur-normal) var(--lg-ease),
+    transform var(--lg-dur-fast) var(--lg-ease-spring);
+}
+.lg-interactive:active:not(:disabled) {
+  transform: scale(0.965);
+}
+
+/* Refraction active hooks (driven by liquidGlassRefraction.ts in Chromium) */
+.lg-glass.is-refracting,
+.lg-glass-pill.is-refracting,
+.lg-glass-group.is-refracting {
+  background-color: var(--lg-glass-refract);
+}
+
+/* Text-bearing glass retains full tint for 4.5:1 legibility while rim bends */
+.lg-glass.lg-glass-text.is-refracting,
+.lg-glass-sheet.is-refracting,
+.lg-glass-pill.lg-glass-text.is-refracting {
+  background-color: var(--lg-glass);
+}
+.lg-glass-sheet.is-refracting {
+  background-color: var(--lg-glass-elevated);
+}
+.lg-glass-clear.is-refracting {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Mirror-mode helper layers (progressive Safari/Firefox refraction) */
+.lg-refract-mirror,
+.lg-refract-tint {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.lg-refract-bend {
+  position: absolute;
+  inset: 0;
+}
+.lg-refract-tint {
+  background-color: var(--lg-glass-refract);
+}
+.lg-glass-text > .lg-refract-tint {
+  background-color: var(--lg-glass);
+}
+.lg-glass-clear > .lg-refract-tint {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+.lg-glass-dim > .lg-refract-tint {
+  background-image: linear-gradient(var(--lg-clear-dim), var(--lg-clear-dim));
+}
+
+/* Scroll-edge dissolve gradient beneath floating/sticky chrome */
+.lg-scroll-edge {
+  pointer-events: none;
+  height: 20px;
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+}
+
+/* ============================================================================
+   Duet Control & Navigation Surface Integration
+   ----------------------------------------------------------------------------
+   Harmonizes positioned overlays, edge-anchored bars, floating pills/sheets,
+   and empty-state emblems without paving opaque content surfaces.
+   ========================================================================== */
+
+/* Preserve exact overlay positioning when combined with Liquid Glass primitives */
+.fluent-menu.lg-glass-sheet,
+.search-results.lg-glass-sheet,
+.account-menu.lg-glass-sheet,
+.emoji-picker.lg-glass-sheet,
+.people-suggestions.lg-glass-sheet,
+.side-drawer.lg-glass-sheet,
+.attachment-drop-overlay.lg-glass-sheet,
+.message-actions.lg-glass-pill,
+.attachment-media-overlay.lg-glass-clear {
+  position: absolute;
+}
+
+.fluent-menu.message-reference-menu.lg-glass-sheet,
+.reaction-picker.lg-glass-sheet,
+.error-toast.lg-glass-pill {
+  position: fixed;
+}
+
+.provider-config-header.lg-glass,
+.reminders-header.lg-glass {
+  position: sticky;
+  top: 0;
+}
+
+/* Responsive drawers retain overlay positioning on narrow viewports */
+@media (max-width: 1100px) {
+  .chat-find-panel.lg-glass {
+    position: absolute;
+  }
+}
+@media (max-width: 1050px) {
+  .detail-sidebar.lg-glass {
+    position: absolute;
+  }
+}
+@media (max-width: 600px) {
+  .sidebar.lg-glass {
+    position: absolute;
+  }
+}
+
+/* Edge-anchored navigation chrome: soft translucent glass without harsh rim box */
+.topbar.lg-glass,
+.app-rail.lg-glass,
+.sidebar.lg-glass,
+.chat-header.lg-glass,
+.bot-toolbar.lg-glass,
+.model-notice.lg-glass,
+.read-error.lg-glass,
+.desktop-notification-prompt.lg-glass,
+.acceptance-fixture-banner.lg-glass,
+.twin-page-header.lg-glass,
+.twin-tabs.lg-glass,
+.provider-config-header.lg-glass,
+.reminders-header.lg-glass {
+  background-color: var(--lg-glass-subtle);
+  box-shadow:
+    inset 0 0.5px 0 var(--lg-glass-inner-hi),
+    0 1px 0 var(--lg-separator);
+}
+
+.topbar.lg-glass::before,
+.app-rail.lg-glass::before,
+.sidebar.lg-glass::before,
+.chat-header.lg-glass::before,
+.bot-toolbar.lg-glass::before,
+.model-notice.lg-glass::before,
+.read-error.lg-glass::before,
+.desktop-notification-prompt.lg-glass::before,
+.acceptance-fixture-banner.lg-glass::before,
+.twin-page-header.lg-glass::before,
+.twin-tabs.lg-glass::before,
+.provider-config-header.lg-glass::before,
+.reminders-header.lg-glass::before {
+  display: none;
+}
+
+.app-rail.lg-glass {
+  box-shadow: inset -0.5px 0 0 var(--lg-separator);
+}
+
+.sidebar.lg-glass {
+  box-shadow: inset -0.5px 0 0 var(--lg-separator);
+}
+
+.detail-sidebar.lg-glass,
+.chat-find-panel.lg-glass {
+  border-radius: 0 var(--lg-r-panel) var(--lg-r-panel) 0;
+  box-shadow:
+    inset 0.5px 0 0 var(--lg-glass-inner-hi),
+    var(--lg-glass-shadow-sm);
+}
+
+/* Floating composer capsule, reply cap, menus, and status pills */
+.composer.lg-glass {
+  border-radius: var(--lg-r-sheet);
+  padding: 6px 10px 6px 16px;
+}
+
+.composer-reply.lg-glass {
+  border: 0;
+  border-radius: var(--lg-r-card);
+  margin-bottom: 6px;
+}
+
+.composer-tools .send-button {
+  border-radius: var(--lg-r-pill);
+}
+
+.composer-tools .send-button.lg-glass-prominent {
+  color: var(--lg-on-tint);
+}
+
+.header-actions.lg-glass-group {
+  padding: 2px;
+  gap: 2px;
+}
+
+.header-actions.lg-glass-group .icon-button,
+.header-actions.lg-glass-group .member-button {
+  height: 28px;
+  min-width: 28px;
+  border-radius: var(--lg-r-pill);
+}
+
+.sidebar-heading-actions.lg-glass-group {
+  padding: 2px;
+}
+
+.sidebar-heading-actions.lg-glass-group .icon-button {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--lg-r-pill);
+}
+
+.fluent-menu.lg-glass-sheet,
+.account-menu.lg-glass-sheet,
+.search-results.lg-glass-sheet,
+.emoji-picker.lg-glass-sheet {
+  border: 0;
+  border-radius: var(--lg-r-panel);
+}
+
+.fluent-menu.lg-glass-sheet > button,
+.account-menu.lg-glass-sheet > button,
+.search-results.lg-glass-sheet .person-search-chat,
+.emoji-picker.lg-glass-sheet .emoji-grid > button {
+  border-radius: var(--lg-r-row);
+}
+
+.fluent-menu.lg-glass-sheet > button:hover,
+.account-menu.lg-glass-sheet > button:hover,
+.search-results.lg-glass-sheet .person-search-chat:hover,
+.emoji-picker.lg-glass-sheet .emoji-grid > button:hover {
+  background-color: var(--lg-fill);
+}
+
+.attachment-drop-overlay.lg-glass-sheet {
+  border: 1.5px dashed var(--lg-separator-strong);
+  border-radius: var(--lg-r-panel);
+}
+
+.error-toast.lg-glass-pill {
+  border: 0;
+  padding: 10px 14px 10px 16px;
+  color: var(--lg-red-text);
+  box-shadow:
+    inset 0 0.5px 0 var(--lg-glass-inner-hi),
+    0 0 0 1px rgba(196, 30, 42, 0.24),
+    var(--lg-glass-shadow);
+}
+
+.failed-chip.lg-glass-pill {
+  border: 0;
+  padding: 4px 8px 4px 12px;
+  color: var(--lg-red-text);
+  box-shadow:
+    inset 0 0.5px 0 var(--lg-glass-inner-hi),
+    0 0 0 1px rgba(196, 30, 42, 0.22),
+    var(--lg-glass-shadow-sm);
+}
+
+.queue-chip.lg-glass-pill {
+  border: 0;
+  padding: 3px 9px;
+}
+
+.acceptance-fixture-banner.lg-glass {
+  background-color: rgba(255, 240, 197, 0.78);
+  border-bottom-color: rgba(225, 188, 106, 0.65);
+}
+
+.attachment-ingest-error.lg-glass,
+.read-error.lg-glass {
+  color: var(--lg-red-text);
+}
+
+.twin-content-conflict.lg-glass {
+  box-shadow:
+    inset 0 0.5px 0 var(--lg-glass-inner-hi),
+    0 0 0 1px rgba(217, 173, 74, 0.45),
+    var(--lg-glass-shadow-sm);
+}
+
+/* Empty-state circular Liquid Glass emblem */
+.empty-state-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  color: var(--lg-label-2);
+  margin-bottom: 4px;
+}
+
+/* ============================================================================
+   Progressive Fallbacks & Accessibility Queries
+   ========================================================================== */
+
+/* 1. Browsers without backdrop-filter support */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lg-glass,
+  .lg-glass-sheet,
+  .lg-glass-pill,
+  .lg-glass-group,
+  .lg-glass-clear {
+    background-color: var(--lg-glass-thick);
+  }
+  .lg-glass-dim {
+    background-color: rgba(28, 30, 36, 0.90);
+  }
+}
+
+/* 2. Reduce Transparency */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --lg-glass:             #f8f9fb;
+    --lg-glass-elevated:    #ffffff;
+    --lg-glass-subtle:      #f5f6f8;
+    --lg-glass-thick:       #ffffff;
+    --lg-glass-refract:     #f8f9fb;
+    --lg-glass-blur:        none;
+    --lg-glass-blur-sheet:  none;
+    --lg-clear-fill:        #24262b;
+    --lg-clear-blur:        none;
+    --lg-glass-sheen:       0;
+  }
+
+  .lg-glass,
+  .lg-glass-sheet,
+  .lg-glass-pill,
+  .lg-glass-group,
+  .lg-glass-clear {
+    background-color: var(--lg-glass-thick) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow:
+      0 0 0 1px var(--lg-separator-strong),
+      var(--lg-glass-shadow-sm);
+  }
+
+  .lg-glass-clear.lg-glass-dim {
+    background-color: #202124 !important;
+    background-image: none !important;
+    color: #ffffff;
+  }
+
+  .lg-glass::after,
+  .lg-glass-sheet::after,
+  .lg-glass-pill::after,
+  .lg-glass-group::after,
+  .lg-scroll-edge {
+    display: none !important;
+  }
+}
+
+/* 3. Increase Contrast */
+@media (prefers-contrast: more) {
+  :root {
+    --lg-label:             #000000;
+    --lg-label-2:           #26282c;
+    --lg-label-3:           #3c3f46;
+    --lg-separator:         rgba(0, 0, 0, 0.38);
+    --lg-separator-strong:  rgba(0, 0, 0, 0.56);
+    --lg-glass:             rgba(255, 255, 255, 0.94);
+    --lg-glass-elevated:    rgba(255, 255, 255, 0.98);
+    --lg-glass-subtle:      rgba(248, 249, 251, 0.94);
+    --lg-glass-refract:     rgba(255, 255, 255, 0.94);
+    --lg-glass-edge:        rgba(0, 0, 0, 0.42);
+    --lg-tint:              #000000;
+    --lg-tint-glass:        #000000;
+    --lg-red:               #b0000d;
+    --lg-red-text:          #96000b;
+    --lg-red-glass:         #a8000c;
+  }
+
+  .lg-glass,
+  .lg-glass-sheet,
+  .lg-glass-pill,
+  .lg-glass-group,
+  .lg-glass-clear {
+    box-shadow:
+      0 0 0 1.5px var(--lg-glass-edge),
+      var(--lg-glass-shadow-sm);
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  summary:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 3px solid #000000 !important;
+    outline-offset: 2px !important;
+  }
+}
+
+/* 4. Reduce Motion */
+@media (prefers-reduced-motion: reduce) {
+  .lg-interactive,
+  .lg-interactive:active {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+/* 5. Windows High Contrast / Forced Colors */
+@media (forced-colors: active) {
+  .lg-glass,
+  .lg-glass-sheet,
+  .lg-glass-pill,
+  .lg-glass-group,
+  .lg-glass-clear {
+    background: Canvas !important;
+    color: CanvasText !important;
+    border: 1px solid CanvasText !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .lg-glass::before,
+  .lg-glass::after,
+  .lg-glass-sheet::before,
+  .lg-glass-sheet::after,
+  .lg-glass-pill::before,
+  .lg-glass-pill::after,
+  .lg-glass-group::before,
+  .lg-glass-group::after,
+  .lg-glass-clear::before {
+    display: none !important;
+  }
+}

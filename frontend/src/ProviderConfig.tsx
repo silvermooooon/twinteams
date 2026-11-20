@@ -92,7 +92,7 @@ export function ProviderConfigPage({ allowed, onBack }: { allowed: boolean; onBa
   }
 
   return <main className="provider-config-page">
-    <header className="provider-config-header"><div><span className="provider-config-eyebrow">{t('providerConfig.localOnly')}</span><h1>{t('providerConfig.title')}</h1></div><button type="button" className="secondary-button" onClick={onBack}>{t('providerConfig.back')}</button></header>
+    <header className="provider-config-header lg-glass lg-glass-text"><div><span className="provider-config-eyebrow">{t('providerConfig.localOnly')}</span><h1>{t('providerConfig.title')}</h1></div><button type="button" className="secondary-button lg-interactive" onClick={onBack}>{t('providerConfig.back')}</button></header>
     <div className="provider-config-content">
       {!allowed ? <div className="provider-config-notice" role="status"><Icon name="info" size={19} /><p>{t('providerConfig.unavailable')}</p></div> : !ready ? <div className="provider-config-notice" role="status">{error ? <><Icon name="info" size={19} /><p>{t(errorKeys[error])}</p></> : <><span className="spinner" /><p>{t('common.loading')}</p></>}</div> : <>
         <section className="provider-config-card" aria-labelledby="provider-config-test-heading">
@@ -110,7 +110,7 @@ export function ProviderConfigPage({ allowed, onBack }: { allowed: boolean; onBa
             <p className="provider-config-hint">{t('providerConfig.saveScope')}</p>
             {existingSaved && saveForLater && <p className="provider-config-hint">{t('providerConfig.replaceSaved')}</p>}
             {!storageAvailable && <p className="provider-config-hint">{t('providerConfig.storageUnavailable')}</p>}
-            <button type="submit" className="primary-button provider-config-submit" disabled={!hasKey || busy}>{busy ? t('providerConfig.validating') : t(saveForLater ? 'providerConfig.validateAndSave' : 'providerConfig.validate')}</button>
+            <button type="submit" className="primary-button provider-config-submit lg-interactive" disabled={!hasKey || busy}>{busy ? t('providerConfig.validating') : t(saveForLater ? 'providerConfig.validateAndSave' : 'providerConfig.validate')}</button>
           </form>
           {error && <div className="provider-config-result error" role="alert"><Icon name="info" size={18} /><p>{t(errorKeys[error])}</p></div>}
           {verified && <div className="provider-config-result success" role="status"><Icon name="check" size={18} /><div><strong>{t('providerConfig.verified')}</strong><p>{t(saved ? 'providerConfig.savedResult' : 'providerConfig.unsavedResult')}</p></div></div>}

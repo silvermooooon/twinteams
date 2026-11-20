@@ -21,5 +21,5 @@ export function FailureNotice<T extends Failure>({ ownerId, request, name, busy,
     setDismissed(true);
     try { const ids = dismissedIds(storageKey); ids.add(failureId); sessionStorage.setItem(storageKey, JSON.stringify([...ids])); } catch { /* Local dismissal still works when session storage is unavailable. */ }
   };
-  return <span className={`failed-chip${composer ? ' composer-failure' : ''}`} data-failed-request={request.id} title={request.error}>{!composer && <span aria-hidden="true">!</span>}{label || <>{name} · {t('chat.failed')}</>}{request.can_retry && <IconButton icon="refresh" label={t('common.retry')} size={14} disabled={busy} onClick={() => onRetry(request)} />}<IconButton icon="close" label={t('common.dismiss')} size={14} onClick={dismiss} /></span>;
+  return <span className={`failed-chip lg-glass-pill lg-glass-text${composer ? ' composer-failure' : ''}`} data-failed-request={request.id} title={request.error}>{!composer && <span aria-hidden="true">!</span>}{label || <>{name} · {t('chat.failed')}</>}{request.can_retry && <IconButton icon="refresh" label={t('common.retry')} size={14} disabled={busy} onClick={() => onRetry(request)} />}<IconButton icon="close" label={t('common.dismiss')} size={14} onClick={dismiss} /></span>;
 }

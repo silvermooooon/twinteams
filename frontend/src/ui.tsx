@@ -33,7 +33,7 @@ export function ChatAvatar({ chat, actors, ownerId, size = 40 }: { chat: Chat; a
   const actor = chat.kind === 'bot' ? actors.find(item => item.id === chat.bot_id) : group ? undefined : peer ? actors.find(item => item.kind === 'human' && item.id === peer) : actors.find(item => item.kind === 'twin' && item.owner_id === chat.member_owner_ids[0]);
   return <Avatar actor={actor} size={size} group={group} />;
 }
-export function IconButton({ icon, label, onClick, disabled, active, size = 20, className = '' }: { icon: IconName; label: string; onClick?: () => void; disabled?: boolean; active?: boolean; size?: number; className?: string }) { return <button type="button" className={`icon-button ${active ? 'active' : ''} ${className}`} title={label} aria-label={label} onClick={onClick} disabled={disabled}><Icon name={icon} size={size} /></button>; }
+export function IconButton({ icon, label, onClick, disabled, active, size = 20, className = '' }: { icon: IconName; label: string; onClick?: () => void; disabled?: boolean; active?: boolean; size?: number; className?: string }) { return <button type="button" className={`icon-button lg-interactive ${active ? 'active' : ''} ${className}`} title={label} aria-label={label} onClick={onClick} disabled={disabled}><Icon name={icon} size={size} /></button>; }
 export function Modal({ title, children, onClose, wide = false, closeDisabled = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean; closeDisabled?: boolean }) {
   const container = useRef<HTMLElement>(null);
   const close = useRef(onClose); const disabled = useRef(closeDisabled); close.current = onClose; disabled.current = closeDisabled;
@@ -52,14 +52,14 @@ export function Modal({ title, children, onClose, wide = false, closeDisabled = 
     document.addEventListener('keydown', handleKey);
     return () => { cancelAnimationFrame(frame); document.removeEventListener('keydown', handleKey); if (previous?.isConnected) previous.focus({ preventScroll: true }); };
   }, []);
-  return <div className="twins-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !closeDisabled) onClose(); }}><section ref={container} tabIndex={-1} className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading"><h2>{title}</h2><IconButton icon="close" label={t('common.close')} onClick={onClose} disabled={closeDisabled} /></div>{children}</section></div>;
+  return <div className="twins-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !closeDisabled) onClose(); }}><section ref={container} tabIndex={-1} className={`modal lg-glass-sheet lg-glass-text ${wide ? 'wide' : ''}`} data-refract="0.72" role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading"><h2>{title}</h2><IconButton icon="close" label={t('common.close')} onClick={onClose} disabled={closeDisabled} /></div>{children}</section></div>;
 }
-export function Empty({ icon, title, detail }: { icon: IconName; title: string; detail?: string }) { return <div className="empty-state"><Icon name={icon} size={28} /><h3>{title}</h3>{detail && <p>{detail}</p>}</div>; }
+export function Empty({ icon, title, detail }: { icon: IconName; title: string; detail?: string }) { return <div className="empty-state"><span className="empty-state-icon lg-glass-pill" data-refract="0.85"><Icon name={icon} size={28} /></span><h3>{title}</h3>{detail && <p>{detail}</p>}</div>; }
 export function time(value?: string | null) { if (!value) return ''; const date = new Date(value); return isNaN(date.getTime()) ? value : formatTime(date); }
 export function dateTime(value?: string | null) { if (!value) return ''; const date = new Date(value); return isNaN(date.getTime()) ? value : formatDate(date, { dateStyle: 'medium', timeStyle: 'short' }); }
 
 /** Server-declared test mode only. Never enables a provider or generates responses. */
-export function FixtureBanner() { return <div className="acceptance-fixture-banner" role="status"><Icon name="info" size={16} /><strong>{t('config.fixtureTitle')}</strong><span>{t('config.fixtureDetail')}</span></div>; }
+export function FixtureBanner() { return <div className="acceptance-fixture-banner lg-glass lg-glass-text" role="status"><Icon name="info" size={16} /><strong>{t('config.fixtureTitle')}</strong><span>{t('config.fixtureDetail')}</span></div>; }
 
 /** Shared keyboard behavior for anchored Fluent menus. Popover state remains owned by callers. */
 export function useMenuBehavior() {

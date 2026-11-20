@@ -410,7 +410,7 @@ export function DesktopNotificationPrompt({
   if (!controller.showPrompt) return null;
   return (
     <aside
-      className="desktop-notification-prompt"
+      className="desktop-notification-prompt lg-glass lg-glass-text"
       aria-label={t("notifications.prompt")}
     >
       <Icon name="bell" size={20} />
@@ -419,7 +419,7 @@ export function DesktopNotificationPrompt({
         <p>{t("notifications.promptDetail")}</p>
       </div>
       <button
-        className="secondary-button"
+        className="secondary-button lg-interactive"
         type="button"
         disabled={controller.requesting}
         onClick={() => {
@@ -456,7 +456,7 @@ export function DesktopNotificationSettings({
         </div>
         <button
           type="button"
-          className={`notification-switch ${controller.enabled ? "on" : ""}`}
+          className={`notification-switch lg-interactive ${controller.enabled ? "on" : ""}`}
           role="switch"
           aria-label={t("notifications.desktop")}
           aria-checked={controller.enabled}
@@ -488,7 +488,7 @@ export function DesktopNotificationSettings({
       </p>
       <p className="form-note">{t("notifications.limit")}</p>
       <div className="modal-actions">
-        <button className="secondary-button" type="button" onClick={onClose}>
+        <button className="secondary-button lg-interactive" type="button" onClick={onClose}>
           {t("common.close")}
         </button>
       </div>
