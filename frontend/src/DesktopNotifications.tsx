@@ -410,9 +410,14 @@ export function DesktopNotificationPrompt({
   if (!controller.showPrompt) return null;
   return (
     <aside
-      className="desktop-notification-prompt lg-glass lg-glass-text"
+      className="desktop-notification-prompt lg-glass-host"
       aria-label={t("notifications.prompt")}
     >
+      <div
+        className="lg-glass-backdrop lg-glass lg-glass-text"
+        data-refract="0.82"
+        aria-hidden="true"
+      />
       <Icon name="bell" size={20} />
       <div>
         <strong>{t("notifications.prompt")}</strong>

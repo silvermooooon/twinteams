@@ -229,9 +229,8 @@
 .approvals-drawer .approval-actions .text-button { color: var(--lg-label-2, #555860); font-size: 12px; }
 .login-page.login-page { min-height: 560px; background: radial-gradient(620px 480px at 36% 44%, rgba(215, 25, 32, 0.22), transparent 62%), radial-gradient(680px 540px at 64% 52%, rgba(74, 114, 192, 0.28), transparent 64%), radial-gradient(560px 440px at 50% 82%, rgba(126, 108, 192, 0.18), transparent 62%), linear-gradient(150deg, #e2e8f4 0%, #ebeef6 48%, #dbe3f2 100%); color: var(--lg-label, #1d1d1f); }
 .login-page.login-page:before { content: none; }
-.login-page>header { min-height: 44px; height: 44px; width: fit-content; margin: 16px 0 0 20px; padding: 0 18px 0 14px; border-radius: var(--lg-r-pill, 999px); font-weight: 600; font-size: 16px; color: var(--lg-label, #1d1d1f); border-bottom: 0; background-color: rgba(250, 251, 255, 0.64); }
-.login-page .login-main { width: 440px; border: 0; border-radius: var(--lg-r-sheet, 26px); padding: 40px; --lg-glass-sheen: 0.28; background-color: rgba(255, 255, 255, 0.48); -webkit-backdrop-filter: saturate(195%) blur(30px); backdrop-filter: saturate(195%) blur(30px); }
-.login-page .login-main.is-refracting { background-color: rgba(255, 255, 255, 0.42); }
+.login-page>header { min-height: 44px; height: 44px; width: fit-content; margin: 16px 0 0 20px; padding: 0 18px 0 14px; border-radius: var(--lg-r-pill, 999px); font-weight: 600; font-size: 16px; color: var(--lg-label, #14161a); border-bottom: 0; }
+.login-page .login-main { width: 440px; border: 0; border-radius: var(--lg-r-sheet, 26px); padding: 40px; }
 .login-page .login-symbol { width: 40px; height: 40px; background: transparent; margin-bottom: 20px; border-radius: 0; }
 .login-page .login-main h1 { font-size: 24px; font-weight: 600; line-height: 32px; letter-spacing: -0.015em; color: var(--lg-label, #1d1d1f); }
 .login-page .login-main>p { margin-top: 8px; font-size: 14px; line-height: 20px; color: var(--lg-label-2, #555860); }

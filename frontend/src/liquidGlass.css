@@ -28,41 +28,40 @@
                           0 14px 32px rgba(15, 23, 42, 0.095);
 
   /* --- Semantic labels & hairlines (graphite + selective Duet red) -------- */
-  --lg-label:             #18191c;
-  --lg-label-2:           #3b3f4a;
-  --lg-label-3:           #4d5260;
-  --lg-separator:         rgba(24, 32, 52, 0.12);
-  --lg-separator-strong:  rgba(24, 32, 52, 0.24);
-  --lg-fill:              rgba(92, 102, 122, 0.13);
-  --lg-fill-hover:        rgba(92, 102, 122, 0.20);
-  --lg-fill-subtle:       rgba(92, 102, 122, 0.08);
+  --lg-label:             #14161a;
+  --lg-label-2:           #2c3240;
+  --lg-label-3:           #424959;
+  --lg-separator:         rgba(18, 30, 54, 0.13);
+  --lg-separator-strong:  rgba(18, 30, 54, 0.24);
+  --lg-fill:              rgba(62, 78, 108, 0.12);
+  --lg-fill-hover:        rgba(62, 78, 108, 0.19);
+  --lg-fill-subtle:       rgba(62, 78, 108, 0.08);
 
   /* --- Brand accents (rationed: primary graphite, selective brand red) ---- */
   --lg-tint:              #202124;
   --lg-tint-hover:        #34373c;
-  --lg-tint-glass:        rgba(32, 33, 36, 0.88);
-  --lg-tint-glass-hover:  rgba(46, 48, 54, 0.94);
+  --lg-tint-glass:        rgba(28, 30, 36, 0.88);
+  --lg-tint-glass-hover:  rgba(44, 47, 56, 0.94);
   --lg-on-tint:           #ffffff;
   --lg-red:               #d71920;
   --lg-red-text:          #b5121b;
-  --lg-red-soft:          rgba(215, 25, 32, 0.11);
+  --lg-red-soft:          rgba(215, 25, 32, 0.12);
   --lg-red-glass:         rgba(196, 30, 42, 0.88);
   --lg-red-glass-hover:   rgba(176, 22, 33, 0.94);
 
   /* --- Liquid Glass: Regular variant --------------------------------------
-     Regular glass pairs optical edge refraction & sculpted specular highlights
-     with high-legibility material fills. Single-layer translucent gradients
-     avoid alpha double-stacking so large chrome stays crystalline rather than
-     turning into milky 2020 frosted white cards:
-     - Large floating chrome cards (sidebars, rail, chat header, composer,
-       topbar capsules) use single-pass 0.56-0.70 translucent gradient +
-       crystalline bevel rim + sculpted inset caustics + live SVG rim lensing.
-     - Text-bearing floating overlays/menus/pickers/popovers/modals use
-       single-pass 0.91-0.94 regular glass gradient + 56px blur + 215%
-       saturation so underlying page text is NEVER recognizable while retaining
-       luminous Liquid Glass depth, specular bevel, and subtle ambient hue. */
-  --lg-glass:             rgba(246, 250, 255, 0.62);
-  --lg-glass-chrome:      rgba(245, 249, 255, 0.58);
+     Calibrated to glassy-liquid's thin, transmissive Control Center material:
+     - Large floating chrome (left rail, conversation sidebar, right detail
+       panel, floating chat header, composer, topbar capsules, find panel,
+       notification bar) uses a thin single-pass 0.14-0.30 translucent veil +
+       moderate 9-11px optical blur + 9-slice Snell-Descartes SVG edge
+       refraction + crisp 1.25px specular rim so canvas light, colors, and
+       scrolling content clearly show through the panel body.
+     - Text-bearing floating overlays (menus, pickers, popovers, drawers,
+       modals) retain high-legibility 0.91-0.945 regular glass + 56px frost
+       so underlying page text is NEVER recognizable. */
+  --lg-glass:             rgba(248, 252, 255, 0.28);
+  --lg-glass-chrome:      rgba(248, 252, 255, 0.26);
   --lg-glass-elevated:    rgba(247, 250, 255, 0.92);
   --lg-glass-sheet-text:  rgba(247, 250, 255, 0.93);
   --lg-glass-sheet-grad:  linear-gradient(
@@ -72,39 +71,38 @@
                             rgba(238, 244, 254, 0.935) 100%
                           );
   --lg-glass-chrome-grad: linear-gradient(
-                            174deg,
-                            rgba(255, 255, 255, 0.70) 0%,
-                            rgba(246, 250, 255, 0.55) 42%,
-                            rgba(236, 243, 254, 0.61) 100%
+                            168deg,
+                            rgba(255, 255, 255, 0.34) 0%,
+                            rgba(248, 252, 255, 0.20) 48%,
+                            rgba(240, 247, 255, 0.27) 100%
                           );
   --lg-glass-refract-grad: linear-gradient(
-                            174deg,
-                            rgba(255, 255, 255, 0.64) 0%,
-                            rgba(245, 249, 255, 0.49) 44%,
-                            rgba(235, 242, 254, 0.56) 100%
+                            168deg,
+                            rgba(255, 255, 255, 0.27) 0%,
+                            rgba(247, 251, 255, 0.14) 50%,
+                            rgba(238, 246, 255, 0.21) 100%
                           );
-  --lg-glass-subtle:      rgba(246, 249, 255, 0.56);
+  --lg-glass-subtle:      rgba(248, 251, 255, 0.24);
   --lg-glass-thick:       rgba(252, 253, 255, 0.98);
-  --lg-glass-refract:     rgba(246, 249, 255, 0.50);
-  --lg-glass-blur:        saturate(215%) brightness(1.02) blur(26px);
+  --lg-glass-refract:     rgba(248, 252, 255, 0.20);
+  --lg-glass-blur:        blur(11px) saturate(185%) brightness(1.03);
   --lg-glass-blur-sheet:  saturate(215%) blur(56px);
-  --lg-glass-rim-top:     rgba(255, 255, 255, 1);
-  --lg-glass-rim-cool:    rgba(186, 214, 255, 0.84);
-  --lg-glass-rim-mid:     rgba(255, 255, 255, 0.26);
-  --lg-glass-rim-warm:    rgba(166, 198, 246, 0.56);
-  --lg-glass-rim-bot:     rgba(255, 255, 255, 0.96);
-  --lg-glass-inner-hi:    rgba(255, 255, 255, 1);
-  --lg-glass-inner-side:  rgba(255, 255, 255, 0.86);
-  --lg-glass-inner-right: rgba(255, 255, 255, 0.54);
-  --lg-glass-inner-lo:    rgba(130, 162, 218, 0.44);
-  --lg-glass-caustic-top: rgba(255, 255, 255, 0.92);
-  --lg-glass-caustic-bot: rgba(100, 136, 206, 0.28);
-  --lg-glass-edge:        rgba(18, 34, 64, 0.155);
-  --lg-glass-sheen:       0.52;
-  --lg-glass-shadow:      0 14px 36px rgba(15, 25, 48, 0.135),
-                          0 3px 9px rgba(15, 25, 48, 0.07);
-  --lg-glass-shadow-sm:   0 8px 24px rgba(15, 25, 48, 0.105),
-                          0 2px 5px rgba(15, 25, 48, 0.055);
+  --lg-glass-rim-top:     rgba(255, 255, 255, 0.98);
+  --lg-glass-rim-cool:    rgba(222, 238, 255, 0.72);
+  --lg-glass-rim-mid:     rgba(255, 255, 255, 0.22);
+  --lg-glass-rim-warm:    rgba(205, 226, 252, 0.50);
+  --lg-glass-rim-bot:     rgba(255, 255, 255, 0.88);
+  --lg-glass-inner-hi:    rgba(255, 255, 255, 0.92);
+  --lg-glass-inner-side:  rgba(255, 255, 255, 0.62);
+  --lg-glass-inner-right: rgba(255, 255, 255, 0.34);
+  --lg-glass-inner-lo:    rgba(130, 162, 214, 0.34);
+  --lg-glass-inner-glow:  rgba(255, 255, 255, 0.18);
+  --lg-glass-edge:        rgba(16, 30, 56, 0.14);
+  --lg-glass-sheen:       0.18;
+  --lg-glass-shadow:      0 12px 32px -6px rgba(15, 28, 56, 0.16),
+                          0 2px 8px -1px rgba(15, 28, 56, 0.08);
+  --lg-glass-shadow-sm:   0 8px 22px -5px rgba(15, 28, 56, 0.12),
+                          0 2px 5px -1px rgba(15, 28, 56, 0.06);
   --lg-glass-shadow-lg:   0 28px 68px rgba(15, 25, 48, 0.21),
                           0 8px 20px rgba(15, 25, 48, 0.095);
 
@@ -172,13 +170,12 @@
   -webkit-backdrop-filter: var(--lg-glass-blur);
   backdrop-filter: var(--lg-glass-blur);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 14px 26px -12px var(--lg-glass-caustic-top),
-    inset 0 -14px 24px -14px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 10px var(--lg-glass-inner-glow),
+    0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow);
 }
 
@@ -189,13 +186,12 @@
   backdrop-filter: var(--lg-glass-blur-sheet);
   border-radius: var(--lg-r-sheet);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 12px 24px -10px var(--lg-glass-caustic-top),
-    inset 0 -12px 22px -14px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 12px var(--lg-glass-inner-glow),
+    0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow-lg);
 }
 
@@ -210,13 +206,12 @@
 .lg-glass-pill {
   border-radius: var(--lg-r-pill);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 10px 18px -10px var(--lg-glass-caustic-top),
-    inset 0 -10px 16px -12px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 8px var(--lg-glass-inner-glow),
+    0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow-sm);
 }
 
@@ -235,13 +230,12 @@
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 10px 18px -10px var(--lg-glass-caustic-top),
-    inset 0 -10px 16px -12px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 8px var(--lg-glass-inner-glow),
+    0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow-sm);
 }
 
@@ -257,9 +251,8 @@
   background: var(--lg-fill);
 }
 
-/* Directional crystalline bevel rim: crisp specular upper-left catchlight ->
-   cool optical refraction edge -> airy mid-span -> crystalline cool bounce ->
-   bright lower-right catchlight. Reads as sculpted glass thickness, not a flat border. */
+/* Directional crystalline specular rim: crisp 1.25px upper-left catchlight ->
+   delicate sky-glass refraction edge -> airy mid-span -> lower-right bounce. */
 .lg-glass::before,
 .lg-glass-sheet::before,
 .lg-glass-pill::before,
@@ -270,7 +263,7 @@
   inset: 0;
   z-index: 2;
   border-radius: inherit;
-  padding: 1.5px;
+  padding: 1.25px;
   pointer-events: none;
   background: linear-gradient(
     142deg,
@@ -285,8 +278,8 @@
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 
-/* Sculpted top-edge specular light arc & lower optical bounce — concentrates
-   reflectance along the curved upper bevel without fogging the glass body. */
+/* Whisper-thin upper specular catchlight confined to the top bezel arc —
+   keeps the panel body clear and transmissive instead of fogging it white. */
 .lg-glass::after,
 .lg-glass-sheet::after,
 .lg-glass-pill::after,
@@ -299,17 +292,16 @@
   pointer-events: none;
   background:
     radial-gradient(
-      82% 30% at 20% 0%,
+      68% 14% at 18% 0%,
       rgba(255, 255, 255, var(--lg-glass-sheen)) 0%,
-      rgba(255, 255, 255, calc(var(--lg-glass-sheen) * 0.24)) 46%,
-      transparent 78%
+      transparent 74%
     ),
     linear-gradient(
       180deg,
-      rgba(255, 255, 255, calc(var(--lg-glass-sheen) * 0.74)) 0%,
-      rgba(255, 255, 255, calc(var(--lg-glass-sheen) * 0.14)) 18%,
-      transparent 44%,
-      rgba(136, 172, 232, calc(var(--lg-glass-sheen) * 0.22)) 100%
+      rgba(255, 255, 255, calc(var(--lg-glass-sheen) * 0.65)) 0%,
+      transparent 11%,
+      transparent 90%,
+      rgba(255, 255, 255, calc(var(--lg-glass-sheen) * 0.35)) 100%
     );
 }
 
@@ -431,13 +423,13 @@
 /* Scroll-edge dissolve gradients beneath floating top/bottom chrome */
 .lg-scroll-edge {
   pointer-events: none;
-  height: 22px;
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
+  height: 18px;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   background: linear-gradient(
     to bottom,
-    rgba(242, 244, 249, 0.72) 0%,
-    rgba(242, 244, 249, 0) 100%
+    rgba(232, 240, 252, 0.24) 0%,
+    rgba(232, 240, 252, 0) 100%
   );
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
@@ -445,13 +437,13 @@
 
 .lg-scroll-edge-bottom {
   pointer-events: none;
-  height: 28px;
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
+  height: 24px;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   background: linear-gradient(
     to top,
-    rgba(235, 239, 247, 0.80) 0%,
-    rgba(235, 239, 247, 0) 100%
+    rgba(220, 234, 252, 0.14) 0%,
+    rgba(220, 234, 252, 0) 100%
   );
   -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 100%);
   mask-image: linear-gradient(to top, #000 0%, transparent 100%);
@@ -500,33 +492,51 @@
   box-shadow: none;
 }
 
-.topbar-leading.lg-glass-group {
+.topbar-leading.lg-glass-host {
+  display: inline-flex;
+  align-items: center;
   height: 42px;
   padding: 4px 6px 4px 12px;
   gap: 6px;
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
+  border-radius: var(--lg-r-pill);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 10px 18px -10px var(--lg-glass-caustic-top),
-    inset 0 -10px 16px -12px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
+    0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow-sm);
 }
 
-.topbar-leading.lg-glass-group > .brand {
+.topbar-leading.lg-glass-host > .lg-glass-backdrop {
+  padding: 0;
+  background-color: transparent;
+  background-image: var(--lg-glass-chrome-grad);
+  box-shadow:
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
+    inset -1px 0 0 var(--lg-glass-inner-right),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 8px var(--lg-glass-inner-glow);
+}
+
+.topbar-leading.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  background-image: var(--lg-glass-refract-grad);
+}
+
+.topbar-leading.lg-glass-host > .brand {
   width: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.topbar-leading.lg-glass-group > .icon-button {
+.topbar-leading.lg-glass-host > .icon-button {
   width: 32px;
   height: 32px;
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--lg-r-pill);
+}
+
+.topbar-leading.lg-glass-host > .icon-button:hover:not(:disabled) {
+  background: var(--lg-fill);
 }
 
 .topbar > .search-wrap {
@@ -538,11 +548,28 @@
   z-index: 22;
 }
 
-.topbar .global-search.lg-glass-pill {
+.topbar .global-search.lg-glass-host {
   height: 42px;
   padding: 0 20px;
+  border-radius: var(--lg-r-pill);
+  box-shadow:
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow-sm);
+}
+
+.topbar .global-search.lg-glass-host > .lg-glass-backdrop {
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
+  box-shadow:
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
+    inset -1px 0 0 var(--lg-glass-inner-right),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 8px var(--lg-glass-inner-glow);
+}
+
+.topbar .global-search.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  background-image: var(--lg-glass-refract-grad);
 }
 
 .topbar .search-results {
@@ -556,20 +583,26 @@
   padding: 4px 6px 4px 8px;
   gap: 6px;
   border-radius: var(--lg-r-pill);
+  box-shadow:
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow-sm);
 }
 
+/* Keep outset box-shadow on the .lg-glass-host (not on .lg-glass-backdrop) so
+   Chromium backdrop-filter: url(#...) aligns pixel-perfectly with the rim. */
 .topbar > .top-right.lg-glass-host > .lg-glass-backdrop {
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 10px 18px -10px var(--lg-glass-caustic-top),
-    inset 0 -10px 16px -12px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
-    var(--lg-glass-shadow-sm);
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 8px var(--lg-glass-inner-glow);
+}
+
+.topbar > .top-right.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  background-image: var(--lg-glass-refract-grad);
 }
 
 .topbar .app-options-menu,
@@ -584,46 +617,63 @@
   gap: 14px;
 }
 
-/* Floating left App Rail dock (z-index above sidebar so tooltips never clip) */
-.app-rail.lg-glass {
+/* Floating left App Rail dock (z-index above sidebar so tooltips never clip;
+   host pattern isolates outer drop-shadow from the SVG-refracting backdrop) */
+.app-rail.lg-glass-host {
   width: 58px;
   min-width: 58px;
   border-radius: var(--lg-r-rail);
   padding: 10px 0;
   z-index: 12;
   overflow: visible;
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 14px 26px -12px var(--lg-glass-caustic-top),
-    inset 0 -14px 24px -14px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
+    0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow);
 }
 
-/* Floating Conversation Sidebar card (host pattern protects row-context popover) */
+.app-rail.lg-glass-host > .lg-glass-backdrop {
+  background-color: transparent;
+  background-image: var(--lg-glass-chrome-grad);
+  box-shadow:
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
+    inset -1px 0 0 var(--lg-glass-inner-right),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 10px var(--lg-glass-inner-glow);
+}
+
+.app-rail.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  background-image: var(--lg-glass-refract-grad);
+}
+
+/* Floating Conversation Sidebar card (host pattern protects row-context popover
+   and isolates outer drop-shadow from the SVG-refracting backdrop layer) */
 .sidebar.lg-glass-host {
   border-radius: var(--lg-r-shell);
   overflow: visible;
   z-index: 6;
+  box-shadow:
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow);
+}
+
+.sidebar.lg-glass-host.collapsed {
+  box-shadow: none;
 }
 
 .sidebar.lg-glass-host > .lg-glass-backdrop {
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 14px 26px -12px var(--lg-glass-caustic-top),
-    inset 0 -14px 24px -14px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
-    var(--lg-glass-shadow);
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 10px var(--lg-glass-inner-glow);
+}
+
+.sidebar.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  background-image: var(--lg-glass-refract-grad);
 }
 
 .sidebar.lg-glass-host .sidebar-heading {
@@ -691,20 +741,24 @@
   border-left: 0;
   border-radius: var(--lg-r-shell);
   overflow: hidden;
+  box-shadow:
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow);
 }
 
 .detail-sidebar.lg-glass-host > .lg-glass-backdrop {
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 14px 26px -12px var(--lg-glass-caustic-top),
-    inset 0 -14px 24px -14px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
-    var(--lg-glass-shadow);
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 10px var(--lg-glass-inner-glow);
+}
+
+.detail-sidebar.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  background-image: var(--lg-glass-refract-grad);
 }
 
 .chat-find-panel.lg-glass {
@@ -713,14 +767,17 @@
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 14px 26px -12px var(--lg-glass-caustic-top),
-    inset 0 -14px 24px -14px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 10px var(--lg-glass-inner-glow),
+    0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow);
+}
+
+.chat-find-panel.lg-glass.is-refracting {
+  background-image: var(--lg-glass-refract-grad);
 }
 
 /* Floating Chat Top Chrome Stack (floats OVER scrolling .message-area) */
@@ -752,25 +809,28 @@
   margin: 0;
 }
 
-.chat-top-chrome {
+.chat-top-chrome.lg-glass-host {
   border-radius: var(--lg-r-panel);
   overflow: hidden;
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  -webkit-backdrop-filter: saturate(215%) brightness(1.02) blur(26px);
-  backdrop-filter: saturate(215%) brightness(1.02) blur(26px);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 14px 26px -12px var(--lg-glass-caustic-top),
-    inset 0 -14px 24px -14px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
+    0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow);
 }
 
-.chat-top-chrome.is-refracting {
+.chat-top-chrome.lg-glass-host > .lg-glass-backdrop {
+  background-color: transparent;
+  background-image: var(--lg-glass-chrome-grad);
+  -webkit-backdrop-filter: var(--lg-glass-blur);
+  backdrop-filter: var(--lg-glass-blur);
+  box-shadow:
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
+    inset -1px 0 0 var(--lg-glass-inner-right),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 10px var(--lg-glass-inner-glow);
+}
+
+.chat-top-chrome.lg-glass-host > .lg-glass-backdrop.is-refracting {
   background-color: transparent;
   background-image: var(--lg-glass-refract-grad);
 }
@@ -810,11 +870,12 @@
 .sidebar.lg-glass-host .sidebar-heading-actions.lg-glass-group {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  background-color: rgba(255, 255, 255, 0.56);
+  background-color: rgba(255, 255, 255, 0.42);
+  background-image: none;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 0 0 0.5px rgba(15, 23, 42, 0.09),
-    0 2px 6px rgba(15, 23, 42, 0.06);
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 0 0 0.5px rgba(15, 28, 56, 0.11),
+    0 2px 6px rgba(15, 28, 56, 0.06);
 }
 
 .chat-floating-top .model-notice.lg-glass,
@@ -877,22 +938,29 @@
 }
 
 /* Secondary page floating inset glass headers & notification bars */
-.desktop-notification-prompt.lg-glass {
+.desktop-notification-prompt.lg-glass-host {
   margin: 10px 16px 0;
   padding: 8px 16px;
   border-radius: var(--lg-r-panel);
   border-bottom: 0;
+  box-shadow:
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow-sm);
+}
+
+.desktop-notification-prompt.lg-glass-host > .lg-glass-backdrop {
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 10px 20px -10px var(--lg-glass-caustic-top),
-    inset 0 -10px 16px -12px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
-    var(--lg-glass-shadow-sm);
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 10px var(--lg-glass-inner-glow);
+}
+
+.desktop-notification-prompt.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  background-image: var(--lg-glass-refract-grad);
 }
 
 .acceptance-fixture-banner.lg-glass {
@@ -913,11 +981,12 @@
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    0 0 0 0.75px var(--lg-glass-edge),
-    0 8px 20px rgba(15, 25, 48, 0.08);
+    inset 0 0 10px var(--lg-glass-inner-glow),
+    0 0 0 0.5px var(--lg-glass-edge),
+    0 8px 20px rgba(15, 28, 56, 0.08);
 }
 
 .twin-tabs.lg-glass {
@@ -928,8 +997,8 @@
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    0 0 0 0.75px var(--lg-glass-edge),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow-sm);
 }
 
@@ -941,13 +1010,12 @@
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 10px 20px -10px var(--lg-glass-caustic-top),
-    inset 0 -10px 16px -12px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 10px var(--lg-glass-inner-glow),
+    0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow-sm);
 }
 
@@ -961,20 +1029,20 @@
   border: 0;
   border-radius: var(--lg-r-composer);
   padding: 7px 10px 7px 18px;
+  box-shadow:
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow);
 }
 
 .composer.lg-glass-host > .lg-glass-backdrop {
   background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    inset 0 12px 22px -10px var(--lg-glass-caustic-top),
-    inset 0 -12px 20px -14px var(--lg-glass-caustic-bot),
-    0 0 0 0.75px var(--lg-glass-edge),
-    var(--lg-glass-shadow);
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 10px var(--lg-glass-inner-glow);
 }
 
 .composer.lg-glass-host > .lg-glass-backdrop.is-refracting {
@@ -984,14 +1052,19 @@
 
 /* Focus ring only when the text input itself is focused — never when a
    neighboring emoji/attachment/more menu inside .composer-tools is open. */
+.composer.lg-glass-host:has(> textarea:focus) {
+  box-shadow:
+    0 0 0 1.5px rgba(24, 30, 44, 0.28),
+    var(--lg-glass-shadow);
+}
+
 .composer.lg-glass-host:has(> textarea:focus) > .lg-glass-backdrop {
   box-shadow:
-    inset 0 1.5px 0 var(--lg-glass-inner-hi),
-    inset 1.5px 0 0 var(--lg-glass-inner-side),
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
     inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1.5px 0 var(--lg-glass-inner-lo),
-    0 0 0 1.5px rgba(32, 33, 36, 0.26),
-    var(--lg-glass-shadow);
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 10px var(--lg-glass-inner-glow);
 }
 
 /* Message hover quick-action pill keeps strong regular tint for icon/text clarity */
@@ -1080,14 +1153,33 @@ select,
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Login card uses translucent regular glass so the Duet backdrop gradient glows through
-   while maintaining crisp input and label legibility. */
-.login-page .login-main.lg-glass-sheet.lg-glass-text {
-  --lg-glass-sheen: 0.46;
-  background-color: rgba(255, 255, 255, 0.52);
+/* Login card uses thin, transmissive regular glass so the Duet backdrop orbs
+   glow through the panel body while maintaining crisp input and label legibility.
+   Host pattern isolates the large outer drop-shadow from the SVG rim lens. */
+.login-page .login-main.lg-glass-host {
+  border-radius: var(--lg-r-sheet);
+  box-shadow:
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow-lg);
+}
+
+.login-page .login-main.lg-glass-host > .lg-glass-backdrop {
+  --lg-glass-sheen: 0.18;
+  background-color: transparent;
   background-image: var(--lg-glass-chrome-grad);
-  -webkit-backdrop-filter: saturate(205%) blur(30px);
-  backdrop-filter: saturate(205%) blur(30px);
+  -webkit-backdrop-filter: var(--lg-glass-blur);
+  backdrop-filter: var(--lg-glass-blur);
+  box-shadow:
+    inset 0 1px 0 var(--lg-glass-inner-hi),
+    inset 1px 0 0 var(--lg-glass-inner-side),
+    inset -1px 0 0 var(--lg-glass-inner-right),
+    inset 0 -1px 0 var(--lg-glass-inner-lo),
+    inset 0 0 12px var(--lg-glass-inner-glow);
+}
+
+.login-page .login-main.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  background-color: transparent;
+  background-image: var(--lg-glass-refract-grad);
 }
 
 .composer.lg-glass {
@@ -1285,7 +1377,9 @@ select,
     position: relative;
     inset: auto;
     z-index: auto;
-    box-shadow: none;
+    box-shadow:
+      0 0 0 0.5px var(--lg-glass-edge),
+      var(--lg-glass-shadow);
     width: 274px;
     min-width: 256px;
   }
@@ -1313,7 +1407,9 @@ select,
     position: relative;
     inset: auto;
     z-index: auto;
-    box-shadow: none;
+    box-shadow:
+      0 0 0 0.5px var(--lg-glass-edge),
+      var(--lg-glass-shadow);
     width: min(304px, 42%);
     min-width: 264px;
   }
@@ -1338,7 +1434,7 @@ select,
     width: calc(100% - 196px);
     left: 50%;
   }
-  .desktop-notification-prompt.lg-glass,
+  .desktop-notification-prompt.lg-glass-host,
   .acceptance-fixture-banner.lg-glass {
     margin: 8px 10px 0;
   }
@@ -1346,7 +1442,7 @@ select,
     padding: 8px 10px 10px;
     gap: 8px;
   }
-  .app-rail.lg-glass {
+  .app-rail.lg-glass-host {
     width: 52px;
     min-width: 52px;
     border-radius: 22px;
@@ -1424,14 +1520,19 @@ select,
   .lg-glass-sheet,
   .lg-glass-pill,
   .lg-glass-group,
-  .lg-glass-clear {
+  .lg-glass-clear,
+  .lg-glass-host > .lg-glass-backdrop {
     background-color: var(--lg-glass-thick) !important;
     background-image: none !important;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
     box-shadow:
-      0 0 0 1px var(--lg-separator-strong),
-      var(--lg-glass-shadow-sm);
+      inset 0 0 0 1px var(--lg-separator-strong),
+      var(--lg-glass-shadow-sm) !important;
+  }
+
+  .lg-glass-host {
+    box-shadow: none !important;
   }
 
   .lg-glass-clear.lg-glass-dim {
@@ -1480,12 +1581,16 @@ select,
   .lg-glass-pill,
   .lg-glass-group,
   .lg-glass-clear,
-  .chat-top-chrome {
+  .lg-glass-host > .lg-glass-backdrop {
     background-color: var(--lg-glass) !important;
     background-image: none !important;
     box-shadow:
-      0 0 0 1.5px var(--lg-glass-edge),
-      var(--lg-glass-shadow-sm);
+      inset 0 0 0 1.5px var(--lg-glass-edge),
+      var(--lg-glass-shadow-sm) !important;
+  }
+
+  .lg-glass-host {
+    box-shadow: none !important;
   }
   .lg-glass-sheet,
   .lg-glass-sheet.lg-glass-text {
@@ -1514,11 +1619,15 @@ select,
 
 /* 5. Windows High Contrast / Forced Colors */
 @media (forced-colors: active) {
+  .lg-glass-host {
+    box-shadow: none !important;
+  }
   .lg-glass,
   .lg-glass-sheet,
   .lg-glass-pill,
   .lg-glass-group,
-  .lg-glass-clear {
+  .lg-glass-clear,
+  .lg-glass-host > .lg-glass-backdrop {
     background: Canvas !important;
     color: CanvasText !important;
     border: 1px solid CanvasText !important;
