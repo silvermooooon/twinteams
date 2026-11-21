@@ -1,22 +1,33 @@
 /* ============================================================================
-   Liquid Glass edge refraction (lensing) for Duet web UI
+   Liquid Glass physical lens refraction for Duet web UI
    ----------------------------------------------------------------------------
-   Progressively enhances elements marked [data-refract] with a 9-slice
-   Snell-Descartes squircle SVG feDisplacementMap rim lens in Chromium browsers
-   (which support url(#filter) inside backdrop-filter).
-
-   Architecture adapted from glassy-liquid's optical pipeline:
-   - 9-slice displacement tiles (corners + 2px stretched edges) cached globally,
-     so large sidebars and tall rails refract with negligible CPU/memory cost
-     and no max-size cutoff.
-   - CSS blur() runs BEFORE url(#filter) so softened background shapes & light
-     bend crisply along the curved bezel rim instead of blurring the lens away.
-   - Gentle sRGB tone-lift table (feComponentTransfer) keeps dark chrome labels
-     legible over darker scrolled content without turning the panel milky.
+   Powered by @vepando/liquid-glass-react's Snell's-law optical engine:
+   - Imports refractionProfile, buildSpecularMap, buildInteriorMask, and
+     imageDataToUrl from @vepando/liquid-glass-react.
+   - 9-slice Snell squircle displacement tiles (corners + 2px stretched edges)
+     cached globally so large sidebars and tall rails bend light along a wide
+     optical bezel with zero lag on resize and no max-size cutoff.
+   - Low pre-refraction blur (1.5-3px, matching vepando's lens/clear variants)
+     runs BEFORE url(#filter) so underlying contours, shapes, and scrolling
+     content visibly bend, magnify, and chromatically disperse inside the rim.
+   - True additive RGB chromatic dispersion via feComposite(arithmetic k2=1 k3=1)
+     matching @vepando/liquid-glass-react's GlassFilter pipeline.
+   - Interior-masked tint (--lg-vepando-mask) keeps the curved bezel crystal-clear
+     and deeply refractive while the flat interior carries a clean luminous veil
+     for crisp label and icon legibility.
+   - Angle-dependent double-ring specular rim (--lg-vepando-specular) rendered
+     via plus-lighter catchlight on ::before.
    - Automatically skips text-bearing overlay sheets (.lg-glass-sheet menus,
      pickers, popovers, drawers, modals) and accessibility fallback modes
      (prefers-reduced-transparency, prefers-contrast: more, forced-colors).
    ========================================================================== */
+
+import {
+  buildInteriorMask,
+  buildSpecularMap,
+  imageDataToUrl,
+  refractionProfile,
+} from '@vepando/liquid-glass-react';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -28,7 +39,10 @@ interface TileImage {
   height: number;
 }
 
-type DisplacementSet = Record<SliceKey, TileImage>;
+interface DisplacementSet {
+  tiles: Record<SliceKey, TileImage>;
+  baseScale: number;
+}
 
 interface SliceRect {
   key: SliceKey;
@@ -47,7 +61,8 @@ let filterCounter = 0;
 let svgDefs: SVGDefsElement | null = null;
 const activeElements = new Map<HTMLElement, RefractState>();
 const tileCache = new Map<string, DisplacementSet>();
-const profileCache = new Map<string, Float32Array>();
+const specularCache = new Map<string, string>();
+const maskCache = new Map<string, string>();
 let resizeObserver: ResizeObserver | null = null;
 let mutationObserver: MutationObserver | null = null;
 let refreshScheduled = false;
@@ -88,6 +103,7 @@ function ensureDefs(): SVGDefsElement {
   if (svgDefs && svgDefs.isConnected) return svgDefs;
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
   svg.setAttribute('width', '0');
   svg.setAttribute('height', '0');
   svg.dataset.lgRefractDefs = 'true';
@@ -97,57 +113,6 @@ function ensureDefs(): SVGDefsElement {
   svg.appendChild(svgDefs);
   document.body.appendChild(svg);
   return svgDefs;
-}
-
-/* Snell-Descartes squircle bezel optical profile (ior=1.5, thickness=1, float=0.55) */
-function squircleHeight(t: number): number {
-  const x = clamp(t, 0, 1);
-  return Math.pow(1 - Math.pow(1 - x, 4), 0.25);
-}
-
-function getOpticalProfile(ior = 1.5, thickness = 1, floatDist = 0.55): Float32Array {
-  const key = `${ior}|${thickness}|${floatDist}`;
-  const cached = profileCache.get(key);
-  if (cached) return cached;
-
-  const samples = 256;
-  const raw = new Float32Array(samples);
-  let peak = 0;
-  const h = 1e-4;
-
-  for (let i = 0; i < samples; i++) {
-    const t = (i + 0.5) / samples;
-    const a = Math.max(0, t - h);
-    const b = Math.min(1, t + h);
-    const slope = (thickness * (squircleHeight(b) - squircleHeight(a))) / (b - a);
-    const alpha = Math.atan(Math.abs(slope));
-    const theta = Math.asin(clamp(Math.sin(alpha) / ior, -1, 1));
-    const deviation = alpha - theta;
-    const height = floatDist + thickness * squircleHeight(t);
-    const disp = Math.sign(slope) * height * Math.tan(deviation);
-    raw[i] = disp;
-    peak = Math.max(peak, Math.abs(disp));
-  }
-
-  const values = new Float32Array(samples);
-  if (peak > 0) {
-    for (let i = 0; i < samples; i++) values[i] = raw[i]! / peak;
-  }
-  values[samples - 1] = 0;
-  profileCache.set(key, values);
-  return values;
-}
-
-function sampleProfile(table: Float32Array, t: number): number {
-  const n = table.length;
-  if (t >= 1) return 0;
-  const x = clamp(t, 0, 1) * n - 0.5;
-  if (x <= 0) return table[0]!;
-  const i = Math.floor(x);
-  const f = x - i;
-  const a = table[i]!;
-  const b = i + 1 < n ? table[i + 1]! : 0;
-  return a + (b - a) * f;
 }
 
 /* Signed distance & outward normal inside the top-left corner quadrant [0..kx, 0..ky] */
@@ -172,7 +137,7 @@ function cornerField(
 }
 
 function encodeChannel(v: number): number {
-  return clamp(Math.round(127.5 + v * 127.5), 0, 255);
+  return clamp(Math.round(128 + v * 127), 0, 255);
 }
 
 function rasterTile(w: number, h: number, data: Uint8ClampedArray): TileImage {
@@ -187,29 +152,60 @@ function rasterTile(w: number, h: number, data: Uint8ClampedArray): TileImage {
   return { url: canvas.toDataURL('image/png'), width: w, height: h };
 }
 
+function sampleProfile(table: Float32Array, t: number): number {
+  const n = table.length;
+  if (t >= 1) return 0;
+  const x = clamp(t, 0, 1) * n - 0.5;
+  if (x <= 0) return table[0] ?? 0;
+  const i = Math.floor(x);
+  const f = x - i;
+  const a = table[i] ?? 0;
+  const b = i + 1 < n ? (table[i + 1] ?? 0) : 0;
+  return a + (b - a) * f;
+}
+
 function getDisplacementSet(
   radius: number,
   bezel: number,
+  thickness: number,
   kx: number,
   ky: number,
   dpr: number,
 ): DisplacementSet {
   const qr = Math.round(radius * 2) / 2;
-  const qb = Math.round(bezel * 2) / 2;
+  const qb = Math.max(2, Math.round(bezel * 2) / 2);
+  const qt = Math.max(4, Math.round(thickness * 2) / 2);
   const qkx = Math.round(kx * 2) / 2;
   const qky = Math.round(ky * 2) / 2;
   const d = clamp(Math.round(dpr * 2) / 2, 1, 2);
-  const key = `${qr}|${qb}|${qkx}|${qky}|${d}`;
+  const key = `${qr}|${qb}|${qt}|${qkx}|${qky}|${d}`;
   const cached = tileCache.get(key);
   if (cached) return cached;
 
-  const table = getOpticalProfile();
+  // Use @vepando/liquid-glass-react's exact 3D Snell ray-traced squircle profile
+  const rawProfile = refractionProfile({
+    bezel: qb,
+    thickness: qt,
+    ior: 1.5,
+    profile: 'squircle',
+  });
+  let peak = 0;
+  for (let i = 0; i < rawProfile.length; i++) {
+    peak = Math.max(peak, Math.abs(rawProfile[i] ?? 0));
+  }
+  const safePeak = peak || 1;
+  const normalized = new Float32Array(rawProfile.length);
+  for (let i = 0; i < rawProfile.length; i++) {
+    normalized[i] = (rawProfile[i] ?? 0) / safePeak;
+  }
+  normalized[rawProfile.length - 1] = 0;
+
   const cw = Math.max(1, Math.ceil(qkx * d));
   const ch = Math.max(1, Math.ceil(qky * d));
 
   const magnitude = (depth: number): number => {
-    if (qb <= 0) return 0;
-    return sampleProfile(table, Math.max(0, depth) / qb);
+    if (depth < 0 || depth >= qb) return 0;
+    return sampleProfile(normalized, depth / qb);
   };
 
   const makeCorner = (flipX: boolean, flipY: boolean): TileImage => {
@@ -259,19 +255,76 @@ function getDisplacementSet(
   };
 
   const set: DisplacementSet = {
-    tl: makeCorner(false, false),
-    tr: makeCorner(true, false),
-    bl: makeCorner(false, true),
-    br: makeCorner(true, true),
-    t: makeEdge('t'),
-    b: makeEdge('b'),
-    l: makeEdge('l'),
-    r: makeEdge('r'),
+    tiles: {
+      tl: makeCorner(false, false),
+      tr: makeCorner(true, false),
+      bl: makeCorner(false, true),
+      br: makeCorner(true, true),
+      t: makeEdge('t'),
+      b: makeEdge('b'),
+      l: makeEdge('l'),
+      r: makeEdge('r'),
+    },
+    baseScale: safePeak * 2,
   };
 
   if (tileCache.size > 128) tileCache.clear();
   tileCache.set(key, set);
   return set;
+}
+
+function getCachedSpecularUrl(
+  w: number,
+  h: number,
+  radius: number,
+  bezel: number,
+  dpr: number,
+): string {
+  const sdpr = w * h > 160_000 ? Math.min(1.25, dpr) : Math.min(2, dpr);
+  const key = `${w}|${h}|${Math.round(radius)}|${Math.round(bezel)}|${sdpr}`;
+  const cached = specularCache.get(key);
+  if (cached) return cached;
+  const img = buildSpecularMap(
+    { width: w, height: h, radius },
+    {
+      angle: -135,
+      rimWidth: 1.35,
+      glowWidth: clamp(bezel * 0.62, 6, 20),
+    },
+    sdpr,
+  );
+  const url = imageDataToUrl(img);
+  if (specularCache.size > 96) {
+    const oldest = specularCache.keys().next().value;
+    if (oldest !== undefined) specularCache.delete(oldest);
+  }
+  specularCache.set(key, url);
+  return url;
+}
+
+function getCachedInteriorMaskUrl(
+  w: number,
+  h: number,
+  radius: number,
+  bezel: number,
+): string {
+  // Smooth gradient mask can be rasterized at 0.5x for large panels for instant perf
+  const down = Math.max(w, h) > 280 ? 0.5 : 1;
+  const mw = Math.max(4, Math.round(w * down));
+  const mh = Math.max(4, Math.round(h * down));
+  const mr = Math.min(radius * down, mw / 2, mh / 2);
+  const mb = Math.max(2, bezel * down);
+  const key = `${mw}|${mh}|${Math.round(mr)}|${Math.round(mb)}`;
+  const cached = maskCache.get(key);
+  if (cached) return cached;
+  const img = buildInteriorMask({ width: mw, height: mh, radius: mr }, mb, 1);
+  const url = imageDataToUrl(img);
+  if (maskCache.size > 96) {
+    const oldest = maskCache.keys().next().value;
+    if (oldest !== undefined) maskCache.delete(oldest);
+  }
+  maskCache.set(key, url);
+  return url;
 }
 
 function buildSlices(w: number, h: number, kx: number, ky: number): SliceRect[] {
@@ -294,16 +347,6 @@ function buildSlices(w: number, h: number, kx: number, ky: number): SliceRect[] 
   return out;
 }
 
-function toneTransferTable(lift: number): string {
-  const out: string[] = [];
-  for (let i = 0; i <= 32; i++) {
-    const v = i / 32;
-    const lifted = v + lift * Math.pow(1 - v, 2);
-    out.push(clamp(lifted, 0, 1).toFixed(4));
-  }
-  return out.join(' ');
-}
-
 function readAttrNumber(
   el: HTMLElement,
   name: string,
@@ -322,6 +365,8 @@ function removeRefraction(el: HTMLElement): void {
   if (existing) existing.remove();
   el.style.removeProperty('backdrop-filter');
   el.style.removeProperty('-webkit-backdrop-filter');
+  el.style.removeProperty('--lg-vepando-specular');
+  el.style.removeProperty('--lg-vepando-mask');
   el.classList.remove('is-refracting');
   activeElements.delete(el);
 }
@@ -334,6 +379,9 @@ function applyRefraction(el: HTMLElement): void {
 
   const isClear = el.classList.contains('lg-glass-clear');
   const isSheet = el.classList.contains('lg-glass-sheet');
+  const isPill =
+    el.classList.contains('lg-glass-pill') ||
+    el.classList.contains('lg-glass-group');
   const allowSheet = el.hasAttribute('data-refract-allow');
 
   // Floating text-bearing overlays (menus, pickers, popovers, drawers, modals)
@@ -347,41 +395,53 @@ function applyRefraction(el: HTMLElement): void {
   let radius = Number.parseFloat(cs.borderTopLeftRadius) || 0;
   radius = Math.min(radius, w / 2, h / 2);
 
-  const strength = clamp(readAttrNumber(el, 'data-refract', 0.85), 0, 2);
+  const strength = clamp(readAttrNumber(el, 'data-refract', 0.88), 0, 2);
   if (strength <= 0) return;
 
   const shortSide = Math.min(w, h);
-  let bezel = readAttrNumber(
-    el,
-    'data-refract-bezel',
-    clamp(radius * 0.78 || 16, 12, 22),
+
+  // Wide optical bezel calibrated to @vepando/liquid-glass-react's lens/clear
+  // profile: fits cleanly to the corner radius (up to 34px on large panels)
+  // so light visibly wraps and magnifies around the entire rounded perimeter.
+  const fitBezel = radius >= 12 ? radius : Math.min(shortSide * 0.3, 24);
+  const defaultBezel = clamp(
+    Math.min(shortSide * 0.34, fitBezel, 34),
+    10,
+    Math.max(10, Math.min(radius || shortSide * 0.4, shortSide * 0.46)),
   );
-  bezel = Math.min(bezel, shortSide * 0.42);
+  const bezel = clamp(
+    readAttrNumber(el, 'data-refract-bezel', defaultBezel),
+    6,
+    shortSide * 0.48,
+  );
   const kx = Math.min(Math.max(radius, bezel), w / 2);
   const ky = Math.min(Math.max(radius, bezel), h / 2);
 
-  // Calibrated against glassy-liquid Control Center: ~9px blur BEFORE SVG rim
-  // refraction keeps shapes/color perceptible through the body while curving
-  // light crisply along the squircle rim.
-  const defaultBlur = isClear ? 2 : 9;
+  // Calibrated to @vepando/liquid-glass-react's optical lens:
+  // - Taller slab thickness (2.1-2.4x bezel) gives dramatic Snell bending right
+  //   inside the rim while keeping the flat plateau completely undistorted.
+  // - Low pre-refraction blur (1.5-2.5px) keeps bent contours crisp instead of
+  //   smearing the lens away like thin frost.
+  const thicknessRatio = isClear ? 2.4 : shortSide <= 84 ? 2.25 : 2.15;
+  const thickness = bezel * thicknessRatio;
+
+  const defaultBlur = isClear
+    ? 0.5
+    : isPill || shortSide <= 62
+      ? 1.5
+      : 2.5;
   const blur = readAttrNumber(el, 'data-refract-blur', defaultBlur);
 
-  // Adaptive displacement: capsules refract more deeply, large sidebars stay
-  // calm and optical along their edges without distorting interior list rows.
-  const baseRefract =
-    shortSide <= 64
-      ? Math.max(10, shortSide * 0.34)
-      : Math.max(15, 22 - (shortSide - 64) * 0.03);
-  const refraction = Math.round(baseRefract * strength * 10) / 10;
-  const scale = 2 * refraction;
+  // Physical refraction multiplier (vepando clear=1.3, lens=1.0, regular=2.0)
+  const lensGain = isClear ? 1.55 : shortSide <= 84 ? 1.48 : 1.42;
+  const refractionMult = Math.round(lensGain * strength * 100) / 100;
 
-  const defaultDispersion = isClear ? 0.14 : shortSide <= 90 ? 0.08 : 0.055;
+  const defaultDispersion = isClear ? 0.15 : shortSide <= 90 ? 0.135 : 0.115;
   const dispersion = clamp(
     readAttrNumber(el, 'data-refract-dispersion', defaultDispersion),
     0,
     0.25,
   );
-  const lift = isClear ? 0 : readAttrNumber(el, 'data-refract-lift', 0.13);
   const dpr = clamp(window.devicePixelRatio || 1, 1, 2);
 
   const key = [
@@ -389,18 +449,23 @@ function applyRefraction(el: HTMLElement): void {
     h,
     Math.round(radius),
     Math.round(bezel),
-    refraction,
+    Math.round(thickness),
+    refractionMult,
     blur,
     dispersion,
-    lift,
     dpr,
   ].join('|');
   const prev = activeElements.get(el);
   if (prev && prev.key === key) return;
 
-  const tiles = getDisplacementSet(radius, bezel, kx, ky, dpr);
+  const dispSet = getDisplacementSet(radius, bezel, thickness, kx, ky, dpr);
   const slices = buildSlices(w, h, kx, ky);
-  if (!tiles.tl.url) return;
+  if (!dispSet.tiles.tl.url) return;
+
+  const scale = clamp(dispSet.baseScale * refractionMult, 24, 150);
+
+  const specularUrl = getCachedSpecularUrl(w, h, radius, bezel, dpr);
+  const maskUrl = getCachedInteriorMaskUrl(w, h, radius, bezel);
 
   const id = prev ? prev.id : `lg-refract-${++filterCounter}`;
   const oldFilter = document.getElementById(id);
@@ -436,7 +501,7 @@ function applyRefraction(el: HTMLElement): void {
   });
 
   for (const s of slices) {
-    const tile = tiles[s.key];
+    const tile = dispSet.tiles[s.key];
     const feImage = document.createElementNS(SVG_NS, 'feImage');
     feImage.setAttribute('href', tile.url);
     feImage.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', tile.url);
@@ -461,12 +526,12 @@ function applyRefraction(el: HTMLElement): void {
   }
   filter.appendChild(merge);
 
+  // Additive RGB chromatic dispersion matching @vepando/liquid-glass-react GlassFilter
   if (dispersion > 0.001) {
-    const spread = Math.min(0.28, dispersion * 0.5);
     const channels = [
-      { c: 'r', s: scale * (1 + spread), m: '1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0' },
+      { c: 'r', s: scale * (1 + dispersion), m: '1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0' },
       { c: 'g', s: scale, m: '0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0' },
-      { c: 'b', s: scale * (1 - spread), m: '0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0' },
+      { c: 'b', s: scale * (1 - dispersion), m: '0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0' },
     ];
     for (const ch of channels) {
       addNode('feDisplacementMap', {
@@ -475,17 +540,34 @@ function applyRefraction(el: HTMLElement): void {
         scale: ch.s.toFixed(2),
         xChannelSelector: 'R',
         yChannelSelector: 'G',
-        result: `d${ch.c}`,
+        result: `bent-${ch.c}`,
       });
       addNode('feColorMatrix', {
-        in: `d${ch.c}`,
+        in: `bent-${ch.c}`,
         type: 'matrix',
         values: ch.m,
         result: ch.c,
       });
     }
-    addNode('feBlend', { in: 'r', in2: 'g', mode: 'screen', result: 'rg' });
-    addNode('feBlend', { in: 'rg', in2: 'b', mode: 'screen', result: 'refracted' });
+    addNode('feComposite', {
+      in: 'r',
+      in2: 'g',
+      operator: 'arithmetic',
+      k1: 0,
+      k2: 1,
+      k3: 1,
+      k4: 0,
+      result: 'rg',
+    });
+    addNode('feComposite', {
+      in: 'rg',
+      in2: 'b',
+      operator: 'arithmetic',
+      k1: 0,
+      k2: 1,
+      k3: 1,
+      k4: 0,
+    });
   } else {
     addNode('feDisplacementMap', {
       in: 'SourceGraphic',
@@ -493,31 +575,19 @@ function applyRefraction(el: HTMLElement): void {
       scale: scale.toFixed(2),
       xChannelSelector: 'R',
       yChannelSelector: 'G',
-      result: 'refracted',
     });
-  }
-
-  if (lift > 0.001) {
-    const table = toneTransferTable(lift);
-    const ct = document.createElementNS(SVG_NS, 'feComponentTransfer');
-    ct.setAttribute('in', 'refracted');
-    ct.setAttribute('result', 'out');
-    for (const ch of ['R', 'G', 'B'] as const) {
-      const fn = document.createElementNS(SVG_NS, `feFunc${ch}`);
-      fn.setAttribute('type', 'table');
-      fn.setAttribute('tableValues', table);
-      ct.appendChild(fn);
-    }
-    filter.appendChild(ct);
   }
 
   ensureDefs().appendChild(filter);
 
-  // CSS blur FIRST, then SVG squircle rim refraction, then optical saturation.
-  const sat = isClear ? 145 : 172;
-  const filterValue = `${blur > 0 ? `blur(${blur}px) ` : ''}url(#${id}) saturate(${sat}%)`;
+  // CSS low-radius blur FIRST, then Snell SVG lens refraction, then optical saturate/lift
+  const sat = isClear ? 150 : 162;
+  const bright = isClear ? 1.02 : 1.035;
+  const filterValue = `${blur > 0 ? `blur(${blur}px) ` : ''}url(#${id}) saturate(${sat}%) brightness(${bright})`;
   el.style.setProperty('backdrop-filter', filterValue);
   el.style.setProperty('-webkit-backdrop-filter', filterValue);
+  el.style.setProperty('--lg-vepando-specular', `url("${specularUrl}")`);
+  el.style.setProperty('--lg-vepando-mask', `url("${maskUrl}")`);
   el.classList.add('is-refracting');
   activeElements.set(el, { key, id });
 }
@@ -559,6 +629,21 @@ function scheduleRefresh(): void {
   });
 }
 
+function updatePointerHighlight(event: PointerEvent): void {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const host = target.closest<HTMLElement>(
+    '.pill, .rail-item, .notification-switch, .twin-switch, .header-actions.lg-glass-group, .sidebar-heading-actions.lg-glass-group',
+  );
+  if (!host) return;
+  const rect = host.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
+  const px = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
+  const py = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+  host.style.setProperty('--lg-px', `${px.toFixed(1)}%`);
+  host.style.setProperty('--lg-py', `${py.toFixed(1)}%`);
+}
+
 export function initLiquidGlassRefraction(): void {
   if (initialized || typeof window === 'undefined' || typeof document === 'undefined') {
     return;
@@ -587,6 +672,9 @@ export function initLiquidGlassRefraction(): void {
       attributeFilter: ['data-refract', 'data-refract-allow', 'class'],
     });
   }
+
+  document.addEventListener('pointermove', updatePointerHighlight, { passive: true });
+  document.addEventListener('pointerdown', updatePointerHighlight, { passive: true });
 
   const mediaQueries = [
     '(prefers-reduced-transparency: reduce)',

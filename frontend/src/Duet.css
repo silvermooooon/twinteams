@@ -20,23 +20,16 @@ body, .app-shell {
   background: transparent;
 }
 .app-shell {
+  /* Light-mode macOS-Tahoe-inspired optical glass-ribbon studio canvas:
+     sweeping pearl-ivory, subtle Duet rose, and vivid glacier-cerulean wave
+     contours cross behind the floating chrome so every curved glass bezel
+     visibly bends, magnifies, and chromatically disperses light while keeping
+     the center chat area calm, bright, and effortless to read. */
   background-image:
-    /* Soft Duet crimson-rose studio accent behind upper-left rail & sidebar */
-    radial-gradient(620px 420px at 4% 10%, rgba(215, 25, 32, 0.24), rgba(226, 72, 86, 0.09) 42%, transparent 66%),
-    /* Luminous glacier-sky sweep behind topbar & upper-right detail sidebar */
-    radial-gradient(860px 520px at 88% 12%, rgba(44, 128, 232, 0.36), rgba(82, 158, 244, 0.16) 46%, transparent 70%),
-    /* Bright cloud-white diagonal light band crossing upper-mid panels */
-    radial-gradient(940px 360px at 46% 36%, rgba(255, 255, 255, 0.84), rgba(244, 250, 255, 0.28) 54%, transparent 74%),
-    /* Vivid glacier-cyan & cerulean water contour crossing lower-left rail & sidebar */
-    radial-gradient(580px 440px at 14% 66%, rgba(36, 134, 232, 0.36), rgba(74, 166, 244, 0.16) 48%, transparent 70%),
-    /* Deeper alpine-slate shadow accent behind bottom-left sidebar edge for contrast */
-    radial-gradient(520px 340px at 8% 94%, rgba(56, 98, 178, 0.28), transparent 64%),
-    /* Glacial turquoise-azure sweep crossing mid-to-lower right detail panel */
-    radial-gradient(640px 460px at 86% 68%, rgba(42, 126, 224, 0.36), rgba(92, 162, 240, 0.15) 48%, transparent 72%),
-    /* Soft horizon specular highlight behind lower-center composer */
-    radial-gradient(600px 340px at 52% 96%, rgba(68, 134, 228, 0.30), rgba(118, 168, 240, 0.12) 48%, transparent 68%),
-    /* Sculpted diagonal light-to-ice-blue studio gradient */
-    linear-gradient(154deg, #e2ebf8 0%, #eef4fc 30%, #d4e5f8 66%, #c2d9f4 100%);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1000' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23edf2fa'/%3E%3Cstop offset='38%25' stop-color='%23f5f6f3'/%3E%3Cstop offset='72%25' stop-color='%23d8e9fc'/%3E%3Cstop offset='100%25' stop-color='%23b5d6fb'/%3E%3C/linearGradient%3E%3ClinearGradient id='blueBand' x1='0' y1='0.15' x2='1' y2='0.85'%3E%3Cstop offset='0%25' stop-color='%232e8bff' stop-opacity='0.64'/%3E%3Cstop offset='45%25' stop-color='%230c63eb' stop-opacity='0.52'/%3E%3Cstop offset='100%25' stop-color='%2343a6ff' stop-opacity='0.60'/%3E%3C/linearGradient%3E%3ClinearGradient id='cyanRibbon' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2362d4ff' stop-opacity='0.68'/%3E%3Cstop offset='52%25' stop-color='%231d7cf2' stop-opacity='0.54'/%3E%3Cstop offset='100%25' stop-color='%230b4ed6' stop-opacity='0.48'/%3E%3C/linearGradient%3E%3ClinearGradient id='roseRibbon' x1='0' y1='0' x2='1' y2='0.8'%3E%3Cstop offset='0%25' stop-color='%23d71920' stop-opacity='0.34'/%3E%3Cstop offset='46%25' stop-color='%23e86f7c' stop-opacity='0.22'/%3E%3Cstop offset='100%25' stop-color='%23f7e8d8' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='ridge' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0%25' stop-color='%23ffffff' stop-opacity='0.92'/%3E%3Cstop offset='50%25' stop-color='%23d9f1ff' stop-opacity='0.78'/%3E%3Cstop offset='100%25' stop-color='%23ffffff' stop-opacity='0.94'/%3E%3C/linearGradient%3E%3ClinearGradient id='deepFold' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%230b55dc' stop-opacity='0.58'/%3E%3Cstop offset='100%25' stop-color='%232e96ff' stop-opacity='0.36'/%3E%3C/linearGradient%3E%3Cfilter id='s' x='-8%25' y='-8%25' width='116%25' height='116%25'%3E%3CfeGaussianBlur stdDeviation='6'/%3E%3C/filter%3E%3Cfilter id='m' x='-8%25' y='-8%25' width='116%25' height='116%25'%3E%3CfeGaussianBlur stdDeviation='18'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='1600' height='1000' fill='url(%23bg)'/%3E%3Cpath d='M-80 280 C 120 190, 260 40, 480 -40 L -80 -40 Z' fill='url(%23roseRibbon)' filter='url(%23m)'/%3E%3Cpath d='M-60 430 C 140 350, 310 210, 560 40 C 760 -90, 990 -60, 1210 -40 L 1660 -40 L 1660 220 C 1400 260, 1180 340, 960 490 C 660 690, 340 820, -60 910 Z' fill='url(%23cyanRibbon)' filter='url(%23m)' opacity='0.55'/%3E%3Cpath d='M-60 640 C 190 540, 410 350, 740 160 C 1020 0, 1340 -30, 1660 40 L 1660 390 C 1380 420, 1140 530, 880 710 C 620 890, 310 990, -60 1040 Z' fill='url(%23blueBand)' filter='url(%23s)' opacity='0.66'/%3E%3Cpath d='M-40 890 C 260 760, 520 560, 870 350 C 1180 160, 1420 120, 1660 160 L 1660 690 C 1390 730, 1120 840, 820 1040 L -40 1040 Z' fill='url(%23deepFold)' filter='url(%23m)' opacity='0.58'/%3E%3Cpath d='M-60 560 C 200 470, 410 270, 740 85 C 980 -45, 1280 -60, 1660 -15 L 1660 45 C 1280 8, 1000 28, 765 155 C 440 335, 225 535, -60 625 Z' fill='url(%23ridge)' filter='url(%23s)' opacity='0.78'/%3E%3Cpath d='M-50 618 C 215 525, 435 320, 760 142 C 1005 8, 1295 -10, 1660 28' fill='none' stroke='%23ffffff' stroke-width='4.5' opacity='0.94'/%3E%3Cpath d='M-50 626 C 215 533, 435 328, 760 150 C 1005 16, 1295 -2, 1660 36' fill='none' stroke='%230e5ae0' stroke-width='5.5' opacity='0.48' filter='url(%23s)'/%3E%3Cpath d='M1050 1040 C 1210 830, 1380 620, 1660 440 L 1660 520 C 1410 690, 1255 880, 1120 1040 Z' fill='url(%23ridge)' filter='url(%23s)' opacity='0.72'/%3E%3Cpath d='M1080 1040 C 1235 845, 1400 645, 1660 470' fill='none' stroke='%23ffffff' stroke-width='4' opacity='0.88'/%3E%3Cpath d='M-40 120 C 130 95, 290 42, 460 -20' fill='none' stroke='%23d71920' stroke-width='7' opacity='0.24' filter='url(%23s)'/%3E%3Cpath d='M-40 124 C 130 99, 290 46, 460 -16' fill='none' stroke='%23ffffff' stroke-width='2.5' opacity='0.75'/%3E%3C/svg%3E"),
+    linear-gradient(154deg, #e7eef9 0%, #f3f6fb 36%, #d4e6fa 72%, #bcd7f8 100%);
+  background-size: 100% 100%, 100% 100%;
+  background-position: center;
 }
 .topbar {
   box-shadow: none;

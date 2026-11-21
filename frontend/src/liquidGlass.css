@@ -364,30 +364,117 @@
   transform: scale(0.965);
 }
 
-/* Refraction active hooks (driven by liquidGlassRefraction.ts in Chromium) */
+/* Refraction active hooks (driven by @vepando/liquid-glass-react engine in
+   liquidGlassRefraction.ts for Chromium):
+   - The host/backdrop element itself stays optically transparent so the curved
+     Snell bezel bends and disperses background contours with zero milkiness.
+   - ::after carries the interior-masked tint (--lg-vepando-mask: 25% alpha at
+     the curved bezel smoothly rising to 100% across the flat interior) so the
+     bezel remains crystal-clear refractive glass while interior labels stay crisp.
+   - ::before renders @vepando/liquid-glass-react's angle-dependent double-ring
+     specular rim map (--lg-vepando-specular) with plus-lighter blending. */
 .lg-glass.is-refracting,
 .lg-glass-pill.is-refracting,
-.lg-glass-group.is-refracting {
+.lg-glass-group.is-refracting,
+.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  --lg-vepando-tint: rgba(250, 253, 255, 0.40);
+  --lg-vepando-spec-opacity: 0.96;
   background-color: transparent;
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(15, 34, 72, 0.16),
+    inset 0 -10px 24px -18px rgba(12, 30, 68, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
-/* Text-bearing chrome keeps legible optical glass tint while rim refracts */
-.lg-glass.lg-glass-text.is-refracting,
-.lg-glass-pill.lg-glass-text.is-refracting {
-  background-color: transparent;
-  background-image: var(--lg-glass-refract-grad);
+/* Standalone refracting elements (not .lg-glass-backdrop) keep their outer shadow */
+.lg-glass.is-refracting:not(.lg-glass-backdrop),
+.lg-glass-pill.is-refracting:not(.lg-glass-backdrop),
+.lg-glass-group.is-refracting:not(.lg-glass-backdrop) {
+  box-shadow:
+    inset 0 0 0 0.5px rgba(15, 34, 72, 0.16),
+    inset 0 -10px 24px -18px rgba(12, 30, 68, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    var(--lg-glass-shadow);
 }
-.lg-glass-sheet.is-refracting {
-  background-color: transparent;
-  background-image: var(--lg-glass-sheet-grad);
+
+.lg-glass-pill.is-refracting:not(.lg-glass-backdrop),
+.lg-glass-group.is-refracting:not(.lg-glass-backdrop) {
+  --lg-vepando-tint: rgba(250, 253, 255, 0.32);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(15, 34, 72, 0.16),
+    inset 0 -8px 20px -14px rgba(12, 30, 68, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    var(--lg-glass-shadow-sm);
 }
+
+/* Interior-masked tint layer on ::after (vepando buildInteriorMask) */
+.lg-glass.is-refracting::after,
+.lg-glass-pill.is-refracting::after,
+.lg-glass-group.is-refracting::after,
+.lg-glass-host > .lg-glass-backdrop.is-refracting::after {
+  z-index: -1;
+  background: var(--lg-vepando-tint);
+  -webkit-mask-image: var(--lg-vepando-mask, none);
+  mask-image: var(--lg-vepando-mask, none);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.lg-glass-host > .lg-glass-backdrop.is-refracting::after {
+  z-index: 1;
+}
+
+/* Snell-lit double-ring optical specular rim on ::before (vepando buildSpecularMap) */
+.lg-glass.is-refracting::before,
+.lg-glass-pill.is-refracting::before,
+.lg-glass-group.is-refracting::before,
+.lg-glass-clear.is-refracting::before,
+.lg-glass-host > .lg-glass-backdrop.is-refracting::before {
+  padding: 0;
+  background: var(--lg-vepando-specular, none) 0 0 / 100% 100% no-repeat;
+  -webkit-mask: none;
+  mask: none;
+  mix-blend-mode: plus-lighter;
+  opacity: var(--lg-vepando-spec-opacity, 0.96);
+}
+
+/* Per-surface interior tint calibration:
+   - Small floating pills & rail stay extra clear & lens-like
+   - Large sidebars & login card balance vivid rim bending with crisp list legibility
+   - Floating chat header, composer, & notification bar shield text over scrolling bubbles */
+.topbar-leading.lg-glass-host > .lg-glass-backdrop.is-refracting,
+.topbar .global-search.lg-glass-host > .lg-glass-backdrop.is-refracting,
+.topbar > .top-right.lg-glass-host > .lg-glass-backdrop.is-refracting,
+.app-rail.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  --lg-vepando-tint: rgba(250, 253, 255, 0.30);
+}
+
+.sidebar.lg-glass-host > .lg-glass-backdrop.is-refracting,
+.detail-sidebar.lg-glass-host > .lg-glass-backdrop.is-refracting,
+.chat-find-panel.lg-glass.is-refracting,
+.login-page .login-main.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  --lg-vepando-tint: rgba(250, 253, 255, 0.42);
+}
+
+.chat-top-chrome.lg-glass-host > .lg-glass-backdrop.is-refracting,
+.composer.lg-glass-host > .lg-glass-backdrop.is-refracting,
+.desktop-notification-prompt.lg-glass-host > .lg-glass-backdrop.is-refracting {
+  --lg-vepando-tint: rgba(250, 253, 255, 0.50);
+}
+
+/* Text-bearing overlay sheets (menus, pickers, popovers, drawers, modals) keep
+   opaque-leaning heavy frost so underlying page text never bleeds through. */
+.lg-glass-sheet.is-refracting,
 .lg-glass-sheet.lg-glass-text.is-refracting {
   background-color: transparent;
   background-image: var(--lg-glass-sheet-grad);
 }
 .lg-glass-clear.is-refracting {
-  background-color: rgba(255, 255, 255, 0.12);
+  background-color: rgba(255, 255, 255, 0.06);
+  background-image: none;
 }
 
 /* Mirror-mode helper layers (progressive Safari/Firefox refraction) */
@@ -517,7 +604,7 @@
 }
 
 .topbar-leading.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 .topbar-leading.lg-glass-host > .brand {
@@ -569,7 +656,7 @@
 }
 
 .topbar .global-search.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 .topbar .search-results {
@@ -602,7 +689,7 @@
 }
 
 .topbar > .top-right.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 .topbar .app-options-menu,
@@ -643,7 +730,7 @@
 }
 
 .app-rail.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 /* Floating Conversation Sidebar card (host pattern protects row-context popover
@@ -673,7 +760,7 @@
 }
 
 .sidebar.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 .sidebar.lg-glass-host .sidebar-heading {
@@ -758,7 +845,7 @@
 }
 
 .detail-sidebar.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 .chat-find-panel.lg-glass {
@@ -777,7 +864,7 @@
 }
 
 .chat-find-panel.lg-glass.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 /* Floating Chat Top Chrome Stack (floats OVER scrolling .message-area) */
@@ -832,7 +919,7 @@
 
 .chat-top-chrome.lg-glass-host > .lg-glass-backdrop.is-refracting {
   background-color: transparent;
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 .chat-top-chrome .chat-header {
@@ -960,7 +1047,7 @@
 }
 
 .desktop-notification-prompt.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 .acceptance-fixture-banner.lg-glass {
@@ -1047,7 +1134,7 @@
 
 .composer.lg-glass-host > .lg-glass-backdrop.is-refracting {
   background-color: transparent;
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 /* Focus ring only when the text input itself is focused — never when a
@@ -1112,13 +1199,21 @@ select,
 }
 
 /* Secondary & helper copy contrast over translucent Liquid Glass */
+.date-divider,
+.message-meta,
+.message-meta > time {
+  color: #1f2633;
+}
+
+.date-divider::before,
+.date-divider::after {
+  background: rgba(20, 36, 68, 0.16);
+}
+
 .chat-preview,
 .account-menu > small,
 .search-results > p,
 .search-empty,
-.date-divider,
-.message-meta,
-.message-meta > time,
 .detail-sidebar .detail-heading p,
 .detail-sidebar .detail-fields dt,
 .detail-sidebar .empty-state p,
@@ -1179,7 +1274,7 @@ select,
 
 .login-page .login-main.lg-glass-host > .lg-glass-backdrop.is-refracting {
   background-color: transparent;
-  background-image: var(--lg-glass-refract-grad);
+  background-image: none;
 }
 
 .composer.lg-glass {
@@ -1329,6 +1424,207 @@ select,
   color: var(--lg-label);
   background-color: rgba(235, 239, 246, 0.92);
   margin-bottom: 4px;
+}
+
+/* ============================================================================
+   "Controls Lift into Glass" (vepando / iOS 26 tactile refractive controls)
+   ----------------------------------------------------------------------------
+   Toggle switch thumbs, filter pills, rail active chips, and inner icon-button
+   clusters pick up specular glass highlights and springy lift on hover/press
+   without altering hit targets or layout geometry.
+   ========================================================================== */
+
+/* Switches lift into refractive glass (reference: vepando demo frame85) */
+.notification-switch,
+.twin-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 0.5px solid rgba(16, 30, 56, 0.14);
+  background: rgba(120, 128, 144, 0.24);
+  box-shadow:
+    inset 0 1px 2.5px rgba(15, 23, 42, 0.14),
+    0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    background-color 180ms var(--lg-ease),
+    border-color 180ms var(--lg-ease),
+    box-shadow 180ms var(--lg-ease);
+}
+
+.notification-switch:hover:not(:disabled),
+.twin-switch:hover:not(:disabled) {
+  background: rgba(120, 128, 144, 0.30);
+}
+
+.notification-switch.on,
+.twin-switch.on {
+  background: #2bb656;
+  border-color: rgba(20, 128, 56, 0.34);
+  box-shadow:
+    inset 0 1px 2px rgba(10, 74, 30, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.notification-switch.on:hover:not(:disabled),
+.twin-switch.on:hover:not(:disabled) {
+  background: #25a64d;
+}
+
+.notification-switch > span,
+.twin-switch > span {
+  position: relative;
+  display: block;
+  width: 24px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(
+    175deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(244, 248, 255, 0.94) 55%,
+    rgba(236, 243, 252, 0.98) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(120, 152, 204, 0.28),
+    0 2px 6px rgba(15, 28, 56, 0.20),
+    0 0.5px 1.5px rgba(15, 28, 56, 0.14);
+  transform: translateX(0) scale(1);
+  transition:
+    transform 240ms cubic-bezier(0.2, 1.45, 0.35, 1),
+    background 160ms var(--lg-ease),
+    box-shadow 180ms var(--lg-ease);
+}
+
+.notification-switch.on > span,
+.twin-switch.on > span {
+  transform: translateX(15px) scale(1);
+  background: linear-gradient(
+    175deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(246, 252, 249, 0.94) 55%,
+    rgba(236, 248, 242, 0.98) 100%
+  );
+}
+
+/* Active/press lifts the switch thumb into translucent refractive glass */
+.notification-switch:not(:disabled):active > span,
+.twin-switch:not(:disabled):active > span,
+.notification-switch:not(:disabled):hover > span,
+.twin-switch:not(:disabled):hover > span {
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(235, 246, 255, 0.42) 52%,
+    rgba(255, 255, 255, 0.68) 100%
+  );
+  -webkit-backdrop-filter: blur(2px) saturate(165%);
+  backdrop-filter: blur(2px) saturate(165%);
+  box-shadow:
+    inset 0 1.25px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1.25px 0 rgba(96, 168, 255, 0.44),
+    inset 1px 0 0 rgba(255, 255, 255, 0.72),
+    inset -1px 0 0 rgba(164, 212, 255, 0.52),
+    0 5px 14px rgba(15, 28, 56, 0.24),
+    0 0 0 0.5px rgba(255, 255, 255, 0.85);
+}
+
+.notification-switch:not(:disabled):active > span,
+.twin-switch:not(:disabled):active > span {
+  transform: translateX(0) scale(1.16, 1.08);
+}
+
+.notification-switch.on:not(:disabled):active > span,
+.twin-switch.on:not(:disabled):active > span {
+  transform: translateX(15px) scale(1.16, 1.08);
+}
+
+/* Sidebar filter pills & inner glass icon groups pick up optical rim & touch glow */
+.sidebar .pill {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    170deg,
+    rgba(255, 255, 255, 0.54) 0%,
+    rgba(244, 249, 255, 0.26) 55%,
+    rgba(255, 255, 255, 0.42) 100%
+  );
+  border: 0.5px solid rgba(18, 36, 72, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(96, 152, 232, 0.22),
+    0 2px 6px rgba(15, 28, 56, 0.06);
+}
+
+.sidebar .pill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    circle at var(--lg-px, 50%) var(--lg-py, 50%),
+    rgba(255, 255, 255, 0.62),
+    transparent 65%
+  );
+  transition: opacity 180ms var(--lg-ease);
+}
+
+.sidebar .pill:hover:not(.selected) {
+  background: linear-gradient(
+    170deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(238, 247, 255, 0.42) 55%,
+    rgba(255, 255, 255, 0.60) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(86, 156, 248, 0.34),
+    0 4px 12px rgba(15, 28, 56, 0.10);
+}
+
+.sidebar .pill:hover::after,
+.sidebar .pill:active::after {
+  opacity: 1;
+}
+
+.sidebar .pill.selected {
+  background: var(--lg-tint-glass);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    0 4px 12px rgba(15, 23, 42, 0.20);
+}
+
+.chat-top-chrome .header-actions.lg-glass-group,
+.sidebar.lg-glass-host .sidebar-heading-actions.lg-glass-group {
+  background: linear-gradient(
+    170deg,
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(242, 248, 255, 0.34) 55%,
+    rgba(255, 255, 255, 0.50) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(92, 152, 236, 0.26),
+    0 0 0 0.5px rgba(16, 32, 64, 0.14),
+    0 3px 10px rgba(15, 28, 56, 0.08);
+}
+
+.app-rail .rail-item.active {
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.58) 0%,
+    rgba(215, 25, 32, 0.14) 60%,
+    rgba(255, 245, 246, 0.44) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(215, 25, 32, 0.18),
+    0 2px 8px rgba(215, 25, 32, 0.10);
 }
 
 /* ============================================================================
@@ -1549,6 +1845,21 @@ select,
   .lg-scroll-edge-bottom {
     display: none !important;
   }
+
+  .lg-glass::before,
+  .lg-glass-pill::before,
+  .lg-glass-group::before,
+  .lg-glass-clear::before {
+    mix-blend-mode: normal !important;
+    background: none !important;
+  }
+
+  .notification-switch > span,
+  .twin-switch > span {
+    background: #ffffff !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
 }
 
 /* 3. Increase Contrast */
@@ -1597,6 +1908,16 @@ select,
     background-color: var(--lg-glass-sheet-text) !important;
   }
 
+  .lg-glass::before,
+  .lg-glass-pill::before,
+  .lg-glass-group::before,
+  .lg-glass-clear::before,
+  .lg-glass::after,
+  .lg-glass-pill::after,
+  .lg-glass-group::after {
+    display: none !important;
+  }
+
   button:focus-visible,
   a:focus-visible,
   summary:focus-visible,
@@ -1611,9 +1932,24 @@ select,
 /* 4. Reduce Motion */
 @media (prefers-reduced-motion: reduce) {
   .lg-interactive,
-  .lg-interactive:active {
+  .lg-interactive:active,
+  .notification-switch,
+  .notification-switch > span,
+  .twin-switch,
+  .twin-switch > span,
+  .sidebar .pill::after {
     transition: none !important;
+  }
+  .lg-interactive:active {
     transform: none !important;
+  }
+  .notification-switch:active > span,
+  .twin-switch:active > span {
+    transform: translateX(0) !important;
+  }
+  .notification-switch.on:active > span,
+  .twin-switch.on:active > span {
+    transform: translateX(15px) !important;
   }
 }
 

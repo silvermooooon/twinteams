@@ -57,7 +57,7 @@ export function TwinOnboarding({ api, chat, revision, onChanged }: { api: ApiCli
     }
   }
   if (!ownPrivate || !error && (!state?.enabled || state.status !== 'active')) return null;
-  return <div className="twin-onboarding lg-glass-pill lg-glass-text" role="group" aria-label="Optional introduction">
+  return <div className="twin-onboarding lg-glass-pill lg-glass-text" data-refract="1.0" role="group" aria-label="Optional introduction">
     {error ? <><span role="alert">{error}</span><IconButton icon="refresh" label="Retry introduction" disabled={busy} onClick={() => setRetry(value => value + 1)} /></> : <span>You can jump straight into work.</span>}
     {state?.enabled && state.status === 'active' && <IconButton icon="close" label="Skip introduction" disabled={busy} onClick={() => { void skip(); }} />}
   </div>;
