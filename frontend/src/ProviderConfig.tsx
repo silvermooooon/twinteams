@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { getLocalProviderConfig, ProviderConfigError, verifyLocalProvider } from './api/provider-config';
 import type { ProviderConfigErrorCode } from './api/provider-config';
+import { LiquiGlass } from '@liqui-design/glass';
+import { LIQUI_BAR_GLASS } from '@/lib/liquiPresets';
 import { t } from './i18n';
 import { Icon } from './ui';
 import './ProviderConfig.css';
@@ -92,7 +94,7 @@ export function ProviderConfigPage({ allowed, onBack }: { allowed: boolean; onBa
   }
 
   return <main className="provider-config-page">
-    <header className="provider-config-header lg-glass lg-glass-text"><div><span className="provider-config-eyebrow">{t('providerConfig.localOnly')}</span><h1>{t('providerConfig.title')}</h1></div><button type="button" className="secondary-button lg-interactive" onClick={onBack}>{t('providerConfig.back')}</button></header>
+    <LiquiGlass {...LIQUI_BAR_GLASS} className="provider-config-header lq-chrome-bar" contentClassName="provider-config-header-inner"><div><span className="provider-config-eyebrow">{t('providerConfig.localOnly')}</span><h1>{t('providerConfig.title')}</h1></div><button type="button" className="secondary-button lg-interactive" onClick={onBack}>{t('providerConfig.back')}</button></LiquiGlass>
     <div className="provider-config-content">
       {!allowed ? <div className="provider-config-notice" role="status"><Icon name="info" size={19} /><p>{t('providerConfig.unavailable')}</p></div> : !ready ? <div className="provider-config-notice" role="status">{error ? <><Icon name="info" size={19} /><p>{t(errorKeys[error])}</p></> : <><span className="spinner" /><p>{t('common.loading')}</p></>}</div> : <>
         <section className="provider-config-card" aria-labelledby="provider-config-test-heading">

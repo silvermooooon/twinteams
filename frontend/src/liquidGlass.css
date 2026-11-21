@@ -1,311 +1,172 @@
 /* ============================================================================
-   Duet Liquid Glass Material Layer
+   Duet × Liqui Design Chrome & Material Layer
    ----------------------------------------------------------------------------
-   Implements Apple HIG Liquid Glass for the control and navigation chrome:
-   - Two-layer separation: translucent, refractive Liquid Glass floats above
-     opaque content surfaces so scrolling content passes beneath chrome.
-   - Two material variants: regular (.lg-glass / .lg-glass-sheet) for chrome,
-     sidebars, dialogs, popovers, and toolbars; and clear (.lg-glass-clear +
-     .lg-glass-dim 35% scrim) strictly for controls over rich media previews.
-   - Backdrop-root isolation via .lg-glass-host + .lg-glass-backdrop so
-     floating menus/popovers inside chrome bars genuinely blur page content.
-   - Directional specular bevel rim (::before), top sheen (::after), and
-     progressive SVG edge refraction hooks (.is-refracting) for Chromium.
-   - Accessibility fallbacks: @supports, prefers-reduced-transparency,
-     prefers-contrast: more, prefers-reduced-motion, and forced-colors.
+   Powered by `@liqui-design/glass` (`LiquiGlass` + `LiquiThemeProvider`) and
+   Liqui Design Base UI components (`Toolbar`, `Menu`, `Popover`, `Dialog`,
+   `Tabs`, `Toggle`, `Switch`, `Separator`), calibrated with Apple HIG
+   typography, spacing, and control proportions.
+
+   Key invariants preserved:
+   - Two-layer separation: Liqui Glass for chrome & controls; opaque content
+     surfaces for messages, SOUL.md previews, and document/settings cards.
+   - Inset rounded floating left rail, conversation sidebar, and right detail
+     cards (never flush edge-to-edge bars).
+   - Floating chat header & composer over scrolling `.message-area`
+     (`--chat-top-inset` / `--chat-bottom-inset`).
+   - Mid-width `.detail-sidebar` stays in flex flow (never covers/clips chat).
+   - High-legibility frosted Liqui sheets (`.lq-sheet-surface`) for menus,
+     popovers, dialogs, pickers, and drawers so underlying page text is NEVER
+     recognizable while keeping real glass refraction & specular rim lighting.
+   - Full `prefers-reduced-transparency`, `prefers-contrast: more`,
+     `prefers-reduced-motion`, and `forced-colors` fallbacks per Liqui handbook.
    ========================================================================== */
 
 :root {
-  /* --- Ambient ground & opaque content-layer surfaces --------------------- */
+  /* Ambient ground & opaque content-layer tokens */
   --lg-ground:            #edf0f7;
   --lg-ground-2:          #e2e7f3;
   --lg-content-surface:   #ffffff;
   --lg-content-subtle:    #f6f7f9;
   --lg-content-card:      #ffffff;
-  --lg-content-shadow:    0 1px 2px rgba(15, 23, 42, 0.055),
-                          0 8px 24px rgba(15, 23, 42, 0.065);
+  --lg-content-shadow:    0 1px 2px rgba(15, 23, 42, 0.05),
+                          0 6px 20px rgba(15, 23, 42, 0.055);
   --lg-content-shadow-h:  0 2px 6px rgba(15, 23, 42, 0.08),
-                          0 14px 32px rgba(15, 23, 42, 0.095);
+                          0 12px 28px rgba(15, 23, 42, 0.085);
 
-  /* --- Semantic labels & hairlines (graphite + selective Duet red) -------- */
+  /* Semantic labels & hairlines (graphite + selective Duet crimson) */
   --lg-label:             #14161a;
   --lg-label-2:           #2c3240;
-  --lg-label-3:           #424959;
-  --lg-separator:         rgba(18, 30, 54, 0.13);
-  --lg-separator-strong:  rgba(18, 30, 54, 0.24);
-  --lg-fill:              rgba(62, 78, 108, 0.12);
-  --lg-fill-hover:        rgba(62, 78, 108, 0.19);
-  --lg-fill-subtle:       rgba(62, 78, 108, 0.08);
+  --lg-label-3:           #4a5162;
+  --lg-separator:         rgba(18, 30, 54, 0.12);
+  --lg-separator-strong:  rgba(18, 30, 54, 0.22);
+  --lg-fill:              rgba(46, 60, 86, 0.10);
+  --lg-fill-hover:        rgba(46, 60, 86, 0.16);
+  --lg-fill-subtle:       rgba(46, 60, 86, 0.065);
 
-  /* --- Brand accents (rationed: primary graphite, selective brand red) ---- */
+  /* Brand accents */
   --lg-tint:              #202124;
   --lg-tint-hover:        #34373c;
-  --lg-tint-glass:        rgba(28, 30, 36, 0.88);
-  --lg-tint-glass-hover:  rgba(44, 47, 56, 0.94);
+  --lg-tint-glass:        rgba(28, 30, 36, 0.90);
+  --lg-tint-glass-hover:  rgba(44, 47, 56, 0.96);
   --lg-on-tint:           #ffffff;
   --lg-red:               #d71920;
   --lg-red-text:          #b5121b;
-  --lg-red-soft:          rgba(215, 25, 32, 0.12);
-  --lg-red-glass:         rgba(196, 30, 42, 0.88);
-  --lg-red-glass-hover:   rgba(176, 22, 33, 0.94);
+  --lg-red-soft:          rgba(215, 25, 32, 0.11);
+  --lg-red-glass:         rgba(196, 30, 42, 0.90);
+  --lg-red-glass-hover:   rgba(176, 22, 33, 0.96);
 
-  /* --- Liquid Glass: Regular variant --------------------------------------
-     Calibrated to glassy-liquid's thin, transmissive Control Center material:
-     - Large floating chrome (left rail, conversation sidebar, right detail
-       panel, floating chat header, composer, topbar capsules, find panel,
-       notification bar) uses a thin single-pass 0.14-0.30 translucent veil +
-       moderate 9-11px optical blur + 9-slice Snell-Descartes SVG edge
-       refraction + crisp 1.25px specular rim so canvas light, colors, and
-       scrolling content clearly show through the panel body.
-     - Text-bearing floating overlays (menus, pickers, popovers, drawers,
-       modals) retain high-legibility 0.91-0.945 regular glass + 56px frost
-       so underlying page text is NEVER recognizable. */
-  --lg-glass:             rgba(248, 252, 255, 0.28);
-  --lg-glass-chrome:      rgba(248, 252, 255, 0.26);
-  --lg-glass-elevated:    rgba(247, 250, 255, 0.92);
-  --lg-glass-sheet-text:  rgba(247, 250, 255, 0.93);
-  --lg-glass-sheet-grad:  linear-gradient(
-                            172deg,
-                            rgba(255, 255, 255, 0.945) 0%,
-                            rgba(246, 250, 255, 0.915) 52%,
-                            rgba(238, 244, 254, 0.935) 100%
-                          );
-  --lg-glass-chrome-grad: linear-gradient(
-                            168deg,
-                            rgba(255, 255, 255, 0.34) 0%,
-                            rgba(248, 252, 255, 0.20) 48%,
-                            rgba(240, 247, 255, 0.27) 100%
-                          );
-  --lg-glass-refract-grad: linear-gradient(
-                            168deg,
-                            rgba(255, 255, 255, 0.27) 0%,
-                            rgba(247, 251, 255, 0.14) 50%,
-                            rgba(238, 246, 255, 0.21) 100%
-                          );
-  --lg-glass-subtle:      rgba(248, 251, 255, 0.24);
-  --lg-glass-thick:       rgba(252, 253, 255, 0.98);
-  --lg-glass-refract:     rgba(248, 252, 255, 0.20);
-  --lg-glass-blur:        blur(11px) saturate(185%) brightness(1.03);
-  --lg-glass-blur-sheet:  saturate(215%) blur(56px);
-  --lg-glass-rim-top:     rgba(255, 255, 255, 0.98);
-  --lg-glass-rim-cool:    rgba(222, 238, 255, 0.72);
-  --lg-glass-rim-mid:     rgba(255, 255, 255, 0.22);
-  --lg-glass-rim-warm:    rgba(205, 226, 252, 0.50);
-  --lg-glass-rim-bot:     rgba(255, 255, 255, 0.88);
-  --lg-glass-inner-hi:    rgba(255, 255, 255, 0.92);
-  --lg-glass-inner-side:  rgba(255, 255, 255, 0.62);
-  --lg-glass-inner-right: rgba(255, 255, 255, 0.34);
-  --lg-glass-inner-lo:    rgba(130, 162, 214, 0.34);
-  --lg-glass-inner-glow:  rgba(255, 255, 255, 0.18);
-  --lg-glass-edge:        rgba(16, 30, 56, 0.14);
-  --lg-glass-sheen:       0.18;
-  --lg-glass-shadow:      0 12px 32px -6px rgba(15, 28, 56, 0.16),
-                          0 2px 8px -1px rgba(15, 28, 56, 0.08);
-  --lg-glass-shadow-sm:   0 8px 22px -5px rgba(15, 28, 56, 0.12),
-                          0 2px 5px -1px rgba(15, 28, 56, 0.06);
-  --lg-glass-shadow-lg:   0 28px 68px rgba(15, 25, 48, 0.21),
-                          0 8px 20px rgba(15, 25, 48, 0.095);
+  /* Shadows & radii */
+  --lg-glass-edge:        rgba(16, 30, 56, 0.13);
+  --lg-glass-shadow:      0 14px 36px -8px rgba(15, 28, 56, 0.15),
+                          0 2px 8px -1px rgba(15, 28, 56, 0.07);
+  --lg-glass-shadow-sm:   0 8px 22px -6px rgba(15, 28, 56, 0.11),
+                          0 2px 5px -1px rgba(15, 28, 56, 0.055);
+  --lg-glass-shadow-lg:   0 24px 60px -10px rgba(15, 25, 48, 0.20),
+                          0 6px 18px -2px rgba(15, 25, 48, 0.09);
 
-  /* --- Liquid Glass: Clear variant (media/preview overlays only) ---------- */
+  /* Clear glass over media previews */
   --lg-clear-fill:        rgba(255, 255, 255, 0.20);
   --lg-clear-blur:        saturate(165%) blur(12px);
   --lg-clear-dim:         rgba(16, 18, 24, 0.35);
 
-  /* --- Concentric radii --------------------------------------------------- */
-  --lg-r-shell:           24px;
-  --lg-r-rail:            26px;
-  --lg-r-composer:        26px;
-  --lg-r-sheet:           24px;
+  /* Concentric radii */
+  --lg-r-shell:           22px;
+  --lg-r-rail:            24px;
+  --lg-r-composer:        24px;
+  --lg-r-sheet:           22px;
   --lg-r-panel:           20px;
-  --lg-r-card:            16px;
-  --lg-r-control:         12px;
-  --lg-r-row:             12px;
+  --lg-r-card:            15px;
+  --lg-r-control:         11px;
+  --lg-r-row:             11px;
   --lg-r-pill:            999px;
 
-  /* --- Purposeful fluid motion (cancellable, brief, never animates blur) -- */
+  /* Fluid motion */
   --lg-ease:              cubic-bezier(0.22, 1, 0.36, 1);
   --lg-ease-spring:       cubic-bezier(0.32, 0.72, 0, 1);
   --lg-dur-fast:          120ms;
-  --lg-dur-normal:        210ms;
-  --lg-dur-slow:          300ms;
+  --lg-dur-normal:        200ms;
+  --lg-dur-slow:          280ms;
 
-  /* --- Typography stack --------------------------------------------------- */
+  /* Apple-calibrated font stack */
   --lg-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
              "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 }
 
 /* ============================================================================
-   Core Liquid Glass Primitives (Control & Navigation Layer Only)
+   Liqui Surface Tiers & Interactive Polish
    ========================================================================== */
 
-/* Host pattern: keeps backdrop-filter off ancestors of floating popovers/menus
-   so descendant .lg-glass-sheet surfaces sample the real page backdrop. */
-.lg-glass-host {
-  position: relative;
+/* Large chrome & bar surfaces: keep background transparent so LiquiGlass layers
+   own refraction, blur, tint, and 2x baked specular rim lighting. Always honor
+   Liqui's computed `--lq-radius` over unlayered legacy class radii. */
+.lq-panel-surface,
+.lq-chrome-bar,
+.lq-topbar-toolbar,
+.lq-search-capsule,
+.lq-sheet-surface {
+  border-radius: var(--lq-radius, 18px) !important;
+  corner-shape: var(--lq-corner, squircle);
+}
+
+.lq-panel-surface,
+.lq-chrome-bar,
+.lq-topbar-toolbar,
+.lq-search-capsule {
   background: transparent !important;
-  box-shadow: none;
-}
-
-.lg-glass-host > .lg-glass-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-.lg-glass-host > :not(.lg-glass-backdrop):not(.side-drawer) {
-  position: relative;
-  z-index: 1;
-}
-
-.lg-glass,
-.lg-glass-sheet,
-.lg-glass-pill,
-.lg-glass-group {
-  position: relative;
-  isolation: isolate;
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  -webkit-backdrop-filter: var(--lg-glass-blur);
-  backdrop-filter: var(--lg-glass-blur);
+  border: 0 !important;
   box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 10px var(--lg-glass-inner-glow),
     0 0 0 0.5px var(--lg-glass-edge),
     var(--lg-glass-shadow);
 }
 
-.lg-glass-sheet {
-  background-color: transparent;
-  background-image: var(--lg-glass-sheet-grad);
-  -webkit-backdrop-filter: var(--lg-glass-blur-sheet);
-  backdrop-filter: var(--lg-glass-blur-sheet);
-  border-radius: var(--lg-r-sheet);
+.lq-topbar-toolbar,
+.lq-search-capsule {
   box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 12px var(--lg-glass-inner-glow),
     0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow-sm);
+}
+
+/* High-legibility floating text-bearing overlays (menus, popovers, dialogs,
+   pickers, drawers, search results, approvals): dense luminous frost guarantees
+   underlying page text is NEVER recognizable while retaining real Liqui bezel
+   refraction, 2x specular rim, and soft optical depth. */
+.lq-sheet-surface {
+  --lq-tint: rgba(252, 253, 255, 0.94);
+  --lq-tint-deep: rgba(242, 247, 254, 0.90);
+  --lq-rim-hi: rgba(255, 255, 255, 0.98);
+  --lq-rim-lo: rgba(196, 214, 242, 0.45);
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow:
+    0 0 0 0.5px rgba(16, 30, 56, 0.14),
     var(--lg-glass-shadow-lg);
 }
 
-/* Text-bearing sheets, menus, popovers, pickers, dialogs: high-legibility
-   regular Liquid Glass fill + 56px frost so underlying page text is never
-   recognizable while keeping luminous optical rim & specular depth. */
-.lg-glass-sheet.lg-glass-text {
-  background-color: transparent;
-  background-image: var(--lg-glass-sheet-grad);
-}
-
-.lg-glass-pill {
-  border-radius: var(--lg-r-pill);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 8px var(--lg-glass-inner-glow),
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow-sm);
-}
-
-.lg-glass-pill.lg-glass-text {
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-}
-
-/* Shared glass cluster: one backdrop-filter on container, transparent children */
-.lg-glass-group {
+/* Flat pill cluster inside an already-glass surface (follows Liqui rule:
+   never stack a second refraction lens inside another glass surface). */
+.lq-inline-cluster {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 3px;
+  padding: 2px;
   border-radius: var(--lg-r-pill);
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
+  background: rgba(255, 255, 255, 0.44);
   box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 8px var(--lg-glass-inner-glow),
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow-sm);
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 0 0 0.5px rgba(15, 28, 56, 0.10),
+    0 1px 4px rgba(15, 28, 56, 0.05);
 }
 
-.lg-glass-group > button,
-.lg-glass-group > a {
-  background: transparent;
-  border-color: transparent;
+.lq-inline-cluster > button,
+.lq-inline-cluster > a {
   border-radius: var(--lg-r-pill);
 }
 
-.lg-glass-group > button:hover:not(:disabled),
-.lg-glass-group > a:hover {
+.lq-inline-cluster > button:hover:not(:disabled) {
   background: var(--lg-fill);
 }
 
-/* Directional crystalline specular rim: crisp 1.25px upper-left catchlight ->
-   delicate sky-glass refraction edge -> airy mid-span -> lower-right bounce. */
-.lg-glass::before,
-.lg-glass-sheet::before,
-.lg-glass-pill::before,
-.lg-glass-group::before,
-.lg-glass-clear::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  border-radius: inherit;
-  padding: 1.25px;
-  pointer-events: none;
-  background: linear-gradient(
-    142deg,
-    var(--lg-glass-rim-top) 0%,
-    var(--lg-glass-rim-cool) 24%,
-    var(--lg-glass-rim-mid) 50%,
-    var(--lg-glass-rim-warm) 76%,
-    var(--lg-glass-rim-bot) 100%
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-}
-
-/* Whisper-thin upper specular catchlight confined to the top bezel arc —
-   keeps the panel body clear and transmissive instead of fogging it white. */
-.lg-glass::after,
-.lg-glass-sheet::after,
-.lg-glass-pill::after,
-.lg-glass-group::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      68% 14% at 18% 0%,
-      rgba(255, 255, 255, var(--lg-glass-sheen)) 0%,
-      transparent 74%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, calc(var(--lg-glass-sheen) * 0.65)) 0%,
-      transparent 11%,
-      transparent 90%,
-      rgba(255, 255, 255, calc(var(--lg-glass-sheen) * 0.35)) 100%
-    );
-}
-
-/* Clear variant: strictly for controls floating over rich media / previews */
+/* Clear glass strictly for controls floating over rich media previews */
 .lg-glass-clear {
   position: relative;
   isolation: isolate;
@@ -317,41 +178,28 @@
     0 6px 20px rgba(0, 0, 0, 0.18);
 }
 
-/* 35% dimming layer per Apple HIG when clear glass floats over bright media */
 .lg-glass-dim {
   background-image: linear-gradient(var(--lg-clear-dim), var(--lg-clear-dim));
   color: #ffffff;
 }
 
-/* Tinted prominent primary glass action (rationed to primary CTA) */
 .lg-glass-prominent {
   background-color: var(--lg-tint-glass);
   color: var(--lg-on-tint);
   box-shadow:
     inset 0 0.5px 0 rgba(255, 255, 255, 0.34),
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
-    0 6px 18px rgba(15, 23, 42, 0.18),
-    0 1px 3px rgba(15, 23, 42, 0.10);
+    0 4px 12px rgba(15, 23, 42, 0.18),
+    0 1px 2px rgba(15, 23, 42, 0.10);
 }
 .lg-glass-prominent:hover:not(:disabled) {
   background-color: var(--lg-tint-glass-hover);
 }
 
-/* Destructive tinted glass action */
-.lg-glass-destructive {
-  background-color: var(--lg-red-glass);
-  color: #ffffff;
-  box-shadow:
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.36),
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.16),
-    0 6px 18px rgba(196, 30, 42, 0.22),
-    0 1px 3px rgba(196, 30, 42, 0.12);
-}
-.lg-glass-destructive:hover:not(:disabled) {
-  background-color: var(--lg-red-glass-hover);
+.lg-glass-pill {
+  border-radius: var(--lg-r-pill);
 }
 
-/* Purposeful interactive press feedback (no blur animation) */
+/* Purposeful interactive press feedback */
 .lg-interactive {
   transition:
     background-color var(--lg-dur-fast) var(--lg-ease),
@@ -362,62 +210,6 @@
 }
 .lg-interactive:active:not(:disabled) {
   transform: scale(0.965);
-}
-
-/* Refraction active hooks (driven by liquidGlassRefraction.ts in Chromium) */
-.lg-glass.is-refracting,
-.lg-glass-pill.is-refracting,
-.lg-glass-group.is-refracting {
-  background-color: transparent;
-  background-image: var(--lg-glass-refract-grad);
-}
-
-/* Text-bearing chrome keeps legible optical glass tint while rim refracts */
-.lg-glass.lg-glass-text.is-refracting,
-.lg-glass-pill.lg-glass-text.is-refracting {
-  background-color: transparent;
-  background-image: var(--lg-glass-refract-grad);
-}
-.lg-glass-sheet.is-refracting {
-  background-color: transparent;
-  background-image: var(--lg-glass-sheet-grad);
-}
-.lg-glass-sheet.lg-glass-text.is-refracting {
-  background-color: transparent;
-  background-image: var(--lg-glass-sheet-grad);
-}
-.lg-glass-clear.is-refracting {
-  background-color: rgba(255, 255, 255, 0.12);
-}
-
-/* Mirror-mode helper layers (progressive Safari/Firefox refraction) */
-.lg-refract-mirror,
-.lg-refract-tint {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  border-radius: inherit;
-  pointer-events: none;
-}
-.lg-refract-bend {
-  position: absolute;
-  inset: 0;
-}
-.lg-refract-tint {
-  background-color: var(--lg-glass-refract);
-}
-.lg-glass-text > .lg-refract-tint {
-  background-color: var(--lg-glass);
-}
-.lg-glass-sheet.lg-glass-text > .lg-refract-tint {
-  background-color: var(--lg-glass-sheet-text);
-}
-.lg-glass-clear > .lg-refract-tint {
-  background-color: rgba(255, 255, 255, 0.12);
-}
-.lg-glass-dim > .lg-refract-tint {
-  background-image: linear-gradient(var(--lg-clear-dim), var(--lg-clear-dim));
 }
 
 /* Scroll-edge dissolve gradients beneath floating top/bottom chrome */
@@ -450,337 +242,710 @@
 }
 
 /* ============================================================================
-   Duet Control & Navigation Surface Integration
-   ----------------------------------------------------------------------------
-   Lifted floating Liquid Glass chrome over opaque content surfaces.
+   Topbar: Three Floating Liqui Capsules (Toolbar / Search / Toolbar)
    ========================================================================== */
 
-/* Preserve exact overlay positioning when combined with Liquid Glass primitives */
-.fluent-menu.lg-glass-sheet,
-.search-results.lg-glass-sheet,
-.account-menu.lg-glass-sheet,
-.emoji-picker.lg-glass-sheet,
-.people-suggestions.lg-glass-sheet,
-.side-drawer.lg-glass-sheet,
-.attachment-drop-overlay.lg-glass-sheet,
-.message-actions.lg-glass-pill,
-.attachment-media-overlay.lg-glass-clear {
-  position: absolute;
-}
-
-.fluent-menu.message-reference-menu.lg-glass-sheet,
-.reaction-picker.lg-glass-sheet,
-.error-toast.lg-glass-pill {
-  position: fixed;
-}
-
-.provider-config-header.lg-glass,
-.reminders-header.lg-glass {
-  position: sticky;
-  top: 12px;
-}
-
-/* Floating top chrome track: transparent bar hosting three inset floating
-   Liquid Glass capsules (leading brand/nav, centered search, trailing menu). */
 .topbar {
   margin: 12px 16px 0;
-  height: 44px;
-  min-height: 44px;
+  height: 42px;
+  min-height: 42px;
   padding: 0;
   gap: 12px;
   background: transparent !important;
   box-shadow: none;
+  z-index: 20;
 }
 
-.topbar-leading.lg-glass-host {
-  display: inline-flex;
+.lq-topbar-toolbar {
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.lq-topbar-toolbar > .liqui-glass__content {
+  height: 100%;
+  padding: 4px 6px;
+  gap: 3px;
   align-items: center;
-  height: 42px;
-  padding: 4px 6px 4px 12px;
-  gap: 6px;
-  border-radius: var(--lg-r-pill);
-  box-shadow:
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow-sm);
 }
 
-.topbar-leading.lg-glass-host > .lg-glass-backdrop {
-  padding: 0;
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 8px var(--lg-glass-inner-glow);
+.topbar-leading.lq-topbar-toolbar > .liqui-glass__content {
+  padding-left: 10px;
 }
 
-.topbar-leading.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
-}
-
-.topbar-leading.lg-glass-host > .brand {
-  width: 26px;
+.topbar-leading .brand {
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.topbar-leading.lg-glass-host > .icon-button {
-  width: 32px;
-  height: 32px;
-  background: transparent;
-  border-color: transparent;
-  border-radius: var(--lg-r-pill);
+.lq-icon-toolbar-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  color: var(--lg-label);
 }
 
-.topbar-leading.lg-glass-host > .icon-button:hover:not(:disabled) {
+.lq-icon-toolbar-btn.active {
+  background: rgba(32, 33, 36, 0.11) !important;
+  color: var(--lg-label);
+}
+
+.topbar > .top-right {
+  margin-left: auto;
+  position: relative;
+  z-index: 23;
+}
+
+.topbar .account-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.topbar .account-button:hover {
   background: var(--lg-fill);
 }
 
+/* Centered global search capsule */
 .topbar > .search-wrap {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  width: min(640px, calc(100% - 256px));
-  max-width: 640px;
+  width: min(600px, calc(100% - 252px));
+  max-width: 600px;
   z-index: 22;
 }
 
-.topbar .global-search.lg-glass-host {
-  height: 42px;
-  padding: 0 20px;
-  border-radius: var(--lg-r-pill);
+.topbar .global-search.lq-search-capsule {
+  height: 40px;
+  padding: 0;
+  border-radius: 999px;
+  transition: box-shadow var(--lg-dur-fast) var(--lg-ease);
+}
+
+.topbar .global-search.lq-search-capsule:focus-within {
   box-shadow:
-    0 0 0 0.5px var(--lg-glass-edge),
+    0 0 0 1.5px rgba(24, 30, 44, 0.28),
     var(--lg-glass-shadow-sm);
 }
 
-.topbar .global-search.lg-glass-host > .lg-glass-backdrop {
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 8px var(--lg-glass-inner-glow);
+.global-search-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  padding: 0 16px;
+  color: var(--lg-label-2);
 }
 
-.topbar .global-search.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+.global-search-inner input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-size: 13.5px;
+  line-height: 20px;
+  letter-spacing: -0.006em;
+  color: var(--lg-label);
 }
 
-.topbar .search-results {
-  top: 48px;
-}
-
-.topbar > .top-right.lg-glass-host {
-  position: relative;
-  z-index: 23;
-  height: 42px;
-  padding: 4px 6px 4px 8px;
-  gap: 6px;
-  border-radius: var(--lg-r-pill);
-  box-shadow:
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow-sm);
-}
-
-/* Keep outset box-shadow on the .lg-glass-host (not on .lg-glass-backdrop) so
-   Chromium backdrop-filter: url(#...) aligns pixel-perfectly with the rim. */
-.topbar > .top-right.lg-glass-host > .lg-glass-backdrop {
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 8px var(--lg-glass-inner-glow);
-}
-
-.topbar > .top-right.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
-}
-
-.topbar .app-options-menu,
-.topbar .account-menu {
+.topbar .search-results.lq-sheet-surface {
+  position: absolute !important;
+  left: 0;
+  right: 0;
   top: 46px;
+  padding: 0;
+  z-index: 60;
 }
 
-/* Floating workspace shell layout: generous window-edge margin & floating gaps
-   between left rail+sidebar cards, clean center canvas, and right detail card */
+.search-results-inner {
+  max-height: 400px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.search-results-inner > p {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--lg-label-2);
+  padding: 6px 10px;
+}
+
+.search-results-inner .person-search-chat {
+  border-radius: var(--lg-r-row);
+  padding: 8px 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.search-results-inner .person-search-chat:hover {
+  background-color: var(--lg-fill);
+}
+
+/* ============================================================================
+   Liqui Menus, Popovers, and Dialogs (Apple-calibrated craft)
+   ========================================================================== */
+
+.lq-menu-popup {
+  font-family: var(--lg-font);
+}
+
+.lq-menu-popup [role="menuitem"] {
+  min-height: 30px;
+  padding: 5px 10px;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  cursor: pointer;
+}
+
+.lq-menu-popup [role="menuitem"] svg {
+  opacity: 0.78;
+}
+
+.lq-menu-popup [role="menuitem"][data-highlighted] svg {
+  opacity: 1;
+}
+
+.lq-account-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px 4px;
+}
+
+.lq-account-header > strong {
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.014em;
+  color: var(--lg-label);
+}
+
+.lq-account-header > small {
+  font-size: 11.5px;
+  color: var(--lg-label-2);
+}
+
+/* Message right-click reference menu */
+.fluent-menu.message-reference-menu.lq-sheet-surface {
+  position: fixed !important;
+  z-index: 90;
+  padding: 0;
+}
+
+.lq-menu-inner {
+  padding: 5px;
+}
+
+.lq-menu-inner > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px;
+  min-height: 30px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lg-label);
+  text-align: left;
+}
+
+.lq-menu-inner > button:hover {
+  background: var(--lg-tint);
+  color: #ffffff;
+}
+
+/* Liqui Popover: Emoji picker */
+.lq-emoji-popover {
+  padding: 0;
+}
+
+.lq-emoji-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 0.5px solid var(--lg-separator);
+}
+
+.lq-emoji-popover-header > strong {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--lg-label);
+}
+
+.lq-emoji-popover .emoji-grid {
+  max-height: min(320px, 50dvh);
+  overflow-y: auto;
+}
+
+.lq-emoji-popover .emoji-grid > button {
+  height: 38px;
+  font-size: 23px;
+  border-radius: 10px;
+}
+
+.lq-emoji-popover .emoji-grid > button:hover {
+  background: var(--lg-fill);
+}
+
+/* Liqui Dialog adapter for Duet's Modal component */
+.lq-duet-dialog.modal {
+  padding: 0 !important;
+  overflow: visible !important;
+  max-height: none !important;
+  max-width: calc(100vw - 32px) !important;
+  width: min(440px, calc(100vw - 32px));
+}
+
+.lq-duet-dialog.modal.wide {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.lq-dialog-heading {
+  margin-bottom: 16px;
+  padding-right: 32px;
+}
+
+.lq-dialog-body {
+  max-height: calc(86dvh - 96px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+/* Keep file/SOUL.md previews inside Liqui dialogs opaque, readable, and properly wrapped */
+.lq-dialog-body .text-file-preview {
+  background: #ffffff;
+  border: 1px solid var(--lg-separator);
+  border-radius: 12px;
+  color: var(--lg-label);
+  padding: 16px 18px 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.lq-dialog-body .text-file-preview.markdown-file-preview {
+  white-space: normal;
+}
+
+.lq-duet-dialog.modal label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--lg-label-2);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.lq-duet-dialog.modal input,
+.lq-duet-dialog.modal textarea,
+.lq-duet-dialog.modal select {
+  border: 1px solid rgba(18, 30, 54, 0.16);
+  border-radius: 10px;
+  padding: 8px 11px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--lg-label);
+}
+
+.lq-duet-dialog.modal input:focus,
+.lq-duet-dialog.modal textarea:focus,
+.lq-duet-dialog.modal select:focus {
+  border-color: var(--lg-tint);
+  box-shadow: 0 0 0 2px rgba(32, 33, 36, 0.12);
+}
+
+.lq-duet-dialog .modal-actions {
+  margin-top: 20px;
+  gap: 8px;
+}
+
+/* ============================================================================
+   Workspace Shell: Inset Floating Rail, Sidebar, Center Canvas, Detail Card
+   ========================================================================== */
+
 .workspace {
   padding: 12px 16px 16px;
   gap: 14px;
 }
 
-/* Floating left App Rail dock (z-index above sidebar so tooltips never clip;
-   host pattern isolates outer drop-shadow from the SVG-refracting backdrop) */
-.app-rail.lg-glass-host {
-  width: 58px;
-  min-width: 58px;
-  border-radius: var(--lg-r-rail);
-  padding: 10px 0;
+/* Floating Left App Rail Dock */
+.app-rail.lq-panel-surface {
+  width: 56px;
+  min-width: 56px;
+  padding: 0;
   z-index: 12;
   overflow: visible;
-  box-shadow:
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow);
+  flex-shrink: 0;
 }
 
-.app-rail.lg-glass-host > .lg-glass-backdrop {
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 10px var(--lg-glass-inner-glow);
+.app-rail-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 10px 0;
 }
 
-.app-rail.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+.app-rail .rail-item {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: var(--lg-label-2);
 }
 
-/* Floating Conversation Sidebar card (host pattern protects row-context popover
-   and isolates outer drop-shadow from the SVG-refracting backdrop layer) */
-.sidebar.lg-glass-host {
-  border-radius: var(--lg-r-shell);
-  overflow: visible;
+.app-rail .rail-item:hover {
+  background: var(--lg-fill);
+  color: var(--lg-label);
+}
+
+.app-rail .rail-item.active {
+  background: var(--lg-red-soft);
+  color: var(--lg-red-text);
+}
+
+/* Floating Conversation Sidebar Card */
+.sidebar.lq-panel-surface {
+  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
   z-index: 6;
-  box-shadow:
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow);
+  transition: width 260ms var(--lg-ease), min-width 260ms var(--lg-ease), opacity 180ms ease;
 }
 
-.sidebar.lg-glass-host.collapsed {
-  box-shadow: none;
+.sidebar.lq-panel-surface.collapsed {
+  box-shadow: none !important;
+  margin: 0;
 }
 
-.sidebar.lg-glass-host > .lg-glass-backdrop {
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 10px var(--lg-glass-inner-glow);
+.sidebar.lq-panel-surface.collapsed + .pane-resizer {
+  display: none;
 }
 
-.sidebar.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.sidebar.lg-glass-host .sidebar-heading {
-  height: 56px;
-  min-height: 56px;
-  padding: 4px 14px 0 18px;
+.sidebar .sidebar-heading {
+  height: 52px;
+  min-height: 52px;
+  padding: 4px 12px 0 18px;
 }
 
-.sidebar.lg-glass-host .filters {
-  padding: 4px 14px 10px 18px;
+.sidebar .sidebar-heading h1 {
+  font-size: 17px;
+  font-weight: 680;
+  letter-spacing: -0.022em;
+  line-height: 22px;
+  color: var(--lg-label);
+}
+
+.sidebar-heading-actions.lq-inline-cluster .icon-button {
+  width: 28px;
+  height: 28px;
+}
+
+.sidebar > .sidebar-inner > .list-search {
+  margin: 4px 14px 8px;
+  border-radius: 11px;
+  border: 0.5px solid var(--lg-separator-strong);
+  background: rgba(255, 255, 255, 0.72);
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.sidebar > .sidebar-inner > .list-search input {
+  font-size: 13px;
+  height: 30px;
+}
+
+.sidebar .filters {
+  padding: 4px 14px 10px 16px;
   border-top: 0;
   border-bottom: 0.5px solid var(--lg-separator);
+  display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  row-gap: 6px;
+  gap: 6px;
+  min-height: 38px;
 }
 
-.sidebar.lg-glass-host .row-context {
-  width: min(205px, calc(100vw - 96px));
+/* Liqui Toggle pills inside sidebar filters */
+.lq-filter-pill {
+  --lq-r: 13px !important;
+  --lq-h: 26px !important;
+  height: 26px !important;
+  padding: 0 11px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  letter-spacing: -0.005em;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.48) !important;
+  box-shadow: inset 0 0 0 0.5px rgba(18, 30, 54, 0.16) !important;
+  color: var(--lg-label-2) !important;
 }
 
-.sidebar.lg-glass-host .conversation-list {
+.lq-filter-pill:hover:not([data-pressed]) {
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: var(--lg-label) !important;
+}
+
+.lq-filter-pill[data-pressed] {
+  background: var(--lg-tint) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.sidebar .conversation-list {
   padding: 6px 10px 18px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
-.sidebar.lg-glass-host .chat-item {
-  padding: 7px 16px 7px 10px;
-  gap: 10px;
-}
-
-.sidebar.lg-glass-host .chat-list-row:hover .chat-item,
-.sidebar.lg-glass-host .chat-list-row:focus-within .chat-item {
-  padding-right: 30px;
-}
-
-.sidebar.lg-glass-host .section-label {
-  font-size: 13px;
+.sidebar .section-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.004em;
   gap: 5px;
+  padding: 8px 6px 6px;
   white-space: nowrap;
   color: var(--lg-label-2);
 }
 
-.sidebar.lg-glass-host .bot-section-heading {
+.sidebar .bot-section-heading {
   padding-right: 4px;
 }
 
-.sidebar.lg-glass-host .bot-section-empty {
-  margin: 2px 10px 12px 18px;
+.sidebar .bot-section-empty {
+  margin: 2px 10px 10px 14px;
+  font-size: 12px;
   color: var(--lg-label-2);
 }
 
-.sidebar.lg-glass-host.collapsed {
-  margin: 0;
+.sidebar .chat-list-row {
+  border-radius: 13px;
+  margin: 2px 0;
 }
 
-.sidebar.lg-glass-host.collapsed + .pane-resizer {
-  display: none;
+.sidebar .chat-list-row:hover {
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.sidebar .chat-list-row.selected {
+  background-color: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 2px 8px rgba(15, 28, 56, 0.075),
+    0 0 0 0.5px rgba(15, 28, 56, 0.08);
+}
+
+.sidebar .chat-item {
+  min-height: 50px;
+  padding: 7px 14px 7px 10px;
+  gap: 10px;
+  border-radius: 13px;
+}
+
+.sidebar .chat-list-row:hover .chat-item,
+.sidebar .chat-list-row:focus-within .chat-item,
+.sidebar .chat-list-row.menu-open .chat-item {
+  padding-right: 32px;
+}
+
+.sidebar .chat-list-row.menu-open .chat-row-menu {
+  opacity: 1;
+}
+
+.sidebar .chat-name {
+  font-size: 13.5px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--lg-label);
+}
+
+.sidebar .chat-name.unread {
+  font-weight: 680;
+}
+
+.sidebar .chat-preview {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--lg-label-2);
 }
 
 .pane-resizer {
   margin: 0 -7px;
 }
 
-/* Floating Detail Sidebar & Find Panel cards */
-.detail-sidebar.lg-glass-host {
+/* ============================================================================
+   Floating Detail Sidebar (LiquiGlass + Liqui Tabs) & Find Panel
+   ========================================================================== */
+
+.detail-sidebar.lq-panel-surface {
   border-left: 0;
-  border-radius: var(--lg-r-shell);
   overflow: hidden;
+  padding: 0;
+}
+
+.detail-sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.detail-sidebar .detail-heading {
+  height: 76px;
+  min-height: 76px;
+  padding: 14px 16px;
+  gap: 12px;
+}
+
+.detail-sidebar .detail-heading h2 {
+  font-size: 16px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  color: var(--lg-label);
+}
+
+.detail-sidebar .detail-heading p {
+  font-size: 11.5px;
+  color: var(--lg-label-2);
+  margin-top: 3px;
+}
+
+/* Liqui segmented Tabs inside Detail Sidebar */
+.detail-tabs-wrap {
+  padding: 0 10px 10px;
+  border-bottom: 0.5px solid var(--lg-separator);
+  flex-shrink: 0;
+}
+
+.detail-sidebar .detail-tabs.lq-detail-tabs {
+  display: flex;
+  min-height: 34px;
+  height: 34px;
+  border-bottom: 0;
+  padding: 3px;
+  gap: 2px;
+  background: rgba(18, 30, 54, 0.08);
   box-shadow:
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow);
+    inset 0 1px 2px rgba(15, 25, 48, 0.08),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.55);
 }
 
-.detail-sidebar.lg-glass-host > .lg-glass-backdrop {
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 10px var(--lg-glass-inner-glow);
+.detail-sidebar .detail-tabs.lq-detail-tabs > .lq-detail-tab {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 0 5px;
+  height: 28px;
+  font-size: 11.5px;
+  font-weight: 550;
+  letter-spacing: -0.012em;
+  color: var(--lg-label-2);
+  background: transparent;
 }
 
-.detail-sidebar.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+.detail-sidebar .detail-tabs.lq-detail-tabs > .lq-detail-tab:hover {
+  background: transparent;
+  color: var(--lg-label);
 }
 
-.chat-find-panel.lg-glass {
+.detail-sidebar .detail-tabs.lq-detail-tabs > .lq-detail-tab[data-active],
+.detail-sidebar .detail-tabs.lq-detail-tabs > .lq-detail-tab.selected {
+  font-weight: 650;
+  color: var(--lg-label);
+}
+
+.detail-sidebar .detail-tabs.lq-detail-tabs > button.selected::after {
+  display: none !important;
+}
+
+.detail-sidebar .detail-content {
+  padding: 16px 15px;
+}
+
+/* Side Drawer inside Detail Sidebar */
+.side-drawer.lq-sheet-surface {
+  position: absolute !important;
+  inset: 0;
+  z-index: 9;
+  padding: 0;
+}
+
+.side-drawer-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Chat Find Panel */
+.chat-find-panel.lq-panel-surface {
   border-left: 0;
-  border-radius: var(--lg-r-shell);
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 10px var(--lg-glass-inner-glow),
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow);
+  padding: 0;
+  overflow: hidden;
 }
 
-.chat-find-panel.lg-glass.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
+.chat-find-panel-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* Floating Chat Top Chrome Stack (floats OVER scrolling .message-area) */
+.chat-find-panel-inner > header {
+  height: 60px;
+  min-height: 60px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chat-find-panel-inner h2 {
+  font-size: 16px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+}
+
+/* ============================================================================
+   Floating Chat Header & Floating Composer Over Scrolling Messages
+   ========================================================================== */
+
 .chat-floating-top {
   position: absolute;
   top: 0;
@@ -798,8 +963,8 @@
   pointer-events: auto;
 }
 
-/* Place scroll-edge dissolve below the floating top chrome's layout box so
-   chatTopOverlay.getBoundingClientRect().bottom matches exact visual chrome. */
+/* Keep scroll-edge dissolve below .chat-floating-top box so ResizeObserver
+   and markVisibleRead geometry stay exact. */
 .chat-floating-top > .lg-scroll-edge {
   pointer-events: none;
   position: absolute;
@@ -809,46 +974,54 @@
   margin: 0;
 }
 
-.chat-top-chrome.lg-glass-host {
-  border-radius: var(--lg-r-panel);
+.chat-top-chrome.lq-chrome-bar {
   overflow: hidden;
-  box-shadow:
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow);
 }
 
-.chat-top-chrome.lg-glass-host > .lg-glass-backdrop {
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  -webkit-backdrop-filter: var(--lg-glass-blur);
-  backdrop-filter: var(--lg-glass-blur);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 10px var(--lg-glass-inner-glow);
-}
-
-.chat-top-chrome.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-color: transparent;
-  background-image: var(--lg-glass-refract-grad);
+.chat-top-chrome-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .chat-top-chrome .chat-header {
-  height: 48px;
-  min-height: 48px;
-  padding: 0 14px;
+  height: 46px;
+  min-height: 46px;
+  padding: 0 12px 0 14px;
   background: transparent;
   border-bottom: 0;
   box-shadow: none;
+}
+
+.chat-top-chrome .chat-header-copy h2 {
+  font-size: 16.5px;
+  font-weight: 680;
+  letter-spacing: -0.022em;
+  line-height: 22px;
+  color: var(--lg-label);
+}
+
+.chat-top-chrome .header-actions.lq-inline-cluster .icon-button,
+.chat-top-chrome .header-actions.lq-inline-cluster .member-button {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+}
+
+.chat-top-chrome .header-actions.lq-inline-cluster .icon-button {
+  width: 28px;
+  padding: 0;
+}
+
+.lq-bar-divider {
+  margin: 0 10px;
 }
 
 .chat-top-chrome .bot-toolbar {
   padding: 4px 10px 6px;
   gap: 2px 4px;
   background: transparent;
-  border-top: 0.5px solid var(--lg-separator);
+  border-top: 0;
   border-bottom: 0;
   box-shadow: none;
   flex-wrap: wrap;
@@ -859,31 +1032,42 @@
   white-space: nowrap;
   flex-shrink: 0;
   font-size: 11.5px;
-  padding: 3px 6px;
+  font-weight: 500;
+  letter-spacing: -0.008em;
+  padding: 3px 7px;
   gap: 4px;
+  border-radius: 999px;
   color: var(--lg-label);
 }
 
-/* Avoid nested backdrop-filter double-blur inside already-glass top chrome
-   and floating sidebar header by rendering inner clusters as crisp light pills. */
-.chat-top-chrome .header-actions.lg-glass-group,
-.sidebar.lg-glass-host .sidebar-heading-actions.lg-glass-group {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  background-color: rgba(255, 255, 255, 0.42);
-  background-image: none;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.86),
-    0 0 0 0.5px rgba(15, 28, 56, 0.11),
-    0 2px 6px rgba(15, 28, 56, 0.06);
+.chat-top-chrome .bot-toolbar .text-button:hover {
+  background: var(--lg-fill);
+  text-decoration: none;
 }
 
-.chat-floating-top .model-notice.lg-glass,
-.chat-floating-top .read-error.lg-glass {
-  border-radius: var(--lg-r-card);
+.chat-floating-top .model-notice.lq-sheet-surface,
+.chat-floating-top .read-error.lq-sheet-surface {
+  padding: 0;
   border: 0;
+}
+
+.model-notice-inner,
+.read-error-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 14px;
-  background-color: rgba(252, 253, 255, 0.86);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--lg-label-2);
+}
+
+.read-error-inner {
+  color: var(--lg-red-text);
+}
+
+.read-error-inner > span {
+  flex: 1;
 }
 
 .chat-floating-top .connection-state.connected {
@@ -892,13 +1076,13 @@
 
 .chat-floating-top .connection-state:not(.connected) {
   align-self: flex-end;
-  background-color: rgba(252, 253, 255, 0.86);
+  background-color: rgba(252, 253, 255, 0.90);
   border-radius: var(--lg-r-pill);
   padding: 0 12px;
   box-shadow: var(--lg-glass-shadow-sm);
 }
 
-/* Floating Composer Overlay (floats OVER bottom of scrolling .message-area) */
+/* Floating Composer Overlay */
 .chat-main:not(.new-chat-main) > .composer-area {
   position: absolute;
   left: 0;
@@ -907,7 +1091,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 0 max(16px, calc((100% - 920px) / 2)) 8px;
+  padding: 0 max(16px, calc((100% - 920px) / 2)) 10px;
   z-index: 10;
   pointer-events: none;
 }
@@ -926,8 +1110,7 @@
   z-index: -1;
 }
 
-/* Message area spans full height of .chat-main so content scrolls visibly
-   beneath the floating top chrome and floating composer capsule. */
+/* Full-bleed scrolling message area behind floating header & composer */
 .chat-main:not(.new-chat-main) > .message-area {
   flex: 1;
   height: 100%;
@@ -937,145 +1120,394 @@
   scroll-padding-bottom: calc(var(--chat-bottom-inset, 84px) + 16px);
 }
 
-/* Secondary page floating inset glass headers & notification bars */
-.desktop-notification-prompt.lg-glass-host {
-  margin: 10px 16px 0;
-  padding: 8px 16px;
-  border-radius: var(--lg-r-panel);
-  border-bottom: 0;
-  box-shadow:
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow-sm);
+/* Floating Composer Capsule */
+.composer.lq-chrome-bar {
+  padding: 0;
+  transition: box-shadow var(--lg-dur-fast) var(--lg-ease);
 }
 
-.desktop-notification-prompt.lg-glass-host > .lg-glass-backdrop {
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 10px var(--lg-glass-inner-glow);
-}
-
-.desktop-notification-prompt.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-image: var(--lg-glass-refract-grad);
-}
-
-.acceptance-fixture-banner.lg-glass {
-  margin: 10px 16px 0;
-  border-radius: var(--lg-r-card);
-  background-color: rgba(255, 240, 197, 0.88);
-  background-image: none;
-  border-bottom: 0;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    0 0 0 0.5px rgba(205, 162, 72, 0.45),
-    var(--lg-glass-shadow-sm);
-}
-
-.twin-page-header.lg-glass {
-  margin: 2px 12px 0;
-  border-radius: var(--lg-r-panel) var(--lg-r-panel) 0 0;
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 0 10px var(--lg-glass-inner-glow),
-    0 0 0 0.5px var(--lg-glass-edge),
-    0 8px 20px rgba(15, 28, 56, 0.08);
-}
-
-.twin-tabs.lg-glass {
-  margin: 0 12px 8px;
-  border-radius: 0 0 var(--lg-r-panel) var(--lg-r-panel);
-  border-top: 0.5px solid var(--lg-separator);
-  border-bottom: 0;
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow-sm);
-}
-
-.provider-config-header.lg-glass,
-.reminders-header.lg-glass {
-  margin: 2px 12px 0;
-  border-radius: var(--lg-r-panel);
-  border-bottom: 0;
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 10px var(--lg-glass-inner-glow),
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow-sm);
-}
-
-.twin-page-header.lg-glass::before,
-.twin-tabs.lg-glass::before {
-  display: none;
-}
-
-/* Floating composer capsule, reply cap, menus, and status pills */
-.composer.lg-glass-host {
-  border: 0;
-  border-radius: var(--lg-r-composer);
-  padding: 7px 10px 7px 18px;
-  box-shadow:
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow);
-}
-
-.composer.lg-glass-host > .lg-glass-backdrop {
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 10px var(--lg-glass-inner-glow);
-}
-
-.composer.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-color: transparent;
-  background-image: var(--lg-glass-refract-grad);
-}
-
-/* Focus ring only when the text input itself is focused — never when a
-   neighboring emoji/attachment/more menu inside .composer-tools is open. */
-.composer.lg-glass-host:has(> textarea:focus) {
+.composer.lq-chrome-bar:has(textarea:focus) {
   box-shadow:
     0 0 0 1.5px rgba(24, 30, 44, 0.28),
     var(--lg-glass-shadow);
 }
 
-.composer.lg-glass-host:has(> textarea:focus) > .lg-glass-backdrop {
+.composer-inner {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 6px 8px 6px 16px;
+  gap: 8px;
+}
+
+.composer-inner textarea {
+  flex: 1;
+  min-width: 50px;
+  resize: none;
+  border: 0;
+  background: transparent;
+  min-height: 26px;
+  max-height: 140px;
+  line-height: 21px;
+  padding: 3px 0;
+  color: var(--lg-label);
+  font-size: 14px;
+  letter-spacing: -0.006em;
+  scrollbar-width: thin;
+}
+
+.composer-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.composer-tools .icon-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+.composer-tools .icon-button:hover:not(:disabled) {
+  background: var(--lg-fill);
+}
+
+.composer-tools .icon-button.active {
+  background: rgba(32, 33, 36, 0.11);
+  color: var(--lg-label);
+}
+
+.lq-composer-sep {
+  height: 20px !important;
+  margin: 0 4px;
+}
+
+.composer-tools .send-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+}
+
+.composer-tools .send-button.lg-glass-prominent {
+  color: var(--lg-on-tint);
+}
+
+/* Reply preview, approvals drawer, drop overlay, error toast */
+.composer-reply.lq-sheet-surface {
+  padding: 0;
+  border: 0;
+  margin-bottom: 6px;
+}
+
+.composer-reply-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.composer-reply-inner > .source-quote {
+  flex: 1;
+  margin: 0;
+}
+
+.approvals-drawer.lq-sheet-surface {
+  padding: 0;
+  border: 0;
+  margin-bottom: 10px;
+  max-height: 340px;
+  overflow: hidden;
+}
+
+.approvals-drawer-inner {
+  max-height: 340px;
+  overflow: auto;
+}
+
+.attachment-drop-overlay.lq-sheet-surface {
+  position: absolute !important;
+  inset: 14px;
+  z-index: 25;
+  border: 1.5px dashed var(--lg-separator-strong) !important;
+}
+
+.attachment-drop-overlay-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  height: 100%;
+}
+
+.error-toast.lq-sheet-surface {
+  position: fixed !important;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: min(680px, calc(100vw - 35px));
+  padding: 0;
   box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 10px var(--lg-glass-inner-glow);
+    0 0 0 1px rgba(196, 30, 42, 0.24),
+    var(--lg-glass-shadow);
 }
 
-/* Message hover quick-action pill keeps strong regular tint for icon/text clarity */
-.message-actions.lg-glass-pill {
-  background-color: transparent;
-  background-image: var(--lg-glass-sheet-grad);
+.error-toast-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 9px 16px;
+  color: var(--lg-red-text);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
-/* Prevent stray blue selection highlights across navigation & control chrome
-   (such as when opening account/app menus), while preserving full text
-   selection in message content, file previews, drawers, and inputs. */
+.error-toast-inner > span {
+  overflow-wrap: anywhere;
+}
+
+/* Reaction picker & message hover actions */
+.reaction-picker.lq-sheet-surface {
+  position: fixed !important;
+  z-index: 90;
+  padding: 0;
+  overflow: hidden;
+}
+
+.reaction-picker-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.message-actions.lq-sheet-surface {
+  position: absolute !important;
+  padding: 0;
+}
+
+.message-actions-inner {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 5px;
+}
+
+/* People inline suggestions */
+.people-suggestions.lq-sheet-surface {
+  position: absolute !important;
+  padding: 6px;
+}
+
+/* ============================================================================
+   Secondary Page Chrome (Notifications, My Duet, Reminders, Provider, Login)
+   ========================================================================== */
+
+.desktop-notification-prompt.lq-chrome-bar {
+  margin: 10px 16px 0;
+  padding: 0;
+  flex-shrink: 0;
+  z-index: 15;
+}
+
+.desktop-notification-prompt-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  width: 100%;
+}
+
+.desktop-notification-prompt-inner > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.acceptance-fixture-banner.lq-chrome-bar {
+  margin: 10px 16px 0;
+  padding: 0;
+  --lq-tint: rgba(255, 240, 197, 0.90);
+  --lq-tint-deep: rgba(255, 232, 175, 0.84);
+}
+
+.acceptance-fixture-banner-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 6px 16px;
+  color: #705013;
+  font-size: 12px;
+}
+
+/* My Duet header + Liqui Tabs */
+.twin-page-header.lq-chrome-bar {
+  margin: 2px 12px 6px;
+  padding: 0;
+  flex-shrink: 0;
+  z-index: 6;
+}
+
+.twin-page-header-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.twin-page-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px 12px;
+}
+
+.twin-page-top > .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.twin-tabs-bar {
+  padding: 0 16px 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.twin-tabs.lq-twin-tabs {
+  display: inline-flex;
+  min-width: 100%;
+  width: auto;
+  padding: 3px;
+  gap: 2px;
+  background: rgba(18, 30, 54, 0.08);
+  box-shadow:
+    inset 0 1px 2px rgba(15, 25, 48, 0.08),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.55);
+}
+
+.twin-tabs.lq-twin-tabs > .lq-twin-tab {
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 550;
+  border-bottom: 0 !important;
+  color: var(--lg-label-2);
+}
+
+.twin-tabs.lq-twin-tabs > .lq-twin-tab[data-active],
+.twin-tabs.lq-twin-tabs > .lq-twin-tab.selected {
+  color: var(--lg-label);
+  font-weight: 650;
+}
+
+.twin-worker-state.lq-chrome-bar {
+  display: inline-flex;
+  margin-bottom: 18px;
+  padding: 0;
+}
+
+.twin-worker-state-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 14px;
+  font-size: 12.5px;
+}
+
+/* Reminders & Provider headers */
+.reminders-header.lq-chrome-bar,
+.provider-config-header.lq-chrome-bar {
+  position: sticky;
+  top: 10px;
+  margin: 2px 12px 0;
+  padding: 0;
+  height: auto;
+  z-index: 6;
+}
+
+.reminders-header-inner,
+.provider-config-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  width: 100%;
+}
+
+/* Login screen */
+.login-page .login-header.lq-chrome-bar {
+  height: 60px;
+  min-height: 60px;
+  z-index: 2;
+  box-shadow: 0 1px 0 var(--lg-separator);
+}
+
+.login-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  padding: 0 28px;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--lg-label);
+}
+
+.login-page .login-main.lq-panel-surface {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  width: 430px;
+  max-width: calc(100% - 40px);
+  padding: 0;
+  margin: auto 20px;
+  box-shadow:
+    0 0 0 0.5px var(--lg-glass-edge),
+    var(--lg-glass-shadow-lg);
+}
+
+.login-main-inner {
+  padding: 34px 36px 28px;
+}
+
+/* Empty-state circular emblem */
+.empty-state-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  color: var(--lg-label);
+  background: rgba(235, 240, 248, 0.90);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 0.5px rgba(18, 30, 54, 0.10);
+  margin-bottom: 4px;
+}
+
+/* ============================================================================
+   User Selection Hygiene & Secondary Copy Contrast
+   ========================================================================== */
+
+/* Prevent stray blue text selection highlights on chrome & menu triggers
+   while preserving full text selection in messages, previews, drawers, inputs. */
 .topbar,
 .app-rail,
 .sidebar,
@@ -1085,6 +1517,8 @@
 .twin-onboarding,
 .composer,
 .composer-tools,
+.lq-menu-popup,
+.lq-emoji-popover,
 .fluent-menu,
 .account-menu,
 .emoji-picker,
@@ -1111,10 +1545,8 @@ select,
   user-select: text;
 }
 
-/* Secondary & helper copy contrast over translucent Liquid Glass */
 .chat-preview,
-.account-menu > small,
-.search-results > p,
+.search-results-inner > p,
 .search-empty,
 .date-divider,
 .message-meta,
@@ -1142,206 +1574,14 @@ select,
   color: var(--lg-label-2);
 }
 
-.fluent-menu.lg-glass-sheet > button:disabled,
-.account-menu.lg-glass-sheet > button:disabled {
-  opacity: 0.56;
-}
-
-/* Keep menu entrance crisp without an opacity:0 frame that drops backdrop blur */
-@keyframes menu-appear {
-  from { opacity: 0.96; transform: translateY(2px) scale(0.99); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* Login card uses thin, transmissive regular glass so the Duet backdrop orbs
-   glow through the panel body while maintaining crisp input and label legibility.
-   Host pattern isolates the large outer drop-shadow from the SVG rim lens. */
-.login-page .login-main.lg-glass-host {
-  border-radius: var(--lg-r-sheet);
-  box-shadow:
-    0 0 0 0.5px var(--lg-glass-edge),
-    var(--lg-glass-shadow-lg);
-}
-
-.login-page .login-main.lg-glass-host > .lg-glass-backdrop {
-  --lg-glass-sheen: 0.18;
-  background-color: transparent;
-  background-image: var(--lg-glass-chrome-grad);
-  -webkit-backdrop-filter: var(--lg-glass-blur);
-  backdrop-filter: var(--lg-glass-blur);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    inset 1px 0 0 var(--lg-glass-inner-side),
-    inset -1px 0 0 var(--lg-glass-inner-right),
-    inset 0 -1px 0 var(--lg-glass-inner-lo),
-    inset 0 0 12px var(--lg-glass-inner-glow);
-}
-
-.login-page .login-main.lg-glass-host > .lg-glass-backdrop.is-refracting {
-  background-color: transparent;
-  background-image: var(--lg-glass-refract-grad);
-}
-
-.composer.lg-glass {
-  border-radius: var(--lg-r-sheet);
-  padding: 6px 10px 6px 16px;
-}
-
-.composer-reply.lg-glass {
-  border: 0;
-  border-radius: var(--lg-r-card);
-  margin-bottom: 6px;
-  background-color: rgba(251, 252, 255, 0.90);
-}
-
-.composer-tools .send-button {
-  border-radius: var(--lg-r-pill);
-}
-
-.composer-tools .send-button.lg-glass-prominent {
-  color: var(--lg-on-tint);
-}
-
-.header-actions.lg-glass-group {
-  padding: 2px;
-  gap: 2px;
-}
-
-.header-actions.lg-glass-group .icon-button,
-.header-actions.lg-glass-group .member-button {
-  height: 28px;
-  min-width: 28px;
-  border-radius: var(--lg-r-pill);
-}
-
-.sidebar-heading-actions.lg-glass-group {
-  padding: 2px;
-}
-
-.sidebar-heading-actions.lg-glass-group .icon-button {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--lg-r-pill);
-}
-
-.fluent-menu.lg-glass-sheet,
-.account-menu.lg-glass-sheet,
-.search-results.lg-glass-sheet,
-.emoji-picker.lg-glass-sheet,
-.reaction-picker.lg-glass-sheet,
-.people-suggestions.lg-glass-sheet,
-.side-drawer.lg-glass-sheet,
-.approvals-drawer.lg-glass-sheet,
-.twin-credential-requests.compact.lg-glass-sheet {
-  border: 0;
-  border-radius: var(--lg-r-panel);
-  background-color: transparent;
-  background-image: var(--lg-glass-sheet-grad);
-  -webkit-backdrop-filter: var(--lg-glass-blur-sheet);
-  backdrop-filter: var(--lg-glass-blur-sheet);
-}
-
-.account-menu.lg-glass-sheet {
-  gap: 6px;
-  padding: 16px;
-}
-
-.account-menu.lg-glass-sheet > strong {
-  padding: 2px 8px 6px;
-}
-
-.account-menu.lg-glass-sheet > small {
-  padding: 2px 8px;
-}
-
-.account-menu.lg-glass-sheet > button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-}
-
-.fluent-menu.lg-glass-sheet > button,
-.account-menu.lg-glass-sheet > button,
-.search-results.lg-glass-sheet .person-search-chat,
-.emoji-picker.lg-glass-sheet .emoji-grid > button {
-  border-radius: var(--lg-r-row);
-}
-
-.fluent-menu.lg-glass-sheet > button:hover,
-.account-menu.lg-glass-sheet > button:hover,
-.search-results.lg-glass-sheet .person-search-chat:hover,
-.emoji-picker.lg-glass-sheet .emoji-grid > button:hover {
-  background-color: var(--lg-fill);
-}
-
-.attachment-drop-overlay.lg-glass-sheet {
-  border: 1.5px dashed var(--lg-separator-strong);
-  border-radius: var(--lg-r-panel);
-}
-
-.error-toast.lg-glass-pill {
-  border: 0;
-  padding: 10px 14px 10px 16px;
-  color: var(--lg-red-text);
-  background-color: rgba(254, 250, 250, 0.94);
-  box-shadow:
-    inset 0 1px 0 var(--lg-glass-inner-hi),
-    0 0 0 1px rgba(196, 30, 42, 0.24),
-    var(--lg-glass-shadow);
-}
-
-.failed-chip.lg-glass-pill {
-  border: 0;
-  padding: 4px 8px 4px 12px;
-  color: var(--lg-red-text);
-  background-color: rgba(254, 249, 249, 0.92);
-  box-shadow:
-    inset 0 0.5px 0 var(--lg-glass-inner-hi),
-    0 0 0 1px rgba(196, 30, 42, 0.22),
-    var(--lg-glass-shadow-sm);
-}
-
-.queue-chip.lg-glass-pill {
-  border: 0;
-  padding: 3px 9px;
-}
-
-.attachment-ingest-error.lg-glass,
-.read-error.lg-glass {
-  color: var(--lg-red-text);
-}
-
-.twin-content-conflict.lg-glass {
-  box-shadow:
-    inset 0 0.5px 0 var(--lg-glass-inner-hi),
-    0 0 0 1px rgba(217, 173, 74, 0.45),
-    var(--lg-glass-shadow-sm);
-}
-
-/* Empty-state circular Liquid Glass emblem — crisp contrast over white cards */
-.empty-state-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 58px;
-  height: 58px;
-  color: var(--lg-label);
-  background-color: rgba(235, 239, 246, 0.92);
-  margin-bottom: 4px;
-}
-
 /* ============================================================================
    Responsive Chrome & Panel Breakpoints (No Mid-Width Chat/Composer Overlap)
    ========================================================================== */
 
 @media (max-width: 1250px) {
-  .detail-sidebar .detail-tabs {
-    padding: 0 12px;
-    gap: 9px;
-  }
-  .detail-sidebar .detail-tabs > button {
-    font-size: 12.5px;
+  .detail-sidebar .detail-tabs.lq-detail-tabs > .lq-detail-tab {
+    font-size: 11px;
+    padding: 0 4px;
   }
 }
 
@@ -1349,17 +1589,17 @@ select,
    flow beside chat-main while gently tightening conversation sidebar width. */
 @media (max-width: 1100px) and (min-width: 961px) {
   .topbar > .search-wrap {
-    width: min(460px, calc(100% - 230px));
+    width: min(460px, calc(100% - 236px));
   }
   .workspace:has(.detail-sidebar, .chat-find-panel) > .sidebar {
     max-width: 218px;
     min-width: 196px;
   }
   .workspace:has(.detail-sidebar, .chat-find-panel) > .sidebar .sidebar-heading {
-    padding: 4px 12px 0 14px;
+    padding: 4px 10px 0 14px;
   }
   .workspace:has(.detail-sidebar, .chat-find-panel) > .sidebar .filters {
-    padding: 4px 12px 10px 14px;
+    padding: 4px 10px 10px 14px;
     gap: 5px;
   }
   .workspace:has(.detail-sidebar, .chat-find-panel) > .sidebar .conversation-list {
@@ -1369,23 +1609,16 @@ select,
     padding: 7px 14px 7px 8px;
     gap: 8px;
   }
-  .workspace:has(.detail-sidebar, .chat-find-panel) > .sidebar .chat-list-row:hover .chat-item,
-  .workspace:has(.detail-sidebar, .chat-find-panel) > .sidebar .chat-list-row:focus-within .chat-item {
-    padding-right: 28px;
-  }
   .detail-sidebar.detail-sidebar {
-    position: relative;
-    inset: auto;
+    position: relative !important;
+    inset: auto !important;
     z-index: auto;
-    box-shadow:
-      0 0 0 0.5px var(--lg-glass-edge),
-      var(--lg-glass-shadow);
-    width: 274px;
-    min-width: 256px;
+    width: 280px;
+    min-width: 260px;
   }
   .chat-find-panel.chat-find-panel {
-    position: relative;
-    inset: auto;
+    position: relative !important;
+    inset: auto !important;
     z-index: auto;
     width: 288px;
     max-width: 36%;
@@ -1397,33 +1630,44 @@ select,
    composer remain 100% unclipped and usable. */
 @media (max-width: 960px) and (min-width: 601px) {
   .topbar > .search-wrap {
-    width: calc(100% - 220px);
+    width: calc(100% - 224px);
   }
   .workspace:has(.detail-sidebar, .chat-find-panel) > .sidebar,
   .workspace:has(.detail-sidebar, .chat-find-panel) > .pane-resizer {
     display: none;
   }
   .detail-sidebar.detail-sidebar {
-    position: relative;
-    inset: auto;
+    position: relative !important;
+    inset: auto !important;
     z-index: auto;
-    box-shadow:
-      0 0 0 0.5px var(--lg-glass-edge),
-      var(--lg-glass-shadow);
     width: min(304px, 42%);
     min-width: 264px;
   }
   .chat-find-panel.chat-find-panel {
-    position: relative;
-    inset: auto;
+    position: relative !important;
+    inset: auto !important;
     z-index: auto;
     width: min(312px, 44%);
     max-width: none;
   }
 }
 
-/* Narrow mobile (<= 600px): slide-over floating cards cleanly fill the pane
-   beside the app rail without half-clipping chat controls. */
+@media (max-width: 760px) {
+  .composer-inner {
+    flex-wrap: wrap;
+    padding: 6px 8px 6px 12px;
+    gap: 4px;
+  }
+  .composer-inner textarea {
+    width: 100%;
+    flex-basis: 100%;
+  }
+  .composer-tools {
+    margin-left: auto;
+  }
+}
+
+/* Narrow mobile (<= 600px) */
 @media (max-width: 600px) {
   .topbar {
     margin: 8px 10px 0;
@@ -1431,38 +1675,35 @@ select,
     gap: 8px;
   }
   .topbar > .search-wrap {
-    width: calc(100% - 196px);
+    width: calc(100% - 204px);
     left: 50%;
   }
-  .desktop-notification-prompt.lg-glass-host,
-  .acceptance-fixture-banner.lg-glass {
+  .desktop-notification-prompt.lq-chrome-bar,
+  .acceptance-fixture-banner.lq-chrome-bar {
     margin: 8px 10px 0;
   }
   .workspace {
     padding: 8px 10px 10px;
     gap: 8px;
   }
-  .app-rail.lg-glass-host {
-    width: 52px;
-    min-width: 52px;
-    border-radius: 22px;
+  .app-rail.lq-panel-surface {
+    width: 50px;
+    min-width: 50px;
   }
-  .sidebar.lg-glass-host {
-    position: absolute;
-    left: 68px;
+  .sidebar.lq-panel-surface {
+    position: absolute !important;
+    left: 66px;
     top: 8px;
     bottom: 10px;
-    border-radius: 22px;
     z-index: 15;
   }
-  .detail-sidebar.lg-glass-host,
-  .chat-find-panel.lg-glass {
-    position: absolute;
-    left: 68px;
+  .detail-sidebar.lq-panel-surface,
+  .chat-find-panel.lq-panel-surface {
+    position: absolute !important;
+    left: 66px;
     right: 10px;
     top: 8px;
     bottom: 10px;
-    border-radius: 22px;
     width: auto !important;
     min-width: 0 !important;
     max-width: none !important;
@@ -1477,124 +1718,87 @@ select,
 }
 
 /* ============================================================================
-   Progressive Fallbacks & Accessibility Queries
+   Accessibility & Progressive Fallbacks (Liqui Handbook Compliant)
    ========================================================================== */
 
 /* 1. Browsers without backdrop-filter support */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .lg-glass,
-  .lg-glass-sheet,
-  .lg-glass-pill,
-  .lg-glass-group,
-  .lg-glass-clear,
-  .chat-top-chrome {
-    background-color: var(--lg-glass-thick) !important;
-    background-image: none !important;
+  .liqui-glass__tint {
+    opacity: 1 !important;
+    background: #f7f9fc !important;
+  }
+  .lq-sheet-surface .liqui-glass__tint {
+    background: #ffffff !important;
   }
   .lg-glass-dim {
     background-color: rgba(28, 30, 36, 0.90) !important;
   }
 }
 
-/* 2. Reduce Transparency */
+/* 2. Reduce Transparency (Liqui handbook: solid-tint fallback, zero blur/refraction) */
 @media (prefers-reduced-transparency: reduce) {
-  :root {
-    --lg-glass:             #f8f9fb;
-    --lg-glass-chrome:      #f5f6f9;
-    --lg-glass-elevated:    #ffffff;
-    --lg-glass-sheet-text:  #ffffff;
-    --lg-glass-sheet-grad:  none;
-    --lg-glass-chrome-grad: none;
-    --lg-glass-refract-grad: none;
-    --lg-glass-subtle:      #f5f6f8;
-    --lg-glass-thick:       #ffffff;
-    --lg-glass-refract:     #f8f9fb;
-    --lg-glass-blur:        none;
-    --lg-glass-blur-sheet:  none;
-    --lg-clear-fill:        #24262b;
-    --lg-clear-blur:        none;
-    --lg-glass-sheen:       0;
-  }
-
-  .lg-glass,
-  .lg-glass-sheet,
-  .lg-glass-pill,
-  .lg-glass-group,
-  .lg-glass-clear,
-  .lg-glass-host > .lg-glass-backdrop {
-    background-color: var(--lg-glass-thick) !important;
-    background-image: none !important;
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-    box-shadow:
-      inset 0 0 0 1px var(--lg-separator-strong),
-      var(--lg-glass-shadow-sm) !important;
-  }
-
-  .lg-glass-host {
-    box-shadow: none !important;
-  }
-
-  .lg-glass-clear.lg-glass-dim {
-    background-color: #202124 !important;
-    background-image: none !important;
-    color: #ffffff;
-  }
-
-  .lg-glass::after,
-  .lg-glass-sheet::after,
-  .lg-glass-pill::after,
-  .lg-glass-group::after,
+  .liqui-glass__backdrop,
+  .liqui-glass__refract,
+  .liqui-glass__copy,
+  .liqui-glass__specular,
   .lg-scroll-edge,
   .lg-scroll-edge-bottom {
     display: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .liqui-glass__tint {
+    opacity: 1 !important;
+    background: #f6f8fb !important;
+  }
+
+  .lq-sheet-surface > .liqui-glass__tint {
+    background: #ffffff !important;
+  }
+
+  .liqui-glass {
+    box-shadow:
+      inset 0 0 0 1px rgba(18, 30, 54, 0.24),
+      0 4px 16px rgba(15, 25, 48, 0.08) !important;
+  }
+
+  .lg-glass-clear {
+    background-color: #24262b !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    color: #ffffff;
   }
 }
 
 /* 3. Increase Contrast */
 @media (prefers-contrast: more) {
   :root {
-    --lg-label:             #000000;
-    --lg-label-2:           #222428;
-    --lg-label-3:           #383b42;
-    --lg-separator:         rgba(0, 0, 0, 0.38);
-    --lg-separator-strong:  rgba(0, 0, 0, 0.56);
-    --lg-glass:             rgba(255, 255, 255, 0.96);
-    --lg-glass-chrome:      rgba(250, 251, 253, 0.96);
-    --lg-glass-elevated:    rgba(255, 255, 255, 0.99);
-    --lg-glass-sheet-text:  rgba(255, 255, 255, 0.99);
-    --lg-glass-sheet-grad:  none;
-    --lg-glass-chrome-grad: none;
-    --lg-glass-refract-grad: none;
-    --lg-glass-subtle:      rgba(248, 249, 251, 0.96);
-    --lg-glass-refract:     rgba(255, 255, 255, 0.96);
-    --lg-glass-edge:        rgba(0, 0, 0, 0.46);
-    --lg-tint:              #000000;
-    --lg-tint-glass:        #000000;
-    --lg-red:               #b0000d;
-    --lg-red-text:          #96000b;
-    --lg-red-glass:         #a8000c;
+    --lg-label: #000000;
+    --lg-label-2: #1f2329;
+    --lg-label-3: #333740;
+    --lg-separator: rgba(0, 0, 0, 0.38);
+    --lg-separator-strong: rgba(0, 0, 0, 0.56);
   }
 
-  .lg-glass,
-  .lg-glass-sheet,
-  .lg-glass-pill,
-  .lg-glass-group,
-  .lg-glass-clear,
-  .lg-glass-host > .lg-glass-backdrop {
-    background-color: var(--lg-glass) !important;
-    background-image: none !important;
+  .liqui-glass {
+    --lq-text: #000000;
+    --lq-text-dim: #1f2329;
+    --lq-accent: #000000;
+    --lq-danger: #b0000d;
+    --lq-danger-text: #96000b;
     box-shadow:
-      inset 0 0 0 1.5px var(--lg-glass-edge),
-      var(--lg-glass-shadow-sm) !important;
+      inset 0 0 0 1.5px rgba(0, 0, 0, 0.56),
+      0 4px 14px rgba(0, 0, 0, 0.12) !important;
   }
 
-  .lg-glass-host {
-    box-shadow: none !important;
+  .liqui-glass__tint {
+    opacity: 1 !important;
+    background: rgba(255, 255, 255, 0.97) !important;
   }
-  .lg-glass-sheet,
-  .lg-glass-sheet.lg-glass-text {
-    background-color: var(--lg-glass-sheet-text) !important;
+
+  .lq-sheet-surface > .liqui-glass__tint {
+    background: #ffffff !important;
   }
 
   button:focus-visible,
@@ -1611,7 +1815,10 @@ select,
 /* 4. Reduce Motion */
 @media (prefers-reduced-motion: reduce) {
   .lg-interactive,
-  .lg-interactive:active {
+  .lg-interactive:active,
+  .liqui-glass__refract--fade,
+  .liqui-glass__specular--fade {
+    animation: none !important;
     transition: none !important;
     transform: none !important;
   }
@@ -1619,31 +1826,19 @@ select,
 
 /* 5. Windows High Contrast / Forced Colors */
 @media (forced-colors: active) {
-  .lg-glass-host {
-    box-shadow: none !important;
-  }
-  .lg-glass,
-  .lg-glass-sheet,
-  .lg-glass-pill,
-  .lg-glass-group,
-  .lg-glass-clear,
-  .lg-glass-host > .lg-glass-backdrop {
+  .liqui-glass {
     background: Canvas !important;
     color: CanvasText !important;
     border: 1px solid CanvasText !important;
     box-shadow: none !important;
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
   }
-  .lg-glass::before,
-  .lg-glass::after,
-  .lg-glass-sheet::before,
-  .lg-glass-sheet::after,
-  .lg-glass-pill::before,
-  .lg-glass-pill::after,
-  .lg-glass-group::before,
-  .lg-glass-group::after,
-  .lg-glass-clear::before {
+
+  .liqui-glass__backdrop,
+  .liqui-glass__refract,
+  .liqui-glass__copy,
+  .liqui-glass__tint,
+  .liqui-glass__specular,
+  .liqui-glass__shine {
     display: none !important;
   }
 }

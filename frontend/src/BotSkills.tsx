@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ApiClient, PersonalBot } from './api/client';
 import type { SkillDetail, TwinSkill } from './api/twin';
+import { Switch } from '@/components/ui/switch';
 import { Empty, Icon, IconButton, Modal } from './ui';
 import { t } from './i18n';
 import './BotSharing.css';
@@ -35,7 +36,7 @@ export function BotSkillsDialog({ api, bot, onClose }: { api: ApiClient; bot: Pe
       {notice && <p className="bot-share-notice" role="status">{notice}</p>}{error && <p className="twin-inline-error" role="alert">{error}</p>}
       {loading ? <div className="loading-row" role="status">{t('common.loading')}</div> : loadError ? <div role="alert" className="twin-inline-error"><p>{loadError}</p><button className="secondary-button lg-interactive" onClick={() => setRevision(value => value + 1)}>{t('common.retry')}</button></div> : !items?.length ? <Empty icon="spark" title={t('botSkills.noSkills')} detail={t('botSkills.empty')} /> : <div>{items.map(skill => <article className="bot-skill-row" key={skill.name}>
         <Icon name="spark" size={20} /><button type="button" className="twin-detail-link" disabled={busy} onClick={() => { setError(''); setNotice(''); setSelected(skill.name); }}><h3>{skill.name}</h3><p>{skill.description || t('twin.noDescription')}</p>{skill.error && <small className="twin-inline-error">{skill.error}</small>}</button>
-        <button type="button" role="switch" aria-checked={skill.enabled} aria-label={t('twin.skillToggle', { name: skill.name })} className={`twin-switch lg-interactive ${skill.enabled ? 'on' : ''}`} disabled={busy || !skill.available && !skill.enabled} onClick={() => { void toggle(skill); }}><span /></button>
+        <Switch lens={false} checked={skill.enabled} aria-label={t('twin.skillToggle', { name: skill.name })} disabled={busy || !skill.available && !skill.enabled} onCheckedChange={() => { void toggle(skill); }} />
         <IconButton icon="edit" label={t('botSkills.edit', { name: skill.name })} disabled={busy} onClick={() => setSelected(skill.name)} />
       </article>)}</div>}
     </>}

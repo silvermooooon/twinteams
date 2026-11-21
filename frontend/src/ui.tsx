@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { LiquiGlass } from '@liqui-design/glass';
+import { Dialog, DialogContent, DialogDismiss, DialogTitle } from '@/components/ui/dialog';
+import { LIQUI_BAR_GLASS, LIQUI_DIALOG_GLASS } from '@/lib/liquiPresets';
 import type { Actor, Chat } from './api/client';
 import { t, formatDate, formatTime } from './i18n';
 import { PresetAvatar } from './TwinAvatars';
@@ -36,40 +38,45 @@ export function ChatAvatar({ chat, actors, ownerId, size = 40 }: { chat: Chat; a
 }
 export function IconButton({ icon, label, onClick, disabled, active, size = 20, className = '' }: { icon: IconName; label: string; onClick?: () => void; disabled?: boolean; active?: boolean; size?: number; className?: string }) { return <button type="button" className={`icon-button lg-interactive ${active ? 'active' : ''} ${className}`} title={label} aria-label={label} onClick={onClick} disabled={disabled}><Icon name={icon} size={size} /></button>; }
 export function Modal({ title, children, onClose, wide = false, closeDisabled = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean; closeDisabled?: boolean }) {
-  const container = useRef<HTMLElement>(null);
-  const close = useRef(onClose); const disabled = useRef(closeDisabled); close.current = onClose; disabled.current = closeDisabled;
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const frame = requestAnimationFrame(() => { if (container.current?.contains(document.activeElement)) return; (container.current?.querySelector('input:not(:disabled):not([hidden]):not([type="checkbox"]),textarea:not(:disabled),select:not(:disabled)') as HTMLElement | null || container.current)?.focus({ preventScroll: true }); });
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); if (!disabled.current) close.current(); return; }
-      if (event.key !== 'Tab' || !container.current) return;
-      const focusable = [...container.current.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled):not([hidden]),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]')].filter(element => element.offsetParent !== null);
-      const first = focusable[0]; const last = focusable[focusable.length - 1];
-      if (!first) { event.preventDefault(); container.current.focus(); }
-      else if (event.shiftKey && (document.activeElement === first || !container.current.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && (document.activeElement === last || !container.current.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => { cancelAnimationFrame(frame); document.removeEventListener('keydown', handleKey); if (previous?.isConnected) previous.focus({ preventScroll: true }); };
-  }, []);
-  return createPortal(<div className="twins-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !closeDisabled) onClose(); }}><section ref={container} tabIndex={-1} className={`modal lg-glass-sheet lg-glass-text ${wide ? 'wide' : ''}`} data-refract="0.72" role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading"><h2>{title}</h2><IconButton icon="close" label={t('common.close')} onClick={onClose} disabled={closeDisabled} /></div>{children}</section></div>, document.body);
+  return (
+    <Dialog
+      open={true}
+      disablePointerDismissal={closeDisabled}
+      onOpenChange={open => {
+        if (!open && !closeDisabled) onClose();
+      }}
+    >
+      <DialogContent
+        glass={LIQUI_DIALOG_GLASS}
+        className={`lq-sheet-surface lq-duet-dialog modal ${wide ? 'wide w-[560px]' : 'w-[440px]'}`}
+        aria-label={title}
+      >
+        <div className="modal-heading lq-dialog-heading">
+          <DialogTitle>{title}</DialogTitle>
+        </div>
+        <DialogDismiss disabled={closeDisabled} aria-label={t('common.close')} />
+        <div className="lq-dialog-body">{children}</div>
+      </DialogContent>
+    </Dialog>
+  );
 }
-export function Empty({ icon, title, detail }: { icon: IconName; title: string; detail?: string }) { return <div className="empty-state"><span className="empty-state-icon lg-glass-pill" data-refract="0.85"><Icon name={icon} size={28} /></span><h3>{title}</h3>{detail && <p>{detail}</p>}</div>; }
+export function Empty({ icon, title, detail }: { icon: IconName; title: string; detail?: string }) { return <div className="empty-state"><span className="empty-state-icon lg-glass-pill"><Icon name={icon} size={28} /></span><h3>{title}</h3>{detail && <p>{detail}</p>}</div>; }
 export function time(value?: string | null) { if (!value) return ''; const date = new Date(value); return isNaN(date.getTime()) ? value : formatTime(date); }
 export function dateTime(value?: string | null) { if (!value) return ''; const date = new Date(value); return isNaN(date.getTime()) ? value : formatDate(date, { dateStyle: 'medium', timeStyle: 'short' }); }
 
 /** Server-declared test mode only. Never enables a provider or generates responses. */
-export function FixtureBanner() { return <div className="acceptance-fixture-banner lg-glass lg-glass-text" role="status"><Icon name="info" size={16} /><strong>{t('config.fixtureTitle')}</strong><span>{t('config.fixtureDetail')}</span></div>; }
+export function FixtureBanner() { return <LiquiGlass {...LIQUI_BAR_GLASS} radius={14} className="acceptance-fixture-banner lq-chrome-bar" contentClassName="acceptance-fixture-banner-inner" role="status"><Icon name="info" size={16} /><strong>{t('config.fixtureTitle')}</strong><span>{t('config.fixtureDetail')}</span></LiquiGlass>; }
 
-/** Shared keyboard behavior for anchored Fluent menus. Popover state remains owned by callers. */
+/** Shared keyboard behavior for legacy anchored menus; Base UI / Liqui popups manage focus natively. */
 export function useMenuBehavior() {
   useEffect(() => {
     const triggers = new Map<HTMLElement, HTMLElement | null>();
     const frames = new Set<number>();
+    const isManaged = (menu: HTMLElement) =>
+      menu.classList.contains('liqui-glass') || !!menu.closest('.liqui-glass') || menu.hasAttribute('data-side');
     const observer = new MutationObserver(() => {
       document.querySelectorAll<HTMLElement>('[role="menu"],.emoji-picker').forEach(menu => {
-        if (triggers.has(menu)) return;
+        if (isManaged(menu) || triggers.has(menu)) return;
         const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         triggers.set(menu, active);
         const frame = requestAnimationFrame(() => { frames.delete(frame); if (menu.isConnected) menu.querySelector<HTMLElement>('button:not(:disabled),input')?.focus({ preventScroll: true }); });
@@ -83,7 +90,7 @@ export function useMenuBehavior() {
     observer.observe(document.body, { childList: true, subtree: true });
     const key = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement; const menu = target.closest<HTMLElement>('[role="menu"],.emoji-picker');
-      if (!menu) return;
+      if (!menu || isManaged(menu)) return;
       const buttons = [...menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
       const current = buttons.indexOf(target as HTMLButtonElement);
       let next = -1;

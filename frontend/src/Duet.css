@@ -134,7 +134,7 @@ body, .app-shell {
     0 0 0 1.5px rgba(32, 33, 36, 0.24),
     var(--lg-glass-shadow);
 }
-.detail-sidebar .detail-tabs > button.selected::after { background-color: var(--brand-red); border-radius: 2px 2px 0 0; }
+.detail-sidebar .detail-tabs > button.selected::after { display: none; }
 .text-button, .detail-sidebar .text-button, .file-attachment a { color: #303236; }
 .draft-attachment { border: 0; border-radius: var(--lg-r-card, 14px); }
 .file-attachment { border-color: var(--border); border-radius: var(--lg-r-card, 14px); background: var(--lg-content-card, #ffffff); }
@@ -197,8 +197,10 @@ body, .app-shell {
 .twin-tabs > button.selected { color: var(--accent); border-bottom-color: var(--brand-red); }
 .provider-config-page { background: transparent; color: var(--accent); }
 .login-page > footer { color: var(--muted); }
-button:focus-visible, a:focus-visible, summary:focus-visible {
-  outline-color: var(--accent);
+@layer base {
+  button:focus-visible, a:focus-visible, summary:focus-visible {
+    outline-color: var(--accent);
+  }
 }
 
 /* Opt-in Duet identity for group-chat message senders only. */

@@ -7,6 +7,9 @@ import {
   useState,
 } from "react";
 import type { Actor, Chat } from "./api/client";
+import { LiquiGlass } from "@liqui-design/glass";
+import { Switch } from "@/components/ui/switch";
+import { LIQUI_BAR_GLASS } from "@/lib/liquiPresets";
 import { t } from "./i18n";
 import { chatTitle, Icon, IconButton, Modal } from "./ui";
 import "./DesktopNotifications.css";
@@ -409,16 +412,15 @@ export function DesktopNotificationPrompt({
 }) {
   if (!controller.showPrompt) return null;
   return (
-    <aside
-      className="desktop-notification-prompt lg-glass-host"
+    <LiquiGlass
+      {...LIQUI_BAR_GLASS}
+      radius={18}
+      className="desktop-notification-prompt lq-chrome-bar"
+      contentClassName="desktop-notification-prompt-inner"
+      role="complementary"
       aria-label={t("notifications.prompt")}
     >
-      <div
-        className="lg-glass-backdrop lg-glass lg-glass-text"
-        data-refract="0.82"
-        aria-hidden="true"
-      />
-      <Icon name="bell" size={20} />
+      <Icon name="bell" size={18} />
       <div>
         <strong>{t("notifications.prompt")}</strong>
         <p>{t("notifications.promptDetail")}</p>
@@ -438,7 +440,7 @@ export function DesktopNotificationPrompt({
         label={t("common.dismiss")}
         onClick={controller.dismiss}
       />
-    </aside>
+    </LiquiGlass>
   );
 }
 export function DesktopNotificationSettings({
@@ -459,20 +461,16 @@ export function DesktopNotificationSettings({
           <h3>{t("notifications.desktop")}</h3>
           <p>{t("notifications.description")}</p>
         </div>
-        <button
-          type="button"
-          className={`notification-switch lg-interactive ${controller.enabled ? "on" : ""}`}
-          role="switch"
+        <Switch
+          lens={false}
           aria-label={t("notifications.desktop")}
-          aria-checked={controller.enabled}
+          checked={controller.enabled}
           disabled={unavailable || controller.requesting}
-          onClick={() => {
-            if (controller.enabled) controller.disable();
-            else void controller.enable();
+          onCheckedChange={(checked) => {
+            if (checked) void controller.enable();
+            else controller.disable();
           }}
-        >
-          <span />
-        </button>
+        />
       </div>
       <p className="notification-permission" role="status">
         {t(
