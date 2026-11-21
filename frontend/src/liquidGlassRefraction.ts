@@ -174,29 +174,29 @@ function applyRefraction(el: HTMLElement): void {
   let bezel = readAttrNumber(
     el,
     'data-refract-bezel',
-    Math.max(8, Math.min(18, radius * 0.5 || 12)),
+    Math.max(10, Math.min(20, radius * 0.58 || 14)),
   );
-  bezel = Math.min(bezel, Math.min(w, h) * 0.3);
+  bezel = Math.min(bezel, Math.min(w, h) * 0.32);
 
   const isClear = el.classList.contains('lg-glass-clear');
   const isSheet = el.classList.contains('lg-glass-sheet');
   const isText = el.classList.contains('lg-glass-text');
-  // Chromium's SVG feDisplacementMap inside backdrop-filter can clip blur near
-  // element edges under DPR scaling or filter bounds, causing sharp text bleed
-  // on menus, popovers, modals, and text-bearing chrome. Keep pure CSS
-  // backdrop-filter on sheets and text-bearing glass; apply SVG rim lensing
-  // only to clear media overlays and non-text glass emblems.
-  if (isSheet || isText) {
+  // Floating text-bearing sheets (menus, pickers, popovers, drawers, modals)
+  // keep pure CSS backdrop-filter with heavy frost + high regular tint so
+  // underlying page text never bleeds sharply near element edges.
+  // Non-sheet floating chrome (topbar capsules, chat header, composer, clear
+  // media overlays, emblems) gets live SVG feDisplacementMap rim refraction.
+  if (isSheet) {
     removeRefraction(el);
     return;
   }
-  const defaultBlur = isClear ? 1.5 : 14;
+  const defaultBlur = isClear ? 1.5 : isText ? 22 : 16;
   const blur = readAttrNumber(el, 'data-refract-blur', defaultBlur);
   const dispersion = Math.max(
     0,
-    Math.min(0.14, readAttrNumber(el, 'data-refract-dispersion', 0.035)),
+    Math.min(0.14, readAttrNumber(el, 'data-refract-dispersion', isText ? 0.045 : 0.04)),
   );
-  const scale = Math.round(bezel * 1.1 * strength);
+  const scale = Math.round(bezel * 1.15 * strength);
 
   const key = [w, h, Math.round(radius), Math.round(bezel), scale, blur, dispersion].join('|');
   const prev = activeElements.get(el);
@@ -296,7 +296,7 @@ function applyRefraction(el: HTMLElement): void {
 
   ensureDefs().appendChild(filter);
 
-  const filterValue = `url(#${id}) blur(${blur}px) saturate(${isSheet ? 195 : 185}%)`;
+  const filterValue = `url(#${id}) blur(${blur}px) saturate(${isClear ? 170 : 215}%) brightness(${isClear ? 1 : 1.02})`;
   el.style.setProperty('backdrop-filter', filterValue);
   el.style.setProperty('-webkit-backdrop-filter', filterValue);
   el.classList.add('is-refracting');

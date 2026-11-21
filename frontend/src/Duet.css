@@ -4,24 +4,25 @@
   --accent: #202124;
   --brand-red: #d71920;
   --brand-red-text: #b5121b;
-  --border: var(--lg-separator, rgba(32, 33, 36, 0.11));
-  --muted: var(--lg-label-2, #555860);
+  --border: var(--lg-separator, rgba(32, 33, 36, 0.12));
+  --muted: var(--lg-label-2, #3b3f4a);
   --surface-subtle: var(--lg-content-subtle, #f6f7f9);
   --surface-selected: rgba(110, 114, 128, 0.12);
   color: var(--lg-label, #1d1d1f);
-  background: var(--lg-ground, #eff1f5);
+  background: var(--lg-ground, #eaedf6);
   font-family: var(--lg-font, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif);
 }
 
 body, .app-shell, .workspace {
-  background-color: var(--lg-ground, #eef1f7);
+  background-color: var(--lg-ground, #eaedf6);
 }
 .app-shell {
   background-image:
-    radial-gradient(960px 620px at 4% -6%, rgba(215, 25, 32, 0.085), transparent 54%),
-    radial-gradient(940px 680px at 96% 4%, rgba(74, 114, 192, 0.145), transparent 56%),
-    radial-gradient(840px 580px at 52% 106%, rgba(114, 134, 178, 0.115), transparent 56%),
-    linear-gradient(165deg, var(--lg-ground, #f2f4f9) 0%, var(--lg-ground-2, #e9edf5) 100%);
+    radial-gradient(920px 600px at 3% -4%, rgba(215, 25, 32, 0.115), transparent 54%),
+    radial-gradient(960px 680px at 97% 2%, rgba(62, 108, 204, 0.185), transparent 56%),
+    radial-gradient(860px 580px at 50% 104%, rgba(102, 130, 192, 0.155), transparent 58%),
+    radial-gradient(640px 460px at 18% 72%, rgba(128, 146, 198, 0.095), transparent 58%),
+    linear-gradient(162deg, var(--lg-ground, #edf0f7) 0%, var(--lg-ground-2, #e2e7f3) 100%);
 }
 .topbar {
   box-shadow: none;
