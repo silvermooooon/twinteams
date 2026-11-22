@@ -1,4 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { LiquiGlass } from '@liqui-design/glass';
+import { Button } from '@/components/ui/button';
+import { DialogActions } from '@/components/ui/dialog';
+import { Toggle } from '@/components/ui/toggle';
+import { LIQUI_PANEL_GLASS } from '@/lib/liquiPresets';
 import type { ApiClient } from './api/client';
 import { requestKey } from './api/client';
 import { twinApi } from './api/twin';
@@ -9,7 +14,7 @@ const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
 const statusLabels: Record<ScheduledTaskRun['status'] | 'silent', string> = { queued: 'Queued', running: 'Running', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled', silent: 'Completed quietly' };
 const failureText = (failure: unknown) => failure instanceof Error ? failure.message : 'Could not update this task.';
 function Notice({ error, retry }: { error: string; retry?: () => void }) {
-  return <div className="twin-notice error" role="alert"><Icon name="info" size={18} /><span>{error}</span>{retry && <button type="button" className="text-button" onClick={retry}>Try again</button>}</div>;
+  return <div className="twin-notice error" role="alert"><Icon name="info" size={18} /><span>{error}</span>{retry && <Button type="button" variant="ghost" size="sm" onClick={retry}>Try again</Button>}</div>;
 }
 function timestamp(value: string | null, timezone: string) {
   if (!value) return '—';
@@ -82,11 +87,11 @@ function TaskEditor({ api, task, onSaved, onClose }: { api: ApiClient; task: Sch
       </div>
       {kind === 'once' && <label><span id={`${fieldsId}-at`}>Date and time</span><input aria-labelledby={`${fieldsId}-at`} required type="datetime-local" value={at} disabled={busy} onChange={event => setAt(event.target.value)} /></label>}
       {(kind === 'daily' || kind === 'weekly') && <label><span id={`${fieldsId}-time`}>Time</span><input aria-labelledby={`${fieldsId}-time`} required type="time" value={time} disabled={busy} onChange={event => setTime(event.target.value)} /></label>}
-      {kind === 'weekly' && <fieldset className="twin-schedule-weekdays"><legend>Weekdays</legend>{weekdays.map((day, index) => <button key={day} type="button" className="lg-interactive" aria-pressed={days.includes(index)} disabled={busy} onClick={() => setDays(previous => previous.includes(index) ? previous.filter(value => value !== index) : [...previous, index])}>{day.slice(0, 3)}</button>)}</fieldset>}
+      {kind === 'weekly' && <fieldset className="twin-schedule-weekdays"><legend>Weekdays</legend>{weekdays.map((day, index) => <Toggle key={day} pressed={days.includes(index)} className="lq-filter-pill" disabled={busy} onPressedChange={() => setDays(previous => previous.includes(index) ? previous.filter(value => value !== index) : [...previous, index])}>{day.slice(0, 3)}</Toggle>)}</fieldset>}
       {kind === 'interval' && <div className="twin-schedule-fields"><label><span id={`${fieldsId}-every`}>Repeat every</span><input aria-labelledby={`${fieldsId}-every`} type="number" required min={1} step={1} value={every} disabled={busy} onChange={event => setEvery(event.target.value)} /></label><label><span id={`${fieldsId}-unit`}>Interval unit</span><select aria-labelledby={`${fieldsId}-unit`} value={unit} disabled={busy} onChange={event => setUnit(Number(event.target.value))}><option value={1}>Seconds</option><option value={60}>Minutes</option><option value={3600}>Hours</option><option value={86400}>Days</option></select></label></div>}
       <p className="twin-help">{kind === 'interval' ? 'At least 60 seconds between runs.' : 'Dates and times use the selected time zone. If a daylight saving change skips a time, it moves forward; a repeated time runs once.'} Tasks run in your private Duet conversation. Successful reviews can finish quietly.</p>
       {error && <Notice error={error} />}
-      <div className="twin-content-actions"><button type="button" className="secondary-button lg-interactive" disabled={busy} onClick={onClose}>Cancel</button><button className="primary-button lg-interactive" disabled={busy}>{busy ? 'Saving…' : 'Save task'}</button></div>
+      <DialogActions><Button type="button" variant="secondary" size="sm" disabled={busy} onClick={onClose}>Cancel</Button><Button type="submit" variant="accent" size="sm" disabled={busy}>{busy ? 'Saving…' : 'Save task'}</Button></DialogActions>
     </form>
   </Modal>;
 }
@@ -126,7 +131,7 @@ export function ScheduledTasksTab({ api, revision }: { api: ApiClient; revision:
     <div className="twin-section-heading"><div><h2>Scheduled tasks</h2><p>Tell your Duet what you need and when in your private chat. Review its tasks here.</p></div><div className="twin-row-actions"><IconButton icon="plus" label="New task" onClick={() => setEditor({ task: null })} /><IconButton icon="refresh" label="Refresh scheduled tasks" onClick={() => { setRetry(value => value + 1); setHistoryRevision(value => value + 1); }} /></div></div>
     <p className="twin-help">Pausing prevents future runs. Stopping cancels work that is already queued or running.</p>
     {loadError && <Notice error={loadError} retry={() => setRetry(value => value + 1)} />}{error && <Notice error={error} />}{notice && <p className="twin-save-status" role="status">{notice}</p>}
-    {items === null && !loadError ? <div className="twin-loading" role="status"><span className="spinner" />Loading scheduled tasks…</div> : !items?.length && !loadError ? <Empty icon="clock" title="No scheduled tasks" detail="Tell your Duet what you need and when in your private chat." /> : <div className="twin-schedule-list">{items?.map(task => <article className="twin-schedule-card" key={task.id} data-task-id={task.id} data-task-kind={task.kind}>
+    {items === null && !loadError ? <div className="twin-loading" role="status"><span className="spinner" />Loading scheduled tasks…</div> : !items?.length && !loadError ? <Empty icon="clock" title="No scheduled tasks" detail="Tell your Duet what you need and when in your private chat." /> : <div className="twin-schedule-list">{items?.map(task => <LiquiGlass {...LIQUI_PANEL_GLASS} radius={18} className="twin-schedule-card lq-panel-surface" contentClassName="twin-schedule-card-inner" key={task.id} data-task-id={task.id} data-task-kind={task.kind}>
       <header><span className="twin-list-icon"><Icon name="clock" size={21} /></span><div className="twin-list-copy"><h3>{task.title}</h3><p>{scheduleLabel(task)} · {task.timezone}</p></div><span className={`twin-schedule-badge ${task.enabled ? '' : 'paused'}`}>{task.enabled ? 'Enabled' : 'Paused'}</span></header>
       {task.kind === 'system_review' && <p className="twin-help twin-schedule-managed">System managed · Reviews ongoing work and pending items. Instructions are read-only.</p>}
       <p className="twin-schedule-instructions">{task.instructions}</p>
@@ -140,9 +145,9 @@ export function ScheduledTasksTab({ api, revision }: { api: ApiClient; revision:
         <IconButton icon="clock" label={`Run history for ${task.title}`} onClick={() => setHistoryId(task.id)} />
         {task.kind === 'user' && <IconButton icon="trash" className="twin-schedule-delete" label={`Delete ${task.title}`} disabled={busy.includes(task.id) || task.pending_work || !!task.active_request_id} onClick={() => setDeleting(task)} />}
       </div>
-    </article>)}</div>}
+    </LiquiGlass>)}</div>}
     {editor && <TaskEditor api={api} task={editor.task} onClose={() => setEditor(null)} onSaved={replace} />}
     {historyTask && <TaskHistory api={api} task={historyTask} revision={revision + historyRevision} onClose={() => setHistoryId(null)} />}
-    {deleting && <Modal title="Delete scheduled task?" onClose={() => setDeleting(null)} closeDisabled={busy.includes(deleting.id)}><p className="twin-help">Delete {deleting.title}? Future runs will be removed. Stop any active work before deleting.</p>{error && <Notice error={error} />}<div className="twin-content-actions"><button type="button" className="secondary-button lg-interactive" disabled={busy.includes(deleting.id)} onClick={() => setDeleting(null)}>Cancel</button><button type="button" className="danger-button lg-interactive" disabled={busy.includes(deleting.id)} onClick={() => { void action(deleting.id, async () => { await twinApi(api).deleteScheduledTask(deleting.id); setItems(previous => previous?.filter(task => task.id !== deleting.id) || []); setDeleting(null); }); }}>Delete task</button></div></Modal>}
+    {deleting && <Modal title="Delete scheduled task?" onClose={() => setDeleting(null)} closeDisabled={busy.includes(deleting.id)}><p className="twin-help">Delete {deleting.title}? Future runs will be removed. Stop any active work before deleting.</p>{error && <Notice error={error} />}<DialogActions><Button type="button" variant="secondary" size="sm" disabled={busy.includes(deleting.id)} onClick={() => setDeleting(null)}>Cancel</Button><Button type="button" variant="danger" size="sm" disabled={busy.includes(deleting.id)} onClick={() => { void action(deleting.id, async () => { await twinApi(api).deleteScheduledTask(deleting.id); setItems(previous => previous?.filter(task => task.id !== deleting.id) || []); setDeleting(null); }); }}>Delete task</Button></DialogActions></Modal>}
   </>;
 }

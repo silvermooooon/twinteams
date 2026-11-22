@@ -1,3 +1,5 @@
+import { LiquiGlass } from '@liqui-design/glass';
+import { LIQUI_CAPSULE_GLASS } from '@/lib/liquiPresets';
 import type { Actor, Chat, Message, ReplyRequest } from './api/client';
 import { t } from './i18n';
 import { Avatar, IconButton } from './ui';
@@ -34,9 +36,9 @@ export function PrivateTaskStatuses({ requests, actor, busy, onCancel }: { reque
   const cancellable = active.filter(request => request.can_cancel && !request.cancel_requested);
   const stopping = active.every(request => busy.has(request.id) || request.cancel_requested);
   const label = t('chat.typing', { name: actor?.name || t('chat.myTwin') });
-  return <div className="typing-row private-task-status lg-glass-pill lg-glass-text" role="status" aria-label={`${label}…`} data-reply-phase={stopping ? 'stopping' : active.some(request => request.status === 'running') ? 'running' : 'preparing'}>
+  return <LiquiGlass {...LIQUI_CAPSULE_GLASS} radius={999} className="typing-row private-task-status lq-chrome-bar" contentClassName="private-task-status-inner" role="status" aria-label={`${label}…`} data-reply-phase={stopping ? 'stopping' : active.some(request => request.status === 'running') ? 'running' : 'preparing'}>
     <span className="typing-avatars"><Avatar actor={actor} size={25} /></span>
     <span>{label}</span><span className="typing-dots" aria-hidden="true"><i /><i /><i /></span>
     {!!cancellable.length && <IconButton icon="stop" size={14} className="stop-responses" label={t('chat.stopResponses')} disabled={cancellable.some(request => busy.has(request.id))} onClick={() => onCancel(cancellable.map(request => request.id))} />}
-  </div>;
+  </LiquiGlass>;
 }

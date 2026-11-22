@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { LiquiGlass } from '@liqui-design/glass';
+import { LIQUI_CAPSULE_GLASS } from '@/lib/liquiPresets';
 import { t } from './i18n';
 import { IconButton } from './ui';
 
@@ -21,5 +23,5 @@ export function FailureNotice<T extends Failure>({ ownerId, request, name, busy,
     setDismissed(true);
     try { const ids = dismissedIds(storageKey); ids.add(failureId); sessionStorage.setItem(storageKey, JSON.stringify([...ids])); } catch { /* Local dismissal still works when session storage is unavailable. */ }
   };
-  return <span className={`failed-chip lg-glass-pill lg-glass-text${composer ? ' composer-failure' : ''}`} data-failed-request={request.id} title={request.error}>{!composer && <span aria-hidden="true">!</span>}{label || <>{name} · {t('chat.failed')}</>}{request.can_retry && <IconButton icon="refresh" label={t('common.retry')} size={14} disabled={busy} onClick={() => onRetry(request)} />}<IconButton icon="close" label={t('common.dismiss')} size={14} onClick={dismiss} /></span>;
+  return <LiquiGlass {...LIQUI_CAPSULE_GLASS} radius={999} className={`failed-chip lq-chrome-bar${composer ? ' composer-failure' : ''}`} contentClassName="failed-chip-inner" data-failed-request={request.id} title={request.error}>{!composer && <span aria-hidden="true">!</span>}{label || <>{name} · {t('chat.failed')}</>}{request.can_retry && <IconButton icon="refresh" label={t('common.retry')} size={14} disabled={busy} onClick={() => onRetry(request)} />}<IconButton icon="close" label={t('common.dismiss')} size={14} onClick={dismiss} /></LiquiGlass>;
 }

@@ -37,10 +37,27 @@ const itemClass =
 
 export function Toolbar({
   glass,
+  flat = false,
   className,
   children,
   ...props
-}: BaseToolbar.Root.Props & { glass?: Partial<LiquiGlassProps> }) {
+}: BaseToolbar.Root.Props & { glass?: Partial<LiquiGlassProps>; flat?: boolean }) {
+  if (flat) {
+    return (
+      <ToggleOwnsSurface.Provider value={false}>
+        <BaseToolbar.Root
+          {...props}
+          className={cn(
+            'group inline-flex max-w-full items-center gap-1 lq-nest [--lq-inset:4px] [--lq-item-h:28px] data-[orientation=vertical]:flex-col data-[orientation=vertical]:items-stretch',
+            className,
+          )}
+        >
+          {children}
+        </BaseToolbar.Root>
+      </ToggleOwnsSurface.Provider>
+    );
+  }
+
   return (
     <ToggleOwnsSurface.Provider value={false}>
       <BaseToolbar.Root

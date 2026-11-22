@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { LiquiGlass } from '@liqui-design/glass';
+import { Button } from '@/components/ui/button';
+import { DialogActions } from '@/components/ui/dialog';
+import { LIQUI_PANEL_GLASS } from '@/lib/liquiPresets';
 import { ApiError, requestKey } from './api/client';
 import type { ApiClient } from './api/client';
 import { twinApi } from './api/twin';
@@ -52,9 +56,9 @@ export function useTwinReset(api: ApiClient, onCompleted: (status: TwinResetStat
 export type TwinResetControl = ReturnType<typeof useTwinReset>;
 export function TwinResetSection({ reset }: { reset: TwinResetControl }) {
   const [open, setOpen] = useState(false); const [completed, setCompleted] = useState(false);
-  return <section className="twin-danger-zone"><div><h2>{t('twin.resetTitle')}</h2><p>{t('twin.resetSummary')}</p></div><button type="button" className="danger-button lg-interactive" disabled={reset.loading || reset.busy || !reset.info} onClick={() => { setCompleted(false); reset.start(); setOpen(true); }}>{t('twin.reset')}</button>
+  return <LiquiGlass {...LIQUI_PANEL_GLASS} radius={18} className="twin-danger-zone lq-panel-surface" contentClassName="twin-danger-zone-inner"><div><h2>{t('twin.resetTitle')}</h2><p>{t('twin.resetSummary')}</p></div><Button type="button" variant="danger" size="sm" disabled={reset.loading || reset.busy || !reset.info} onClick={() => { setCompleted(false); reset.start(); setOpen(true); }}>{t('twin.reset')}</Button>
     {completed && <p className="twin-save-status" role="status">{t('twin.resetCompleted')}</p>}
-    {!open && reset.error && !reset.info && <div className="twin-inline-error" role="alert">{reset.error}<button type="button" className="text-button lg-interactive" onClick={() => { void reset.refresh(); }}>{t('twin.retry')}</button></div>}
-    {open && <Modal title={t('twin.resetConfirmTitle')} closeDisabled={reset.busy} onClose={() => setOpen(false)}><div className="twin-reset-explanation"><p>{t('twin.resetDeletes')}</p><p>{t('twin.resetKeeps')}</p><p>{t('twin.resetIrreversible')}</p></div>{reset.error && <p className="twin-inline-error" role="alert">{reset.error}</p>}<div className="modal-actions"><button type="button" className="secondary-button lg-interactive" disabled={reset.busy} onClick={() => setOpen(false)}>{t('common.cancel')}</button><button type="button" className="danger-button lg-interactive" disabled={reset.busy || reset.conflict || !reset.info} onClick={async () => { if (await reset.submit()) { setOpen(false); setCompleted(true); } }}>{t(reset.busy ? 'twin.resetting' : 'twin.resetConfirm')}</button></div></Modal>}
-  </section>;
+    {!open && reset.error && !reset.info && <div className="twin-inline-error" role="alert">{reset.error}<Button type="button" variant="ghost" size="sm" onClick={() => { void reset.refresh(); }}>{t('twin.retry')}</Button></div>}
+    {open && <Modal title={t('twin.resetConfirmTitle')} closeDisabled={reset.busy} onClose={() => setOpen(false)}><div className="twin-reset-explanation"><p>{t('twin.resetDeletes')}</p><p>{t('twin.resetKeeps')}</p><p>{t('twin.resetIrreversible')}</p></div>{reset.error && <p className="twin-inline-error" role="alert">{reset.error}</p>}<DialogActions><Button type="button" variant="secondary" size="sm" disabled={reset.busy} onClick={() => setOpen(false)}>{t('common.cancel')}</Button><Button type="button" variant="danger" size="sm" disabled={reset.busy || reset.conflict || !reset.info} onClick={async () => { if (await reset.submit()) { setOpen(false); setCompleted(true); } }}>{t(reset.busy ? 'twin.resetting' : 'twin.resetConfirm')}</Button></DialogActions></Modal>}
+  </LiquiGlass>;
 }

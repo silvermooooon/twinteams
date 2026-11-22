@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { LiquiGlass } from '@liqui-design/glass';
+import { Button } from '@/components/ui/button';
+import { LIQUI_SHEET_GLASS } from '@/lib/liquiPresets';
 import type { ApiClient, ReplyPreview, UserQuestion } from './api/client';
 import { t } from './i18n';
 import { MessageMarkdown } from './MessageMarkdown';
@@ -50,15 +53,15 @@ export function AskUserCard({ api, question: snapshot, onChanged, onOrigin }: { 
       if (!controller.signal.aborted) setBusy(false);
     }
   }
-  return <section className={`ask-user-card ${question.status}`} data-question-id={question.id} aria-label="Question from your Duet" aria-busy={busy}>
+  return <LiquiGlass {...LIQUI_SHEET_GLASS} radius={16} blur={8} frost={0.86} className={`ask-user-card lq-sheet-surface ${question.status}`} contentClassName="ask-user-card-inner" role="region" data-question-id={question.id} aria-label="Question from your Duet" aria-busy={busy}>
     <div className="ask-user-heading"><Icon name={question.status === 'answered' ? 'check' : question.status === 'cancelled' ? 'close' : 'reply'} size={16} /><strong>{unavailable && question.status === 'pending' ? 'Question unavailable' : preview ? (question.status === 'pending' ? 'Waiting for your confirmation' : question.answer === 'Confirm send' ? 'Sent in your name' : 'Not sent') : question.status === 'pending' ? 'Waiting for your answer' : question.status === 'answered' ? 'Answered' : 'Dismissed'}</strong>{question.status === 'pending' && !preview && !unavailable && <IconButton icon="close" label="Dismiss question" size={15} disabled={busy} onClick={() => { void submit(); }} />}</div>
-    <MessageMarkdown text={question.question} />
+    <div className="ask-user-body"><MessageMarkdown text={question.question} /></div>
     {preview && <OwnerReplyPreview preview={preview} />}
     {!preview && question.origin_chat_title && !question.origin_unavailable && <a className="ask-user-origin" href="#/chat" onClick={event => { event.preventDefault(); onOrigin(question.origin_chat_id); }} title={`Open ${question.origin_chat_title}`}><Icon name="chat" size={13} /><span>From {question.origin_chat_title}</span><Icon name="arrow" size={13} /></a>}
     {question.status === 'pending' ? !unavailable && <>
-      {!!question.options.length && <div className="ask-user-options" role="group" aria-label={preview ? "Send confirmation" : "Suggested answers"}>{question.options.map((option, index) => <button type="button" className={preview && option === 'Confirm send' ? 'primary-button lg-interactive' : 'secondary-button lg-interactive'} key={index} disabled={busy} onClick={() => { void submit(option); }}>{option}</button>)}</div>}
+      {!!question.options.length && <div className="ask-user-options" role="group" aria-label={preview ? "Send confirmation" : "Suggested answers"}>{question.options.map((option, index) => <Button type="button" variant={preview && option === 'Confirm send' ? 'accent' : 'secondary'} size="sm" className="ask-user-option-btn" key={index} disabled={busy} onClick={() => { void submit(option); }}>{option}</Button>)}</div>}
       {!preview && <small className="ask-user-hint">Reply in chat.</small>}
     </> : preview ? null : question.status === 'answered' && question.answer !== null ? <div className="ask-user-saved-answer"><small>Your answer</small><p>{question.answer}</p></div> : <small className="ask-user-hint">Your Duet knows you chose not to answer.</small>}
     {error && <p className="ask-user-error" role="alert">{error}</p>}
-  </section>;
+  </LiquiGlass>;
 }

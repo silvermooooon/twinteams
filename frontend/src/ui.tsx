@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { LiquiGlass } from '@liqui-design/glass';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDismiss, DialogTitle } from '@/components/ui/dialog';
 import { LIQUI_BAR_GLASS, LIQUI_DIALOG_GLASS } from '@/lib/liquiPresets';
 import type { Actor, Chat } from './api/client';
@@ -36,7 +37,7 @@ export function ChatAvatar({ chat, actors, ownerId, size = 40 }: { chat: Chat; a
   const actor = chat.kind === 'bot' ? actors.find(item => item.id === chat.bot_id) : group ? undefined : peer ? actors.find(item => item.kind === 'human' && item.id === peer) : actors.find(item => item.kind === 'twin' && item.owner_id === chat.member_owner_ids[0]);
   return <Avatar actor={actor} size={size} group={group} />;
 }
-export function IconButton({ icon, label, onClick, disabled, active, size = 20, className = '' }: { icon: IconName; label: string; onClick?: () => void; disabled?: boolean; active?: boolean; size?: number; className?: string }) { return <button type="button" className={`icon-button lg-interactive ${active ? 'active' : ''} ${className}`} title={label} aria-label={label} onClick={onClick} disabled={disabled}><Icon name={icon} size={size} /></button>; }
+export function IconButton({ icon, label, onClick, disabled, active, size = 20, className = '' }: { icon: IconName; label: string; onClick?: () => void; disabled?: boolean; active?: boolean; size?: number; className?: string }) { return <Button type="button" variant="ghost" size="icon-sm" className={`icon-button ${active ? 'active' : ''} ${className}`} title={label} aria-label={label} onClick={onClick} disabled={disabled}><Icon name={icon} size={size} /></Button>; }
 export function Modal({ title, children, onClose, wide = false, closeDisabled = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean; closeDisabled?: boolean }) {
   return (
     <Dialog
@@ -60,7 +61,7 @@ export function Modal({ title, children, onClose, wide = false, closeDisabled = 
     </Dialog>
   );
 }
-export function Empty({ icon, title, detail }: { icon: IconName; title: string; detail?: string }) { return <div className="empty-state"><span className="empty-state-icon lg-glass-pill"><Icon name={icon} size={28} /></span><h3>{title}</h3>{detail && <p>{detail}</p>}</div>; }
+export function Empty({ icon, title, detail }: { icon: IconName; title: string; detail?: string }) { return <div className="empty-state"><span className="empty-state-icon lq-empty-icon"><Icon name={icon} size={28} /></span><h3>{title}</h3>{detail && <p>{detail}</p>}</div>; }
 export function time(value?: string | null) { if (!value) return ''; const date = new Date(value); return isNaN(date.getTime()) ? value : formatTime(date); }
 export function dateTime(value?: string | null) { if (!value) return ''; const date = new Date(value); return isNaN(date.getTime()) ? value : formatDate(date, { dateStyle: 'medium', timeStyle: 'short' }); }
 

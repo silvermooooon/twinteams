@@ -65,8 +65,8 @@ const solidButtonVariants = cva(
     // drops an earlier `leading-*` when a later `text-{size}` could have
     // carried one (Tailwind's `text-sm/6` syntax), so a line height written
     // before the font size silently loses and the label inherits the page's.
-    'border-none font-medium whitespace-nowrap text-white',
-    'outline-none transition-[background-color,transform] duration-150',
+    'border-none font-medium whitespace-nowrap',
+    'outline-none transition-[background-color,color,box-shadow,transform] duration-150',
     'data-[pressed]:scale-[0.97] active:scale-[0.97]',
     // An outline rather than a box-shadow ring: `outline-offset` leaves the gap
     // Apple leaves, and it reads against the fill without having to be mixed
@@ -82,19 +82,31 @@ const solidButtonVariants = cva(
       variant: {
         glass: '',
         accent: cn(
-          'bg-[var(--lq-accent)]',
+          'bg-[var(--lq-accent)] text-white',
           'hover:not-data-disabled:bg-[color-mix(in_srgb,white_14%,var(--lq-accent))]',
           'focus-visible:outline-[color-mix(in_srgb,var(--lq-accent)_70%,transparent)]',
         ),
         danger: cn(
-          'bg-[var(--lq-danger)]',
+          'bg-[var(--lq-danger)] text-white',
           'hover:not-data-disabled:bg-[color-mix(in_srgb,white_14%,var(--lq-danger))]',
           'focus-visible:outline-[color-mix(in_srgb,var(--lq-danger)_70%,transparent)]',
         ),
+        secondary: cn(
+          'bg-[var(--lq-control)] text-[var(--lq-text)] shadow-[inset_0_0_0_1px_var(--lq-control-rim)]',
+          'hover:not-data-disabled:bg-[color-mix(in_srgb,white_42%,var(--lq-control))]',
+          'focus-visible:outline-[color-mix(in_srgb,var(--lq-accent)_70%,transparent)]',
+        ),
+        ghost: cn(
+          'bg-transparent text-[var(--lq-text)]',
+          'hover:not-data-disabled:bg-[color-mix(in_srgb,var(--lq-highlight)_52%,transparent)]',
+          'focus-visible:outline-[color-mix(in_srgb,var(--lq-accent)_70%,transparent)]',
+        ),
       },
       size: {
-        sm: 'gap-1.5 px-3.5 py-1.5 text-[13px] leading-tight',
-        md: 'gap-[7px] px-[18px] py-[10px] text-[13px] leading-tight',
+        sm: '[--lq-r:14px] [--lq-h:28px] gap-1.5 px-3.5 py-1.5 text-[13px] leading-tight',
+        md: '[--lq-r:14px] [--lq-h:36px] gap-[7px] px-[18px] py-[10px] text-[13px] leading-tight',
+        icon: '[--lq-r:14px] [--lq-h:32px] size-8 p-0 text-[13px] leading-none',
+        'icon-sm': '[--lq-r:14px] [--lq-h:28px] size-7 p-0 text-[13px] leading-none',
       },
     },
     defaultVariants: { variant: 'accent', size: 'md' },
@@ -106,7 +118,7 @@ const solidButtonVariants = cva(
  * one to know where the corner turns into a capsule, which the kernel measures
  * for on the glass variant.
  */
-const SOLID_HEIGHT = { sm: 28, md: 36 } as const;
+const SOLID_HEIGHT = { sm: 28, md: 36, icon: 32, 'icon-sm': 28 } as const;
 
 /**
  * Apple draws its Large (28) and Extra Large (36) buttons as capsules, and
@@ -169,7 +181,7 @@ export function Button({
         <LiquiGlass
           {...BUTTON_GLASS}
           {...glass}
-          contentClassName={glassButtonContentVariants({ size })}
+          contentClassName={glassButtonContentVariants({ size: size === 'sm' || size === 'icon-sm' ? 'sm' : 'md' })}
         />
       }
     />

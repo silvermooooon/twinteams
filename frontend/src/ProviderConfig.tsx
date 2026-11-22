@@ -3,7 +3,9 @@ import type { FormEvent } from 'react';
 import { getLocalProviderConfig, ProviderConfigError, verifyLocalProvider } from './api/provider-config';
 import type { ProviderConfigErrorCode } from './api/provider-config';
 import { LiquiGlass } from '@liqui-design/glass';
-import { LIQUI_BAR_GLASS } from '@/lib/liquiPresets';
+import { Button } from '@/components/ui/button';
+import { Switch, SwitchLabel } from '@/components/ui/switch';
+import { LIQUI_BAR_GLASS, LIQUI_PANEL_GLASS } from '@/lib/liquiPresets';
 import { t } from './i18n';
 import { Icon } from './ui';
 import './ProviderConfig.css';
@@ -94,10 +96,10 @@ export function ProviderConfigPage({ allowed, onBack }: { allowed: boolean; onBa
   }
 
   return <main className="provider-config-page">
-    <LiquiGlass {...LIQUI_BAR_GLASS} className="provider-config-header lq-chrome-bar" contentClassName="provider-config-header-inner"><div><span className="provider-config-eyebrow">{t('providerConfig.localOnly')}</span><h1>{t('providerConfig.title')}</h1></div><button type="button" className="secondary-button lg-interactive" onClick={onBack}>{t('providerConfig.back')}</button></LiquiGlass>
+    <LiquiGlass {...LIQUI_BAR_GLASS} className="provider-config-header lq-chrome-bar" contentClassName="provider-config-header-inner"><div><span className="provider-config-eyebrow">{t('providerConfig.localOnly')}</span><h1>{t('providerConfig.title')}</h1></div><Button type="button" variant="secondary" size="sm" onClick={onBack}>{t('providerConfig.back')}</Button></LiquiGlass>
     <div className="provider-config-content">
       {!allowed ? <div className="provider-config-notice" role="status"><Icon name="info" size={19} /><p>{t('providerConfig.unavailable')}</p></div> : !ready ? <div className="provider-config-notice" role="status">{error ? <><Icon name="info" size={19} /><p>{t(errorKeys[error])}</p></> : <><span className="spinner" /><p>{t('common.loading')}</p></>}</div> : <>
-        <section className="provider-config-card" aria-labelledby="provider-config-test-heading">
+        <LiquiGlass {...LIQUI_PANEL_GLASS} radius={18} className="provider-config-card lq-panel-surface" contentClassName="provider-config-card-inner" role="region" aria-labelledby="provider-config-test-heading">
           <div className="provider-config-card-title"><Icon name="settings" size={21} /><h2 id="provider-config-test-heading">{t('providerConfig.testTitle')}</h2><span>{t('providerConfig.disabled')}</span></div>
           <p>{t('providerConfig.intro')}</p>
           <dl className="provider-config-details"><div><dt>{t('providerConfig.provider')}</dt><dd>OpenAI</dd></div><div><dt>{t('providerConfig.model')}</dt><dd>gpt-6-luna</dd></div><div><dt>{t('providerConfig.destination')}</dt><dd>https://api.openai.com/v1/responses</dd></div></dl>
@@ -106,18 +108,18 @@ export function ProviderConfigPage({ allowed, onBack }: { allowed: boolean; onBa
             <label className="provider-config-key-label" htmlFor="openai-api-key">{t('providerConfig.keyLabel')}</label>
             <input ref={setKeyField} id="openai-api-key" type="password" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} required disabled={busy} aria-describedby="provider-key-privacy" onInput={event => setHasKey(event.currentTarget.value.length > 0)} />
             <p id="provider-key-privacy" className="provider-config-hint">{t('providerConfig.keyPrivacy')}</p>
-            <label className="provider-config-save"><input type="checkbox" checked={saveForLater} disabled={busy || !storageAvailable} onChange={event => setSaveForLater(event.target.checked)} /><span>{t('providerConfig.saveLabel')}</span></label>
+            <SwitchLabel className="provider-config-save"><span>{t('providerConfig.saveLabel')}</span><Switch lens={false} checked={saveForLater} disabled={busy || !storageAvailable} onCheckedChange={setSaveForLater} /></SwitchLabel>
             <p className="provider-config-hint">{t('providerConfig.saveDetail')}</p>
             <p className="provider-config-storage-path">{storagePath || 'backend/data/provider-secrets/openai.env'}</p>
             <p className="provider-config-hint">{t('providerConfig.saveScope')}</p>
             {existingSaved && saveForLater && <p className="provider-config-hint">{t('providerConfig.replaceSaved')}</p>}
             {!storageAvailable && <p className="provider-config-hint">{t('providerConfig.storageUnavailable')}</p>}
-            <button type="submit" className="primary-button provider-config-submit lg-interactive" disabled={!hasKey || busy}>{busy ? t('providerConfig.validating') : t(saveForLater ? 'providerConfig.validateAndSave' : 'providerConfig.validate')}</button>
+            <Button type="submit" variant="accent" className="provider-config-submit" disabled={!hasKey || busy}>{busy ? t('providerConfig.validating') : t(saveForLater ? 'providerConfig.validateAndSave' : 'providerConfig.validate')}</Button>
           </form>
           {error && <div className="provider-config-result error" role="alert"><Icon name="info" size={18} /><p>{t(errorKeys[error])}</p></div>}
           {verified && <div className="provider-config-result success" role="status"><Icon name="check" size={18} /><div><strong>{t('providerConfig.verified')}</strong><p>{t(saved ? 'providerConfig.savedResult' : 'providerConfig.unsavedResult')}</p></div></div>}
           {existingSaved && !saved && <p className="provider-config-saved-status">{t('providerConfig.alreadySaved')}</p>}
-        </section>
+        </LiquiGlass>
         <div className="provider-config-notice"><Icon name="info" size={19} /><p>{t('providerConfig.futureUse')}</p></div>
       </>}
     </div>

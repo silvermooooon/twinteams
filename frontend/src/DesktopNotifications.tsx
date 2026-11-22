@@ -8,6 +8,8 @@ import {
 } from "react";
 import type { Actor, Chat } from "./api/client";
 import { LiquiGlass } from "@liqui-design/glass";
+import { Button } from "@/components/ui/button";
+import { DialogActions } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { LIQUI_BAR_GLASS } from "@/lib/liquiPresets";
 import { t } from "./i18n";
@@ -425,8 +427,9 @@ export function DesktopNotificationPrompt({
         <strong>{t("notifications.prompt")}</strong>
         <p>{t("notifications.promptDetail")}</p>
       </div>
-      <button
-        className="secondary-button lg-interactive"
+      <Button
+        variant="secondary"
+        size="sm"
         type="button"
         disabled={controller.requesting}
         onClick={() => {
@@ -434,7 +437,7 @@ export function DesktopNotificationPrompt({
         }}
       >
         {t("notifications.turnOn")}
-      </button>
+      </Button>
       <IconButton
         icon="close"
         label={t("common.dismiss")}
@@ -490,11 +493,11 @@ export function DesktopNotificationSettings({
         )}
       </p>
       <p className="form-note">{t("notifications.limit")}</p>
-      <div className="modal-actions">
-        <button className="secondary-button lg-interactive" type="button" onClick={onClose}>
+      <DialogActions>
+        <Button variant="secondary" size="sm" type="button" onClick={onClose}>
           {t("common.close")}
-        </button>
-      </div>
+        </Button>
+      </DialogActions>
     </Modal>
   );
 }

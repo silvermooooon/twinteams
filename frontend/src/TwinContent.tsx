@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { LiquiGlass } from '@liqui-design/glass';
+import { Button } from '@/components/ui/button';
+import { DialogActions } from '@/components/ui/dialog';
+import { LIQUI_PANEL_GLASS, LIQUI_SHEET_GLASS } from '@/lib/liquiPresets';
 import { ApiError } from './api/client';
 import type { ApiClient } from './api/client';
 import { twinApi } from './api/twin';
@@ -36,17 +40,17 @@ function useSnapshot(load: (signal: AbortSignal) => Promise<Snapshot>, revision:
 function ConflictPanel({ draft, onDraft }: { draft: ContentDraft; onDraft: (draft: ContentDraft) => void }) {
   if (!draft.conflict) return null;
   const current = draft.conflict;
-  return <section className="twin-content-conflict lg-glass lg-glass-text" role="alert">
+  return <LiquiGlass {...LIQUI_SHEET_GLASS} radius={16} className="twin-content-conflict lq-sheet-surface" contentClassName="twin-content-conflict-inner" role="alert">
     <strong><Icon name="info" size={17} />{t('twin.versionConflict')}</strong>
     <p>{t('twin.mergeHint')}</p>
     <h4>{t('twin.serverContent')}</h4>
     {current.exists ? <pre className="twin-text-content">{current.content || t('twin.emptyContent')}</pre> : <p>{t('twin.entryDeleted')}</p>}
     <small>{t('twin.version')}: <code>{current.version ?? '—'}</code></small>
     <div className="twin-row-actions">
-      <button type="button" className="secondary-button lg-interactive" onClick={() => onDraft({ ...draft, version: current.version, baseline: current.content, conflict: undefined, rebased: true })}>{t('twin.reviewVersion')}</button>
-      <button type="button" className="text-button lg-interactive" onClick={() => onDraft({ ...fromSnapshot(current), key: draft.key })}>{t('twin.reloadContent')}</button>
+      <Button type="button" variant="secondary" size="sm" onClick={() => onDraft({ ...draft, version: current.version, baseline: current.content, conflict: undefined, rebased: true })}>{t('twin.reviewVersion')}</Button>
+      <Button type="button" variant="ghost" size="sm" onClick={() => onDraft({ ...fromSnapshot(current), key: draft.key })}>{t('twin.reloadContent')}</Button>
     </div>
-  </section>;
+  </LiquiGlass>;
 }
 
 export function SoulTab({ api, revision, draft, onDraft }: { api: ApiClient; revision: number; draft?: ContentDraft; onDraft: SetContentDraft }) {
@@ -70,15 +74,15 @@ export function SoulTab({ api, revision, draft, onDraft }: { api: ApiClient; rev
     } finally { setBusy(false); }
   }
   return <><div className="twin-section-heading"><div><h2>{t('twin.soul')}</h2><p>{t('twin.soulHint')}</p></div><IconButton icon="refresh" label={t('twin.refresh')} disabled={busy} onClick={resource.retry} /></div>
-    {resource.error && <div className="twin-notice error" role="alert">{resource.error}<button type="button" className="text-button" onClick={resource.retry}>{t('twin.retry')}</button></div>}
+    {resource.error && <div className="twin-notice error" role="alert">{resource.error}<Button type="button" variant="ghost" size="sm" onClick={resource.retry}>{t('twin.retry')}</Button></div>}
     {!current ? <div className="twin-loading" role="status"><span className="spinner" />{t('common.loading')}</div> : <form className="twin-content-editor" onSubmit={event => { event.preventDefault(); void mutate(false); }}>
       <ConflictPanel draft={current} onDraft={value => onDraft('soul', value)} />
       <label>{t('twin.soulContent')}<textarea aria-label={t('twin.soulContent')} maxLength={50000} rows={14} value={current.content} disabled={busy} placeholder={t('twin.soulEmpty')} onChange={event => { onDraft('soul', { ...current, content: event.target.value }); setSaved(false); }} /></label>
       <div className="twin-content-metadata"><span>{t('twin.version')}: <code>{current.version ?? '—'}</code></span><span role="status">{saved ? t('twin.saved') : current.rebased ? t('twin.rebased') : draftChanged(current) ? t('twin.draftKept') : ''}</span></div>
       {error && <p className="twin-inline-error" role="alert">{error}</p>}
-      <div className="twin-content-actions"><div className="twin-row-actions"><button type="button" className="text-button lg-interactive" disabled={busy || current.version === null || !!current.conflict} onClick={() => setClear(true)}>{t('twin.clearSoul')}</button>{draftChanged(current) && !current.conflict && <button type="button" className="text-button lg-interactive" disabled={busy} onClick={() => onDraft('soul', { ...current, content: current.baseline, rebased: false })}>{t('twin.discardDraft')}</button>}</div><button className="primary-button lg-interactive" disabled={busy || !draftChanged(current) || !!current.conflict}>{t(busy ? 'twin.saving' : 'common.save')}</button></div>
+      <div className="twin-content-actions"><div className="twin-row-actions"><Button type="button" variant="ghost" size="sm" disabled={busy || current.version === null || !!current.conflict} onClick={() => setClear(true)}>{t('twin.clearSoul')}</Button>{draftChanged(current) && !current.conflict && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => onDraft('soul', { ...current, content: current.baseline, rebased: false })}>{t('twin.discardDraft')}</Button>}</div><Button type="submit" variant="accent" size="sm" disabled={busy || !draftChanged(current) || !!current.conflict}>{t(busy ? 'twin.saving' : 'common.save')}</Button></div>
     </form>}
-    {clear && <Modal title={t('twin.clearSoul')} onClose={() => setClear(false)} closeDisabled={busy}><p>{t('twin.clearSoulConfirm')}</p><div className="modal-actions"><button type="button" className="secondary-button lg-interactive" disabled={busy} onClick={() => setClear(false)}>{t('common.cancel')}</button><button type="button" className="danger-button lg-interactive" disabled={busy} onClick={() => { void mutate(true); }}>{t('twin.clearSoul')}</button></div></Modal>}
+    {clear && <Modal title={t('twin.clearSoul')} onClose={() => setClear(false)} closeDisabled={busy}><p>{t('twin.clearSoulConfirm')}</p><DialogActions><Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => setClear(false)}>{t('common.cancel')}</Button><Button type="button" variant="danger" size="sm" disabled={busy} onClick={() => { void mutate(true); }}>{t('twin.clearSoul')}</Button></DialogActions></Modal>}
   </>;
 }
 
@@ -113,7 +117,7 @@ export function MemoryEditor({ api, entryKey, revision, draft, onDraft, onClose,
     } finally { setBusy(false); }
   }
   return <Modal wide title={entryKey === null ? t('twin.addMemory') : entryKey} onClose={onClose} closeDisabled={busy}>
-    {resource.error && <div className="twin-notice error" role="alert">{resource.error}<button type="button" className="text-button" onClick={resource.retry}>{t('twin.retry')}</button></div>}
+    {resource.error && <div className="twin-notice error" role="alert">{resource.error}<Button type="button" variant="ghost" size="sm" onClick={resource.retry}>{t('twin.retry')}</Button></div>}
     {!current ? <div className="twin-loading" role="status"><span className="spinner" />{t('common.loading')}</div> : <form className="twin-content-editor" onSubmit={event => { event.preventDefault(); void mutate(false); }}>
       <ConflictPanel draft={current} onDraft={value => onDraft(id, value)} />
       {entryKey === null && <><label>{t('twin.memoryKey')}<input aria-label={t('twin.memoryKey')} required value={key} disabled={busy} maxLength={512} onChange={event => onDraft(id, { ...current, key: event.target.value, version: null, baseline: '', conflict: undefined, rebased: false })} /></label><p className="twin-help">{t('twin.memoryKeyHint')}</p></>}
@@ -121,7 +125,7 @@ export function MemoryEditor({ api, entryKey, revision, draft, onDraft, onClose,
       <div className="twin-content-metadata"><span>{t('twin.gitVersion')}: <code>{current.version ?? '—'}</code></span>{current.rebased && <span role="status">{t('twin.rebased')}</span>}{draftChanged(current) && !current.rebased && <span>{t('twin.draftKept')}</span>}</div>
       {!!sources?.length && <><h3 className="twin-subheading">{t('twin.sources')}</h3><p className="twin-help">{t('twin.sourceHint')}</p><div className="twin-memory-sources">{sources.map((source, index) => <div key={`${source.session_id}:${source.event_id}:${index}`}><small>{t('twin.sourceReference')}</small><code>session: {source.session_id}</code><code>event: {source.event_id}</code></div>)}</div></>}
       {error && <p className="twin-inline-error" role="alert">{error}</p>}
-      {remove ? <div className="twin-delete-confirm"><p>{t('twin.deleteMemoryConfirm', { name: key })}</p><div className="twin-row-actions"><button type="button" className="secondary-button lg-interactive" disabled={busy} onClick={() => setRemove(false)}>{t('common.cancel')}</button><button type="button" className="danger-button lg-interactive" disabled={busy || !!current.conflict} onClick={() => { void mutate(true); }}>{t('twin.deleteMemory')}</button></div></div> : <div className="twin-content-actions"><div className="twin-row-actions">{entryKey !== null && current.version !== null && <button type="button" className="text-button lg-interactive" disabled={busy || !!current.conflict} onClick={() => setRemove(true)}>{t('twin.deleteMemory')}</button>}{editing && draftChanged(current) && !current.conflict && <button type="button" className="text-button lg-interactive" disabled={busy} onClick={() => onDraft(id, { ...current, content: current.baseline, rebased: false })}>{t('twin.discardDraft')}</button>}</div>{editing ? <button className="primary-button lg-interactive" disabled={busy || !key.trim() || !!current.conflict || entryKey !== null && !draftChanged(current)}>{t(busy ? 'twin.saving' : 'common.save')}</button> : <button type="button" className="primary-button lg-interactive" disabled={busy || resource.value?.exists === false} onClick={() => setEditing(true)}><Icon name="edit" size={15} />{t('twin.editMemory')}</button>}</div>}
+      {remove ? <div className="twin-delete-confirm"><p>{t('twin.deleteMemoryConfirm', { name: key })}</p><div className="twin-row-actions"><Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => setRemove(false)}>{t('common.cancel')}</Button><Button type="button" variant="danger" size="sm" disabled={busy || !!current.conflict} onClick={() => { void mutate(true); }}>{t('twin.deleteMemory')}</Button></div></div> : <div className="twin-content-actions"><div className="twin-row-actions">{entryKey !== null && current.version !== null && <Button type="button" variant="ghost" size="sm" disabled={busy || !!current.conflict} onClick={() => setRemove(true)}>{t('twin.deleteMemory')}</Button>}{editing && draftChanged(current) && !current.conflict && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => onDraft(id, { ...current, content: current.baseline, rebased: false })}>{t('twin.discardDraft')}</Button>}</div>{editing ? <Button type="submit" variant="accent" size="sm" disabled={busy || !key.trim() || !!current.conflict || entryKey !== null && !draftChanged(current)}>{t(busy ? 'twin.saving' : 'common.save')}</Button> : <Button type="button" variant="accent" size="sm" disabled={busy || resource.value?.exists === false} onClick={() => setEditing(true)}><Icon name="edit" size={15} />{t('twin.editMemory')}</Button>}</div>}
     </form>}
   </Modal>;
 }
@@ -136,5 +140,5 @@ export function MemoryStatusCard({ status, api, onChange }: { status: MemoryStat
     catch (failure) { setError(failure instanceof ApiError && failure.message === 'Memory publication requires reconciliation' ? t('twin.dreamNeedsReview') : failureText(failure)); onChange(); }
     finally { setBusy(false); }
   }
-  return <section className="twin-memory-status"><div><Icon name="file" size={16} /><strong>{t(status.enabled ? status.mode === 'git' ? 'twin.gitMemory' : 'twin.localMemory' : 'twin.disabled')}</strong></div>{status.mode === 'git' && <p className="twin-help">{t('twin.gitHint')}</p>}{dream && <><div className="twin-dream-heading"><strong>{t('twin.dream')}</strong><span>{t(dreamLabels[dream.status])}</span></div><dl className="twin-detail-fields"><div><dt>{t('twin.dreamNext')}</dt><dd>{dream.due_at ? dateTime(dream.due_at) : t('twin.notScheduled')}</dd></div>{dream.last_success_at !== undefined && <div><dt>{t('twin.dreamSuccess')}</dt><dd>{dream.last_success_at ? dateTime(dream.last_success_at) : t('twin.noSuccess')}</dd></div>}{dream.last_error && <div><dt>{t('twin.dreamError')}</dt><dd className="twin-inline-error">{dream.last_error}</dd></div>}</dl></>}{status.enabled && <div className="twin-dream-action"><button type="button" className="secondary-button lg-interactive" disabled={busy || dream?.status === 'queued' || dream?.status === 'running' || dream?.status === 'recovery_required'} onClick={() => { void runDream(); }}>{t(busy ? 'twin.dreamSubmitting' : 'twin.dreamNow')}</button><p className="twin-help">{t('twin.dreamNowHint')}</p></div>}{result && <p className="twin-help" role="status">{result}</p>}{error && <p className="twin-inline-error" role="alert">{error}</p>}</section>;
+  return <LiquiGlass {...LIQUI_PANEL_GLASS} radius={18} className="twin-memory-status lq-panel-surface" contentClassName="twin-memory-status-inner"><div><Icon name="file" size={16} /><strong>{t(status.enabled ? status.mode === 'git' ? 'twin.gitMemory' : 'twin.localMemory' : 'twin.disabled')}</strong></div>{status.mode === 'git' && <p className="twin-help">{t('twin.gitHint')}</p>}{dream && <><div className="twin-dream-heading"><strong>{t('twin.dream')}</strong><span>{t(dreamLabels[dream.status])}</span></div><dl className="twin-detail-fields"><div><dt>{t('twin.dreamNext')}</dt><dd>{dream.due_at ? dateTime(dream.due_at) : t('twin.notScheduled')}</dd></div>{dream.last_success_at !== undefined && <div><dt>{t('twin.dreamSuccess')}</dt><dd>{dream.last_success_at ? dateTime(dream.last_success_at) : t('twin.noSuccess')}</dd></div>}{dream.last_error && <div><dt>{t('twin.dreamError')}</dt><dd className="twin-inline-error">{dream.last_error}</dd></div>}</dl></>}{status.enabled && <div className="twin-dream-action"><Button type="button" variant="secondary" size="sm" disabled={busy || dream?.status === 'queued' || dream?.status === 'running' || dream?.status === 'recovery_required'} onClick={() => { void runDream(); }}>{t(busy ? 'twin.dreamSubmitting' : 'twin.dreamNow')}</Button><p className="twin-help">{t('twin.dreamNowHint')}</p></div>}{result && <p className="twin-help" role="status">{result}</p>}{error && <p className="twin-inline-error" role="alert">{error}</p>}</LiquiGlass>;
 }

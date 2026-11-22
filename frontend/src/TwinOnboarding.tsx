@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { LiquiGlass } from '@liqui-design/glass';
+import { LIQUI_CAPSULE_GLASS } from '@/lib/liquiPresets';
 import type { ApiClient, Chat } from './api/client';
 import { IconButton } from './ui';
 import './TwinOnboarding.css';
@@ -57,8 +59,8 @@ export function TwinOnboarding({ api, chat, revision, onChanged }: { api: ApiCli
     }
   }
   if (!ownPrivate || !error && (!state?.enabled || state.status !== 'active')) return null;
-  return <div className="twin-onboarding lg-glass-pill lg-glass-text" role="group" aria-label="Optional introduction">
+  return <LiquiGlass {...LIQUI_CAPSULE_GLASS} radius={999} className="twin-onboarding lq-chrome-bar" contentClassName="twin-onboarding-inner" role="group" aria-label="Optional introduction">
     {error ? <><span role="alert">{error}</span><IconButton icon="refresh" label="Retry introduction" disabled={busy} onClick={() => setRetry(value => value + 1)} /></> : <span>You can jump straight into work.</span>}
     {state?.enabled && state.status === 'active' && <IconButton icon="close" label="Skip introduction" disabled={busy} onClick={() => { void skip(); }} />}
-  </div>;
+  </LiquiGlass>;
 }

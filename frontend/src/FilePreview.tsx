@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { LiquiGlass } from '@liqui-design/glass';
+import { buttonVariants } from '@/components/ui/button';
+import { DialogActions } from '@/components/ui/dialog';
 import type { ChatAttachment } from './api/client';
 import { MessageMarkdown } from './MessageMarkdown';
 import { Icon, IconButton, Modal } from './ui';
@@ -86,8 +89,8 @@ export function FilePreview({ attachment, onClose }: { attachment: ChatAttachmen
   }, [attachment.id, attachment.preview_url, attachment.preview_kind, attachment.kind, retry]);
   return <Modal title={attachment.name} wide onClose={onClose}>
     <div className={`attachment-document-preview ${attachment.preview_kind || attachment.kind}`}>
-      {attachment.kind === 'image' ? <div className="attachment-large-preview"><img src={attachment.url} alt={attachment.name} /><div className="attachment-media-overlay lg-glass-clear lg-glass-dim" data-refract="0.88"><span>{attachment.name}</span>{attachment.width && attachment.height ? <small>{attachment.width} × {attachment.height}</small> : null}</div></div> : error ? <div className="attachment-preview-error" role="alert"><Icon name="info" size={20} /><span>{error}</span><IconButton icon="refresh" label={`Retry preview ${attachment.name}`} onClick={() => setRetry(value => value + 1)} /></div> : pdf ? <iframe src={pdf} title={`PDF preview ${attachment.name}`} referrerPolicy="no-referrer" /> : text !== null ? attachment.preview_kind === 'markdown' ? <MessageMarkdown text={text} /> : <pre className="attachment-text-preview">{text}</pre> : <div className="attachment-preview-loading" role="status"><span className="spinner" />Loading preview…</div>}
+      {attachment.kind === 'image' ? <div className="attachment-large-preview"><img src={attachment.url} alt={attachment.name} /><LiquiGlass radius={999} blur={10} frost={0.28} refraction={64} bezel={14} className="attachment-media-overlay lq-media-overlay" contentClassName="attachment-media-overlay-inner"><span>{attachment.name}</span>{attachment.width && attachment.height ? <small>{attachment.width} × {attachment.height}</small> : null}</LiquiGlass></div> : error ? <div className="attachment-preview-error" role="alert"><Icon name="info" size={20} /><span>{error}</span><IconButton icon="refresh" label={`Retry preview ${attachment.name}`} onClick={() => setRetry(value => value + 1)} /></div> : pdf ? <iframe src={pdf} title={`PDF preview ${attachment.name}`} referrerPolicy="no-referrer" /> : text !== null ? attachment.preview_kind === 'markdown' ? <MessageMarkdown text={text} /> : <pre className="attachment-text-preview">{text}</pre> : <div className="attachment-preview-loading" role="status"><span className="spinner" />Loading preview…</div>}
     </div>
-    <div className="modal-actions"><a href={attachment.url} download={attachment.name} className="secondary-button lg-interactive" title={`Download ${attachment.name}`}>Download</a></div>
+    <DialogActions><a href={attachment.url} download={attachment.name} className={buttonVariants({ variant: 'secondary', size: 'sm' })} title={`Download ${attachment.name}`}>Download</a></DialogActions>
   </Modal>;
 }
