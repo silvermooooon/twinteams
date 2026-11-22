@@ -142,7 +142,7 @@ class ProductService:
         new_members = set()
         tracking_scopes, tracking_owners = set(), set()
         scheduled_owners = set()
-        invitation_owners = set()
+        approval_owners = set()
         with SessionLocal() as db, db.begin():
             def collect(session, context, instances):
                 from .conversation_context import invalidate_changed_messages
@@ -152,8 +152,8 @@ class ProductService:
                         scheduled_owners.add(row.owner_id)
                     if isinstance(row, Membership) and row in session.new:
                         new_members.add(row.owner_id)
-                    if isinstance(row, Approval) and (row.sdk_reference or {}).get("invitation_key"):
-                        invitation_owners.add(row.approver_id)
+                    if isinstance(row, Approval):
+                        approval_owners.add(row.approver_id)
                     if isinstance(row, (ChangeOutbox, ViewInterval)) or (isinstance(row, ProductOperation) and row.name == "set_message_reaction"):
                         continue
                     if (isinstance(row, MemoryDreamState) and row not in session.new
@@ -185,8 +185,8 @@ class ProductService:
                 scopes.add(conversation.origin_chat_id)
                 owner_ids = [m.owner_id for m in self.members(db, conversation.chat_id)]
                 scopes.update(db.scalars(select(Chat.id).where(Chat.kind == "private", Chat.private_owner_id.in_(owner_ids))))
-            if invitation_owners:
-                scopes.update(db.scalars(select(Chat.id).where(Chat.kind == "private", Chat.private_owner_id.in_(invitation_owners))))
+            if approval_owners:
+                scopes.update(db.scalars(select(Chat.id).where(Chat.kind == "private", Chat.private_owner_id.in_(approval_owners))))
             if tracking_scopes:
                 tracking_owners.update(db.scalars(select(Membership.owner_id).where(
                     Membership.chat_id.in_(tracking_scopes), Membership.left_at.is_(None)).distinct()))
@@ -1146,7 +1146,11 @@ class ProductService:
 
     def _approval_inbox(self, db, chat, member):
         from sqlalchemy.orm import load_only
-        query = select(Approval).where(Approval.approver_id == member.owner_id, Approval.status == "pending")
+        query = select(Approval).where(
+            Approval.approver_id == member.owner_id,
+            Approval.status == "pending",
+            Approval.sdk_reference["requested_decision"].as_string().is_(None),
+        )
         if chat.kind != "private":
             query = query.where(Approval.chat_id == chat.id)
         approvals = list(db.scalars(query.order_by(Approval.created_at.desc()).limit(100)))
@@ -1566,6 +1570,12 @@ class ProductService:
                         command.kind, command.state = "cancel", "pending"
         from .questions import cancel_origin
         cancel_origin(db, request.id)
+        for approval in db.scalars(select(Approval).where(
+                Approval.status == "pending",
+                Approval.sdk_reference["request_id"].as_string() == request.id,
+                or_(Approval.sdk_reference["type"].as_string().is_(None),
+                    Approval.sdk_reference["type"].as_string() != "duet_conversation"))):
+            approval.status = "rejected"
         if request.status == "cancelled":
             from .scheduled_tasks import finish as scheduled_finish
             scheduled_finish(db, request, "cancelled")
@@ -3248,16 +3258,34 @@ class ProductService:
             reminder.done = done
             return self.reminder_json(reminder)
 
-    def _queue_approval_decision(self, owner_id, approval_id, decision):
+    @staticmethod
+    def _approval_has_sdk_action(reference):
+        return bool(
+            isinstance(reference, dict)
+            and reference.get("action")
+            and reference.get("session_id")
+            and reference.get("run_id")
+            and reference.get("request_id")
+        )
+
+    def _queue_approval_decision(self, owner_id, approval_id, decision, *, finalize=False):
         with self.transaction() as db:
             approval = db.get(Approval, approval_id)
             if not approval or approval.approver_id != owner_id:
                 fail(404, "Approval not found")
-            self.membership(db, owner_id, approval.chat_id, True)
+            if not finalize:
+                self.membership(db, owner_id, approval.chat_id, True)
+            else:
+                db.scalar(select(Chat.id).where(Chat.id == approval.chat_id).with_for_update())
+            db.refresh(approval, with_for_update=True)
             prior = approval.sdk_reference.get("requested_decision")
             if approval.status != "pending" and approval.status != decision or prior and prior != decision:
                 fail(409, "This approval already has a different decision")
+            if approval.status == decision:
+                return {**self.approval_json(approval), "accepted": "business_persisted"}
             approval.sdk_reference = {**approval.sdk_reference, "requested_decision": decision}
+            if finalize:
+                approval.status = decision
             return {**self.approval_json(approval), "accepted": "business_persisted"}
 
     async def decide_approval(self, owner_id, approval_id, decision, scope="once"):
@@ -3265,10 +3293,10 @@ class ProductService:
         def validate():
             with self.transaction() as db:
                 row = db.get(Approval, approval_id)
-                if not row:
+                if not row or row.approver_id != owner_id:
                     fail(404, "Approval not found")
-                return row.chat_id, row.sdk_reference.get("type")
-        chat_id, approval_type = await self.db_call(validate)
+                return row.chat_id, row.sdk_reference.get("type"), self._approval_has_sdk_action(row.sdk_reference)
+        chat_id, approval_type, has_sdk_action = await self.db_call(validate)
         if approval_type == "duet_conversation":
             def consent():
                 from .duet_conversations import decide, lock_consent
@@ -3284,8 +3312,23 @@ class ProductService:
             return result
         if scope != "once":
             fail(400, "Always consent is available only for Duet conversation approvals")
-        await self.db_call("approval_for_execution", owner_id, chat_id, approval_id)
-        return await self.db_call("_queue_approval_decision", owner_id, approval_id, decision)
+        if decision == "approved":
+            if not has_sdk_action:
+                fail(409, "This legacy approval has no executable action; submit a new request")
+            await self.db_call("approval_for_execution", owner_id, chat_id, approval_id)
+            return await self.db_call("_queue_approval_decision", owner_id, approval_id, decision)
+        # Rejecting never authorizes execution. If an old/legacy approval cannot be
+        # reconciled into the SDK or its origin/sources are no longer valid, finalize
+        # rejection directly so stale requests do not stay stuck pending.
+        reconcilable = has_sdk_action
+        if reconcilable:
+            try:
+                await self.db_call("approval_for_execution", owner_id, chat_id, approval_id)
+            except HTTPException as exc:
+                if exc.status_code not in {403, 404, 409}:
+                    raise
+                reconcilable = False
+        return await self.db_call("_queue_approval_decision", owner_id, approval_id, decision, finalize=not reconcilable)
 
     def approval_for_execution(self, owner_id, chat_id, approval_id, execution_context=None):
         with self.transaction() as db:
@@ -3317,28 +3360,52 @@ class ProductService:
         """Project the SDK decision and enqueue its continuation in one business commit."""
         with self.transaction() as db:
             row = db.get(Approval, approval_id)
-            chat, member = self.membership(db, row.approver_id, row.chat_id, True)
-            db.refresh(row)
+            if not row:
+                return
+            chat = db.get(Chat, row.chat_id)
+            if chat:
+                db.scalar(select(Chat.id).where(Chat.id == chat.id).with_for_update())
+            db.refresh(row, with_for_update=True)
             if row.continuation_request_id:
                 return
             row.status = decision["status"]
+            member = db.scalar(select(Membership).where(
+                Membership.chat_id == row.chat_id,
+                Membership.owner_id == row.approver_id,
+                Membership.left_at.is_(None),
+            ))
+            if not chat or not member:
+                return
             origin = db.get(ReplyRequest, row.sdk_reference.get("request_id"))
             if not origin or origin.cancel_requested or origin.status == "cancelled":
+                return
+            if chat.kind == "private" and (chat.reset_pending or origin.private_generation != chat.reset_generation):
+                return
+            if chat.kind == "duet":
+                conversation = db.get(DuetConversation, chat.id)
+                if not conversation or conversation.status != "active":
+                    return
+            if row.sdk_reference.get("execution_config_digest") is not None and origin.status == "failed":
                 return
             if not self.provenance_allowed(db, member, row.source_provenance):
                 return
             key = decision["decision_id"]
-            request = self.accept_request(db, chat, origin.target_twin_id, origin.requester_id,
-                "approval_result", key, source_message_id=origin.source_message_id, continuation_of_request_id=origin.id,
-                intent_key=key, causal_chain_id=origin.causal_chain_id, source_owner_id=origin.source_owner_id,
-                input_body=f"Owner decision for approval {row.id}: {row.status}. "
-                "If approved, use execute_approved_action with that ID to perform the frozen action. "
-                "If rejected, do not execute it. Report the actual tool result; consent is not execution.")
-            request.execution_config = origin.execution_config
-            row.continuation_request_id = request.id
-            db.add(ContextManifest(request_id=request.id, owner_id=row.approver_id,
-                grant_version=member.grant_version, high_water_seq=chat.next_message_seq - 1,
-                sources=row.source_provenance, source_digest=digest(row.source_provenance)))
+            try:
+                with db.begin_nested():
+                    request = self.accept_request(db, chat, origin.target_twin_id, origin.requester_id,
+                        "approval_result", key, source_message_id=origin.source_message_id, continuation_of_request_id=origin.id,
+                        intent_key=key, causal_chain_id=origin.causal_chain_id, source_owner_id=origin.source_owner_id,
+                        input_body=f"Owner decision for approval {row.id}: {row.status}. "
+                        "If approved, use execute_approved_action with that ID to perform the frozen action. "
+                        "If rejected, do not execute it. Report the actual tool result; consent is not execution.")
+                    request.execution_config = origin.execution_config
+                    row.continuation_request_id = request.id
+                    db.add(ContextManifest(request_id=request.id, owner_id=row.approver_id,
+                        grant_version=member.grant_version, high_water_seq=chat.next_message_seq - 1,
+                        sources=row.source_provenance, source_digest=digest(row.source_provenance)))
+            except HTTPException as exc:
+                if exc.status_code not in {403, 404, 409}:
+                    raise
         self.publish_event(chat.id, {"type": "changed"})
 
     def approved_file_share(self, request_id):
@@ -3349,18 +3416,49 @@ class ProductService:
 
     def _pending_approvals(self, scopes=None):
         with self.transaction() as db:
-            query = select(Approval).where(Approval.continuation_request_id.is_(None))
+            requested = Approval.sdk_reference["requested_decision"].as_string()
+            approval_type = Approval.sdk_reference["type"].as_string()
+            has_action = Approval.sdk_reference["action"]["tool"].as_string().is_not(None)
+            origin_active = and_(
+                ReplyRequest.id.is_not(None),
+                ReplyRequest.cancel_requested.is_(False),
+                ReplyRequest.status != "cancelled",
+            )
+            query = (
+                select(Approval)
+                .outerjoin(ReplyRequest, ReplyRequest.id == Approval.sdk_reference["request_id"].as_string())
+                .where(
+                    Approval.status == "pending",
+                    Approval.continuation_request_id.is_(None),
+                    or_(approval_type.is_(None), approval_type != "duet_conversation"),
+                    or_(
+                        requested == "rejected",
+                        and_(has_action, or_(requested.is_not(None), origin_active)),
+                    ),
+                )
+            )
             if scopes is not None:
                 query = query.where(Approval.chat_id.in_(scopes))
-            return [{**self.approval_json(row), "sdk_reference": row.sdk_reference}
-                    for row in db.scalars(query.limit(100))
-                    if row.sdk_reference.get("action")]
+            rows = db.scalars(query.order_by(requested.is_(None), Approval.created_at.asc()).limit(100))
+            return [{**self.approval_json(row), "sdk_reference": row.sdk_reference} for row in rows]
 
     async def reconcile_approvals(self, scopes=None):
         for row in await self.db_call("_pending_approvals", scopes):
             try:
                 decision = row["sdk_reference"].get("requested_decision")
-                approval = await self.runtime.decide_approval(row, decision) if decision else await self.runtime.ensure_approval(row)
+                if not self._approval_has_sdk_action(row["sdk_reference"]):
+                    if decision == "rejected":
+                        await self.db_call("_queue_approval_decision", row["approver_id"], row["id"], "rejected", finalize=True)
+                    continue
+                if decision:
+                    try:
+                        approval = await self.runtime.decide_approval(row, decision)
+                    except HTTPException as exc:
+                        if exc.status_code != 409:
+                            raise
+                        approval = await self.runtime.ensure_approval(row)
+                else:
+                    approval = await self.runtime.ensure_approval(row)
                 if approval["status"] != "pending":
                     await self.db_call("accept_approval_decision", row["id"], approval)
             except Exception:
