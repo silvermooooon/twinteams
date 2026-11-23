@@ -43,6 +43,14 @@ import './TeamsOverlays.css';
 // Source: https://tflteams.public.onecdn.static.microsoft/evergreen-assets/illustrations/webp/256/compose-l-standard-256x256.webp
 const COMPOSE_ILLUSTRATION = '/assets/teams-compose.webp';
 
+/** CSS pixel viewport width (matches @media). Prefer this over innerWidth so
+ *  layout bands stay aligned with Duet.css when scrollbars or zoom differ. */
+function cssViewportWidth() {
+  if (typeof document === 'undefined') return 1200;
+  return document.documentElement.clientWidth || window.innerWidth;
+}
+
+
 type Page = 'chat' | 'reminders' | 'provider-config' | 'my-twin' | 'bot-share';
 function routeShareToken() { return location.hash.match(/^#\/bots\/share\/([A-Za-z0-9_-]+)$/)?.[1] || ''; }
 function routePage(): Page { return location.hash.startsWith('#/bots/share/') ? 'bot-share' : location.hash.startsWith('#/my-twin') ? 'my-twin' : location.hash === '#/provider-config' ? 'provider-config' : location.hash === '#reminders' ? 'reminders' : 'chat'; }
@@ -130,6 +138,7 @@ export default function App() {
   const [notifAnchor, setNotifAnchor] = useState<DOMRect | null>(null);
   const [chatMoreOpen, setChatMoreOpen] = useState(false);
   const [narrowShowingChat, setNarrowShowingChat] = useState(false);
+  const [narrowInspectorExplicit, setNarrowInspectorExplicit] = useState(false);
   const utilityClusterRef = useRef<HTMLDivElement>(null);
   const openPersonCard = useCallback((actor: Actor, anchor?: DOMRect | null) => {
     setPersonCard({ actor, anchor: anchor ?? null });
@@ -137,15 +146,27 @@ export default function App() {
   const [query, setQuery] = useState(''); const [people, setPeople] = useState<Actor[]>([]); const [searchOpen, setSearchOpen] = useState(false); const [peopleLoading, setPeopleLoading] = useState(false); const [renameChat, setRenameChat] = useState<Chat | null>(null); const [peopleModal, setPeopleModal] = useState<{ add: boolean; person?: Actor } | null>(null);  const [reminderOpen, setReminderOpen] = useState(false); const [trackingSeed, setTrackingSeed] = useState<string | null>(null);
   const [sidebarVisible, setSidebarVisible] = useState(true); const [sidebarWidth, setSidebarWidth] = useState(() => Math.min(420, Math.max(248, Number(localStorage.getItem('twinteams.chatPaneWidth')) || 304))); const [newChat, setNewChat] = useState(false); const [findOpen, setFindOpen] = useState(false); const [appMenuOpen, setAppMenuOpen] = useState(false); const [shortcutsOpen, setShortcutsOpen] = useState(false); const [composerMenu, setComposerMenu] = useState<'emoji' | 'attachments' | 'more' | null>(null); const [messageHighlight, setMessageHighlight] = useState(''); const [dragActive, setDragActive] = useState(false); const [expandedComposer, setExpandedComposer] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null); const imageInput = useRef<HTMLInputElement>(null);
-  const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  const [viewportWidth, setViewportWidth] = useState(() => cssViewportWidth());
   const isMid = viewportWidth >= 900 && viewportWidth < 1200;
   const isNarrow = viewportWidth < 900;
+  const widthBand: 'narrow' | 'mid' | 'wide' = isNarrow ? 'narrow' : isMid ? 'mid' : 'wide';
+  const hiddenAtWideRef = useRef(false);
+  const prevWidthBandRef = useRef<'narrow' | 'mid' | 'wide'>(widthBand);
   const maxPaneWidth = Math.min(420, Math.max(248, viewportWidth - 460));
   const paneWidth = Math.min(sidebarWidth, maxPaneWidth);
-  useEffect(() => { const resize = () => setViewportWidth(window.innerWidth); window.addEventListener('resize', resize); return () => window.removeEventListener('resize', resize); }, []);
+  useEffect(() => {
+    const resize = () => setViewportWidth(cssViewportWidth());
+    window.addEventListener('resize', resize);
+    window.visualViewport?.addEventListener('resize', resize);
+    resize();
+    return () => {
+      window.removeEventListener('resize', resize);
+      window.visualViewport?.removeEventListener('resize', resize);
+    };
+  }, []);
   const sidebarDrag = useRef<{ x: number; width: number } | null>(null);
   useEffect(() => {
-    const move = (event: PointerEvent) => { if (sidebarDrag.current) setSidebarWidth(Math.min(Math.min(420, Math.max(248, window.innerWidth - 460)), Math.max(248, sidebarDrag.current.width + event.clientX - sidebarDrag.current.x))); };
+    const move = (event: PointerEvent) => { if (sidebarDrag.current) setSidebarWidth(Math.min(Math.min(420, Math.max(248, cssViewportWidth() - 460)), Math.max(248, sidebarDrag.current.width + event.clientX - sidebarDrag.current.x))); };
     const up = () => { if (sidebarDrag.current) { sidebarDrag.current = null; document.body.classList.remove('resizing-pane'); } };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.classList.remove('resizing-pane'); };
@@ -160,8 +181,8 @@ export default function App() {
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'x' && page === 'chat' && selected && !newChat) { event.preventDefault(); setExpandedComposer(previous => !previous); input.current?.focus(); return; }
       if ((event.ctrlKey || event.metaKey) && !event.altKey) {
         if (event.key.toLowerCase() === 'k') { event.preventDefault(); setSearchOpen(true); searchInput.current?.focus(); }
-        if (event.key.toLowerCase() === 'f' && page === 'chat' && selected) { event.preventDefault(); if (window.innerWidth >= 900 && window.innerWidth < 1200) setSidebarVisible(false); setFindOpen(true); }
-        if (event.key === '\\') { event.preventDefault(); setSidebarVisible(previous => { const next = !previous; if (next && window.innerWidth >= 900 && window.innerWidth < 1200) { setFindOpen(false); if (detailCurrent.current?.settings.sidebar_open) void setSettings({ sidebar_open: false }); } return next; }); }
+        if (event.key.toLowerCase() === 'f' && page === 'chat' && selected) { event.preventDefault(); if (cssViewportWidth() >= 900 && cssViewportWidth() < 1200) setSidebarVisible(false); if (cssViewportWidth() < 900) setNarrowInspectorExplicit(true); setFindOpen(true); }
+        if (event.key === '\\') { event.preventDefault(); setSidebarVisible(previous => { const next = !previous; if (cssViewportWidth() >= 1200) hiddenAtWideRef.current = !next; if (next && cssViewportWidth() >= 900 && cssViewportWidth() < 1200) { setFindOpen(false); if (detailCurrent.current?.settings.sidebar_open) void setSettings({ sidebar_open: false }); } return next; }); }
         if (event.key.toLowerCase() === 'n') { event.preventDefault(); setNewChat(true); setNarrowShowingChat(true); setPage('chat'); }
         if (event.key === '/') { event.preventDefault(); setShortcutsOpen(previous => !previous); }
       }
@@ -176,7 +197,17 @@ export default function App() {
     setDrafts(previous => { const text = previous[draftKey] || ''; return { ...previous, [draftKey]: text.slice(0, start) + emoji + text.slice(end) }; });
     requestAnimationFrame(() => { input.current?.focus(); input.current?.setSelectionRange(start + emoji.length, start + emoji.length); });
   }
-  function showWorkspace() { setComposerMenu(null); setFindOpen(false); void setSettings({ sidebar_open: true, sidebar_tab: 'workspace' }); }
+  function showWorkspace() {
+    setComposerMenu(null);
+    setFindOpen(false);
+    if (isNarrow) {
+      setNarrowInspectorExplicit(true);
+      setNarrowShowingChat(true);
+    } else if (isMid) {
+      setSidebarVisible(false);
+    }
+    void setSettings({ sidebar_open: true, sidebar_tab: 'workspace' });
+  }
   function jumpToMessage(id: string) { setMessageHighlight(id); requestAnimationFrame(() => messageArea.current?.querySelector<HTMLElement>(`[data-message-id="${id}"]`)?.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })); }
     const bootstrapSequence = useRef(0); const chatSequence = useRef(0); const pendingSettings = useRef(new Map<string, Partial<ChatSettings>>()); const settingsQueue = useRef<Promise<void>>(Promise.resolve());
   const input = useRef<HTMLTextAreaElement>(null); const searchInput = useRef<HTMLInputElement>(null); const searchWrap = useRef<HTMLDivElement>(null); const messageArea = useRef<HTMLDivElement>(null); const current = useRef({ ownerId, selected }); current.current = { ownerId, selected }; const readSent = useRef(new Set<string>()); const readPending = useRef(new Set<string>()); const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null); const scrollBottom = useRef(true); const focused = useRef(document.visibilityState === 'visible' && document.hasFocus());
@@ -523,13 +554,30 @@ export default function App() {
   useEffect(() => { const pop = () => { setPage(routePage()); setShareToken(routeShareToken()); setTwinTab(routeTwinTab()); setAccountOpen(false); }; window.addEventListener('hashchange', pop); return () => window.removeEventListener('hashchange', pop); }, []);
   function navigate(next: Page) { setPage(next); setAppMenuOpen(false); setChatMoreOpen(false); setNewChat(false); setComposerMenu(null); setAccountOpen(false); setSearchOpen(false); setPeopleModal(null); setReminderOpen(false); history.replaceState(null, '', next === 'my-twin' ? `#/my-twin/${twinTab}` : next === 'provider-config' ? '#/provider-config' : `#${next}`); }
   function chooseTwinTab(next: TwinTab) { setTwinTab(next); history.replaceState(null, '', `#/my-twin/${next}`); }
-  const inspectorOpen = !!(findOpen || activeChat?.settings.sidebar_open);
+  const inspectorOpen = !!(findOpen || (activeChat?.settings.sidebar_open && (!isNarrow || narrowInspectorExplicit)));
+  const prevInspectorOpenRef = useRef(inspectorOpen);
   useEffect(() => {
     if (isMid && sidebarVisible && inspectorOpen) setSidebarVisible(false);
+    if (isMid && prevInspectorOpenRef.current && !inspectorOpen && !sidebarVisible) {
+      setSidebarVisible(true);
+    }
+    prevInspectorOpenRef.current = inspectorOpen;
   }, [isMid, sidebarVisible, inspectorOpen]);
+  useEffect(() => {
+    const prev = prevWidthBandRef.current;
+    if (widthBand === 'narrow' && prev !== 'narrow') {
+      setFindOpen(false);
+      setNarrowInspectorExplicit(false);
+    }
+    if (prev !== 'wide' && widthBand === 'wide' && !hiddenAtWideRef.current) {
+      setSidebarVisible(true);
+    }
+    prevWidthBandRef.current = widthBand;
+  }, [widthBand]);
   function toggleSidebarPane() {
     setSidebarVisible(previous => {
       const next = !previous;
+      if (cssViewportWidth() >= 1200) hiddenAtWideRef.current = !next;
       if (next && isMid) {
         setFindOpen(false);
         if (activeChat?.settings.sidebar_open) void setSettings({ sidebar_open: false });
@@ -539,15 +587,24 @@ export default function App() {
   }
   function toggleInspectorPane() {
     if (!activeChat) return;
-    const next = !activeChat.settings.sidebar_open;
+    const currentlyShown = isNarrow ? narrowInspectorExplicit : !!activeChat.settings.sidebar_open;
+    const next = !currentlyShown;
     setFindOpen(false);
-    if (next && isMid) setSidebarVisible(false);
+    if (isNarrow) {
+      setNarrowInspectorExplicit(next);
+      if (next) setNarrowShowingChat(true);
+    } else if (next && isMid) setSidebarVisible(false);
     void setSettings({ sidebar_open: next });
   }
   function toggleFindPane() {
     setFindOpen(previous => {
       const next = !previous;
       if (next && isMid) setSidebarVisible(false);
+      if (next && isNarrow) {
+        setNarrowInspectorExplicit(true);
+        setNarrowShowingChat(true);
+      }
+      if (!next && isNarrow) setNarrowInspectorExplicit(false);
       return next;
     });
   }
@@ -577,7 +634,10 @@ export default function App() {
       if (cached) { cache.delete(nextKey); cache.set(nextKey, cached); detailCacheGeneration.current = cacheGeneration.current; }
       setDetail(cached?.detail || null);
     }
-    if (window.innerWidth < 900) setNarrowShowingChat(true);
+    if (cssViewportWidth() < 900) {
+      setNarrowShowingChat(true);
+      setNarrowInspectorExplicit(false);
+    }
     setSelected(destination.chatId); setFindOpen(false); navigate('chat');
   }
   function mergeBot(bot: PersonalBot) {
@@ -701,7 +761,7 @@ export default function App() {
   if (!session) return <LoginScreen api={api} acceptanceFixture={acceptanceFixture} developmentMode={developmentMode} configLoading={configLoading} configError={configError} onLogin={result => { setSession(result); setDevelopmentMode(result.development_mode); setError(''); }} onReload={() => { void checkAuth(); }} />;
 
   const isMainShell = page === 'chat' || page === 'reminders';
-  const showSidebarColumn = isMainShell && (!isNarrow ? sidebarVisible : (page === 'chat' ? !narrowShowingChat : !narrowShowingChat));
+  const showSidebarColumn = isMainShell && (isNarrow ? !narrowShowingChat : (sidebarVisible && !(isMid && inspectorOpen)));
   const showMainStage = !isNarrow || !isMainShell || narrowShowingChat;
   const openNotificationsPopover = (event: React.MouseEvent<HTMLElement>) => {
     setNotifAnchor(utilityClusterRef.current?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect());
@@ -790,14 +850,16 @@ export default function App() {
                 />
               ) : (
                 <>
-                  <div className="sidebar-tools">
+                  <div className="sidebar-tools sidebar-tools-reminders">
+                    <span className="sidebar-tools-label">{t('nav.reminders')}</span>
                     <button
                       type="button"
-                      className="primary-button sidebar-full-action"
+                      className="sidebar-new-button"
+                      title={t('reminders.new')}
+                      aria-label={t('reminders.new')}
                       onClick={() => setReminderOpen(true)}
                     >
-                      <Icon name="plus" size={15} />
-                      <span>{t('reminders.new')}</span>
+                      <Icon name="plus" size={16} />
                     </button>
                   </div>
                   <div className="reminder-nav">
@@ -857,6 +919,28 @@ export default function App() {
                   label={t('shell.toggleChats')}
                   onClick={toggleSidebarPane}
                 />
+                <span className="utility-divider" aria-hidden="true" />
+                <div className="purpose-segmented purpose-segmented-compact segmented-control" role="tablist" aria-label={t('nav.main')}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={page === 'chat'}
+                    className={page === 'chat' ? 'selected' : ''}
+                    onClick={() => navigate('chat')}
+                  >
+                    {t('nav.chat')}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={page === 'reminders'}
+                    className={page === 'reminders' ? 'selected' : ''}
+                    onClick={() => navigate('reminders')}
+                  >
+                    <span>{t('nav.reminders')}</span>
+                    {pendingCount > 0 && <span className="purpose-badge">{pendingCount}</span>}
+                  </button>
+                </div>
               </div>
             )}
             {isNarrow && page === 'reminders' && narrowShowingChat && (
@@ -973,7 +1057,7 @@ export default function App() {
                     </button>
                     <button type="button" role="menuitem" onClick={() => { navigate('my-twin'); chooseTwinTab('connections'); setAccountOpen(false); }}>
                       <Icon name="people" size={16} />
-                      <span>Trusted Duets</span>
+                      <span>{t('twin.connections')}</span>
                     </button>
                     {providerConfigAllowed && providerConfigAvailable && (
                       <button type="button" role="menuitem" onClick={() => navigate('provider-config')}>
@@ -1024,8 +1108,6 @@ export default function App() {
             </div>
           </div>
 
-          <DesktopNotificationPrompt controller={desktopNotifications} />
-
           <div className="stage-columns">
             {page === 'bot-share' ? (
               <BotInstallPage key={`${ownerId}:${shareToken}`} api={api} token={shareToken} onBack={() => navigate('chat')} onInstalled={bot => { if (currentApi.current !== api) return; mergeBot(bot); void openDestination({ chatId: bot.chat_id }); }} />
@@ -1069,7 +1151,7 @@ export default function App() {
             ) : activeChat ? (
               <>
                 <main
-                  className={`chat-main ${findOpen || activeChat.settings.sidebar_open ? 'with-side-panel' : ''} ${dragActive ? 'file-drag-active' : ''}`}
+                  className={`chat-main ${findOpen || activeChat.settings.sidebar_open ? 'with-side-panel' : ''} ${dragActive ? 'file-drag-active' : ''} ${composerMenu === 'emoji' ? 'has-open-picker' : ''}`}
                   onLoadCapture={() => { if (scrollBottom.current && messageArea.current) messageArea.current.scrollTop = messageArea.current.scrollHeight; markVisibleRead(); }}
                   onDragEnter={event => { if (Array.from(event.dataTransfer.types).includes('Files')) { event.preventDefault(); setDragActive(true); } }}
                   onDragOver={event => { if (Array.from(event.dataTransfer.types).includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }}
@@ -1155,7 +1237,7 @@ export default function App() {
                         icon="sidebar"
                         size={16}
                         label={t('chat.toggleSidebar')}
-                        active={activeChat.settings.sidebar_open && !findOpen}
+                        active={inspectorOpen && !findOpen}
                         onClick={toggleInspectorPane}
                       />
                       <div className="chat-more-wrap" data-floating-menu>
@@ -1356,12 +1438,12 @@ export default function App() {
                     {localSends.items.filter(item => item.chatId === selected).map(entry => (
                       <LocalSendItem key={entry.key} entry={entry} referenceChatName={referenceChatName(entry.message.message_reference)} actor={owner} onRetry={() => localSends.retry(entry)} />
                     ))}
-                  </div>
-
-                  <div className="composer-area">
                     {activeChat.chat.kind === 'private' && actualOwnerId === api.ownerId && (
                       <TwinOnboarding key={`${api.ownerId}:${selected}:${privateResetVersions[selected] || 0}`} api={api} chat={activeChat.chat} revision={activeChat.revision} onChanged={() => { void loadChat(selected).catch(onError); }} />
                     )}
+                  </div>
+
+                  <div className="composer-area">
                     {activeChat.chat.kind === 'private' && (
                       <CredentialRequestCards key={`credentials:${actualOwnerId}:${selected}`} compact api={api} requests={credentialRequests.filter(request => request.chat_id === selected)} credentials={credentials} onChange={() => { void refreshCredentials(); }} />
                     )}
@@ -1488,7 +1570,7 @@ export default function App() {
                     }}
                     onJump={jumpToMessage}
                   />
-                ) : activeChat.settings.sidebar_open && (
+                ) : activeChat.settings.sidebar_open && (!isNarrow || narrowInspectorExplicit) && (
                   <DetailSidebar
                     key={`${actualOwnerId}:${selected}:${privateResetVersions[selected] || 0}`}
                     api={api}
@@ -1536,6 +1618,13 @@ export default function App() {
       {botDialog?.mode === 'room' && <BotRoomDialog api={api} bots={bots} mainDuet={ownTwin} onClose={() => setBotDialog(null)} onCreated={chat => { setBootstrap(previous => previous && { ...previous, chats: [...previous.chats.filter(item => item.id !== chat.id), chat] }); void openDestination({ chatId: chat.id }); }} />}
       {botDialog?.mode === 'inspect' && privateChat && <BotTranscriptDialog api={api} bots={bots} privateChatId={privateChat.id} onClose={() => setBotDialog(null)} onSent={internalMessageSent} />}
       {personCard && <PersonCard key={`${actualOwnerId}:${personCard.actor.id}`} api={api} person={personCard.actor} anchor={personCard.anchor} onClose={() => setPersonCard(null)} />}
+      {isMainShell && (
+        <DesktopNotificationPrompt
+          controller={desktopNotifications}
+          anchorRef={utilityClusterRef}
+          suppressed={accountOpen || appMenuOpen || notificationSettingsOpen || searchOpen || shortcutsOpen}
+        />
+      )}
       {notificationSettingsOpen && <DesktopNotificationSettings controller={desktopNotifications} anchor={notifAnchor} onClose={() => setNotificationSettingsOpen(false)} />}
       {renameChat && <RenameChatDialog api={api} chat={renameChat} onClose={() => setRenameChat(null)} onSaved={chat => { if (current.current.ownerId !== api.ownerId) return; bootstrapSequence.current++; setBootstrap(previous => previous ? { ...previous, chats: previous.chats.map(item => item.id === chat.id ? chat : item) } : previous); if (current.current.selected === chat.id) { chatSequence.current++; setDetail(previous => previous?.chat.id === chat.id ? { ...previous, chat } : previous); void loadChat(chat.id).catch(onError); } }} />}
       {shortcutsOpen && <Modal title={t('shell.keyboard')} onClose={() => setShortcutsOpen(false)}><p className="keyboard-shortcuts">{t('shell.keyboardDetail')}</p></Modal>}

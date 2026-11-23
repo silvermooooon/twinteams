@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Actor, Chat, Message } from './api/client';
 import { Avatar, ChatAvatar, chatTitle, Empty, Icon, IconButton } from './ui';
 import { t } from './i18n';
@@ -43,7 +44,7 @@ export function ChatNavigation({
       return [];
     }
   });
-  const [menu, setMenu] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ chatId: string; left: number; top: number } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -63,11 +64,14 @@ export function ChatNavigation({
         }
       }
     };
+    const onResize = () => setMenu(null);
     document.addEventListener('pointerdown', close);
     document.addEventListener('keydown', key);
+    window.addEventListener('resize', onResize);
     return () => {
       document.removeEventListener('pointerdown', close);
       document.removeEventListener('keydown', key);
+      window.removeEventListener('resize', onResize);
     };
   }, []);
 
@@ -128,71 +132,92 @@ export function ChatNavigation({
             className="icon-button"
             aria-label={t('shell.chatOptions')}
             title={t('shell.chatOptions')}
-            aria-expanded={menu === chat.id}
-            onClick={() => setMenu(menu === chat.id ? null : chat.id)}
+            aria-expanded={menu?.chatId === chat.id}
+            onClick={event => {
+              if (menu?.chatId === chat.id) {
+                setMenu(null);
+                return;
+              }
+              const rect = event.currentTarget.getBoundingClientRect();
+              const menuWidth = 205;
+              const menuHeight = chat.kind === 'bot' ? 124 : 88;
+              const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+              const top =
+                rect.bottom + 4 + menuHeight > window.innerHeight - 8
+                  ? Math.max(8, rect.top - menuHeight - 4)
+                  : rect.bottom + 4;
+              setMenu({ chatId: chat.id, left: Math.round(left), top: Math.round(top) });
+            }}
           >
             <Icon name="more" size={16} />
           </button>
-          {menu === chat.id && (
-            <div className="fluent-menu duet-glass-overlay row-context" role="menu">
-              {chat.kind === 'bot' ? (
-                <>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      onEditBot(chat.bot_id!);
-                      setMenu(null);
-                    }}
-                  >
-                    <Icon name="edit" size={16} />
-                    {t('bots.edit')}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      onShareBot(chat.bot_id!);
-                      setMenu(null);
-                    }}
-                  >
-                    <Icon name="arrow" size={16} />
-                    {t('botShare.title')}
-                  </button>
-                </>
-              ) : (
-                chat.kind !== 'internal' && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setFavorites(previous =>
-                        previous.includes(chat.id)
-                          ? previous.filter(id => id !== chat.id)
-                          : [...previous, chat.id],
-                      );
-                      setMenu(null);
-                    }}
-                    disabled={chat.kind === 'private'}
-                  >
-                    <Icon name="star" size={16} />
-                    {t(favorites.includes(chat.id) ? 'shell.unfavorite' : 'shell.favorite')}
-                  </button>
-                )
-              )}
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onChoose(chat.id);
-                  setMenu(null);
-                }}
+          {menu?.chatId === chat.id &&
+            createPortal(
+              <div
+                className="fluent-menu duet-glass-overlay row-context row-context-portal"
+                role="menu"
+                data-chat-menu
+                style={{ left: menu.left, top: menu.top }}
               >
-                <Icon name="chat" size={16} />
-                {t('shell.openChat')}
-              </button>
-            </div>
-          )}
+                {chat.kind === 'bot' ? (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        onEditBot(chat.bot_id!);
+                        setMenu(null);
+                      }}
+                    >
+                      <Icon name="edit" size={16} />
+                      {t('bots.edit')}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        onShareBot(chat.bot_id!);
+                        setMenu(null);
+                      }}
+                    >
+                      <Icon name="arrow" size={16} />
+                      {t('botShare.title')}
+                    </button>
+                  </>
+                ) : (
+                  chat.kind !== 'internal' && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setFavorites(previous =>
+                          previous.includes(chat.id)
+                            ? previous.filter(id => id !== chat.id)
+                            : [...previous, chat.id],
+                        );
+                        setMenu(null);
+                      }}
+                      disabled={chat.kind === 'private'}
+                    >
+                      <Icon name="star" size={16} />
+                      {t(favorites.includes(chat.id) ? 'shell.unfavorite' : 'shell.favorite')}
+                    </button>
+                  )
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onChoose(chat.id);
+                    setMenu(null);
+                  }}
+                >
+                  <Icon name="chat" size={16} />
+                  {t('shell.openChat')}
+                </button>
+              </div>,
+              document.body,
+            )}
         </div>
       </div>
     );
@@ -272,7 +297,7 @@ export function ChatNavigation({
         </button>
       </div>
 
-      <div className="conversation-list">
+      <div className="conversation-list" onScroll={() => { if (menu) setMenu(null); }}>
         {loading ? (
           <div className="loading-row">{t('common.loading')}</div>
         ) : showFilterEmpty ? (

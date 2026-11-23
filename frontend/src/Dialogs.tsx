@@ -101,10 +101,12 @@ export function RemindersPage({ reminders, completed, onToggle, onNew, onChat }:
           <h2>{t(completed ? 'reminders.completed' : 'reminders.title')}</h2>
           <p className="muted">{t('reminders.summary', { count: visible.length })} · {t('reminders.stored')}</p>
         </div>
-        <button className="primary-button" onClick={onNew}>
-          <Icon name="plus" size={15} />
-          {t('reminders.new')}
-        </button>
+        {visible.length > 0 && (
+          <button className="secondary-button" onClick={onNew}>
+            <Icon name="plus" size={15} />
+            {t('reminders.new')}
+          </button>
+        )}
       </header>
       <div className="reminders-content">
         {visible.length ? (
@@ -143,7 +145,7 @@ export function RemindersPage({ reminders, completed, onToggle, onNew, onChat }:
             detail={t(completed ? 'reminders.emptyCompletedDetail' : 'reminders.emptyDetail')}
             action={
               !completed ? (
-                <button className="primary-button" onClick={onNew}>
+                <button className="secondary-button" onClick={onNew}>
                   <Icon name="plus" size={15} />
                   {t('reminders.new')}
                 </button>

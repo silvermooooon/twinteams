@@ -128,8 +128,8 @@ function applyRefraction(el: HTMLElement) {
   const radius = Math.min(rawRadius, w / 2, h / 2);
   const bezel = Math.min(Math.max(8, Math.min(18, radius * 0.55)), Math.min(w, h) * 0.3);
   const strength = Math.max(0.2, Math.min(1.5, parseFloat(el.getAttribute('data-duet-refract') || '0.75') || 0.75));
-  const blur = Math.max(8, Math.min(28, parseFloat(el.getAttribute('data-duet-refract-blur') || '16') || 16));
-  const scale = Math.round(bezel * 1.1 * strength);
+  const blur = Math.max(6, Math.min(24, parseFloat(el.getAttribute('data-duet-refract-blur') || '12') || 12));
+  const scale = Math.round(bezel * 1.45 * strength);
 
   const key = `${w}|${h}|${Math.round(radius)}|${Math.round(bezel)}|${scale}|${blur}`;
   const prev = applied.get(el);

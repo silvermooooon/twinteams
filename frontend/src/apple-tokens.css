@@ -14,25 +14,25 @@
   color-scheme: light dark;
 
   /* --- Canvas & Opaque Content Surfaces (Light) --------------------------- */
-  --duet-canvas: #efeff2;
-  --duet-canvas-chat: #f7f7f9;
+  --duet-canvas: #e9e9ee;
+  --duet-canvas-chat: #f5f5f8;
   --duet-surface: #ffffff;
-  --duet-surface-subtle: #f3f3f6;
+  --duet-surface-subtle: #f1f1f5;
   --duet-surface-elevated: #ffffff;
   --duet-bubble-in: #ffffff;
-  --duet-bubble-out: #e8e8ee;
-  --duet-bubble-quote: rgba(120, 120, 128, 0.08);
-  --duet-row-selected: rgba(118, 118, 128, 0.14);
-  --duet-row-hover: rgba(118, 118, 128, 0.08);
-  --duet-fill: rgba(118, 118, 128, 0.12);
-  --duet-fill-strong: rgba(118, 118, 128, 0.20);
-  --duet-control-bg: rgba(255, 255, 255, 0.92);
+  --duet-bubble-out: #dfdfe6;
+  --duet-bubble-quote: rgba(120, 120, 128, 0.09);
+  --duet-row-selected: rgba(118, 118, 128, 0.16);
+  --duet-row-hover: rgba(118, 118, 128, 0.09);
+  --duet-fill: rgba(118, 118, 128, 0.13);
+  --duet-fill-strong: rgba(118, 118, 128, 0.22);
+  --duet-control-bg: rgba(255, 255, 255, 0.88);
 
   /* --- Labels (4.5:1+ contrast for body/secondary) ------------------------ */
-  --duet-label: #1c1c1e;
-  --duet-label-2: #59595e;
-  --duet-label-3: #6c6c70;
-  --duet-label-disabled: #9a9aa0;
+  --duet-label: #161618;
+  --duet-label-2: #4c4c52;
+  --duet-label-3: #63636a;
+  --duet-label-disabled: #96969d;
 
   /* --- Hairlines (0.5px at ~12% opacity) ---------------------------------- */
   --duet-separator: rgba(60, 60, 67, 0.12);
@@ -55,22 +55,24 @@
   --duet-destructive-hover: #a91b20;
   --duet-destructive-soft: rgba(196, 33, 38, 0.09);
 
-  /* --- Regular Liquid Glass (Light: 48–56% near-neutral) ------------------ */
-  --duet-glass-fill: rgba(250, 250, 252, 0.54);
-  --duet-glass-chrome-fill: rgba(250, 250, 252, 0.52);
-  --duet-glass-refract-fill: rgba(250, 250, 252, 0.46);
-  --duet-glass-overlay-fill: rgba(252, 252, 254, 0.92);
-  --duet-glass-solid: #f7f7f9;
-  --duet-glass-blur: saturate(185%) blur(24px);
-  --duet-glass-rim-1: rgba(255, 255, 255, 0.88);
-  --duet-glass-rim-2: rgba(255, 255, 255, 0.16);
-  --duet-glass-rim-3: rgba(255, 255, 255, 0.52);
-  --duet-glass-top-highlight: rgba(255, 255, 255, 0.85);
-  --duet-glass-inner-edge: rgba(60, 60, 67, 0.08);
-  --duet-glass-sheen: 0.26;
+  /* --- Regular Liquid Glass (Light: genuinely thin neutral glass) --------- */
+  --duet-glass-fill: rgba(255, 255, 255, 0.42);
+  --duet-glass-chrome-fill: rgba(255, 255, 255, 0.44);
+  --duet-glass-refract-fill: rgba(255, 255, 255, 0.36);
+  --duet-glass-overlay-fill: rgba(253, 253, 255, 0.97);
+  --duet-glass-solid: #ffffff;
+  --duet-glass-blur: saturate(190%) blur(14px);
+  --duet-glass-rim-1: rgba(255, 255, 255, 0.96);
+  --duet-glass-rim-2: rgba(255, 255, 255, 0.22);
+  --duet-glass-rim-3: rgba(255, 255, 255, 0.68);
+  --duet-glass-top-highlight: rgba(255, 255, 255, 0.95);
+  --duet-glass-inner-edge: rgba(60, 60, 67, 0.11);
+  --duet-glass-sheen: 0.22;
+  --duet-glass-text-halo: 0 0 10px rgba(255, 255, 255, 0.58);
   --duet-glass-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.05),
-    0 8px 24px rgba(0, 0, 0, 0.07);
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 24px rgba(0, 0, 0, 0.08),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.05);
   --duet-overlay-shadow:
     0 2px 6px rgba(0, 0, 0, 0.08),
     0 16px 40px rgba(0, 0, 0, 0.14);
@@ -109,9 +111,10 @@
   --duet-sidebar-px: 12px;
   --duet-chat-px: 20px;
 
-  /* --- Typography (DESIGN.md §5, no Ultralight/Thin/Light) ---------------- */
+  /* --- Typography (DESIGN.md §5, Latin before CJK so punctuation stays tight) */
   --duet-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
-    "Inter", "Noto Sans CJK SC", system-ui, "Segoe UI", sans-serif;
+    "Inter", system-ui, "Segoe UI", "Roboto", "Liberation Sans", "Noto Sans",
+    "Noto Sans CJK SC", sans-serif;
   --duet-font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
   --duet-t-section: 11px;      --duet-lh-section: 14px;
@@ -176,17 +179,18 @@
     --duet-destructive-hover: #ff6961;
     --duet-destructive-soft: rgba(255, 69, 58, 0.16);
 
-    --duet-glass-fill: rgba(34, 34, 40, 0.56);
-    --duet-glass-chrome-fill: rgba(36, 36, 42, 0.54);
-    --duet-glass-refract-fill: rgba(32, 32, 38, 0.48);
-    --duet-glass-overlay-fill: rgba(36, 36, 42, 0.94);
-    --duet-glass-solid: #1f1f24;
-    --duet-glass-rim-1: rgba(255, 255, 255, 0.36);
-    --duet-glass-rim-2: rgba(255, 255, 255, 0.07);
-    --duet-glass-rim-3: rgba(255, 255, 255, 0.18);
-    --duet-glass-top-highlight: rgba(255, 255, 255, 0.20);
-    --duet-glass-inner-edge: rgba(255, 255, 255, 0.08);
-    --duet-glass-sheen: 0.11;
+    --duet-glass-fill: rgba(40, 40, 48, 0.44);
+    --duet-glass-chrome-fill: rgba(38, 38, 46, 0.48);
+    --duet-glass-refract-fill: rgba(36, 36, 44, 0.38);
+    --duet-glass-overlay-fill: rgba(34, 34, 40, 0.97);
+    --duet-glass-solid: #232329;
+    --duet-glass-rim-1: rgba(255, 255, 255, 0.46);
+    --duet-glass-rim-2: rgba(255, 255, 255, 0.09);
+    --duet-glass-rim-3: rgba(255, 255, 255, 0.24);
+    --duet-glass-top-highlight: rgba(255, 255, 255, 0.30);
+    --duet-glass-inner-edge: rgba(255, 255, 255, 0.10);
+    --duet-glass-sheen: 0.12;
+    --duet-glass-text-halo: 0 1px 8px rgba(0, 0, 0, 0.45);
     --duet-glass-shadow:
       0 1px 2px rgba(0, 0, 0, 0.38),
       0 10px 30px rgba(0, 0, 0, 0.44);
@@ -246,17 +250,18 @@
   --duet-destructive-hover: #ff6961;
   --duet-destructive-soft: rgba(255, 69, 58, 0.16);
 
-  --duet-glass-fill: rgba(34, 34, 40, 0.56);
-  --duet-glass-chrome-fill: rgba(36, 36, 42, 0.54);
-  --duet-glass-refract-fill: rgba(32, 32, 38, 0.48);
-  --duet-glass-overlay-fill: rgba(36, 36, 42, 0.94);
-  --duet-glass-solid: #1f1f24;
-  --duet-glass-rim-1: rgba(255, 255, 255, 0.36);
-  --duet-glass-rim-2: rgba(255, 255, 255, 0.07);
-  --duet-glass-rim-3: rgba(255, 255, 255, 0.18);
-  --duet-glass-top-highlight: rgba(255, 255, 255, 0.20);
-  --duet-glass-inner-edge: rgba(255, 255, 255, 0.08);
-  --duet-glass-sheen: 0.11;
+  --duet-glass-fill: rgba(40, 40, 48, 0.44);
+  --duet-glass-chrome-fill: rgba(38, 38, 46, 0.48);
+  --duet-glass-refract-fill: rgba(36, 36, 44, 0.38);
+  --duet-glass-overlay-fill: rgba(34, 34, 40, 0.97);
+  --duet-glass-solid: #232329;
+  --duet-glass-rim-1: rgba(255, 255, 255, 0.46);
+  --duet-glass-rim-2: rgba(255, 255, 255, 0.09);
+  --duet-glass-rim-3: rgba(255, 255, 255, 0.24);
+  --duet-glass-top-highlight: rgba(255, 255, 255, 0.30);
+  --duet-glass-inner-edge: rgba(255, 255, 255, 0.10);
+  --duet-glass-sheen: 0.12;
+  --duet-glass-text-halo: 0 1px 8px rgba(0, 0, 0, 0.45);
   --duet-glass-shadow:
     0 1px 2px rgba(0, 0, 0, 0.38),
     0 10px 30px rgba(0, 0, 0, 0.44);
@@ -287,7 +292,7 @@
   -webkit-backdrop-filter: var(--duet-glass-blur);
   backdrop-filter: var(--duet-glass-blur);
   box-shadow:
-    inset 0 0.5px 0 var(--duet-glass-top-highlight),
+    inset 0 1px 0 var(--duet-glass-top-highlight),
     inset 0 0 0 0.5px var(--duet-glass-inner-edge),
     var(--duet-glass-shadow);
 }
@@ -300,7 +305,7 @@
   background-color: var(--duet-glass-refract-fill);
 }
 
-/* Menus, popovers, sheets: glass outer shell, high-legibility interior so
+/* Menus, popovers, sheets: glass outer shell, solid legibility floor so
    underlying messages are never readable through the surface. */
 .duet-glass-overlay {
   position: relative;
@@ -309,7 +314,7 @@
   -webkit-backdrop-filter: saturate(180%) blur(28px);
   backdrop-filter: saturate(180%) blur(28px);
   box-shadow:
-    inset 0 0.5px 0 var(--duet-glass-top-highlight),
+    inset 0 1px 0 var(--duet-glass-top-highlight),
     inset 0 0 0 0.5px var(--duet-glass-inner-edge),
     var(--duet-overlay-shadow);
 }
@@ -322,12 +327,12 @@
   inset: 0;
   z-index: 2;
   border-radius: inherit;
-  padding: 1px;
+  padding: 1.25px;
   pointer-events: none;
   background: linear-gradient(
     135deg,
     var(--duet-glass-rim-1) 0%,
-    var(--duet-glass-rim-2) 44%,
+    var(--duet-glass-rim-2) 42%,
     var(--duet-glass-rim-3) 100%
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -360,7 +365,7 @@
   }
 }
 
-/* Scroll-edge fade bands where scrolling content passes beneath floating glass */
+/* Subtle scroll-edge feathering so messages visibly pass under floating glass */
 .duet-scroll-edge-top,
 .duet-scroll-edge-bottom {
   position: absolute;
@@ -372,32 +377,24 @@
 
 .duet-scroll-edge-top {
   top: 0;
-  height: 76px;
+  height: 64px;
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--duet-canvas-chat) 78%, transparent) 0%,
-    color-mix(in srgb, var(--duet-canvas-chat) 36%, transparent) 55%,
+    color-mix(in srgb, var(--duet-canvas) 44%, transparent) 0%,
+    color-mix(in srgb, var(--duet-canvas) 14%, transparent) 46%,
     transparent 100%
   );
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%);
 }
 
 .duet-scroll-edge-bottom {
   bottom: 0;
-  height: 72px;
+  height: 64px;
   background: linear-gradient(
     to top,
-    color-mix(in srgb, var(--duet-canvas-chat) 82%, transparent) 0%,
-    color-mix(in srgb, var(--duet-canvas-chat) 36%, transparent) 55%,
+    color-mix(in srgb, var(--duet-canvas) 44%, transparent) 0%,
+    color-mix(in srgb, var(--duet-canvas) 14%, transparent) 46%,
     transparent 100%
   );
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
-  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%);
-  mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%);
 }
 
 /* ============================================================================
@@ -503,7 +500,6 @@
   .duet-glass,
   .duet-glass-overlay,
   .message-bubble,
-  .chat-main,
   .primary-button,
   .secondary-button,
   .danger-button {

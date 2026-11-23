@@ -1,14 +1,16 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
   useState,
 } from "react";
+import type { RefObject } from "react";
 import type { Actor, Chat } from "./api/client";
 import { t } from "./i18n";
-import { chatTitle, Icon, IconButton, Popover } from "./ui";
+import { chatTitle, Icon, Popover } from "./ui";
 import "./DesktopNotifications.css";
 
 type Preferences = { enabled: boolean; dismissed: boolean };
@@ -404,36 +406,63 @@ export function useDesktopNotifications(
 type Controller = ReturnType<typeof useDesktopNotifications>;
 export function DesktopNotificationPrompt({
   controller,
+  anchorRef,
+  suppressed = false,
 }: {
   controller: Controller;
+  anchorRef?: RefObject<HTMLElement | null>;
+  suppressed?: boolean;
 }) {
-  if (!controller.showPrompt) return null;
+  const visible = controller.showPrompt && !suppressed;
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+
+  useLayoutEffect(() => {
+    if (!visible) return;
+    const measure = () => {
+      setAnchor(anchorRef?.current?.getBoundingClientRect() ?? null);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [visible, anchorRef]);
+
+  if (!visible) return null;
   return (
-    <aside
-      className="desktop-notification-prompt"
-      aria-label={t("notifications.prompt")}
+    <Popover
+      title={t("notifications.prompt")}
+      anchor={anchor}
+      align="right"
+      width={332}
+      onClose={controller.dismiss}
     >
-      <Icon name="bell" size={20} />
-      <div>
-        <strong>{t("notifications.prompt")}</strong>
-        <p>{t("notifications.promptDetail")}</p>
+      <div className="desktop-notification-popover">
+        <div className="desktop-notification-popover-lead">
+          <span className="desktop-notification-popover-icon">
+            <Icon name="bell" size={18} />
+          </span>
+          <p>{t("notifications.promptDetail")}</p>
+        </div>
+        <div className="desktop-notification-popover-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={controller.dismiss}
+          >
+            {t("common.dismiss")}
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={controller.requesting}
+            onClick={() => {
+              void controller.enable();
+            }}
+          >
+            {t("notifications.turnOn")}
+          </button>
+        </div>
       </div>
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={controller.requesting}
-        onClick={() => {
-          void controller.enable();
-        }}
-      >
-        {t("notifications.turnOn")}
-      </button>
-      <IconButton
-        icon="close"
-        label={t("common.dismiss")}
-        onClick={controller.dismiss}
-      />
-    </aside>
+    </Popover>
   );
 }
 export function DesktopNotificationSettings({

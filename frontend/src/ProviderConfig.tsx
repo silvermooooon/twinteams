@@ -133,7 +133,7 @@ export function ProviderConfigPage({ allowed, onBack }: { allowed: boolean; onBa
               </div>
 
               <label className="provider-config-save"><input type="checkbox" checked={saveForLater} disabled={busy || !storageAvailable} onChange={event => setSaveForLater(event.target.checked)} /><span>{t('providerConfig.saveLabel')}</span></label>
-              <p className="provider-config-hint">{t('providerConfig.saveDetail')} <code className="provider-config-storage-path">{storagePath || 'backend/data/provider-secrets/openai.env'}</code></p>
+              <p className="provider-config-hint">{t('providerConfig.saveDetail')} <code className="provider-config-storage-path">{(storagePath || 'backend/data/provider-secrets/openai.env').split('/').map((part, index, list) => index < list.length - 1 ? <span key={`${index}-${part}`}>{part}/<wbr /></span> : <span key={`${index}-${part}`}>{part}</span>)}</code></p>
               <p className="provider-config-hint">{t('providerConfig.saveScope')}</p>
               {existingSaved && saveForLater && <p className="provider-config-hint">{t('providerConfig.replaceSaved')}</p>}
               {!storageAvailable && <p className="provider-config-hint">{t('providerConfig.storageUnavailable')}</p>}

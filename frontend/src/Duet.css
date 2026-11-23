@@ -87,6 +87,10 @@ summary:focus-visible {
 .detail-sidebar .primary-button,
 .reminders-main .primary-button,
 .login-page .login-main .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: var(--duet-red);
   border: 1px solid var(--duet-red);
   color: var(--duet-on-red);
@@ -130,6 +134,10 @@ summary:focus-visible {
 .secondary-button,
 .modal .secondary-button,
 .people-picker .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: var(--duet-control-bg);
   border: 0.5px solid var(--duet-separator-strong);
   color: var(--duet-label);
@@ -271,10 +279,28 @@ summary:focus-visible {
 .floating-nav-pill {
   margin-right: auto;
   border-radius: var(--duet-r-pill);
-  padding: 4px;
+  padding: 4px 5px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  min-height: var(--duet-utility-h);
+}
+
+.floating-nav-pill > .icon-button {
+  border-radius: var(--duet-r-pill);
+}
+
+.purpose-segmented-compact {
+  flex: 0 0 auto;
+  padding: 2px;
+  border-radius: var(--duet-r-pill);
+}
+
+.purpose-segmented-compact > button {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 4px 11px;
+  border-radius: var(--duet-r-pill);
 }
 
 .utility-cluster {
@@ -400,7 +426,6 @@ summary:focus-visible {
 /* --- 4. Left Floating Glass Sidebar (DESIGN.md §3.1, §3.2) ---------------- */
 .sidebar {
   border-radius: var(--duet-r-panel);
-  background: var(--duet-glass-chrome-fill);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -410,6 +435,10 @@ summary:focus-visible {
     width 220ms var(--duet-ease),
     opacity 180ms var(--duet-ease),
     margin-right 220ms var(--duet-ease);
+}
+
+.sidebar:not(.is-duet-refracting) {
+  background-color: var(--duet-glass-chrome-fill);
 }
 
 .sidebar.collapsed {
@@ -501,8 +530,15 @@ summary:focus-visible {
   flex-shrink: 0;
 }
 
-.sidebar-full-action {
-  width: 100%;
+.sidebar-tools-reminders {
+  justify-content: space-between;
+}
+
+.sidebar-tools-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--duet-label-2);
+  padding-left: 4px;
 }
 
 .list-search {
@@ -807,7 +843,8 @@ summary:focus-visible {
   background: var(--duet-separator-strong);
 }
 
-/* --- 5. Opaque Message Canvas + Floating Toolbar & Composer --------------- */
+/* --- 5. Quiet Stage Canvas + Floating Regular Liquid Glass Bars ----------- */
+/* Canvas is the base stage — NO opaque card caging the conversation. */
 .chat-main,
 .chat-main.with-side-panel {
   flex: 1;
@@ -815,21 +852,19 @@ summary:focus-visible {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--duet-canvas-chat);
-  border-radius: var(--duet-r-panel);
-  box-shadow:
-    var(--duet-card-shadow),
-    inset 0 0 0 0.5px var(--duet-separator);
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
   position: relative;
   overflow: hidden;
 }
 
-/* Floating Regular Liquid Glass conversation toolbar over the canvas */
+/* Floating Regular Liquid Glass conversation toolbar over scrolling messages */
 .chat-header {
   position: absolute;
-  top: 10px;
-  left: 12px;
-  right: 12px;
+  top: 0;
+  left: 4px;
+  right: 4px;
   z-index: 18;
   height: auto;
   min-height: var(--duet-toolbar-h);
@@ -839,6 +874,11 @@ summary:focus-visible {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.chat-header-copy h2,
+.chat-header-copy p {
+  text-shadow: var(--duet-glass-text-halo);
 }
 
 .chat-header-copy {
@@ -946,7 +986,7 @@ summary:focus-visible {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 76px max(var(--duet-chat-px), calc((100% - 840px) / 2)) 110px;
+  padding: 68px max(16px, calc((100% - 820px) / 2)) 96px;
   scrollbar-width: thin;
 }
 
@@ -1125,12 +1165,21 @@ summary:focus-visible {
   color: var(--duet-label);
 }
 
+.reaction-actions.picker-open,
+.chat-main.has-open-picker .message-actions,
+.chat-main.has-open-picker .reaction-actions {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .reaction-picker {
-  background: var(--duet-glass-overlay-fill);
-  border: 0.5px solid var(--duet-separator-strong);
+  z-index: 85;
+  background-color: var(--duet-glass-overlay-fill);
+  border: 0;
   border-radius: var(--duet-r-menu);
   box-shadow: var(--duet-overlay-shadow);
   color: var(--duet-label);
+  animation: duet-pop-enter var(--duet-dur-enter) var(--duet-ease);
 }
 
 .reaction-picker-search {
@@ -1139,8 +1188,22 @@ summary:focus-visible {
   border-radius: 8px;
 }
 
+.reaction-picker-search input {
+  color: var(--duet-label);
+}
+
+.reaction-category-title {
+  color: var(--duet-label-2);
+}
+
 .reaction-categories {
   border-top: 0.5px solid var(--duet-separator);
+  background: var(--duet-glass-overlay-fill);
+}
+
+.reaction-categories > button[aria-selected="true"] {
+  border-bottom-color: var(--duet-label);
+  background: var(--duet-row-selected);
 }
 
 /* Failure notice: restrained line under bubble, never a second bubble (DESIGN.md §6) */
@@ -1198,8 +1261,12 @@ summary:focus-visible {
   width: 100%;
   max-width: 840px;
   margin: 0 auto;
-  padding: 0 16px 12px;
+  padding: 0 4px 2px;
   pointer-events: none;
+}
+
+.composer-area:has(.emoji-picker, .composer-popover) {
+  z-index: 42;
 }
 
 .composer-area > * {
@@ -1227,7 +1294,14 @@ summary:focus-visible {
   padding: 7px 8px 7px 14px;
   border: 0;
   border-radius: var(--duet-r-composer);
-  background: var(--duet-glass-fill);
+}
+
+.composer:not(.is-duet-refracting) {
+  background-color: var(--duet-glass-fill);
+}
+
+.composer textarea {
+  text-shadow: var(--duet-glass-text-halo);
 }
 
 .composer:focus-within {
@@ -1296,14 +1370,34 @@ summary:focus-visible {
   opacity: 0.85;
 }
 
+/* One-shot dismissible tip in the message canvas beneath the last message */
 .twin-onboarding {
-  background: var(--duet-surface);
-  border: 0.5px solid var(--duet-separator);
-  border-radius: 10px;
-  padding: 6px 10px;
-  margin-bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 8px auto 4px;
+  padding: 4px 6px 4px 12px;
+  border: 0;
+  border-radius: var(--duet-r-pill);
+  background: var(--duet-fill);
   color: var(--duet-label-2);
-  box-shadow: var(--duet-card-shadow);
+  font-size: 12px;
+  line-height: 18px;
+  box-shadow: none;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.twin-onboarding > .icon-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: var(--duet-r-pill);
 }
 
 .approvals-drawer.approvals-drawer {
@@ -1375,6 +1469,17 @@ summary:focus-visible {
   overflow: hidden;
   z-index: 6;
   animation: duet-panel-enter var(--duet-dur-enter) var(--duet-ease);
+}
+
+.sidebar.is-duet-refracting,
+.detail-sidebar.detail-sidebar.is-duet-refracting,
+.chat-find-panel.is-duet-refracting,
+.chat-header.is-duet-refracting,
+.composer.is-duet-refracting,
+.utility-cluster.is-duet-refracting,
+.floating-nav-pill.is-duet-refracting,
+.twin-settings-nav.is-duet-refracting {
+  background: var(--duet-glass-refract-fill);
 }
 
 .detail-sidebar .detail-heading,
@@ -1582,8 +1687,30 @@ summary:focus-visible {
   border: 0;
   border-radius: var(--duet-r-menu);
   padding: 5px;
+  background-color: var(--duet-glass-overlay-fill);
   color: var(--duet-label);
+  z-index: 65;
   animation: duet-pop-enter var(--duet-dur-enter) var(--duet-ease);
+}
+
+.row-context-portal {
+  position: fixed;
+  right: auto;
+  width: 205px;
+  z-index: 85;
+}
+
+.emoji-picker {
+  padding: 12px;
+  z-index: 85;
+}
+
+.emoji-picker header {
+  color: var(--duet-label);
+}
+
+.emoji-grid > button:hover {
+  background: var(--duet-row-hover);
 }
 
 .fluent-menu > button,
@@ -1942,25 +2069,47 @@ summary:focus-visible {
   color: var(--duet-label-2);
 }
 
-/* Compact inline notification banner (does not shove shell chrome) */
-.desktop-notification-prompt {
+/* One-shot notification permission Popover (anchored to top-right cluster) */
+.desktop-notification-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.desktop-notification-popover-lead {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.desktop-notification-popover-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--duet-fill);
+  color: var(--duet-label);
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.desktop-notification-popover-lead p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--duet-label-2);
+}
+
+.desktop-notification-popover-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 0.5px solid var(--duet-separator);
-  background: var(--duet-surface);
-  color: var(--duet-label);
-  box-shadow: var(--duet-card-shadow);
+  justify-content: flex-end;
+  gap: 8px;
 }
 
-.desktop-notification-prompt > svg {
-  color: var(--duet-label-2);
-}
-
-.desktop-notification-prompt p {
-  color: var(--duet-label-2);
+.desktop-notification-popover-actions > button {
+  min-height: 34px;
+  padding: 6px 14px;
 }
 
 .desktop-notification-setting {
@@ -2142,7 +2291,11 @@ summary:focus-visible {
 
 .twin-settings-nav .twin-page-title p {
   font-size: 11px;
+  line-height: 15px;
   color: var(--duet-label-2);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .settings-nav-icon {
@@ -2407,6 +2560,8 @@ summary:focus-visible {
   background: var(--duet-surface-subtle);
   padding: 1px 5px;
   border-radius: 4px;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .provider-config-details {
@@ -2697,15 +2852,30 @@ summary:focus-visible {
 @media (max-width: 1199px) and (min-width: 900px) {
   .detail-sidebar.detail-sidebar,
   .chat-find-panel {
-    position: relative;
-    top: auto;
-    right: auto;
-    bottom: auto;
-    width: 304px;
-    min-width: 280px;
-    max-width: 320px;
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 316px;
+    min-width: 292px;
+    max-width: 332px;
     border-radius: var(--duet-r-panel);
     box-shadow: var(--duet-glass-shadow);
+    z-index: auto;
+  }
+
+  /* Fail-safe: list and inspector cannot both occupy the mid band,
+     even if JS width and CSS viewport briefly disagree. */
+  .app-shell:has(.detail-sidebar, .chat-find-panel) .sidebar {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+  }
+
+  .detail-sidebar .detail-tabs > button {
+    padding: 4px 4px;
   }
 
   .sidebar {
@@ -2751,15 +2921,28 @@ summary:focus-visible {
     display: none !important;
   }
 
+  /* List-then-push: inspector/find replace the conversation stage.
+     Never overlay the canvas or composer with position:absolute; inset:0. */
   .detail-sidebar.detail-sidebar,
   .chat-find-panel {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    min-width: 0;
-    max-width: none;
+    position: relative !important;
+    inset: auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex: 1 1 auto;
+    align-self: stretch;
     border-radius: var(--duet-r-panel);
-    z-index: 22;
+    z-index: auto;
+    box-shadow: var(--duet-glass-shadow);
+  }
+
+  .app-shell .stage-columns:has(.detail-sidebar, .chat-find-panel) .chat-main {
+    display: none !important;
   }
 
   .utility-cluster .search-wrap {
@@ -2853,7 +3036,7 @@ summary:focus-visible {
   .detail-sidebar.detail-sidebar,
   .chat-find-panel,
   .utility-cluster,
-  .chat-main,
+  .floating-nav-pill,
   .message-bubble,
   .twin-profile-card,
   .provider-config-card {
