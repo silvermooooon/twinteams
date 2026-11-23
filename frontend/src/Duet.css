@@ -1,108 +1,2881 @@
-/* Duet identity. Layout, control dimensions and motion remain component-owned. */
+/* ============================================================================
+   Duet Apple UI Redesign — Scheme A Shell, Regular Liquid Glass & Components
+   ----------------------------------------------------------------------------
+   Loaded last in main.tsx so it cleanly supersedes legacy Fluent/Teams rules
+   while preserving all product behaviors, accessibility, and token fallbacks.
+   ========================================================================== */
+
+/* --- 1. Base Canvas & Typography (DESIGN.md §2, §5) ----------------------- */
 :root {
-  --accent: #202124;
-  --brand-red: #d71920;
-  --brand-red-text: #b5121b;
-  --border: #dadbdd;
-  --muted: #62656a;
-  --surface-subtle: #f3f3f3;
-  --surface-selected: #eeeeef;
-  color: #202124;
-  background: #ecedee;
+  font-family: var(--duet-font);
+  font-size: var(--duet-t-body);
+  line-height: var(--duet-lh-body);
+  color: var(--duet-label);
+  background: var(--duet-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-body, .app-shell, .workspace, .topbar, .app-rail, .sidebar {
-  background-color: #ecedee;
-}
-.topbar { box-shadow: inset 0 -1px var(--border); }
-.global-search { background: #fff; border-color: var(--border); border-radius: 2px; }
-.chat-main, .chat-main.with-side-panel, .my-twin-page {
-  background: #fff;
-  border-radius: 2px;
-  box-shadow: none;
-}
-.detail-sidebar { background: #fff; }
-.chat-header { border-bottom-color: var(--border); }
-.chat-header-copy h2, .sidebar-heading h1, .detail-heading h2 { color: var(--accent); }
-.chat-list-row.selected, .chat-list-row.selected .chat-item { background-color: #fff; }
-.chat-list-row.selected .chat-item { box-shadow: inset 3px 0 var(--brand-red); }
-.chat-item, .chat-list-row, .pill, .fluent-menu, .account-menu { border-radius: 2px; }
-.pill.active, .pill.selected { background-color: var(--accent); color: #fff; border-color: var(--accent); }
-.rail-item.active, .rail-item.active .rail-icon { color: var(--brand-red-text); }
-.rail-item.active::before { background-color: var(--brand-red); }
-.rail-item.active .rail-icon > svg { fill: var(--brand-red-text); stroke: #fff; }
-.message-bubble { background-color: #f5f5f5; border-radius: 2px; }
-.own .message-bubble { background-color: #ebecee; }
-.message-meta, .chat-preview, .panel-label { color: var(--muted); }
-.composer { border-color: #b8babd; border-radius: 2px; box-shadow: none; }
-.composer:focus-within { border-color: var(--accent); border-bottom-color: var(--brand-red); }
-.detail-sidebar .detail-tabs > button.selected::after { background-color: var(--brand-red); border-radius: 0; }
-.text-button, .detail-sidebar .text-button, .file-attachment a { color: #303236; }
-.draft-attachment, .file-attachment, .detail-sidebar .run-card, .detail-sidebar .tracking-card { border-color: var(--border); border-radius: 2px; }
-.tree-row.file > svg, .tree-row.folder > svg { color: var(--muted); }
-.tree-row.folder > svg { fill: #ebecee; }
-.avatar.group-avatar { background-color: #e3e4e6 !important; color: #45474b; }
-.brand-mark { display: inline-flex; align-items: center; justify-content: center; }
-.brand-mark > img { width: 100%; height: 100%; display: block; }
-.twin-badge { background-color: var(--accent); }
-
-/* Flat rectangular surfaces, while avatars, switches and reaction controls retain
-   their functional shape. Existing spacing and responsive rules are unchanged. */
-.twins-modal-backdrop .modal, .people-picker, .provider-config-card, .twin-profile-card,
-.twin-runtime-card, .twin-schedule-card, .twin-danger-zone,
-.twin-content-editor, .twin-memory-status, .twin-skill-card,
-.twin-credential-card, .twin-content-card, .login-main form {
-  border-radius: 2px;
-}
-.primary-button, .secondary-button, .danger-button,
-.modal .primary-button, .modal .secondary-button, .modal .danger-button,
-.people-picker .primary-button, .people-picker .secondary-button,
-.detail-sidebar .primary-button, .reminders-main .primary-button,
-.login-page .login-main .primary-button,
-.modal input, .modal textarea, .modal select,
-.login-page .login-main input, .provider-config-key-label + input,
-.twin-profile-card input, .twin-credential-form input,
-.twin-credential-form select, .twin-schedule-editor select,
-.twin-content-editor textarea { border-radius: 2px; }
-.primary-button,
-.modal .primary-button, .people-picker .primary-button,
-.detail-sidebar .primary-button, .reminders-main .primary-button {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.primary-button:hover:not(:disabled),
-.modal .primary-button:hover:not(:disabled), .people-picker .primary-button:hover:not(:disabled),
-.detail-sidebar .primary-button:hover:not(:disabled), .reminders-main .primary-button:hover:not(:disabled) {
-  background: #37393d;
-  border-color: #37393d;
-}
-.twin-tabs > button.selected { color: var(--accent); border-bottom-color: var(--brand-red); }
-.provider-config-page { background: #f3f3f3; color: var(--accent); }
-.login-page { background: #f3f3f3; }
-.login-page > footer { color: var(--muted); }
-button:focus-visible, a:focus-visible, summary:focus-visible {
-  outline-color: var(--accent);
+body {
+  background: var(--duet-canvas);
+  color: var(--duet-label);
 }
 
-/* Opt-in Duet identity for group-chat message senders only. */
+button {
+  transition:
+    background-color var(--duet-dur-press) var(--duet-ease),
+    color var(--duet-dur-press) var(--duet-ease),
+    border-color var(--duet-dur-press) var(--duet-ease),
+    opacity var(--duet-dur-press) var(--duet-ease),
+    box-shadow var(--duet-dur-press) var(--duet-ease);
+}
+
+button:hover {
+  background-color: var(--duet-row-hover);
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--duet-label);
+  outline-offset: 2px;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.brand-mark > img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.avatar {
+  border: 0.5px solid var(--duet-separator);
+  background: var(--duet-surface-subtle);
+  color: var(--duet-label);
+}
+.avatar.group-avatar {
+  background-color: var(--duet-fill) !important;
+  color: var(--duet-label-2);
+}
+.twin-badge {
+  background-color: var(--duet-label);
+  color: var(--duet-surface);
+  border-color: var(--duet-surface);
+}
 .avatar .twin-badge.duet-identity-badge {
   width: 16px;
   height: 16px;
-  background: #fff;
+  background: var(--duet-surface);
 }
 .avatar .duet-identity-badge > .brand-mark {
   width: 11px;
   height: 11px;
   transform: none;
 }
-.message-meta > .message-duet-label {
+
+/* --- 2. Buttons & Form Primaries (DESIGN.md §2, §5, §6) ------------------- */
+.primary-button,
+.modal .primary-button,
+.people-picker .primary-button,
+.detail-sidebar .primary-button,
+.reminders-main .primary-button,
+.login-page .login-main .primary-button {
+  background: var(--duet-red);
+  border: 1px solid var(--duet-red);
+  color: var(--duet-on-red);
+  border-radius: var(--duet-r-ctrl);
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.primary-button:hover:not(:disabled),
+.modal .primary-button:hover:not(:disabled),
+.people-picker .primary-button:hover:not(:disabled),
+.detail-sidebar .primary-button:hover:not(:disabled),
+.reminders-main .primary-button:hover:not(:disabled),
+.login-page .login-main .primary-button:hover:not(:disabled) {
+  background: var(--duet-red-hover);
+  border-color: var(--duet-red-hover);
+}
+
+.primary-button:active:not(:disabled),
+.modal .primary-button:active:not(:disabled) {
+  background: var(--duet-red-active);
+  border-color: var(--duet-red-active);
+}
+
+.primary-button:disabled,
+.modal .primary-button:disabled,
+.people-picker .primary-button:disabled,
+.detail-sidebar .primary-button:disabled,
+.reminders-main .primary-button:disabled,
+.login-page .login-main .primary-button:disabled {
+  background: var(--duet-fill);
+  border-color: transparent;
+  color: var(--duet-label-disabled);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.secondary-button,
+.modal .secondary-button,
+.people-picker .secondary-button {
+  background: var(--duet-control-bg);
+  border: 0.5px solid var(--duet-separator-strong);
+  color: var(--duet-label);
+  border-radius: var(--duet-r-ctrl);
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.secondary-button:hover:not(:disabled),
+.modal .secondary-button:hover:not(:disabled),
+.people-picker .secondary-button:hover:not(:disabled) {
+  background: var(--duet-row-hover);
+  border-color: var(--duet-separator-strong);
+}
+
+.secondary-button:disabled {
+  color: var(--duet-label-disabled);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.danger-button,
+.modal .danger-button {
+  background: var(--duet-destructive);
+  border: 1px solid var(--duet-destructive);
+  color: #ffffff;
+  border-radius: var(--duet-r-ctrl);
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.danger-button:hover:not(:disabled),
+.modal .danger-button:hover:not(:disabled) {
+  background: var(--duet-destructive-hover);
+  border-color: var(--duet-destructive-hover);
+}
+
+.text-button,
+.detail-sidebar .text-button {
+  color: var(--duet-label-2);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+.text-button:hover:not(:disabled),
+.detail-sidebar .text-button:hover:not(:disabled) {
+  background: var(--duet-row-hover);
+  color: var(--duet-label);
+  text-decoration: none;
+}
+
+.icon-button {
+  width: 30px;
+  height: 30px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 8px;
+  color: var(--duet-label-2);
+}
+.icon-button:hover:not(:disabled) {
+  background: var(--duet-row-hover);
+  color: var(--duet-label);
+}
+.icon-button.active {
+  background: var(--duet-row-selected);
+  color: var(--duet-label);
+}
+
+/* --- 3. Scheme A Shell: Floating Columns & Gutters (DESIGN.md §3.1) ------- */
+.app-shell {
+  background: var(--duet-canvas);
+  color: var(--duet-label);
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  gap: var(--duet-gutter);
+  padding: var(--duet-window-inset);
+  background: transparent;
+  position: relative;
+}
+
+.workspace-stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+
+.workspace-stage.narrow-list-only {
+  flex: 0 0 auto;
+  order: -1;
+}
+
+.workspace-stage.narrow-list-only .stage-columns,
+.workspace-stage.narrow-list-only .desktop-notification-prompt {
+  display: none;
+}
+
+.stage-columns {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  gap: var(--duet-gutter);
+  position: relative;
+}
+
+/* Top-right floating utility capsule cluster — NO full-width topbar */
+.window-utility-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-height: var(--duet-utility-h);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 24;
+  background: transparent;
+}
+
+.floating-nav-pill {
+  margin-right: auto;
+  border-radius: var(--duet-r-pill);
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.utility-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 8px;
+  border-radius: var(--duet-r-pill);
+  min-height: var(--duet-utility-h);
+  max-width: 100%;
+}
+
+.utility-cluster .search-wrap {
+  position: relative;
+  width: 210px;
+  transition: width 200ms var(--duet-ease);
+}
+
+.utility-cluster .search-wrap:focus-within {
+  width: 264px;
+}
+
+.utility-cluster .global-search {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: var(--duet-r-pill);
+  background: var(--duet-fill);
+  padding: 0 10px;
+  color: var(--duet-label-2);
+  box-shadow: none;
+}
+
+.utility-cluster .global-search:focus-within {
+  border: 0;
+  background: var(--duet-control-bg);
+  box-shadow: 0 0 0 1px var(--duet-separator-strong);
+}
+
+.utility-cluster .global-search input {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--duet-label);
+}
+
+.utility-cluster .global-search input::placeholder {
+  color: var(--duet-label-2);
+}
+
+.utility-cluster .global-search .icon-button {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  border-radius: 50%;
+}
+
+.utility-divider {
+  width: 0.5px;
+  height: 18px;
+  background: var(--duet-separator-strong);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.utility-cluster .icon-button {
+  border-radius: var(--duet-r-pill);
+}
+
+.utility-cluster .account-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: var(--duet-r-pill);
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.utility-cluster .account-button:hover {
+  background: var(--duet-row-hover);
+}
+
+.utility-cluster .search-results {
+  top: calc(100% + 8px);
+  left: auto;
+  right: 0;
+  width: min(340px, calc(100vw - 24px));
+  border-radius: var(--duet-r-menu);
+  border: 0;
+  padding: 6px;
+}
+
+.search-results > p {
+  font-size: 11px;
+  color: var(--duet-label-2);
+  padding: 6px 10px;
+}
+
+.search-empty {
+  font-size: 12px;
+  color: var(--duet-label-2);
+  padding: 18px 10px;
+}
+
+.search-results .person-search-row {
+  border-radius: 8px;
+}
+
+.search-results .person-search-row > .person-search-chat {
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--duet-label);
+}
+
+.search-results .person-search-row > .person-search-chat:hover {
+  background: var(--duet-row-hover);
+}
+
+/* --- 4. Left Floating Glass Sidebar (DESIGN.md §3.1, §3.2) ---------------- */
+.sidebar {
+  border-radius: var(--duet-r-panel);
+  background: var(--duet-glass-chrome-fill);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 6;
+  transition:
+    width 220ms var(--duet-ease),
+    opacity 180ms var(--duet-ease),
+    margin-right 220ms var(--duet-ease);
+}
+
+.sidebar.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  margin-right: calc(-1 * var(--duet-gutter));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  box-shadow: none;
+}
+
+.sidebar-brand-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--duet-sidebar-px) 8px;
+  flex-shrink: 0;
+}
+
+/* Segmented control primitive */
+.segmented-control {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--duet-fill);
+  gap: 2px;
+}
+
+.purpose-segmented {
+  flex: 1;
+  min-width: 0;
+}
+
+.purpose-segmented > button {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--duet-label-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.purpose-segmented > button:hover:not(.selected) {
+  color: var(--duet-label);
+  background: var(--duet-row-hover);
+}
+
+/* Brand red on selected top-level purpose background, white text (DESIGN.md §2) */
+.purpose-segmented > button.selected {
+  background: var(--duet-red);
+  color: var(--duet-on-red);
+  font-weight: 600;
+  box-shadow: var(--duet-thumb-shadow);
+}
+
+.purpose-badge {
+  min-width: 16px;
+  height: 16px;
   padding: 0 4px;
+  border-radius: var(--duet-r-pill);
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--duet-fill-strong);
+  color: var(--duet-label);
+  display: inline-grid;
+  place-items: center;
+}
+
+.purpose-segmented > button.selected .purpose-badge {
+  background: rgba(255, 255, 255, 0.26);
+  color: var(--duet-on-red);
+}
+
+.sidebar-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px var(--duet-sidebar-px) 8px;
+  flex-shrink: 0;
+}
+
+.sidebar-full-action {
+  width: 100%;
+}
+
+.list-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 9px;
+  border-radius: 9px;
+  border: 0;
+  background: var(--duet-fill);
+  color: var(--duet-label-2);
+}
+
+.list-search:focus-within {
+  border: 0;
+  background: var(--duet-control-bg);
+  box-shadow: 0 0 0 1px var(--duet-separator-strong);
+}
+
+.list-search input {
+  font-size: 13px;
+  height: 30px;
+  color: var(--duet-label);
+}
+
+.list-search input::placeholder {
+  color: var(--duet-label-2);
+}
+
+.list-search > .icon-button {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  border-radius: 50%;
+}
+
+.sidebar-new-button {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 9px;
+  background: var(--duet-red);
+  color: var(--duet-on-red);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-new-button:hover {
+  background: var(--duet-red-hover);
+}
+
+.sidebar-new-button.active {
+  background: var(--duet-red-active);
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 var(--duet-sidebar-px) 8px;
+  min-height: auto;
+  border: 0;
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pill {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--duet-r-pill);
+  border: 0;
+  background: var(--duet-fill);
+  color: var(--duet-label-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.pill:hover {
+  background: var(--duet-row-hover);
+  color: var(--duet-label);
+}
+
+.pill.selected,
+.pill.active {
+  background: var(--duet-row-selected);
+  color: var(--duet-label);
+  border: 0;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 0.5px var(--duet-separator-strong);
+}
+
+.conversation-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px var(--duet-sidebar-px) 16px;
+  scrollbar-width: thin;
+}
+
+.chat-section-heading,
+.bot-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+  margin-top: 6px;
+}
+
+.chat-list-section:first-child .chat-section-heading,
+.chat-list-section:first-child .bot-section-heading {
+  margin-top: 0;
+}
+
+.section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px 4px;
+  font-size: var(--duet-t-section);
+  line-height: var(--duet-lh-section);
+  font-weight: 500;
+  color: var(--duet-label-2);
+  text-transform: none;
+  letter-spacing: 0;
+  border-radius: 6px;
+}
+
+.section-label:hover {
+  background: transparent;
+  color: var(--duet-label);
+}
+
+.bot-section-heading .icon-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 6px;
+}
+
+.chat-list-row {
+  position: relative;
+  border-radius: var(--duet-r-row);
+  margin: 1px 0;
+}
+
+.chat-list-row + .chat-list-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 56px;
+  right: 10px;
+  height: 0.5px;
+  background: var(--duet-separator);
+  pointer-events: none;
+}
+
+.chat-list-row:hover::before,
+.chat-list-row.selected::before,
+.chat-list-row:hover + .chat-list-row::before,
+.chat-list-row.selected + .chat-list-row::before {
+  opacity: 0;
+}
+
+.chat-list-row:hover {
+  background: var(--duet-row-hover);
+}
+
+/* Selected row: light continuous fill, NO left red vertical bar (DESIGN.md §2) */
+.chat-list-row.selected,
+.chat-list-row.selected .chat-item {
+  background-color: var(--duet-row-selected);
+  box-shadow: none !important;
+}
+
+.chat-list-row.selected .chat-item {
+  background-color: transparent;
+}
+
+.chat-item {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--duet-r-row);
+  padding: 8px 34px 8px 10px;
+}
+
+.chat-name {
+  font-size: var(--duet-t-body);
+  line-height: 17px;
+  color: var(--duet-label);
+  font-weight: 400;
+}
+
+.chat-name.unread {
+  font-weight: 600;
+}
+
+.chat-preview {
+  font-size: var(--duet-t-caption);
+  line-height: var(--duet-lh-caption);
+  color: var(--duet-label-2);
+}
+
+.chat-unread {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--duet-r-pill);
+  background: var(--duet-red);
+  color: var(--duet-on-red);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.chat-row-menu {
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.chat-row-menu > .icon-button {
+  width: 28px;
+  height: 28px;
+}
+
+.bot-section-empty {
+  margin: 2px 10px 10px 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--duet-fill);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--duet-label-2);
+}
+
+.bot-section-empty p {
+  margin: 0;
+}
+
+.new-chat-avatar {
+  width: 36px;
+  height: 36px;
+  background: var(--duet-fill);
+  color: var(--duet-label-2);
+}
+
+.reminder-nav {
+  padding: 4px var(--duet-sidebar-px) 16px;
+  gap: 2px;
+}
+
+.reminder-nav button {
+  padding: 9px 10px;
+  border-radius: var(--duet-r-row);
+  font-size: 13px;
+  color: var(--duet-label);
+  gap: 10px;
+}
+
+.reminder-nav button:hover {
+  background: var(--duet-row-hover);
+}
+
+.reminder-nav button.selected {
+  background: var(--duet-row-selected);
+  color: var(--duet-label);
+  font-weight: 600;
+}
+
+.reminder-nav button > span.reminder-nav-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--duet-label-2);
+  font-weight: 500;
+}
+
+.pane-resizer {
+  width: 0;
+  margin: 0 calc(-1 * var(--duet-gutter) / 2);
+}
+
+.pane-resizer::before {
+  width: 6px;
+  left: -3px;
   border-radius: 3px;
-  background: #fcebed;
-  color: var(--brand-red-text);
+}
+
+.pane-resizer:hover::before,
+.pane-resizer:focus-visible::before {
+  background: var(--duet-separator-strong);
+}
+
+/* --- 5. Opaque Message Canvas + Floating Toolbar & Composer --------------- */
+.chat-main,
+.chat-main.with-side-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--duet-canvas-chat);
+  border-radius: var(--duet-r-panel);
+  box-shadow:
+    var(--duet-card-shadow),
+    inset 0 0 0 0.5px var(--duet-separator);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Floating Regular Liquid Glass conversation toolbar over the canvas */
+.chat-header {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 18;
+  height: auto;
+  min-height: var(--duet-toolbar-h);
+  padding: 7px 10px 7px 12px;
+  border: 0;
+  border-radius: var(--duet-r-toolbar);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-header-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.chat-header-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chat-header-copy h2 {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 18px;
+  color: var(--duet-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-header-title .icon-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 6px;
+}
+
+.chat-header-copy p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--duet-label-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-header-status .status-dot.connecting {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--duet-orange);
+  flex-shrink: 0;
+}
+
+.inline-refresh-link {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--duet-label);
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--duet-fill);
+}
+.inline-refresh-link:hover {
+  background: var(--duet-fill-strong);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.member-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--duet-label-2);
+}
+.member-button:hover {
+  background: var(--duet-row-hover);
+  color: var(--duet-label);
+}
+
+.chat-more-wrap {
+  position: relative;
+}
+
+.chat-more-menu {
+  right: 0;
+  top: calc(100% + 6px);
+  width: 236px;
+}
+
+/* Message scrolling canvas extends under both floating glass bars */
+.message-area {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 76px max(var(--duet-chat-px), calc((100% - 840px) / 2)) 110px;
+  scrollbar-width: thin;
+}
+
+.model-notice,
+.read-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  border-radius: 10px;
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  color: var(--duet-label-2);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.read-error {
+  color: var(--duet-destructive);
+  border-color: var(--duet-destructive-soft);
+}
+
+.load-earlier-button {
+  display: block;
+  margin: 0 auto 14px;
+}
+
+.date-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--duet-label-3);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 14px;
+  margin: 14px 0 18px;
+}
+
+.date-divider::before,
+.date-divider::after {
+  height: 0.5px;
+  background: var(--duet-separator);
+}
+
+/* Opaque Message Bubbles (DESIGN.md §2, §5) */
+.message-row {
+  gap: 10px;
+  margin: 0 0 20px;
+  padding-top: 6px;
+}
+
+.message-row > .avatar {
+  margin-top: 20px;
+}
+
+.message-meta {
+  gap: 7px;
+  margin: 0 0 4px;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--duet-label-2);
+}
+
+.message-meta > span,
+.message-meta > .person-name-button {
+  color: var(--duet-label-2);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.message-meta > time {
+  font-size: 10px;
+  color: var(--duet-label-3);
+}
+
+.message-meta > .message-duet-label {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--duet-red-soft);
+  color: var(--duet-red);
   font-size: 9px;
   font-weight: 700;
+  line-height: 15px;
+  letter-spacing: 0.3px;
+}
+
+.message-bubble {
+  background: var(--duet-bubble-in);
+  color: var(--duet-label);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: var(--duet-r-bubble);
+  padding: 9px 14px;
+  font-size: 13px;
+  line-height: 19px;
+  box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.03);
+}
+
+.own .message-bubble {
+  background: var(--duet-bubble-out);
+  border-color: transparent;
+  border-radius: var(--duet-r-bubble);
+}
+
+.twin-message .message-bubble {
+  border-left: 0.5px solid var(--duet-separator);
+}
+
+.source-quote {
+  border-left: 2px solid var(--duet-label-3);
+  background: var(--duet-bubble-quote);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.source-quote strong {
+  color: var(--duet-label);
+}
+
+.source-quote span {
+  color: var(--duet-label-2);
+}
+
+.read-receipt {
+  color: var(--duet-label-3);
+  font-size: 10px;
+}
+
+.message-highlight .message-bubble {
+  box-shadow: 0 0 0 2px var(--duet-red);
+}
+
+/* Message hover actions: hug the bubble cleanly, NEVER cover date dividers */
+.message-actions,
+.reaction-actions.message-actions {
+  top: -8px;
+  min-height: 32px;
+  padding: 3px 4px;
+  border-radius: var(--duet-r-pill);
+  background: var(--duet-surface-elevated);
+  border: 0.5px solid var(--duet-separator-strong);
+  box-shadow: var(--duet-glass-shadow);
+  z-index: 6;
+}
+
+.reaction-actions .reaction-quick-button {
+  width: 28px;
+  height: 26px;
+  padding: 2px;
+  border-radius: var(--duet-r-pill);
+}
+
+.reaction-actions .reaction-quick-button[aria-pressed="true"] {
+  background: var(--duet-row-selected);
+}
+
+.reaction-toolbar-divider {
+  height: 16px;
+  background: var(--duet-separator);
+}
+
+.reaction-chip {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator-strong);
+  border-radius: var(--duet-r-pill);
+}
+
+.reaction-chip.mine {
+  background: var(--duet-row-selected);
+  border-color: var(--duet-separator-strong);
+}
+
+.reaction-chip .reaction-count {
+  color: var(--duet-label);
+}
+
+.reaction-picker {
+  background: var(--duet-glass-overlay-fill);
+  border: 0.5px solid var(--duet-separator-strong);
+  border-radius: var(--duet-r-menu);
+  box-shadow: var(--duet-overlay-shadow);
+  color: var(--duet-label);
+}
+
+.reaction-picker-search {
+  background: var(--duet-fill);
+  border: 0;
+  border-radius: 8px;
+}
+
+.reaction-categories {
+  border-top: 0.5px solid var(--duet-separator);
+}
+
+/* Failure notice: restrained line under bubble, never a second bubble (DESIGN.md §6) */
+.failed-chip.failed-notice-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 3px 2px;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--duet-destructive);
+}
+
+.failed-notice-line .failed-notice-text {
+  color: var(--duet-destructive);
+}
+
+.failed-notice-line .failed-notice-retry {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--duet-label);
+  background: var(--duet-fill);
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.failed-notice-line .failed-notice-retry:hover:not(:disabled) {
+  background: var(--duet-fill-strong);
+}
+
+.failed-notice-line .failed-notice-dismiss {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  color: var(--duet-label-2);
+}
+
+.queue-chip {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  color: var(--duet-label-2);
+}
+
+/* Floating Regular Liquid Glass Composer Capsule */
+.composer-area {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 16;
+  width: 100%;
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 0 16px 12px;
+  pointer-events: none;
+}
+
+.composer-area > * {
+  pointer-events: auto;
+}
+
+/* Reply quote is opaque content above composer, NOT a second glass card */
+.composer-reply {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator-strong);
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  box-shadow: var(--duet-card-shadow);
+}
+
+.composer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  min-height: 46px;
+  padding: 7px 8px 7px 14px;
+  border: 0;
+  border-radius: var(--duet-r-composer);
+  background: var(--duet-glass-fill);
+}
+
+.composer:focus-within {
+  border: 0;
+  padding-bottom: 7px;
+  box-shadow:
+    inset 0 0.5px 0 var(--duet-glass-top-highlight),
+    inset 0 0 0 1px var(--duet-separator-strong),
+    var(--duet-glass-shadow);
+}
+
+.composer textarea {
+  font-size: 13px;
+  line-height: 20px;
+  padding: 5px 0;
+  min-height: 30px;
+  color: var(--duet-label);
+}
+
+.composer textarea::placeholder {
+  color: var(--duet-label-2);
+}
+
+.composer-tools {
+  gap: 2px;
+  margin-left: 8px;
+  padding-bottom: 1px;
+}
+
+.composer-tools .icon-button {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--duet-r-pill);
+  color: var(--duet-label-2);
+}
+
+.tool-divider {
+  width: 0.5px;
+  height: 18px;
+  background: var(--duet-separator-strong);
+  margin: 0 4px;
+}
+
+/* Send is the single tinted primary action in the composer bar */
+.composer .send-button {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--duet-r-pill);
+  background: var(--duet-red);
+  color: var(--duet-on-red);
+}
+
+.composer .send-button:hover:not(:disabled) {
+  background: var(--duet-red-hover);
+  color: var(--duet-on-red);
+}
+
+.composer .send-button:disabled {
+  background: var(--duet-fill);
+  color: var(--duet-label-disabled);
+  opacity: 1;
+  cursor: default;
+}
+
+.composer.is-disabled {
+  opacity: 0.85;
+}
+
+.twin-onboarding {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 10px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  color: var(--duet-label-2);
+  box-shadow: var(--duet-card-shadow);
+}
+
+.approvals-drawer.approvals-drawer {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator-strong);
+  border-radius: 14px;
+  box-shadow: var(--duet-card-shadow);
+  margin-bottom: 8px;
+}
+
+.approvals-drawer .approval-card h3 {
+  color: var(--duet-label);
+}
+
+.approvals-drawer .approval-card > p,
+.approvals-drawer .approval-toggle {
+  color: var(--duet-label-2);
+}
+
+.approvals-drawer .approval-arguments {
+  background: var(--duet-surface-subtle);
+  color: var(--duet-label);
+}
+
+.approvals-drawer .approval-actions .primary-button {
+  background: var(--duet-red);
+  border-color: var(--duet-red);
+}
+
+.draft-attachment,
+.file-attachment {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 12px;
+  color: var(--duet-label);
+}
+
+.file-attachment a {
+  color: var(--duet-label);
+}
+
+.chat-empty-state h3,
+.new-conversation-empty h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--duet-label);
+}
+
+.chat-empty-state p,
+.new-conversation-empty p {
+  font-size: 13px;
+  color: var(--duet-label-2);
+}
+
+/* --- 6. Right Floating Glass Inspector & Find Panel (DESIGN.md §3.4) ------ */
+.detail-sidebar.detail-sidebar,
+.chat-find-panel {
+  width: 324px;
+  min-width: 296px;
+  max-width: 360px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--duet-r-panel);
+  background: var(--duet-glass-chrome-fill);
+  color: var(--duet-label);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  z-index: 6;
+  animation: duet-panel-enter var(--duet-dur-enter) var(--duet-ease);
+}
+
+.detail-sidebar .detail-heading,
+.chat-find-panel > header {
+  height: auto;
+  min-height: 56px;
+  padding: 12px 12px 10px 14px;
+  gap: 10px;
+  border-bottom: 0;
+}
+
+.detail-sidebar .detail-heading h2,
+.chat-find-panel h2 {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 18px;
+  color: var(--duet-label);
+}
+
+.detail-sidebar .detail-heading p {
+  font-size: 11px;
+  color: var(--duet-label-2);
+  margin-top: 2px;
+}
+
+/* Close button always visible and >= 28 pt (DESIGN.md §3.4) */
+.detail-sidebar .detail-heading > .icon-button,
+.chat-find-panel > header > .icon-button {
+  width: 30px;
+  height: 30px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: var(--duet-r-pill);
+  opacity: 1 !important;
+  color: var(--duet-label-2);
+}
+
+.detail-tabs-wrap {
+  padding: 0 12px 10px;
+  flex-shrink: 0;
+}
+
+.detail-sidebar .detail-tabs.segmented-control {
+  display: flex;
+  min-height: 32px;
+  padding: 3px;
+  gap: 2px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--duet-fill);
+}
+
+.detail-sidebar .detail-tabs > button {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 500;
   line-height: 16px;
-  letter-spacing: .4px;
+  color: var(--duet-label-2);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-sidebar .detail-tabs > button:hover:not(.selected) {
+  color: var(--duet-label);
+  background: var(--duet-row-hover);
+}
+
+.detail-sidebar .detail-tabs > button.selected {
+  background: var(--duet-control-bg);
+  color: var(--duet-label);
+  font-weight: 600;
+  box-shadow: var(--duet-thumb-shadow);
+}
+
+.detail-sidebar .detail-tabs > button.selected::after {
+  display: none !important;
+}
+
+.detail-sidebar .detail-content,
+.chat-find-content {
+  padding: 6px 12px 16px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.detail-sidebar .panel-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--duet-label-2);
+  margin-bottom: 10px;
+}
+
+/* Content cards inside inspector remain OPAQUE (DESIGN.md §2) */
+.detail-sidebar .run-card,
+.detail-sidebar .tracking-card,
+.duet-conversation-card {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 12px;
+  padding: 11px 12px;
+  margin-bottom: 8px;
+  box-shadow: var(--duet-card-shadow);
+  color: var(--duet-label);
+}
+
+.detail-sidebar .run-card:hover,
+.detail-sidebar .tracking-card:hover,
+.duet-conversation-card:hover {
+  background: var(--duet-surface-subtle);
+  border-color: var(--duet-separator-strong);
+}
+
+.detail-sidebar .run-card h3,
+.detail-sidebar .tracking-card h3,
+.duet-conversation-card h3 {
+  font-size: 13px;
+  color: var(--duet-label);
+}
+
+.detail-sidebar .run-card p,
+.detail-sidebar .tracking-card p,
+.detail-sidebar .tracking-card small,
+.detail-sidebar .tracking-source,
+.duet-conversation-card p,
+.duet-hint {
+  color: var(--duet-label-2);
+}
+
+.detail-sidebar .tree-row {
+  border-radius: 8px;
+  color: var(--duet-label);
+  font-size: 13px;
+  padding: 6px 8px;
+}
+
+.detail-sidebar .tree-row:hover {
+  background: var(--duet-row-hover);
+}
+
+.detail-sidebar .tree-row.file > svg,
+.detail-sidebar .tree-row.folder > svg {
+  color: var(--duet-label-2);
+  fill: none;
+}
+
+.detail-sidebar .members-section,
+.duet-shared-files {
+  border-top: 0.5px solid var(--duet-separator);
+}
+
+.detail-sidebar .member-row {
+  color: var(--duet-label);
+  font-size: 13px;
+}
+
+.detail-sidebar .side-drawer {
+  background: var(--duet-surface);
+  color: var(--duet-label);
+  border-radius: var(--duet-r-panel);
+}
+
+.detail-sidebar .drawer-heading {
+  border-bottom: 0.5px solid var(--duet-separator);
+}
+
+.detail-sidebar .event-card,
+.detail-sidebar .event-card pre {
+  background: var(--duet-surface-subtle);
+  border-color: var(--duet-separator);
+  color: var(--duet-label);
+}
+
+.detail-sidebar .detail-fields dt,
+.modal .detail-fields dt {
+  color: var(--duet-label-2);
+}
+.detail-sidebar .detail-fields dd,
+.modal .detail-fields dd {
+  color: var(--duet-label);
+}
+
+.message-search-results > button {
+  border-bottom: 0.5px solid var(--duet-separator);
+  border-radius: 8px;
+  padding: 10px 8px;
+  color: var(--duet-label);
+}
+.message-search-results > button:hover {
+  background: var(--duet-row-hover);
+}
+.message-search-results > button > span > span {
+  color: var(--duet-label-2);
+}
+
+/* --- 7. Menus, Popovers, Sheets & Alerts (DESIGN.md §4) ------------------- */
+.fluent-menu,
+.account-menu,
+.emoji-picker {
+  border: 0;
+  border-radius: var(--duet-r-menu);
+  padding: 5px;
+  color: var(--duet-label);
+  animation: duet-pop-enter var(--duet-dur-enter) var(--duet-ease);
+}
+
+.fluent-menu > button,
+.account-menu > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--duet-label);
+  text-align: left;
+}
+
+.fluent-menu > button:hover:not(:disabled),
+.account-menu > button:hover:not(:disabled) {
+  background: var(--duet-row-hover);
+}
+
+.account-menu {
+  top: calc(100% + 8px);
+  width: 248px;
+  gap: 2px;
+  padding: 6px;
+}
+
+.account-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 6px;
+}
+
+.account-menu-header strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--duet-label);
+}
+
+.account-menu-header small {
+  display: block;
+  font-size: 11px;
+  color: var(--duet-label-2);
+}
+
+.app-options-menu {
+  top: calc(100% + 8px);
+  width: 214px;
+}
+
+.menu-separator {
+  height: 0.5px;
+  background: var(--duet-separator);
+  margin: 4px 8px;
+}
+
+.menu-shortcut {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--duet-label-3);
+  font-family: var(--duet-font);
+}
+
+.menu-context-note {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--duet-label-2);
+  padding: 6px 10px 8px;
+  border-bottom: 0.5px solid var(--duet-separator);
+  margin-bottom: 4px;
+  max-height: 80px;
+  overflow: auto;
+}
+
+/* Anchored Popover (PersonCard, Notifications) */
+.duet-popover {
+  position: fixed;
+  z-index: 45;
+  border-radius: var(--duet-r-sheet);
+  padding: 14px 16px 16px;
+  color: var(--duet-label);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  animation: duet-pop-enter var(--duet-dur-enter) var(--duet-ease);
+}
+
+.duet-popover-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.duet-popover-heading h2 {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 18px;
+  color: var(--duet-label);
+}
+
+.duet-popover-body {
+  font-size: 13px;
+  color: var(--duet-label);
+}
+
+/* Sheets & Alerts */
+.twins-modal-backdrop {
+  background: var(--duet-backdrop);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: duet-fade-only var(--duet-dur-enter) var(--duet-ease);
+}
+
+.twins-modal-backdrop .modal {
+  border: 0;
+  border-radius: var(--duet-r-sheet);
+  background: var(--duet-glass-overlay-fill);
+  color: var(--duet-label);
+  padding: 20px 22px 22px;
+  box-shadow: var(--duet-overlay-shadow);
+  animation: duet-sheet-enter var(--duet-dur-enter) var(--duet-ease);
+}
+
+.twins-modal-backdrop .modal.modal-alert {
+  width: 380px;
+}
+
+.modal .modal-heading {
+  margin: 0 0 16px;
+}
+
+.modal .modal-heading h2 {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 650;
+  color: var(--duet-label);
+}
+
+.modal .modal-heading .icon-button {
+  color: var(--duet-label-2);
+  border-radius: var(--duet-r-pill);
+}
+
+.modal p {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--duet-label-2);
+}
+
+.modal label,
+.people-picker-details label,
+.detail-sidebar .update-form label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--duet-label);
+  margin-bottom: 14px;
+}
+
+.modal input,
+.modal textarea,
+.modal select,
+.people-picker-details input,
+.people-picker-details select,
+.detail-sidebar .update-form textarea,
+.twin-profile-card input,
+.twin-credential-form input,
+.twin-credential-form select,
+.twin-content-editor textarea,
+.twin-content-editor input,
+.twin-schedule-editor select,
+.provider-config-key-label + input,
+.login-page .login-main input {
+  border: 0.5px solid var(--duet-border-input);
+  border-radius: var(--duet-r-ctrl);
+  background: var(--duet-surface);
+  color: var(--duet-label);
+  padding: 7px 10px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.modal input:focus,
+.modal textarea:focus,
+.modal select:focus,
+.people-picker-details input:focus,
+.people-picker-details select:focus,
+.detail-sidebar .update-form textarea:focus,
+.twin-profile-card input:focus,
+.twin-credential-form input:focus,
+.twin-credential-form select:focus,
+.twin-content-editor textarea:focus,
+.twin-content-editor input:focus,
+.twin-schedule-editor select:focus,
+.provider-config-key-label + input:focus,
+.login-page .login-main input:focus {
+  border: 1px solid var(--duet-label);
+  padding-bottom: 7px;
+  box-shadow: 0 0 0 2px var(--duet-fill);
+}
+
+.sheet-discard-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+  border-radius: 10px;
+  background: var(--duet-orange-soft);
+  color: var(--duet-label);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sheet-discard-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.keyboard-shortcuts {
+  white-space: pre-line;
+  font-size: 13px;
+  line-height: 22px;
+  color: var(--duet-label);
+}
+
+/* People Picker (Inline & Dialog) */
+.people-picker,
+.people-picker.people-picker-inline {
+  background: transparent;
+  color: var(--duet-label);
+}
+
+.people-picker .people-recipient-field {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-border-input);
+  border-radius: var(--duet-r-ctrl);
+}
+
+.people-picker-inline .people-recipient-field {
+  background: var(--duet-surface);
+  border: 0;
+  border-bottom: 0.5px solid var(--duet-separator);
+  border-radius: 0;
+}
+
+.people-picker-inline .people-to-label,
+.people-picker .person-option,
+.people-picker .people-recipient-field input {
+  color: var(--duet-label);
+}
+
+.people-picker .person-option:hover,
+.people-picker .person-option.keyboard-active {
+  background: var(--duet-row-hover);
+}
+
+.people-picker .person-option[aria-selected="true"] {
+  background: var(--duet-row-selected);
+}
+
+.people-picker-inline .people-suggestions {
+  background: var(--duet-glass-overlay-fill);
+  border: 0.5px solid var(--duet-separator-strong);
+  border-radius: var(--duet-r-menu);
+  box-shadow: var(--duet-overlay-shadow);
+}
+
+.people-picker-inline .people-picker-details {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 14px;
+}
+
+.people-picker .selected-people button,
+.people-picker .recipient-chip {
+  background: var(--duet-fill);
+  color: var(--duet-label);
+  border-radius: var(--duet-r-pill);
+}
+
+/* --- 8. Empty States, TechnicalError & Compact Notifications -------------- */
+.empty-state {
+  padding: 36px 20px;
+  gap: 10px;
+  color: var(--duet-label-3);
+}
+
+.empty-state-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--duet-fill);
+  color: var(--duet-label-2);
+  display: inline-grid;
+  place-items: center;
+}
+
+.empty-state h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--duet-label);
+}
+
+.empty-state p {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--duet-label-2);
+  max-width: 260px;
+}
+
+.empty-state-action {
+  margin-top: 4px;
+}
+
+.technical-error {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.technical-error-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--duet-destructive);
+}
+
+.technical-error-details summary {
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--duet-label-2);
+}
+
+.technical-error-details pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--duet-surface-subtle);
+  border: 0.5px solid var(--duet-separator);
+  font-family: var(--duet-font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 160px;
+  overflow: auto;
+  color: var(--duet-label-2);
+}
+
+/* Compact inline notification banner (does not shove shell chrome) */
+.desktop-notification-prompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 0.5px solid var(--duet-separator);
+  background: var(--duet-surface);
+  color: var(--duet-label);
+  box-shadow: var(--duet-card-shadow);
+}
+
+.desktop-notification-prompt > svg {
+  color: var(--duet-label-2);
+}
+
+.desktop-notification-prompt p {
+  color: var(--duet-label-2);
+}
+
+.desktop-notification-setting {
+  border-bottom: 0.5px solid var(--duet-separator);
+}
+
+.desktop-notification-setting p,
+.notification-permission {
+  color: var(--duet-label-2);
+}
+
+.notification-switch,
+.twin-switch {
+  background: var(--duet-fill-strong);
+  border: 0;
+  border-radius: var(--duet-r-pill);
+  padding: 2px;
+  width: 38px;
+  height: 22px;
+}
+
+.notification-switch > span,
+.twin-switch > span {
+  width: 18px;
+  height: 18px;
+  background: #ffffff;
+  box-shadow: var(--duet-thumb-shadow);
+}
+
+.notification-switch.on,
+.twin-switch.on {
+  background: var(--duet-green);
+}
+
+.notification-switch.on > span,
+.twin-switch.on > span {
+  transform: translateX(16px);
+}
+
+.error-toast {
+  border: 0;
+  border-radius: 12px;
+  color: var(--duet-destructive);
+  padding: 10px 14px;
+}
+
+/* --- 9. Reminders Page (Opaque Content Card) ------------------------------ */
+.reminders-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--duet-canvas-chat);
+  border-radius: var(--duet-r-panel);
+  box-shadow:
+    var(--duet-card-shadow),
+    inset 0 0 0 0.5px var(--duet-separator);
+  color: var(--duet-label);
+}
+
+.reminders-main .reminders-header {
+  height: 58px;
+  border-bottom: 0.5px solid var(--duet-separator);
+  padding: 0 24px;
+}
+
+.reminders-main .reminders-header h2 {
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--duet-label);
+}
+
+.reminders-main .reminders-title h2 {
+  font-size: 22px;
+  font-weight: 650;
+  color: var(--duet-label);
+}
+
+.reminders-main .reminders-title p,
+.reminders-main .reminders-header > .muted {
+  color: var(--duet-label-2);
+}
+
+.reminders-main .reminder-cards {
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 14px;
+  background: var(--duet-surface);
+  overflow: hidden;
+}
+
+.reminders-main .reminder-card {
+  background: var(--duet-surface);
+  color: var(--duet-label);
+}
+
+.reminders-main .reminder-card + .reminder-card {
+  border-top: 0.5px solid var(--duet-separator);
+}
+
+.reminders-main .reminder-card h3 {
+  color: var(--duet-label);
+}
+
+.reminders-main .reminder-card p,
+.reminders-main .reminder-time {
+  color: var(--duet-label-2);
+}
+
+.reminders-main .complete-button {
+  border-color: var(--duet-separator-strong);
+}
+
+.reminders-main .done .complete-button {
+  background: var(--duet-green);
+  border-color: var(--duet-green);
+}
+
+/* --- 10. My Duet & OpenAI Configuration Settings Split (DESIGN.md §3.5) --- */
+.settings-shell,
+.my-twin-page.settings-shell,
+.provider-config-page.settings-shell {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  gap: var(--duet-gutter);
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  color: var(--duet-label);
+}
+
+.twin-settings-nav {
+  width: 248px;
+  min-width: 220px;
+  flex-shrink: 0;
+  border-radius: var(--duet-r-panel);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+}
+
+.settings-nav-top {
+  display: flex;
+  align-items: center;
+}
+
+.settings-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--duet-label-2);
+}
+
+.settings-back-button:hover {
+  background: var(--duet-row-hover);
+  color: var(--duet-label);
+}
+
+.twin-settings-nav .twin-page-title {
+  padding: 4px 6px 8px;
+  border-bottom: 0.5px solid var(--duet-separator);
+}
+
+.twin-settings-nav .twin-page-title h1 {
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 650;
+  color: var(--duet-label);
+}
+
+.twin-settings-nav .twin-page-title p {
+  font-size: 11px;
+  color: var(--duet-label-2);
+}
+
+.settings-nav-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--duet-fill);
+  color: var(--duet-label);
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.settings-shell .twin-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+}
+
+.settings-shell .twin-tabs > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--duet-r-row);
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 18px;
+  color: var(--duet-label);
+  text-align: left;
+}
+
+.settings-shell .twin-tabs > button:hover {
+  background: var(--duet-row-hover);
+}
+
+.settings-shell .twin-tabs > button.selected {
+  background: var(--duet-row-selected);
+  color: var(--duet-label);
+  font-weight: 600;
+  border: 0;
+}
+
+.settings-shell .twin-page-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--duet-canvas-chat);
+  border-radius: var(--duet-r-panel);
+  box-shadow:
+    var(--duet-card-shadow),
+    inset 0 0 0 0.5px var(--duet-separator);
+}
+
+.settings-shell .twin-panel {
+  max-width: 820px;
+  padding: 28px 32px 44px;
+}
+
+.twin-section-heading h2 {
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--duet-label);
+}
+
+.twin-section-heading p,
+.twin-help {
+  color: var(--duet-label-2) !important;
+}
+
+.twin-profile-card,
+.twin-runtime-card,
+.twin-list,
+.twin-schedule-card,
+.twin-memory-status,
+.twin-danger-zone,
+.provider-config-card {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 14px;
+  box-shadow: var(--duet-card-shadow);
+  color: var(--duet-label);
+}
+
+.twin-list-row {
+  background: var(--duet-surface);
+  color: var(--duet-label);
+}
+
+.twin-list-row + .twin-list-row {
+  border-top: 0.5px solid var(--duet-separator);
+}
+
+.twin-list-icon {
+  background: var(--duet-fill);
+  color: var(--duet-label-2);
+  border-radius: 10px;
+}
+
+.twin-list-copy h3 {
+  color: var(--duet-label);
+}
+
+.twin-list-copy p,
+.twin-list-copy small,
+.twin-detail-fields dt,
+.twin-schedule-summary dt,
+.twin-schedule-instructions {
+  color: var(--duet-label-2);
+}
+
+.twin-detail-fields > div {
+  border-bottom: 0.5px solid var(--duet-separator);
+}
+
+.twin-memory-search {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-border-input);
+  border-radius: 10px;
+}
+
+.twin-text-content,
+.twin-memory-sources > div,
+.twin-request-context,
+.modal .text-file-preview {
+  background: var(--duet-surface-subtle);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 10px;
+  color: var(--duet-label);
+}
+
+.twin-notice {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 12px;
+  color: var(--duet-label);
+}
+
+.twin-notice-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.twin-notice.error {
+  background: var(--duet-destructive-soft);
+  border-color: var(--duet-destructive-soft);
+  color: var(--duet-destructive);
+}
+
+.twin-danger-zone {
+  border-color: var(--duet-destructive-soft);
+}
+
+.twin-danger-zone h2,
+.twin-inline-error {
+  color: var(--duet-destructive) !important;
+}
+
+.twin-credential-requests {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator-strong);
+  border-radius: 12px;
+}
+
+.twin-schedule-badge {
+  background: var(--duet-green-soft);
+  color: var(--duet-green);
+  border-radius: var(--duet-r-pill);
+  padding: 2px 8px;
+}
+
+.twin-schedule-badge.paused {
+  background: var(--duet-fill);
+  color: var(--duet-label-2);
+}
+
+.twin-schedule-actions {
+  border-top: 0.5px solid var(--duet-separator);
+}
+
+/* OpenAI Configuration specific layout (API key + Validate above fold) */
+.provider-config-content {
+  max-width: 780px;
+  padding: 28px 32px 44px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.provider-config-card {
+  padding: 22px 24px;
+}
+
+.provider-config-card-title {
+  color: var(--duet-label);
+}
+
+.provider-config-card-title h2 {
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--duet-label);
+}
+
+.provider-config-card-title > span {
+  background: var(--duet-fill);
+  color: var(--duet-label-2);
+  border-radius: var(--duet-r-pill);
+  padding: 3px 9px;
+  font-size: 11px;
+}
+
+.provider-config-lead {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--duet-label-2);
+  margin: 10px 0 18px;
+}
+
+.provider-config-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.provider-config-key-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--duet-label);
+  margin-bottom: 6px;
+}
+
+.provider-config-primary-row {
+  margin-top: 14px;
+}
+
+.provider-config-submit {
+  margin-top: 0;
+}
+
+.provider-config-save {
+  margin-top: 16px;
+  color: var(--duet-label);
+  font-size: 13px;
+}
+
+.provider-config-hint {
+  font-size: 11px !important;
+  line-height: 16px !important;
+  color: var(--duet-label-2) !important;
+  margin-top: 6px !important;
+}
+
+.provider-config-storage-path {
+  font-family: var(--duet-font-mono);
+  font-size: 11px;
+  color: var(--duet-label-3);
+  background: var(--duet-surface-subtle);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.provider-config-details {
+  margin-top: 0;
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 10px;
+}
+
+.provider-config-details > div + div {
+  border-top: 0.5px solid var(--duet-separator);
+}
+
+.provider-config-details dt {
+  color: var(--duet-label-2);
+}
+
+.provider-config-details dd {
+  color: var(--duet-label);
+}
+
+.provider-config-scope {
+  background: var(--duet-surface-subtle);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 10px;
+  padding: 14px;
+  margin: 14px 0 0;
+}
+
+.provider-config-scope strong {
+  color: var(--duet-label);
+  font-size: 12px;
+}
+
+.provider-config-scope p {
+  color: var(--duet-label-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.provider-config-notice {
+  padding: 8px 4px;
+  color: var(--duet-label-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.provider-config-result {
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.provider-config-result.error {
+  background: var(--duet-destructive-soft);
+  color: var(--duet-destructive);
+}
+
+.provider-config-result.success {
+  background: var(--duet-green-soft);
+  color: var(--duet-green);
+}
+
+/* --- 11. Login Page (Quiet Canvas + Centered Opaque Card) ----------------- */
+.login-page.login-page {
+  background: var(--duet-canvas);
+  color: var(--duet-label);
+}
+
+.login-page > header {
+  color: var(--duet-label);
+}
+
+.login-page .login-main {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: var(--duet-r-card);
+  box-shadow: var(--duet-card-shadow);
+  color: var(--duet-label);
+}
+
+.login-page .login-main h1 {
+  color: var(--duet-label);
+}
+
+.login-page .login-main > p,
+.login-page .login-hint,
+.login-page .login-footnote,
+.login-page > footer {
+  color: var(--duet-label-2);
+}
+
+.login-page .development-label {
+  background: var(--duet-fill);
+  color: var(--duet-label-2);
+  border-radius: var(--duet-r-pill);
+}
+
+.login-page .login-main label {
+  color: var(--duet-label);
+}
+
+.login-page .login-error {
+  color: var(--duet-destructive);
+}
+
+/* --- 11b. Markdown, Bot Sharing, Topics & Dark-Safe Subcomponents --------- */
+.markdown-content blockquote {
+  border-left-color: var(--duet-separator-strong);
+  color: var(--duet-label-2);
+}
+
+.markdown-content a {
+  color: var(--duet-label);
+}
+
+.markdown-content code {
+  background: var(--duet-fill);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 5px;
+  color: var(--duet-label);
+}
+
+.markdown-content pre {
+  background: var(--duet-surface-subtle);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 10px;
+  color: var(--duet-label);
+}
+
+.markdown-table-scroll,
+.markdown-content th,
+.markdown-content td,
+.markdown-content hr {
+  border-color: var(--duet-separator);
+}
+
+.markdown-content th {
+  background: var(--duet-fill);
+}
+
+.duet-status {
+  background: var(--duet-fill);
+  color: var(--duet-label-2);
+}
+.duet-status.active {
+  background: var(--duet-green-soft);
+  color: var(--duet-green);
+}
+.duet-status.rejected {
+  background: var(--duet-destructive-soft);
+  color: var(--duet-destructive);
+}
+.duet-status.closed {
+  background: var(--duet-fill);
+  color: var(--duet-label-3);
+}
+
+.duet-approval,
+.duet-pending-messages {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator-strong);
+  border-radius: 12px;
+  color: var(--duet-label);
+}
+
+.duet-error {
+  color: var(--duet-destructive);
+}
+
+.ask-user-heading,
+.ask-user-hint,
+.ask-user-saved-answer > small,
+.ask-user-origin {
+  color: var(--duet-label-2);
+}
+
+.ask-user-error {
+  color: var(--duet-destructive);
+}
+
+.bot-share-current,
+.bot-snapshot-card,
+.bot-install-card {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 14px;
+  color: var(--duet-label);
+}
+
+.bot-install-page {
+  background: var(--duet-canvas-chat);
+  border-radius: var(--duet-r-panel);
+  color: var(--duet-label);
+}
+
+.bot-share-current p,
+.bot-snapshot-assignment,
+.bot-snapshot-facts,
+.bot-snapshot-lineage,
+.bot-share-link-heading,
+.bot-share-feedback,
+.bot-share-notice,
+.bot-install-assignment,
+.bot-install-source,
+.bot-skill-row p,
+.bot-choices legend,
+.bot-choice small,
+.room-recipients legend,
+.bot-transcript-assignment,
+.bot-transcript-meta time,
+.coordination-links,
+.typing-row {
+  color: var(--duet-label-2);
+}
+
+.bot-share-link,
+.bot-install-source,
+.bot-editor-links,
+.bot-skill-row,
+.bot-choices .bot-choice,
+.bot-transcript,
+.bot-transcript article {
+  border-color: var(--duet-separator);
+}
+
+.bot-share-link-actions input {
+  background: var(--duet-surface-subtle);
+  color: var(--duet-label);
+}
+
+.attachment-text-preview {
+  color: var(--duet-label);
+}
+
+.attachment-preview-error {
+  background: var(--duet-destructive-soft);
+  border-color: var(--duet-destructive-soft);
+  color: var(--duet-destructive);
+}
+
+.stop-button {
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator-strong);
+  border-radius: 8px;
+  color: var(--duet-label);
+}
+
+.spinner {
+  border-color: var(--duet-label-2);
+}
+
+/* --- 12. Keyframes (DESIGN.md §4: 200-280ms enter, smooth exit) ----------- */
+@keyframes duet-pop-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes duet-sheet-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes duet-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* --- 13. Responsive Width Rules (DESIGN.md §3.6) -------------------------- */
+/* 900–1199 pt: sidebar and inspector are mutually exclusive real flex columns,
+   NEVER absolute overlays covering the message body or composer! */
+@media (max-width: 1199px) and (min-width: 900px) {
+  .detail-sidebar.detail-sidebar,
+  .chat-find-panel {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    width: 304px;
+    min-width: 280px;
+    max-width: 320px;
+    border-radius: var(--duet-r-panel);
+    box-shadow: var(--duet-glass-shadow);
+  }
+
+  .sidebar {
+    min-width: 248px;
+  }
+
+  .utility-cluster .search-wrap {
+    width: 170px;
+  }
+
+  .utility-cluster .search-wrap:focus-within {
+    width: 220px;
+  }
+}
+
+/* < 900 pt: list-then-push navigation; inspector pushes in as a sheet card */
+@media (max-width: 899px) {
+  .workspace {
+    flex-direction: column;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .sidebar {
+    position: relative;
+    left: auto;
+    top: auto;
+    bottom: auto;
+    flex: 1;
+    min-height: 0;
+    width: 100% !important;
+    min-width: 0;
+    max-width: none;
+    border: 0;
+    border-radius: var(--duet-r-panel);
+  }
+
+  .sidebar.collapsed {
+    display: none;
+  }
+
+  .pane-resizer {
+    display: none !important;
+  }
+
+  .detail-sidebar.detail-sidebar,
+  .chat-find-panel {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    border-radius: var(--duet-r-panel);
+    z-index: 22;
+  }
+
+  .utility-cluster .search-wrap {
+    width: 144px;
+  }
+
+  .utility-cluster .search-wrap:focus-within {
+    width: 184px;
+  }
+
+  .message-area {
+    padding: 74px 14px 104px;
+  }
+
+  .composer-area {
+    padding: 0 10px 10px;
+  }
+
+  .chat-header {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+  }
+
+  .settings-shell,
+  .my-twin-page.settings-shell,
+  .provider-config-page.settings-shell {
+    flex-direction: column;
+  }
+
+  .twin-settings-nav {
+    width: 100%;
+    min-width: 0;
+    flex-shrink: 0;
+    padding: 10px;
+  }
+
+  .settings-shell .twin-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 4px;
+  }
+
+  .settings-shell .twin-tabs > button {
+    width: auto;
+    white-space: nowrap;
+    padding: 6px 10px;
+  }
+
+  .settings-shell .twin-panel,
+  .provider-config-content {
+    padding: 20px 16px 32px;
+  }
+}
+
+/* --- 14. Accessibility Fallbacks Reinforced (Cascade Victory) ------------- */
+@media (prefers-reduced-transparency: reduce) {
+  .duet-glass,
+  .duet-glass-chrome,
+  .duet-glass.is-duet-refracting,
+  .duet-glass-overlay,
+  .sidebar,
+  .chat-header,
+  .composer,
+  .detail-sidebar.detail-sidebar,
+  .chat-find-panel,
+  .utility-cluster,
+  .floating-nav-pill,
+  .twin-settings-nav {
+    background-color: var(--duet-glass-solid) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow:
+      0 0 0 1px var(--duet-separator-strong),
+      0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  .duet-glass::before,
+  .duet-glass::after,
+  .duet-glass-overlay::before,
+  .duet-scroll-edge-top,
+  .duet-scroll-edge-bottom {
+    display: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .sidebar,
+  .chat-header,
+  .composer,
+  .detail-sidebar.detail-sidebar,
+  .chat-find-panel,
+  .utility-cluster,
+  .chat-main,
+  .message-bubble,
+  .twin-profile-card,
+  .provider-config-card {
+    outline: 1.5px solid var(--duet-separator-strong);
+    outline-offset: -1.5px;
+  }
+}
+
+/* Override legacy styles.css blanket animation:none!important so sheets/menus
+   fade smoothly without sliding, scaling, or morphing (DESIGN.md §4). */
+@media (prefers-reduced-motion: reduce) {
+  .twins-modal-backdrop,
+  .twins-modal-backdrop .modal,
+  .duet-popover,
+  .fluent-menu,
+  .account-menu,
+  .detail-sidebar.detail-sidebar,
+  .chat-find-panel {
+    animation-name: duet-fade-only !important;
+    animation-duration: 140ms !important;
+    animation-timing-function: ease-out !important;
+    animation-fill-mode: both !important;
+    transform: none !important;
+  }
 }

@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import './apple-tokens.css';
 import App from './App';
 import { i18n } from './i18n';
 import './Duet.css';

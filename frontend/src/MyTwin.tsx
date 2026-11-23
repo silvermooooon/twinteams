@@ -10,14 +10,25 @@ import type { ContentDrafts, SetContentDraft } from './TwinContent';
 import { TwinResetSection } from './TwinReset';
 import { ScheduledTasksTab } from './TwinScheduledTasks';
 import type { TwinResetControl } from './TwinReset';
-import { Avatar, Empty, Icon, IconButton, Modal, dateTime } from './ui';
+import { Avatar, Empty, Icon, IconButton, Modal, TechnicalError, dateTime } from './ui';
+import type { IconName } from './ui';
 import { t } from './i18n';
 import './MyTwin.css';
 import { TrustedDuets } from './DuetConversations';
 
 export type TwinTab = 'profile' | 'soul' | 'runtime' | 'skills' | 'memory' | 'credentials' | 'scheduled' | 'connections';
 export const TWIN_TABS: TwinTab[] = ['profile', 'soul', 'runtime', 'skills', 'memory', 'credentials', 'scheduled', 'connections'];
-function ErrorNotice({ error, onRetry }: { error: string; onRetry?: () => void }) { return <div className="twin-notice error" role="alert"><Icon name="info" size={18} /><span>{error}</span>{onRetry && <button type="button" className="text-button" onClick={onRetry}>{t('twin.retry')}</button>}</div>; }
+const TWIN_TAB_ICONS: Record<TwinTab, IconName> = {
+  profile: 'spark',
+  soul: 'edit',
+  runtime: 'info',
+  skills: 'star',
+  memory: 'file',
+  credentials: 'settings',
+  scheduled: 'clock',
+  connections: 'people',
+};
+function ErrorNotice({ error, onRetry }: { error: string; onRetry?: () => void }) { return <div className="twin-notice error" role="alert"><Icon name="info" size={18} /><div className="twin-notice-body"><TechnicalError error={error} /></div>{onRetry && <button type="button" className="text-button" onClick={onRetry}>{t('twin.retry')}</button>}</div>; }
 function Loading() { return <div className="twin-loading" role="status"><span className="spinner" />{t('common.loading')}</div>; }
 function useResource<T>(load: (signal: AbortSignal) => Promise<T>, revision: number) {
   const [value, setValue] = useState<T | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [retry, setRetry] = useState(0);
@@ -85,5 +96,57 @@ export function MyTwinPage({ api, account, actor, tab, revision, credentials, re
   const tabsId = useId(); const load = useCallback((signal: AbortSignal) => twinApi(api).profile(signal), [api]); const profile = useResource(load, revision);
   useEffect(() => { if (profile.value) onActor(profile.value.actor); }, [profile.value, onActor]);
   const ownTwin = actor || profile.value?.actor;
-  return <main className="my-twin-page"><header className="twin-page-header"><div className="twin-page-title"><Avatar actor={ownTwin} twin size={44} /><div><h1>{t('twin.title')}</h1><p>{ownTwin?.name || t('twin.subtitle')}</p></div></div><button type="button" className="secondary-button" onClick={onBack}><Icon name="reply" size={16} />{t('twin.back')}</button></header><div className="twin-tabs" role="tablist" aria-label={t('twin.title')} onKeyDown={event => { if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return; event.preventDefault(); const index = TWIN_TABS.indexOf(tab); const next = event.key === 'Home' ? 0 : event.key === 'End' ? TWIN_TABS.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + TWIN_TABS.length) % TWIN_TABS.length; onTab(TWIN_TABS[next]); event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus(); }}>{TWIN_TABS.map(value => <button type="button" role="tab" key={value} id={`${tabsId}-${value}`} aria-controls={`${tabsId}-panel`} aria-selected={value === tab} tabIndex={value === tab ? 0 : -1} className={value === tab ? 'selected' : ''} onClick={() => onTab(value)}>{t(`twin.${value}`)}</button>)}</div><div className="twin-page-scroll"><section className="twin-panel" role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-${tab}`} tabIndex={0} key={tab === 'memory' ? `${tab}:${memoryRevision}` : tab}>{tab === 'profile' ? profile.error ? <ErrorNotice error={profile.error} onRetry={profile.retry} /> : ownTwin ? <><ProfileTab api={api} actor={ownTwin} account={account} onActor={onActor} /><TwinResetSection reset={reset} /></> : <Loading /> : tab === 'connections' ? <TrustedDuets api={api} revision={revision} /> : tab === 'soul' ? <SoulTab api={api} revision={revision} draft={drafts.soul} onDraft={updateDraft} /> : tab === 'scheduled' ? <ScheduledTasksTab api={api} revision={scheduledTasksRevision} /> : tab === 'runtime' ? <RuntimeTab api={api} revision={revision} /> : tab === 'skills' ? <SkillsTab api={api} revision={revision} /> : tab === 'memory' ? <MemoryTab api={api} revision={revision} drafts={drafts} onDraft={updateMemoryDraft} /> : credentialsLoading && !credentialsConfigured && !credentials.length ? <Loading /> : credentialsError ? <ErrorNotice error={credentialsError} onRetry={onCredentialsChange} /> : <CredentialsTab api={api} revision={revision} requests={requests} credentials={credentials} configured={credentialsConfigured} onChange={onCredentialsChange} />}</section></div></main>;
+  return <main className="my-twin-page settings-shell">
+    <aside className="twin-settings-nav duet-glass" data-duet-refract="0.55" aria-label={t('twin.title')}>
+      <div className="settings-nav-top">
+        <button type="button" className="settings-back-button" onClick={onBack}>
+          <Icon name="reply" size={15} />
+          <span>{t('shell.backToChats')}</span>
+        </button>
+      </div>
+      <div className="twin-page-title">
+        <Avatar actor={ownTwin} twin size={40} />
+        <div>
+          <h1>{t('twin.title')}</h1>
+          <p>{ownTwin?.name || t('twin.subtitle')}</p>
+        </div>
+      </div>
+      <div
+        className="twin-tabs"
+        role="tablist"
+        aria-orientation="vertical"
+        aria-label={t('twin.title')}
+        onKeyDown={event => {
+          if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          const index = TWIN_TABS.indexOf(tab);
+          const next = event.key === 'Home' ? 0 : event.key === 'End' ? TWIN_TABS.length - 1 : (index + (event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1) + TWIN_TABS.length) % TWIN_TABS.length;
+          onTab(TWIN_TABS[next]);
+          event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+        }}
+      >
+        {TWIN_TABS.map(value => (
+          <button
+            type="button"
+            role="tab"
+            key={value}
+            id={`${tabsId}-${value}`}
+            aria-controls={`${tabsId}-panel`}
+            aria-selected={value === tab}
+            tabIndex={value === tab ? 0 : -1}
+            className={value === tab ? 'selected' : ''}
+            onClick={() => onTab(value)}
+          >
+            <Icon name={TWIN_TAB_ICONS[value]} size={16} />
+            <span>{t(`twin.${value}`)}</span>
+          </button>
+        ))}
+      </div>
+    </aside>
+    <div className="twin-page-scroll">
+      <section className="twin-panel" role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-${tab}`} tabIndex={0} key={tab === 'memory' ? `${tab}:${memoryRevision}` : tab}>
+        {tab === 'profile' ? profile.error ? <ErrorNotice error={profile.error} onRetry={profile.retry} /> : ownTwin ? <><ProfileTab api={api} actor={ownTwin} account={account} onActor={onActor} /><TwinResetSection reset={reset} /></> : <Loading /> : tab === 'connections' ? <TrustedDuets api={api} revision={revision} /> : tab === 'soul' ? <SoulTab api={api} revision={revision} draft={drafts.soul} onDraft={updateDraft} /> : tab === 'scheduled' ? <ScheduledTasksTab api={api} revision={scheduledTasksRevision} /> : tab === 'runtime' ? <RuntimeTab api={api} revision={revision} /> : tab === 'skills' ? <SkillsTab api={api} revision={revision} /> : tab === 'memory' ? <MemoryTab api={api} revision={revision} drafts={drafts} onDraft={updateMemoryDraft} /> : credentialsLoading && !credentialsConfigured && !credentials.length ? <Loading /> : credentialsError ? <ErrorNotice error={credentialsError} onRetry={onCredentialsChange} /> : <CredentialsTab api={api} revision={revision} requests={requests} credentials={credentials} configured={credentialsConfigured} onChange={onCredentialsChange} />}
+      </section>
+    </div>
+  </main>;
 }

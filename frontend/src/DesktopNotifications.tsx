@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { Actor, Chat } from "./api/client";
 import { t } from "./i18n";
-import { chatTitle, Icon, IconButton, Modal } from "./ui";
+import { chatTitle, Icon, IconButton, Popover } from "./ui";
 import "./DesktopNotifications.css";
 
 type Preferences = { enabled: boolean; dismissed: boolean };
@@ -438,9 +438,11 @@ export function DesktopNotificationPrompt({
 }
 export function DesktopNotificationSettings({
   controller,
+  anchor,
   onClose,
 }: {
   controller: Controller;
+  anchor?: DOMRect | null;
   onClose: () => void;
 }) {
   const unavailable =
@@ -448,7 +450,13 @@ export function DesktopNotificationSettings({
     !controller.secure ||
     controller.permission === "denied";
   return (
-    <Modal title={t("notifications.title")} onClose={onClose}>
+    <Popover
+      title={t("notifications.title")}
+      anchor={anchor}
+      align="right"
+      width={340}
+      onClose={onClose}
+    >
       <div className="desktop-notification-setting">
         <div>
           <h3>{t("notifications.desktop")}</h3>
@@ -487,11 +495,6 @@ export function DesktopNotificationSettings({
         )}
       </p>
       <p className="form-note">{t("notifications.limit")}</p>
-      <div className="modal-actions">
-        <button className="secondary-button" type="button" onClick={onClose}>
-          {t("common.close")}
-        </button>
-      </div>
-    </Modal>
+    </Popover>
   );
 }

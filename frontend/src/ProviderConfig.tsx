@@ -91,33 +91,67 @@ export function ProviderConfigPage({ allowed, onBack }: { allowed: boolean; onBa
     }
   }
 
-  return <main className="provider-config-page">
-    <header className="provider-config-header"><div><span className="provider-config-eyebrow">{t('providerConfig.localOnly')}</span><h1>{t('providerConfig.title')}</h1></div><button type="button" className="secondary-button" onClick={onBack}>{t('providerConfig.back')}</button></header>
-    <div className="provider-config-content">
-      {!allowed ? <div className="provider-config-notice" role="status"><Icon name="info" size={19} /><p>{t('providerConfig.unavailable')}</p></div> : !ready ? <div className="provider-config-notice" role="status">{error ? <><Icon name="info" size={19} /><p>{t(errorKeys[error])}</p></> : <><span className="spinner" /><p>{t('common.loading')}</p></>}</div> : <>
-        <section className="provider-config-card" aria-labelledby="provider-config-test-heading">
-          <div className="provider-config-card-title"><Icon name="settings" size={21} /><h2 id="provider-config-test-heading">{t('providerConfig.testTitle')}</h2><span>{t('providerConfig.disabled')}</span></div>
-          <p>{t('providerConfig.intro')}</p>
-          <dl className="provider-config-details"><div><dt>{t('providerConfig.provider')}</dt><dd>OpenAI</dd></div><div><dt>{t('providerConfig.model')}</dt><dd>gpt-6-luna</dd></div><div><dt>{t('providerConfig.destination')}</dt><dd>https://api.openai.com/v1/responses</dd></div></dl>
-          <div className="provider-config-scope"><strong>{t('providerConfig.scopeTitle')}</strong><p>{t('providerConfig.scope')}</p><p>{t('providerConfig.billed')}</p></div>
-          <form onSubmit={submit} autoComplete="off">
-            <label className="provider-config-key-label" htmlFor="openai-api-key">{t('providerConfig.keyLabel')}</label>
-            <input ref={setKeyField} id="openai-api-key" type="password" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} required disabled={busy} aria-describedby="provider-key-privacy" onInput={event => setHasKey(event.currentTarget.value.length > 0)} />
-            <p id="provider-key-privacy" className="provider-config-hint">{t('providerConfig.keyPrivacy')}</p>
-            <label className="provider-config-save"><input type="checkbox" checked={saveForLater} disabled={busy || !storageAvailable} onChange={event => setSaveForLater(event.target.checked)} /><span>{t('providerConfig.saveLabel')}</span></label>
-            <p className="provider-config-hint">{t('providerConfig.saveDetail')}</p>
-            <p className="provider-config-storage-path">{storagePath || 'backend/data/provider-secrets/openai.env'}</p>
-            <p className="provider-config-hint">{t('providerConfig.saveScope')}</p>
-            {existingSaved && saveForLater && <p className="provider-config-hint">{t('providerConfig.replaceSaved')}</p>}
-            {!storageAvailable && <p className="provider-config-hint">{t('providerConfig.storageUnavailable')}</p>}
-            <button type="submit" className="primary-button provider-config-submit" disabled={!hasKey || busy}>{busy ? t('providerConfig.validating') : t(saveForLater ? 'providerConfig.validateAndSave' : 'providerConfig.validate')}</button>
-          </form>
-          {error && <div className="provider-config-result error" role="alert"><Icon name="info" size={18} /><p>{t(errorKeys[error])}</p></div>}
-          {verified && <div className="provider-config-result success" role="status"><Icon name="check" size={18} /><div><strong>{t('providerConfig.verified')}</strong><p>{t(saved ? 'providerConfig.savedResult' : 'providerConfig.unsavedResult')}</p></div></div>}
-          {existingSaved && !saved && <p className="provider-config-saved-status">{t('providerConfig.alreadySaved')}</p>}
-        </section>
-        <div className="provider-config-notice"><Icon name="info" size={19} /><p>{t('providerConfig.futureUse')}</p></div>
-      </>}
+  return <main className="provider-config-page settings-shell">
+    <aside className="twin-settings-nav duet-glass" data-duet-refract="0.55" aria-label={t('providerConfig.title')}>
+      <div className="settings-nav-top">
+        <button type="button" className="settings-back-button" onClick={onBack}>
+          <Icon name="reply" size={15} />
+          <span>{t('providerConfig.back')}</span>
+        </button>
+      </div>
+      <div className="twin-page-title">
+        <span className="settings-nav-icon"><Icon name="settings" size={20} /></span>
+        <div>
+          <h1>{t('providerConfig.title')}</h1>
+          <p>{t('providerConfig.localOnly')}</p>
+        </div>
+      </div>
+      <div className="twin-tabs" role="tablist" aria-orientation="vertical" aria-label={t('providerConfig.title')}>
+        <button type="button" role="tab" aria-selected="true" className="selected">
+          <Icon name="settings" size={16} />
+          <span>{t('providerConfig.testTitle')}</span>
+        </button>
+      </div>
+    </aside>
+    <div className="twin-page-scroll">
+      <div className="provider-config-content">
+        {!allowed ? <div className="provider-config-notice" role="status"><Icon name="info" size={19} /><p>{t('providerConfig.unavailable')}</p></div> : !ready ? <div className="provider-config-notice" role="status">{error ? <><Icon name="info" size={19} /><p>{t(errorKeys[error])}</p></> : <><span className="spinner" /><p>{t('common.loading')}</p></>}</div> : <>
+          <section className="provider-config-card" aria-labelledby="provider-config-test-heading">
+            <div className="provider-config-card-title">
+              <h2 id="provider-config-test-heading">{t('providerConfig.testTitle')}</h2>
+              <span>{t('providerConfig.disabled')}</span>
+            </div>
+            <p className="provider-config-lead">{t('providerConfig.intro')} {t('providerConfig.billed')}</p>
+
+            <form className="provider-config-form" onSubmit={submit} autoComplete="off">
+              <label className="provider-config-key-label" htmlFor="openai-api-key">{t('providerConfig.keyLabel')}</label>
+              <input ref={setKeyField} id="openai-api-key" type="password" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} required disabled={busy} aria-describedby="provider-key-privacy" onInput={event => setHasKey(event.currentTarget.value.length > 0)} />
+              <p id="provider-key-privacy" className="provider-config-hint">{t('providerConfig.keyPrivacy')}</p>
+
+              <div className="provider-config-primary-row">
+                <button type="submit" className="primary-button provider-config-submit" disabled={!hasKey || busy}>{busy ? t('providerConfig.validating') : t(saveForLater ? 'providerConfig.validateAndSave' : 'providerConfig.validate')}</button>
+              </div>
+
+              <label className="provider-config-save"><input type="checkbox" checked={saveForLater} disabled={busy || !storageAvailable} onChange={event => setSaveForLater(event.target.checked)} /><span>{t('providerConfig.saveLabel')}</span></label>
+              <p className="provider-config-hint">{t('providerConfig.saveDetail')} <code className="provider-config-storage-path">{storagePath || 'backend/data/provider-secrets/openai.env'}</code></p>
+              <p className="provider-config-hint">{t('providerConfig.saveScope')}</p>
+              {existingSaved && saveForLater && <p className="provider-config-hint">{t('providerConfig.replaceSaved')}</p>}
+              {!storageAvailable && <p className="provider-config-hint">{t('providerConfig.storageUnavailable')}</p>}
+            </form>
+
+            {error && <div className="provider-config-result error" role="alert"><Icon name="info" size={18} /><p>{t(errorKeys[error])}</p></div>}
+            {verified && <div className="provider-config-result success" role="status"><Icon name="check" size={18} /><div><strong>{t('providerConfig.verified')}</strong><p>{t(saved ? 'providerConfig.savedResult' : 'providerConfig.unsavedResult')}</p></div></div>}
+            {existingSaved && !saved && <p className="provider-config-saved-status">{t('providerConfig.alreadySaved')}</p>}
+          </section>
+
+          <section className="provider-config-card provider-config-meta-card">
+            <dl className="provider-config-details"><div><dt>{t('providerConfig.provider')}</dt><dd>OpenAI</dd></div><div><dt>{t('providerConfig.model')}</dt><dd>gpt-6-luna</dd></div><div><dt>{t('providerConfig.destination')}</dt><dd>https://api.openai.com/v1/responses</dd></div></dl>
+            <div className="provider-config-scope"><strong>{t('providerConfig.scopeTitle')}</strong><p>{t('providerConfig.scope')}</p></div>
+          </section>
+
+          <div className="provider-config-notice"><Icon name="info" size={17} /><p>{t('providerConfig.futureUse')}</p></div>
+        </>}
+      </div>
     </div>
   </main>;
 }

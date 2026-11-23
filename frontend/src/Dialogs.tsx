@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Actor, ApiClient, Chat, ChatDetail, HistoryPolicy, Reminder } from './api/client';
-import { Avatar, Icon, Modal, dateTime } from './ui';
+import { Avatar, Empty, Icon, Modal, dateTime } from './ui';
 import { t } from './i18n';
 import './TeamsOverlays.css';
 type PeoplePickerProps = { api: ApiClient; ownerId: string; chat?: Chat; initialPerson?: Actor; onClose: () => void; onDone: (chat: Chat) => void; onError: (error: unknown) => void; inline?: boolean; onBusyChange?: (busy: boolean) => void };
@@ -94,5 +94,64 @@ export function ReminderDialog({ api, onClose, onDone, onError }: { api: ApiClie
 }
 export function RemindersPage({ reminders, completed, onToggle, onNew, onChat }: { reminders: Reminder[]; completed: boolean; onToggle: (reminder: Reminder) => void; onNew: () => void; onChat: (chatId: string) => void }) {
   const visible = reminders.filter(item => item.done === completed).sort((a, b) => (a.due_at || 'z').localeCompare(b.due_at || 'z'));
-  return <main className="reminders-main"><header className="reminders-header"><h2>{t('nav.reminders')}</h2><span className="muted">{t('reminders.stored')}</span></header><div className="reminders-content"><div className="reminders-title"><div><h2>{t(completed ? 'reminders.completed' : 'reminders.title')}</h2><p>{t('reminders.summary', { count: visible.length })}</p></div><button className="primary-button" onClick={onNew}><Icon name="plus" size={16} />{t('reminders.new')}</button></div><div className="reminder-cards">{visible.length ? visible.map(reminder => <article className={`reminder-card ${reminder.done ? 'done' : ''}`} key={reminder.id}><button className="complete-button" onClick={() => onToggle(reminder)} title={t(reminder.done ? 'reminders.reopen' : 'reminders.complete')} aria-label={t(reminder.done ? 'reminders.reopen' : 'reminders.complete')}>{reminder.done && <Icon name="check" size={14} />}</button><div><h3>{reminder.title}</h3>{reminder.detail && <p>{reminder.detail}</p>}<span className="reminder-time"><Icon name="clock" size={14} />{reminder.due_at ? dateTime(reminder.due_at) : t('reminders.noTime')}</span>{reminder.chat_id && <button className="text-button" onClick={() => onChat(reminder.chat_id!)}>{t('reminders.openChat')}<Icon name="arrow" size={14} /></button>}</div></article>) : <div className="reminder-empty"><Icon name="check" size={30} /><h3>{t(completed ? 'reminders.noCompleted' : 'reminders.noPending')}</h3></div>}</div></div></main>;
+  return (
+    <main className="reminders-main">
+      <header className="reminders-header">
+        <div>
+          <h2>{t(completed ? 'reminders.completed' : 'reminders.title')}</h2>
+          <p className="muted">{t('reminders.summary', { count: visible.length })} · {t('reminders.stored')}</p>
+        </div>
+        <button className="primary-button" onClick={onNew}>
+          <Icon name="plus" size={15} />
+          {t('reminders.new')}
+        </button>
+      </header>
+      <div className="reminders-content">
+        {visible.length ? (
+          <div className="reminder-cards">
+            {visible.map(reminder => (
+              <article className={`reminder-card ${reminder.done ? 'done' : ''}`} key={reminder.id}>
+                <button
+                  className="complete-button"
+                  onClick={() => onToggle(reminder)}
+                  title={t(reminder.done ? 'reminders.reopen' : 'reminders.complete')}
+                  aria-label={t(reminder.done ? 'reminders.reopen' : 'reminders.complete')}
+                >
+                  {reminder.done && <Icon name="check" size={14} />}
+                </button>
+                <div>
+                  <h3>{reminder.title}</h3>
+                  {reminder.detail && <p>{reminder.detail}</p>}
+                  <span className="reminder-time">
+                    <Icon name="clock" size={13} />
+                    {reminder.due_at ? dateTime(reminder.due_at) : t('reminders.noTime')}
+                  </span>
+                  {reminder.chat_id && (
+                    <button className="text-button" onClick={() => onChat(reminder.chat_id!)}>
+                      {t('reminders.openChat')}
+                      <Icon name="arrow" size={13} />
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <Empty
+            icon={completed ? 'check' : 'bell'}
+            title={t(completed ? 'reminders.noCompleted' : 'reminders.noPending')}
+            detail={t(completed ? 'reminders.emptyCompletedDetail' : 'reminders.emptyDetail')}
+            action={
+              !completed ? (
+                <button className="primary-button" onClick={onNew}>
+                  <Icon name="plus" size={15} />
+                  {t('reminders.new')}
+                </button>
+              ) : undefined
+            }
+          />
+        )}
+      </div>
+    </main>
+  );
 }

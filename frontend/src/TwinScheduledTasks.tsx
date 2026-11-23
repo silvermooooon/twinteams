@@ -3,7 +3,7 @@ import type { ApiClient } from './api/client';
 import { requestKey } from './api/client';
 import { twinApi } from './api/twin';
 import type { ScheduledTask, ScheduledTaskInput, ScheduledTaskRun, TaskSchedule } from './api/twin';
-import { Empty, Icon, IconButton, Modal } from './ui';
+import { Empty, Icon, IconButton, Modal, TechnicalError } from './ui';
 
 const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const statusLabels: Record<ScheduledTaskRun['status'] | 'silent', string> = { queued: 'Queued', running: 'Running', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled', silent: 'Completed quietly' };
@@ -101,7 +101,7 @@ function TaskHistory({ api, task, revision, onClose }: { api: ApiClient; task: S
   return <Modal wide title={`Run history · ${task.title}`} onClose={onClose}>
     <p className="twin-help">The latest 20 runs. Times shown in {task.timezone}. A completed review may produce no chat message.</p>
     {error && <Notice error={error} retry={() => setRetry(value => value + 1)} />}
-    {items === null && !error ? <div className="twin-loading" role="status"><span className="spinner" />Loading run history…</div> : !items?.length && !error ? <Empty icon="clock" title="No runs yet" /> : <ol className="twin-schedule-history">{items?.map(run => <li key={run.request_id} data-request-id={run.request_id}><div><strong className={`twin-schedule-status ${run.status}`}>{statusLabels[run.status]}</strong><time dateTime={run.accepted_at}>{timestamp(run.accepted_at, task.timezone)}</time></div><dl><div><dt>Trigger</dt><dd>{run.trigger === 'manual' ? 'Run now' : run.planned_at ? `Scheduled for ${timestamp(run.planned_at, task.timezone)}` : 'Scheduled'}</dd></div><div><dt>Request</dt><dd><code>{run.request_id}</code></dd></div>{run.run_id && <div><dt>Run</dt><dd><code>{run.run_id}</code></dd></div>}</dl>{run.error && <p className="twin-inline-error" role="alert">{run.error}</p>}</li>)}</ol>}
+    {items === null && !error ? <div className="twin-loading" role="status"><span className="spinner" />Loading run history…</div> : !items?.length && !error ? <Empty icon="clock" title="No runs yet" /> : <ol className="twin-schedule-history">{items?.map(run => <li key={run.request_id} data-request-id={run.request_id}><div><strong className={`twin-schedule-status ${run.status}`}>{statusLabels[run.status]}</strong><time dateTime={run.accepted_at}>{timestamp(run.accepted_at, task.timezone)}</time></div><dl><div><dt>Trigger</dt><dd>{run.trigger === 'manual' ? 'Run now' : run.planned_at ? `Scheduled for ${timestamp(run.planned_at, task.timezone)}` : 'Scheduled'}</dd></div><div><dt>Request</dt><dd><code>{run.request_id}</code></dd></div>{run.run_id && <div><dt>Run</dt><dd><code>{run.run_id}</code></dd></div>}</dl>{run.error && <TechnicalError error={run.error} />}</li>)}</ol>}
   </Modal>;
 }
 
@@ -131,7 +131,7 @@ export function ScheduledTasksTab({ api, revision }: { api: ApiClient; revision:
       {task.kind === 'system_review' && <p className="twin-help twin-schedule-managed">System managed · Reviews ongoing work and pending items. Instructions are read-only.</p>}
       <p className="twin-schedule-instructions">{task.instructions}</p>
       <dl className="twin-schedule-summary"><div><dt>Next run</dt><dd>{task.enabled && task.next_run_at ? timestamp(task.next_run_at, task.timezone) : task.enabled ? 'No future run' : 'Paused'}</dd></div><div><dt>Last result</dt><dd>{task.pending_work && !task.active_request_id ? <span className="twin-schedule-status queued">Waiting for pending work</span> : task.last_status ? <><span className={`twin-schedule-status ${task.last_status}`}>{statusLabels[task.last_status]}</span>{task.last_run_at && <> · {timestamp(task.last_run_at, task.timezone)}</>}</> : 'No runs yet'}</dd></div></dl>
-      {task.last_error && <p className="twin-inline-error" role="alert">{task.last_error}</p>}
+      {task.last_error && <TechnicalError error={task.last_error} />}
       <div className="twin-row-actions twin-schedule-actions">
         <IconButton icon={task.enabled ? 'pause' : 'refresh'} label={`${task.enabled ? 'Pause future runs for' : 'Resume future runs for'} ${task.title}`} disabled={busy.includes(task.id)} onClick={() => { void action(task.id, async () => { replace(await twinApi(api).updateScheduledTask(task.id, { enabled: !task.enabled })); }); }} />
         <IconButton icon="play" label={`Run now ${task.title}`} disabled={busy.includes(task.id) || task.pending_work || !!task.active_request_id} onClick={() => { void action(task.id, async () => { const key = runKeys.current.get(task.id) || requestKey(); runKeys.current.set(task.id, key); const result = await twinApi(api).runScheduledTask(task.id, key); runKeys.current.delete(task.id); replace(result.task); setNotice(`Run queued for ${task.title}.`); setHistoryRevision(value => value + 1); }); }} />
@@ -143,6 +143,6 @@ export function ScheduledTasksTab({ api, revision }: { api: ApiClient; revision:
     </article>)}</div>}
     {editor && <TaskEditor api={api} task={editor.task} onClose={() => setEditor(null)} onSaved={replace} />}
     {historyTask && <TaskHistory api={api} task={historyTask} revision={revision + historyRevision} onClose={() => setHistoryId(null)} />}
-    {deleting && <Modal title="Delete scheduled task?" onClose={() => setDeleting(null)} closeDisabled={busy.includes(deleting.id)}><p className="twin-help">Delete {deleting.title}? Future runs will be removed. Stop any active work before deleting.</p>{error && <Notice error={error} />}<div className="twin-content-actions"><button type="button" className="secondary-button" disabled={busy.includes(deleting.id)} onClick={() => setDeleting(null)}>Cancel</button><button type="button" className="danger-button" disabled={busy.includes(deleting.id)} onClick={() => { void action(deleting.id, async () => { await twinApi(api).deleteScheduledTask(deleting.id); setItems(previous => previous?.filter(task => task.id !== deleting.id) || []); setDeleting(null); }); }}>Delete task</button></div></Modal>}
+    {deleting && <Modal variant="alert" title="Delete scheduled task?" onClose={() => setDeleting(null)} closeDisabled={busy.includes(deleting.id)}><p className="twin-help">Delete {deleting.title}? Future runs will be removed. Stop any active work before deleting.</p>{error && <Notice error={error} />}<div className="twin-content-actions"><button type="button" className="secondary-button" disabled={busy.includes(deleting.id)} onClick={() => setDeleting(null)}>Cancel</button><button type="button" className="danger-button" disabled={busy.includes(deleting.id)} onClick={() => { void action(deleting.id, async () => { await twinApi(api).deleteScheduledTask(deleting.id); setItems(previous => previous?.filter(task => task.id !== deleting.id) || []); setDeleting(null); }); }}>Delete task</button></div></Modal>}
   </>;
 }
