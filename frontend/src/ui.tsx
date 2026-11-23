@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import { Children, cloneElement, isValidElement, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties, ReactElement, ReactNode, RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import type { Actor, Chat } from './api/client';
 import { t, formatDate, formatTime } from './i18n';
 import { PresetAvatar } from './TwinAvatars';
@@ -159,6 +160,7 @@ export function IconButton({
   active,
   size = 18,
   className = '',
+  hideTooltip = false,
 }: {
   icon: IconName;
   label: string;
@@ -167,12 +169,13 @@ export function IconButton({
   active?: boolean;
   size?: number;
   className?: string;
+  hideTooltip?: boolean;
 }) {
   return (
     <button
       type="button"
       className={`icon-button ${active ? 'active' : ''} ${className}`}
-      title={label}
+      title={hideTooltip ? undefined : label}
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
@@ -180,6 +183,107 @@ export function IconButton({
       <Icon name={icon} size={size} />
     </button>
   );
+}
+
+/** Switch a whole segmented control between text labels and icon-only mode
+ *  when labels would overflow or truncate inside the available container width. */
+export function useSegmentedIconFallback(
+  containerRef: RefObject<HTMLElement | null>,
+  groupRef: RefObject<HTMLElement | null>,
+  resetKey: string,
+  reservePx = 0,
+) {
+  const [iconsOnly, setIconsOnly] = useState(false);
+  const textWidthRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    textWidthRef.current = null;
+    setIconsOnly(false);
+  }, [resetKey]);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const group = groupRef.current;
+    if (!container || !group) return;
+
+    const measure = () => {
+      const style = getComputedStyle(container);
+      const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+      const available = container.clientWidth - padX - reservePx;
+      if (available <= 0) return;
+
+      if (!iconsOnly) {
+        const natural = Math.ceil(group.scrollWidth);
+        const childOverflow = Array.from(group.children).some(
+          child => child instanceof HTMLElement && child.scrollWidth > child.clientWidth + 1,
+        );
+        if (natural > available + 1 || childOverflow) {
+          textWidthRef.current = Math.max(natural, textWidthRef.current || 0);
+          setIconsOnly(true);
+        }
+      } else if (textWidthRef.current !== null && available >= textWidthRef.current + 8) {
+        setIconsOnly(false);
+      }
+    };
+
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [containerRef, groupRef, iconsOnly, reservePx, resetKey]);
+
+  return iconsOnly;
+}
+
+
+function hasClassName(element: ReactElement<{ className?: string }>, name: string) {
+  const value = element.props.className;
+  if (typeof value !== 'string') return false;
+  return value.split(/\s+/).includes(name);
+}
+
+/** Keep Sheet actions in a fixed footer slot; content scrolls in the pane (coverage §2, §6.10). */
+function partitionModalChildren(children: ReactNode): { body: ReactNode; footer: ReactNode } {
+  const body: ReactNode[] = [];
+  const footer: ReactNode[] = [];
+  Children.forEach(children, (child, index) => {
+    if (!isValidElement(child)) {
+      body.push(child);
+      return;
+    }
+    const element = child as ReactElement<{ className?: string; children?: ReactNode }>;
+    if (hasClassName(element, 'modal-actions')) {
+      footer.push(element);
+      return;
+    }
+    if (element.type === 'form') {
+      const formBody: ReactNode[] = [];
+      const formFooter: ReactNode[] = [];
+      Children.forEach(element.props.children, inner => {
+        if (isValidElement(inner) && hasClassName(inner as ReactElement<{ className?: string }>, 'modal-actions')) {
+          formFooter.push(inner);
+        } else {
+          formBody.push(inner);
+        }
+      });
+      body.push(
+        cloneElement(
+          element,
+          { key: element.key ?? `modal-form-${index}`, className: [element.props.className, 'modal-form'].filter(Boolean).join(' ') },
+          <>
+            <div className="modal-scroller">{formBody}</div>
+            {formFooter}
+          </>,
+        ),
+      );
+      return;
+    }
+    body.push(element);
+  });
+  const hasForm = body.some(node => isValidElement(node) && node.type === 'form');
+  const wrappedBody = !hasForm && footer.length ? <div className="modal-scroller">{body}</div> : body;
+  return { body: wrappedBody, footer: footer.length ? footer : null };
 }
 
 export function Modal({
@@ -268,7 +372,7 @@ export function Modal({
     };
   }, [variant]);
 
-  return (
+  return createPortal(
     <div
       className={`twins-modal-backdrop ${variant === 'alert' ? 'alert-backdrop' : ''}`}
       onMouseDown={event => {
@@ -310,9 +414,18 @@ export function Modal({
             </div>
           </div>
         )}
-        <div className="modal-body">{children}</div>
+        {(() => {
+          const { body, footer } = partitionModalChildren(children);
+          return (
+            <>
+              <div className="modal-body">{body}</div>
+              {footer}
+            </>
+          );
+        })()}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -387,7 +500,7 @@ export function Popover({
     };
   }, [onClose, closeDisabled]);
 
-  return (
+  return createPortal(
     <section
       ref={ref}
       className="duet-popover duet-glass-overlay"
@@ -401,7 +514,8 @@ export function Popover({
         <IconButton icon="close" size={16} label={t('common.close')} onClick={onClose} disabled={closeDisabled} />
       </div>
       <div className="duet-popover-body">{children}</div>
-    </section>
+    </section>,
+    document.body,
   );
 }
 

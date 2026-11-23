@@ -37,24 +37,82 @@
 .reaction-categories>button[aria-selected=true] { border-bottom-color: #505359; background: #f0f0f0; }
 .reaction-categories img { width: 18px; height: 18px; object-fit: contain; vertical-align: middle; }
 .reaction-categories span { font-size: 16px; }
-.modal:has(.reaction-customization) { width: 600px; }
-.reaction-customization>p { color: #424242; }
-.reaction-slots { display: flex; gap: 16px; padding: 24px 0; flex-wrap: wrap; }
-.reaction-slots>div { position: relative; width: 44px; height: 44px; border-radius: 4px; background: #f5f5f5; border: 1px solid #e0e0e0; }
-.reaction-slots>div.selected { border: 2px solid #505359; }
-.reaction-slots>div>button:first-child { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 6px; }
-.reaction-slots img { width: 30px; height: 30px; object-fit: contain; }
-.reaction-slots .reaction-slot-remove { position: absolute; top: -7px; right: -7px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: #fff; border: 1px solid #d1d1d1; padding: 1px; }
-.reaction-skin-tones { display: flex; gap: 14px; padding: 16px 0 24px; }
-.reaction-skin-tones>button { width: 30px; height: 30px; border-radius: 50%; background: var(--skin-tone); position: relative; border: 1px solid #0001; }
-.reaction-skin-tones>button[aria-pressed=true]:after { position: absolute; content: ''; bottom: -8px; left: 3px; right: 3px; height: 3px; background: #505359; border-radius: 2px; }
-.reaction-custom-gallery { display: flex; flex-direction: column; height: 300px; border: 1px solid #e0e0e0; border-radius: 5px; margin-bottom: 16px; }
-.reaction-customization .form-note { margin: 8px 0; }
-.reaction-people { display: flex; align-items: flex-start; gap: 18px; }
-.reaction-people>img { width: 44px; height: 44px; }
+.modal:has(.reaction-customization) { width: 560px; }
+.reaction-customization > p { color: var(--duet-label-2); font-size: 13px; line-height: 18px; }
+.reaction-slots { display: flex; gap: 12px; padding: 16px 0 20px; flex-wrap: wrap; }
+.reaction-slots > div {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  box-shadow: var(--duet-card-shadow);
+}
+.reaction-slots > div.selected {
+  border-color: var(--duet-separator-strong);
+  box-shadow: 0 0 0 2.5px var(--duet-fill-strong);
+}
+.reaction-slots > div > button:first-child { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 6px; border-radius: inherit; }
+.reaction-slots img { width: 28px; height: 28px; object-fit: contain; }
+.reaction-slots .reaction-slot-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--duet-surface);
+  color: var(--duet-label-2);
+  border: 0.5px solid var(--duet-separator-strong);
+  box-shadow: var(--duet-thumb-shadow);
+  padding: 1px;
+}
+.reaction-skin-tones { display: flex; gap: 12px; padding: 12px 0 20px; }
+.reaction-skin-tones > button {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--skin-tone);
+  position: relative;
+  border: 0.5px solid var(--duet-separator-strong);
+}
+.reaction-skin-tones > button[aria-pressed=true] {
+  box-shadow: 0 0 0 2px var(--duet-surface), 0 0 0 4px var(--duet-separator-strong);
+}
+.reaction-skin-tones > button[aria-pressed=true]:after { content: none; }
+.reaction-custom-gallery {
+  display: flex;
+  flex-direction: column;
+  height: 280px;
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.reaction-custom-gallery .reaction-picker-search {
+  border: 0;
+  border-radius: 9px;
+  background: var(--duet-fill);
+}
+.reaction-custom-gallery .reaction-picker-search:focus-within {
+  border: 0;
+  background: var(--duet-control-bg);
+  box-shadow: 0 0 0 1px var(--duet-separator-strong);
+}
+.reaction-custom-gallery .reaction-categories {
+  background: var(--duet-surface-subtle);
+  border-top: 0.5px solid var(--duet-separator);
+}
+.reaction-customization .form-note { margin: 8px 0 0; font-size: 11px; line-height: 15px; color: var(--duet-label-2); }
+.reaction-people { display: flex; align-items: flex-start; gap: 16px; }
+.reaction-people > img { width: 40px; height: 40px; }
 .reaction-people ul { list-style: none; margin: 0; padding: 0; }
-.reaction-people li { padding: 5px 0; display: flex; gap: 8px; align-items: center; }
-.reaction-people small { color: #505359; background: #f0f1f2; border-radius: 4px; padding: 1px 5px; font-size: 10px; }
+.reaction-people li { padding: 4px 0; display: flex; gap: 8px; align-items: center; color: var(--duet-label); }
+.reaction-people small { color: var(--duet-label-2); background: var(--duet-fill); border-radius: 6px; padding: 1px 6px; font-size: 10px; }
 @media (max-width:600px) { .reaction-slots { gap: 12px; } .reaction-actions.message-actions { top: -34px; } .reaction-actions .reaction-quick-button { width: 30px; padding: 3px; } .reaction-actions.message-actions>button { padding: 4px; } }
 @media (prefers-reduced-motion:reduce) { .reaction-pop, .reaction-picker { animation: none; } .reaction-quick-button img, .reaction-emoji-grid img { transition: none; } .reaction-quick-button:hover img, .reaction-emoji-grid>button:hover img { transform: none; } }
 

@@ -1,51 +1,265 @@
-.bot-share-dialog { display: grid; gap: 16px; }
+.bot-share-dialog { display: grid; gap: 14px; }
 .bot-share-dialog > .form-note { margin: 0; }
-.bot-share-profile { display: flex; align-items: center; gap: 12px; }
-.bot-share-profile strong { font-size: 17px; overflow-wrap: anywhere; }
-.bot-share-current { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px; background: #f6f6f6; border-radius: 8px; }
-.bot-share-current h3, .bot-share-history-heading h3, .bot-snapshot-heading h3 { margin: 0; font-size: 14px; }
-.bot-share-current p { margin: 7px 0 0; color: #666; font-size: 12px; line-height: 1.5; }
+.bot-share-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 0.5px solid var(--duet-separator);
+}
+.bot-share-profile strong {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--duet-label);
+  overflow-wrap: anywhere;
+}
+.bot-share-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  background: transparent;
+  border-top: 0.5px solid var(--duet-separator);
+  border-bottom: 0.5px solid var(--duet-separator);
+  border-radius: 0;
+}
+.bot-share-current h3,
+.bot-share-history-heading h3,
+.bot-snapshot-heading h3 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--duet-label);
+}
+.bot-share-current p {
+  margin: 4px 0 0;
+  color: var(--duet-label-2);
+  font-size: 11px;
+  line-height: 15px;
+}
 .bot-share-current button { flex-shrink: 0; }
-.bot-share-history-heading, .bot-snapshot-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.bot-share-history-heading,
+.bot-snapshot-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .bot-share-history-heading .text-button { display: inline-flex; align-items: center; gap: 5px; }
-.bot-snapshot-card { padding: 18px; border: 1px solid #e7e7e7; border-radius: 8px; min-width: 0; }
-.bot-snapshot-heading time { display: block; font-size: 11px; color: #777; margin-top: 5px; }
+.bot-snapshot-card {
+  padding: 14px 0;
+  border: 0;
+  border-top: 0.5px solid var(--duet-separator);
+  border-radius: 0;
+  background: transparent;
+  min-width: 0;
+}
+.bot-snapshot-heading time {
+  display: block;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--duet-label-2);
+  margin-top: 3px;
+}
 .bot-snapshot-heading h3 { overflow-wrap: anywhere; }
 .bot-snapshot-heading > button { flex-shrink: 0; }
-.bot-snapshot-assignment { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.55; color: #555; max-height: 110px; overflow-y: auto; }
-.bot-snapshot-facts { display: flex; flex-wrap: wrap; gap: 9px 18px; color: #666; font-size: 12px; }
-.bot-snapshot-facts > span { display: inline-flex; align-items: center; gap: 6px; }
-.bot-snapshot-lineage { color: #777; font-size: 11px; }
-.bot-share-link { border-top: 1px solid #eee; padding-top: 12px; margin-top: 14px; }
-.bot-share-link-heading { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; color: #777; margin-bottom: 7px; }
-.bot-share-link-actions { display: flex; align-items: center; gap: 10px; }
-.bot-share-link-actions input { flex: 1; min-width: 0; font-size: 12px; color: #555; background: #fafafa; }
+.bot-snapshot-assignment {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--duet-label-2);
+  max-height: 110px;
+  overflow-y: auto;
+  margin: 8px 0;
+}
+.bot-snapshot-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--duet-label-2);
+  font-size: 11px;
+  line-height: 15px;
+  margin: 6px 0;
+}
+.bot-snapshot-facts > span { display: inline-flex; align-items: center; gap: 5px; }
+.bot-snapshot-lineage { color: var(--duet-label-3); font-size: 11px; line-height: 14px; margin: 6px 0 0; }
+.bot-share-link {
+  border-top: 0.5px solid var(--duet-separator);
+  padding-top: 10px;
+  margin-top: 12px;
+}
+.bot-share-link-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--duet-label-2);
+  margin-bottom: 6px;
+}
+.bot-share-link-actions { display: flex; align-items: center; gap: 8px; }
+.bot-share-link-actions input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--duet-label);
+  background: var(--duet-surface);
+}
 .bot-share-link-actions button { flex-shrink: 0; }
-.bot-share-feedback { display: block; color: #555; font-size: 12px; margin-top: 7px; }
-.bot-share-notice { display: flex; align-items: flex-start; gap: 8px; color: #444; font-size: 13px; line-height: 1.5; margin: 0; }
+.bot-share-feedback { display: block; color: var(--duet-label-2); font-size: 11px; line-height: 14px; margin-top: 6px; }
+.bot-share-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--duet-label-2);
+  font-size: 12px;
+  line-height: 17px;
+  margin: 0;
+}
 .bot-share-notice svg { flex-shrink: 0; margin-top: 1px; }
-.bot-install-page { flex: 1; padding: 48px 24px; overflow: auto; background: #fafafa; }
-.bot-install-card { width: min(580px, 100%); margin: 0 auto; padding: 32px; border: 1px solid #e5e5e5; border-radius: 12px; background: #fff; }
-.bot-share-eyebrow { margin: 36px 0 12px; font-size: 12px; color: #777; text-transform: uppercase; letter-spacing: .06em; }
-.bot-install-card h1 { margin: 0 0 18px; font-size: 26px; overflow-wrap: anywhere; }
-.bot-install-assignment { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.6; color: #444; }
-.bot-install-source { border-top: 1px solid #eee; padding-top: 22px; margin-top: 24px; color: #666; font-size: 13px; line-height: 1.5; }
-.bot-install-action { margin-top: 22px; }
-.bot-editor-links { display: flex; flex-wrap: wrap; gap: 14px; border-top: 1px solid #eee; padding-top: 14px; margin: 18px 0; }
-.bot-editor-links .text-button { display: inline-flex; gap: 6px; align-items: center; }
-.bot-skill-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 18px 0; }
-.bot-skill-editor textarea { font: 12px/1.55 ui-monospace, monospace; width: 100%; min-height: 280px; resize: vertical; }
-.bot-skill-reference { font-size: 12px; overflow-wrap: anywhere; color: #666; }
-.bot-skill-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid #eee; }
+
+/* Full-page BOT install surface (coverage §6.2: quiet canvas + opaque content panel) */
+.bot-install-page {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 36px 24px;
+  overflow: auto;
+  background: var(--duet-canvas);
+  color: var(--duet-label);
+}
+.bot-install-card {
+  width: min(580px, 100%);
+  margin: 0 auto;
+  padding: 28px 32px;
+  border: 0.5px solid var(--duet-separator);
+  border-radius: var(--duet-r-card);
+  background: var(--duet-surface);
+  box-shadow: var(--duet-card-shadow);
+  color: var(--duet-label);
+}
+.bot-share-eyebrow {
+  margin: 20px 0 8px;
+  font-size: var(--duet-t-caption);
+  line-height: var(--duet-lh-caption);
+  font-weight: 500;
+  color: var(--duet-label-2);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.bot-install-card h1 {
+  margin: 0 0 12px;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 650;
+  color: var(--duet-label);
+  overflow-wrap: anywhere;
+}
+.bot-install-assignment {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--duet-label);
+  margin: 0 0 14px;
+}
+.bot-install-source {
+  border-top: 0.5px solid var(--duet-separator);
+  padding-top: 16px;
+  margin: 18px 0 10px;
+  color: var(--duet-label-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+.bot-install-card .form-note {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--duet-label-2);
+  margin: 0 0 10px;
+}
+.bot-install-action { margin-top: 18px; }
+.bot-install-error-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bot-editor-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-top: 0.5px solid var(--duet-separator);
+  padding-top: 12px;
+  margin: 14px 0;
+}
+.bot-editor-links .text-button { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; }
+
+.bot-skill-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+}
+.bot-skill-actions > .icon-button:only-child {
+  margin-left: auto;
+}
+.bot-skill-editor textarea {
+  font: 12px/1.55 var(--duet-font-mono);
+  width: 100%;
+  min-height: 260px;
+  resize: vertical;
+}
+.bot-skill-reference {
+  font-size: 11px;
+  line-height: 15px;
+  overflow-wrap: anywhere;
+  color: var(--duet-label-2);
+  margin: 8px 0 0;
+}
+.bot-skill-list {
+  border-top: 0.5px solid var(--duet-separator);
+}
+.bot-skill-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 6px;
+  border-radius: 8px;
+}
+.bot-skill-row + .bot-skill-row {
+  border-top: 0.5px solid var(--duet-separator);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
 .bot-skill-row > .twin-detail-link { flex: 1; min-width: 0; }
-.bot-skill-row h3 { font-size: 14px; margin: 0 0 5px; overflow-wrap: anywhere; }
-.bot-skill-row p { color: #666; font-size: 12px; margin: 0; overflow-wrap: anywhere; }
+.bot-skill-row h3 {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--duet-label);
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+.bot-skill-row p {
+  color: var(--duet-label-2);
+  font-size: 11px;
+  line-height: 15px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 600px) {
   .bot-share-current, .bot-snapshot-heading { align-items: flex-start; flex-direction: column; }
-  .bot-share-current, .bot-snapshot-card { padding: 14px; }
   .bot-share-link-actions { flex-wrap: wrap; gap: 8px; }
   .bot-share-link-actions input { flex-basis: 100%; }
   .bot-install-page { padding: 20px 12px; }
-  .bot-install-card { padding: 24px 18px; }
-  .bot-install-card h1 { font-size: 23px; }
+  .bot-install-card { padding: 22px 18px; }
+  .bot-install-card h1 { font-size: 20px; line-height: 26px; }
 }

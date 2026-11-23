@@ -196,6 +196,21 @@ summary:focus-visible {
   text-decoration: none;
 }
 
+.destructive-text-button,
+.text-button.destructive-text-button {
+  color: var(--duet-destructive);
+}
+
+.destructive-text-button:hover:not(:disabled),
+.text-button.destructive-text-button:hover:not(:disabled) {
+  background: var(--duet-destructive-soft);
+  color: var(--duet-destructive-hover);
+}
+
+.modal-action-leading {
+  margin-right: auto;
+}
+
 .icon-button {
   width: 30px;
   height: 30px;
@@ -457,6 +472,11 @@ summary:focus-visible {
   gap: 8px;
   padding: 10px var(--duet-sidebar-px) 8px;
   flex-shrink: 0;
+  min-width: 0;
+}
+
+.sidebar-brand-bar > .icon-button {
+  margin-left: auto;
 }
 
 /* Segmented control primitive */
@@ -469,17 +489,22 @@ summary:focus-visible {
   gap: 2px;
 }
 
+/* Top-level Chat / Reminders stays a compact capsule hugging its labels (coverage §3.1) */
 .purpose-segmented {
-  flex: 1;
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
+  padding: 2px;
+  border-radius: var(--duet-r-pill);
 }
 
 .purpose-segmented > button {
-  flex: 1;
+  flex: 0 0 auto;
   min-width: 0;
   min-height: 28px;
-  padding: 4px 8px;
-  border-radius: 7px;
+  padding: 4px 12px;
+  border-radius: var(--duet-r-pill);
   font-size: 12px;
   font-weight: 500;
   line-height: 16px;
@@ -489,6 +514,11 @@ summary:focus-visible {
   justify-content: center;
   gap: 5px;
   white-space: nowrap;
+}
+
+.purpose-segmented.icons-only > button {
+  min-width: 28px;
+  padding: 4px 9px;
 }
 
 .purpose-segmented > button:hover:not(.selected) {
@@ -983,19 +1013,36 @@ summary:focus-visible {
 /* Message scrolling canvas extends under both floating glass bars */
 .message-area {
   flex: 1;
+  min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
   padding: 68px max(16px, calc((100% - 820px) / 2)) 96px;
   scrollbar-width: thin;
+  box-sizing: border-box;
+}
+
+/* Empty canvas stacks vertically inside the conversation column (coverage §4) */
+.message-area.empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
 }
 
 .model-notice,
 .read-error {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  padding: 8px 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  align-self: stretch;
+  flex-shrink: 0;
+  padding: 9px 12px;
   margin: 0 0 12px;
   border-radius: 10px;
   background: var(--duet-surface);
@@ -1003,6 +1050,18 @@ summary:focus-visible {
   color: var(--duet-label-2);
   font-size: 12px;
   line-height: 17px;
+}
+
+.model-notice > span,
+.read-error > span {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.model-notice > svg,
+.read-error > svg {
+  margin-top: 1px;
+  flex-shrink: 0;
 }
 
 .read-error {
@@ -1400,31 +1459,88 @@ summary:focus-visible {
   border-radius: var(--duet-r-pill);
 }
 
+/* Approvals drawer: opaque content-layer panel inside conversation column (coverage §6.7) */
 .approvals-drawer.approvals-drawer {
   background: var(--duet-surface);
-  border: 0.5px solid var(--duet-separator-strong);
+  border: 0.5px solid var(--duet-separator);
   border-radius: 14px;
   box-shadow: var(--duet-card-shadow);
   margin-bottom: 8px;
+  overflow: hidden;
+  color: var(--duet-label);
+}
+
+.approvals-drawer .approval-toggle {
+  color: var(--duet-label);
+  font-weight: 500;
+  background: transparent;
+}
+
+.approvals-drawer .approval-tabs {
+  border-top: 0.5px solid var(--duet-separator);
+  border-bottom: 0.5px solid var(--duet-separator);
+  padding: 0 14px;
+}
+
+.approvals-drawer .approval-tabs > button {
+  color: var(--duet-label-2);
+  border-bottom: 2px solid transparent;
+}
+
+.approvals-drawer .approval-tabs > button.selected {
+  color: var(--duet-label);
+  border-bottom-color: var(--duet-label);
+  font-weight: 600;
 }
 
 .approvals-drawer .approval-card h3 {
   color: var(--duet-label);
+  font-weight: 600;
 }
 
 .approvals-drawer .approval-card > p,
-.approvals-drawer .approval-toggle {
+.approvals-drawer .approval-card > small {
   color: var(--duet-label-2);
 }
 
 .approvals-drawer .approval-arguments {
-  background: var(--duet-surface-subtle);
-  color: var(--duet-label);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-family: var(--duet-font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--duet-label-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.approvals-drawer .approval-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .approvals-drawer .approval-actions .primary-button {
   background: var(--duet-red);
   border-color: var(--duet-red);
+  color: var(--duet-on-red);
+  min-height: 30px;
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.approvals-drawer .approval-actions .text-button {
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.approvals-drawer .approval-actions .text-button:last-child {
+  margin-left: auto;
 }
 
 .draft-attachment,
@@ -1439,8 +1555,31 @@ summary:focus-visible {
   color: var(--duet-label);
 }
 
+.chat-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  max-width: 360px;
+  min-width: 0;
+  margin: auto;
+  padding: 24px 12px;
+  gap: 10px;
+  box-sizing: border-box;
+}
+
+.chat-empty-state > .avatar {
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
 .chat-empty-state h3,
 .new-conversation-empty h2 {
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
   font-size: 16px;
   font-weight: 600;
   color: var(--duet-label);
@@ -1448,7 +1587,11 @@ summary:focus-visible {
 
 .chat-empty-state p,
 .new-conversation-empty p {
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
   font-size: 13px;
+  line-height: 19px;
   color: var(--duet-label-2);
 }
 
@@ -1520,11 +1663,17 @@ summary:focus-visible {
 .detail-tabs-wrap {
   padding: 0 12px 10px;
   flex-shrink: 0;
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
 }
 
+/* Compact left-aligned segmented tabs hugging content, light selection fill (coverage §3.2) */
 .detail-sidebar .detail-tabs.segmented-control {
-  display: flex;
-  min-height: 32px;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 30px;
   padding: 3px;
   gap: 2px;
   border: 0;
@@ -1533,18 +1682,26 @@ summary:focus-visible {
 }
 
 .detail-sidebar .detail-tabs > button {
-  flex: 1;
+  flex: 0 0 auto;
   min-width: 0;
-  padding: 4px 6px;
+  min-height: 26px;
+  padding: 4px 10px;
   border-radius: 7px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 16px;
   color: var(--duet-label-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.detail-sidebar .detail-tabs.icons-only > button {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px 8px;
 }
 
 .detail-sidebar .detail-tabs > button:hover:not(.selected) {
@@ -1576,6 +1733,63 @@ summary:focus-visible {
   font-weight: 500;
   color: var(--duet-label-2);
   margin-bottom: 10px;
+}
+
+.detail-sidebar .panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  min-height: 28px;
+}
+
+.detail-sidebar .panel-actions .panel-label {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Refresh / Upload grouped on the right as quiet tools (coverage §3.3) */
+.detail-sidebar .panel-action-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.detail-sidebar .panel-tool-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--duet-label-2);
+}
+
+.detail-sidebar .panel-tool-button:hover:not(:disabled) {
+  background: var(--duet-row-hover);
+  color: var(--duet-label);
+}
+
+@media (max-width: 1199px) {
+  .detail-sidebar .panel-tool-label {
+    display: none;
+  }
+
+  .detail-sidebar .panel-tool-button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+  }
 }
 
 /* Content cards inside inspector remain OPAQUE (DESIGN.md §2) */
@@ -1821,8 +2035,10 @@ summary:focus-visible {
   color: var(--duet-label);
 }
 
-/* Sheets & Alerts */
+/* Sheets & Alerts (coverage §2, §5, §6) */
 .twins-modal-backdrop {
+  z-index: 90;
+  padding: 24px;
   background: var(--duet-backdrop);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
@@ -1830,13 +2046,26 @@ summary:focus-visible {
 }
 
 .twins-modal-backdrop .modal {
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 0;
   border-radius: var(--duet-r-sheet);
-  background: var(--duet-glass-overlay-fill);
+  background-color: var(--duet-glass-overlay-fill);
   color: var(--duet-label);
   padding: 20px 22px 22px;
-  box-shadow: var(--duet-overlay-shadow);
+  box-shadow:
+    inset 0 1px 0 var(--duet-glass-top-highlight),
+    inset 0 0 0 0.5px var(--duet-glass-inner-edge),
+    var(--duet-overlay-shadow);
   animation: duet-sheet-enter var(--duet-dur-enter) var(--duet-ease);
+}
+
+.twins-modal-backdrop .modal.wide {
+  width: 640px;
 }
 
 .twins-modal-backdrop .modal.modal-alert {
@@ -1844,13 +2073,16 @@ summary:focus-visible {
 }
 
 .modal .modal-heading {
-  margin: 0 0 16px;
+  flex-shrink: 0;
+  margin: 0 0 14px;
+  gap: 12px;
 }
 
 .modal .modal-heading h2 {
   font-size: 17px;
   line-height: 22px;
-  font-weight: 650;
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--duet-label);
 }
 
@@ -1859,16 +2091,54 @@ summary:focus-visible {
   border-radius: var(--duet-r-pill);
 }
 
+.modal .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal .modal-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+}
+
+.modal .modal-scroller {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.modal > .modal-actions,
+.modal .modal-form > .modal-actions {
+  flex-shrink: 0;
+}
+
 .modal p {
   font-size: 13px;
-  line-height: 19px;
+  line-height: 18px;
   color: var(--duet-label-2);
+}
+
+.modal .form-note,
+.people-picker .form-note {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--duet-label-2);
+  margin: 0 0 14px;
 }
 
 .modal label,
 .people-picker-details label,
 .detail-sidebar .update-form label {
   font-size: 12px;
+  line-height: 16px;
   font-weight: 500;
   color: var(--duet-label);
   margin-bottom: 14px;
@@ -1894,7 +2164,7 @@ summary:focus-visible {
   color: var(--duet-label);
   padding: 7px 10px;
   font-size: 13px;
-  line-height: 18px;
+  line-height: 16px;
 }
 
 .modal input:focus,
@@ -1911,9 +2181,111 @@ summary:focus-visible {
 .twin-schedule-editor select:focus,
 .provider-config-key-label + input:focus,
 .login-page .login-main input:focus {
-  border: 1px solid var(--duet-label);
+  border: 0.5px solid var(--duet-separator-strong);
   padding-bottom: 7px;
+  box-shadow: 0 0 0 3px var(--duet-fill);
+}
+
+.modal .modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-top: 16px;
+  padding-top: 12px;
+  background: transparent;
+}
+
+.modal .file-preview-meta {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--duet-label-2);
+  margin: 12px 0 0;
+}
+
+.download-button,
+.download-button:hover {
+  text-decoration: none;
+  color: var(--duet-label);
+}
+
+/* Circular preset avatar picker + content-layer crop controls (coverage §6.4) */
+.twin-avatar-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  justify-items: center;
+  margin-bottom: 18px;
+}
+
+.twin-avatar-options > button {
+  width: 84px;
+  height: 84px;
+  padding: 3px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: transparent;
+  position: relative;
+}
+
+.twin-avatar-options > button:hover {
+  background: var(--duet-row-hover);
+}
+
+.twin-avatar-options > button.selected {
+  border-color: var(--duet-separator-strong);
   box-shadow: 0 0 0 2px var(--duet-fill);
+  background: transparent;
+}
+
+.twin-avatar-options > button > span {
+  background: var(--duet-label);
+  color: var(--duet-surface);
+  border: 2px solid var(--duet-surface);
+}
+
+.twin-crop {
+  margin: 14px 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--duet-surface-subtle);
+  border: 0.5px solid var(--duet-separator);
+}
+
+.twin-crop canvas {
+  background: var(--duet-surface);
+  box-shadow: 0 0 0 0.5px var(--duet-separator-strong);
+}
+
+.twin-crop p {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--duet-label-2);
+  margin: 0 0 12px;
+  text-align: center;
+}
+
+.twin-crop input[type="range"] {
+  accent-color: var(--duet-label);
+  background: transparent;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0;
+}
+
+/* Reset Alert body: normal title color, red only on Confirm reset button (coverage §6.12) */
+.twin-reset-explanation p {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--duet-label-2);
+  margin: 0 0 10px;
+}
+
+.twin-reset-explanation p:last-child {
+  color: var(--duet-label);
+  font-weight: 500;
+  margin-bottom: 0;
 }
 
 .sheet-discard-bar {
@@ -2425,12 +2797,25 @@ summary:focus-visible {
 
 .twin-text-content,
 .twin-memory-sources > div,
-.twin-request-context,
-.modal .text-file-preview {
+.twin-request-context {
   background: var(--duet-surface-subtle);
   border: 0.5px solid var(--duet-separator);
   border-radius: 10px;
   color: var(--duet-label);
+}
+
+.modal .text-file-preview {
+  margin: 0;
+  max-height: 54dvh;
+  overflow: auto;
+  padding: 16px;
+  background: var(--duet-surface);
+  border: 0.5px solid var(--duet-separator);
+  border-radius: 12px;
+  color: var(--duet-label);
+  font: 13px/1.6 var(--duet-font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .twin-notice {
@@ -2741,18 +3126,16 @@ summary:focus-visible {
   color: var(--duet-destructive);
 }
 
-.bot-share-current,
-.bot-snapshot-card,
 .bot-install-card {
   background: var(--duet-surface);
   border: 0.5px solid var(--duet-separator);
-  border-radius: 14px;
+  border-radius: var(--duet-r-card);
   color: var(--duet-label);
 }
 
 .bot-install-page {
-  background: var(--duet-canvas-chat);
-  border-radius: var(--duet-r-panel);
+  background: var(--duet-canvas);
+  border-radius: 0;
   color: var(--duet-label);
 }
 
@@ -2763,7 +3146,6 @@ summary:focus-visible {
 .bot-share-link-heading,
 .bot-share-feedback,
 .bot-share-notice,
-.bot-install-assignment,
 .bot-install-source,
 .bot-skill-row p,
 .bot-choices legend,
@@ -2787,7 +3169,7 @@ summary:focus-visible {
 }
 
 .bot-share-link-actions input {
-  background: var(--duet-surface-subtle);
+  background: var(--duet-surface);
   color: var(--duet-label);
 }
 
@@ -2875,7 +3257,7 @@ summary:focus-visible {
   }
 
   .detail-sidebar .detail-tabs > button {
-    padding: 4px 4px;
+    padding: 4px 8px;
   }
 
   .sidebar {

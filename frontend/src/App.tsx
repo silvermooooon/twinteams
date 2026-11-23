@@ -31,7 +31,7 @@ import type { Credential, CredentialRequest } from './api/twin';
 import { getLocalProviderConfig } from './api/provider-config';
 import type { AuthSession } from './Auth';
 import { PeoplePicker, PeopleDialog, RenameChatDialog, ReminderDialog, RemindersPage } from './Dialogs';
-import { Avatar, BrandMark, ChatAvatar, chatTitle, FixtureBanner, Icon, IconButton, Modal, useMenuBehavior, dateTime, time } from './ui';
+import { Avatar, BrandMark, ChatAvatar, chatTitle, FixtureBanner, Icon, IconButton, Modal, useMenuBehavior, useSegmentedIconFallback, dateTime, time } from './ui';
 import { t, formatDate } from './i18n';
 import { DraftAttachmentList, MessageAttachments, useAttachmentDrafts } from './Attachments';
 import { ChatNavigation, ChatSearchPanel } from './TeamsNavigation';
@@ -72,7 +72,7 @@ export function ApprovalsDrawer({ api, actors, approvals, onChange, onDecision }
   if (!pending.length) return null;
   const active = pending.find(a => a.id === selected) || pending[0];
   const fileSharing = active.action?.tool === 'present_files';
-  return <div className={`approvals-drawer ${open ? 'open' : ''}`}><button className="approval-toggle" aria-expanded={open} onClick={() => setOpen(p => !p)}><Icon name="bell" size={16} /><span>{t('approvals.pending', { count: pending.length })}</span><span className={open ? 'rotate' : ''}><Icon name="chevron" size={15} /></span></button>{open && <><div className="approval-tabs" role="tablist">{pending.map((approval, i) => <button role="tab" aria-selected={approval.id === active.id} key={approval.id} className={approval.id === active.id ? 'selected' : ''} onClick={() => { setSelected(approval.id); setDetails(false); }} title={approval.title}>{t('approvals.tab', { number: i + 1 })}</button>)}</div><div className="approval-card">{active.type === 'duet_conversation' ? <DuetApprovalActions api={api} actors={actors} approval={active} ownerIds={[active.approver_id, ...(active.peer_owner_ids || [])]} onChange={onChange} /> : <><h3>{active.title}</h3><p>{active.description}</p>{details && <dl className="detail-fields"><dt>{t('approvals.action')}</dt><dd>{active.title}</dd><dt>{t('approvals.target')}</dt><dd>{active.target}</dd><dt>{t('approvals.impact')}</dt><dd>{active.impact}</dd>{active.action && <><dt>{t('approvals.tool')}</dt><dd><code>{active.action.tool}</code></dd><dt>{t('approvals.arguments')}</dt><dd><pre className="approval-arguments">{JSON.stringify(active.action.arguments, null, 2)}</pre></dd></>}</dl>}<div className="approval-actions"><button className="primary-button" disabled={busy} onClick={async () => { setBusy(true); try { await onDecision(active.id, 'approved'); } finally { setBusy(false); } }}>{t(fileSharing ? 'approvals.allowFileSharing' : 'approvals.approve')}</button><button className="secondary-button" disabled={busy} onClick={async () => { setBusy(true); try { await onDecision(active.id, 'rejected'); } finally { setBusy(false); } }}>{t(fileSharing ? 'approvals.rejectFileSharing' : 'approvals.reject')}</button><button className="text-button" onClick={() => setDetails(p => !p)} aria-expanded={details}>{t('common.details')}</button></div><small>{t(fileSharing ? 'approvals.fileScope' : 'approvals.once')}</small></>}</div></>}</div>;
+  return <div className={`approvals-drawer ${open ? 'open' : ''}`}><button className="approval-toggle" aria-expanded={open} onClick={() => setOpen(p => !p)}><Icon name="bell" size={16} /><span>{t('approvals.pending', { count: pending.length })}</span><span className={open ? 'rotate' : ''}><Icon name="chevron" size={15} /></span></button>{open && <><div className="approval-tabs" role="tablist">{pending.map((approval, i) => <button role="tab" aria-selected={approval.id === active.id} key={approval.id} className={approval.id === active.id ? 'selected' : ''} onClick={() => { setSelected(approval.id); setDetails(false); }} title={approval.title}>{t('approvals.tab', { number: i + 1 })}</button>)}</div><div className="approval-card">{active.type === 'duet_conversation' ? <DuetApprovalActions api={api} actors={actors} approval={active} ownerIds={[active.approver_id, ...(active.peer_owner_ids || [])]} onChange={onChange} /> : <><h3>{active.title}</h3><p>{active.description}</p>{details && <dl className="detail-fields"><dt>{t('approvals.action')}</dt><dd>{active.title}</dd><dt>{t('approvals.target')}</dt><dd>{active.target}</dd><dt>{t('approvals.impact')}</dt><dd>{active.impact}</dd>{active.action && <><dt>{t('approvals.tool')}</dt><dd><code>{active.action.tool}</code></dd><dt>{t('approvals.arguments')}</dt><dd><pre className="approval-arguments">{JSON.stringify(active.action.arguments, null, 2)}</pre></dd></>}</dl>}<div className="approval-actions"><button className="primary-button" disabled={busy} onClick={async () => { setBusy(true); try { await onDecision(active.id, 'approved'); } finally { setBusy(false); } }}>{t(fileSharing ? 'approvals.allowFileSharing' : 'approvals.approve')}</button><button className="text-button destructive-text-button" disabled={busy} onClick={async () => { setBusy(true); try { await onDecision(active.id, 'rejected'); } finally { setBusy(false); } }}>{t(fileSharing ? 'approvals.rejectFileSharing' : 'approvals.reject')}</button><button className="text-button" onClick={() => setDetails(p => !p)} aria-expanded={details}>{t('common.details')}</button></div><small>{t(fileSharing ? 'approvals.fileScope' : 'approvals.once')}</small></>}</div></>}</div>;
 }
 function SourceQuote({ name, body, unavailable }: { name: string; body: string; unavailable?: boolean }) { return <div className={`source-quote ${unavailable ? 'unavailable' : ''}`}><strong>{name}</strong><span>{unavailable ? t('chat.quoteUnavailable') : body}</span></div>; }
 function MessageItem({ onPerson, message, referenceChatName, question, api, onQuestionChanged, onOrigin, actor, own, actors, ownerId, requests, showQueued, groupChat, onCancel, onRetry, onReply, onReference, onTrack, pending, reactionPreferences, onReactionPreferences, onReact }: { onPerson: (person: Actor, anchor?: DOMRect | null) => void; message: Message; referenceChatName?: string; question?: UserQuestion; api: ApiClient; onQuestionChanged: () => Promise<void>; onOrigin: (chatId: string) => void; actor?: Actor; own: boolean; actors: Actor[]; ownerId: string; requests: ReplyRequest[]; showQueued: boolean; groupChat: boolean; onCancel: (request: ReplyRequest) => void; onRetry: (request: ReplyRequest) => void; onReply: (message: Message) => void; onReference?: (message: Message) => void; onTrack: (message: Message) => void; pending: Set<string>; reactionPreferences: ReactionPreferences; onReactionPreferences: (next: ReactionPreferences) => void; onReact: (message: Message, emoji: string, active: boolean, key: string) => Promise<void> }) {
@@ -140,6 +140,8 @@ export default function App() {
   const [narrowShowingChat, setNarrowShowingChat] = useState(false);
   const [narrowInspectorExplicit, setNarrowInspectorExplicit] = useState(false);
   const utilityClusterRef = useRef<HTMLDivElement>(null);
+  const sidebarBrandBarRef = useRef<HTMLDivElement>(null);
+  const purposeSegmentedRef = useRef<HTMLDivElement>(null);
   const openPersonCard = useCallback((actor: Actor, anchor?: DOMRect | null) => {
     setPersonCard({ actor, anchor: anchor ?? null });
   }, []);
@@ -555,13 +557,8 @@ export default function App() {
   function navigate(next: Page) { setPage(next); setAppMenuOpen(false); setChatMoreOpen(false); setNewChat(false); setComposerMenu(null); setAccountOpen(false); setSearchOpen(false); setPeopleModal(null); setReminderOpen(false); history.replaceState(null, '', next === 'my-twin' ? `#/my-twin/${twinTab}` : next === 'provider-config' ? '#/provider-config' : `#${next}`); }
   function chooseTwinTab(next: TwinTab) { setTwinTab(next); history.replaceState(null, '', `#/my-twin/${next}`); }
   const inspectorOpen = !!(findOpen || (activeChat?.settings.sidebar_open && (!isNarrow || narrowInspectorExplicit)));
-  const prevInspectorOpenRef = useRef(inspectorOpen);
   useEffect(() => {
     if (isMid && sidebarVisible && inspectorOpen) setSidebarVisible(false);
-    if (isMid && prevInspectorOpenRef.current && !inspectorOpen && !sidebarVisible) {
-      setSidebarVisible(true);
-    }
-    prevInspectorOpenRef.current = inspectorOpen;
   }, [isMid, sidebarVisible, inspectorOpen]);
   useEffect(() => {
     const prev = prevWidthBandRef.current;
@@ -757,6 +754,12 @@ export default function App() {
   ];
   const hiddenFailures = requests.filter(request => request.status === 'failed' && (isBackgroundPrivateTask(request, activeChat?.chat.kind, activeChat?.messages) || !activeChat?.messages.some(message => message.id === request.source_message_id)));
   const pendingCount = bootstrap?.reminders.filter(reminder => !reminder.done).length || 0;
+  const purposeIconsOnly = useSegmentedIconFallback(
+    sidebarBrandBarRef,
+    purposeSegmentedRef,
+    `${isNarrow}:${pendingCount > 0}`,
+    isNarrow ? 36 : 74,
+  );
   if (!authChecked) return <div className="app-loading auth-loading"><span className="spinner" />{t('common.loading')}</div>;
   if (!session) return <LoginScreen api={api} acceptanceFixture={acceptanceFixture} developmentMode={developmentMode} configLoading={configLoading} configError={configError} onLogin={result => { setSession(result); setDevelopmentMode(result.development_mode); setError(''); }} onReload={() => { void checkAuth(); }} />;
 
@@ -794,26 +797,35 @@ export default function App() {
               aria-hidden={!showSidebarColumn}
               style={{ width: showSidebarColumn ? (isNarrow ? '100%' : paneWidth) : 0 }}
             >
-              <div className="sidebar-brand-bar">
+              <div className="sidebar-brand-bar" ref={sidebarBrandBarRef}>
                 <div className="brand" title={t('app.name')}><BrandMark /></div>
-                <div className="purpose-segmented segmented-control" role="tablist" aria-label={t('nav.main')}>
+                <div
+                  ref={purposeSegmentedRef}
+                  className={`purpose-segmented segmented-control ${purposeIconsOnly ? 'icons-only' : ''}`}
+                  role="tablist"
+                  aria-label={t('nav.main')}
+                >
                   <button
                     type="button"
                     role="tab"
                     aria-selected={page === 'chat'}
+                    aria-label={t('nav.chat')}
+                    title={purposeIconsOnly ? t('nav.chat') : undefined}
                     className={page === 'chat' ? 'selected' : ''}
                     onClick={() => { navigate('chat'); if (isNarrow) setNarrowShowingChat(false); }}
                   >
-                    {t('nav.chat')}
+                    {purposeIconsOnly ? <Icon name="chat" size={15} /> : t('nav.chat')}
                   </button>
                   <button
                     type="button"
                     role="tab"
                     aria-selected={page === 'reminders'}
+                    aria-label={t('nav.reminders')}
+                    title={purposeIconsOnly ? t('nav.reminders') : undefined}
                     className={page === 'reminders' ? 'selected' : ''}
                     onClick={() => { navigate('reminders'); if (isNarrow) setNarrowShowingChat(true); }}
                   >
-                    <span>{t('nav.reminders')}</span>
+                    {purposeIconsOnly ? <Icon name="bell" size={15} /> : <span>{t('nav.reminders')}</span>}
                     {pendingCount > 0 && <span className="purpose-badge">{pendingCount}</span>}
                   </button>
                 </div>
@@ -1012,6 +1024,7 @@ export default function App() {
                   size={16}
                   label={t('shell.appMenu')}
                   active={appMenuOpen}
+                  hideTooltip={appMenuOpen}
                   onClick={() => { setAppMenuOpen(previous => !previous); setAccountOpen(false); setChatMoreOpen(false); }}
                 />
                 {appMenuOpen && (
@@ -1033,7 +1046,7 @@ export default function App() {
                 <button
                   type="button"
                   className="account-button"
-                  title={t('auth.account')}
+                  title={accountOpen ? undefined : t('auth.account')}
                   aria-label={t('auth.account')}
                   aria-expanded={accountOpen}
                   onClick={() => { setAccountOpen(p => !p); setAppMenuOpen(false); setChatMoreOpen(false); }}
@@ -1246,6 +1259,7 @@ export default function App() {
                           size={16}
                           label={t('shell.conversationMore')}
                           active={chatMoreOpen}
+                          hideTooltip={chatMoreOpen}
                           onClick={() => { setChatMoreOpen(previous => !previous); setAccountOpen(false); setAppMenuOpen(false); }}
                         />
                         {chatMoreOpen && (
@@ -1580,7 +1594,11 @@ export default function App() {
                     version={sidebarSnapshot?.chatId === selected ? sidebarSnapshot.revision : activeChat.revision}
                     trackingVersion={trackingVersion}
                     ownerId={actualOwnerId}
-                    onSettings={patch => { void setSettings(patch); }}
+                    compactTools={isNarrow || isMid}
+                    onSettings={patch => {
+                      if (patch.sidebar_open === false) setNarrowInspectorExplicit(false);
+                      void setSettings(patch);
+                    }}
                     onError={onError}
                     onChange={() => { void refreshAll(); }}
                     createFrom={trackingSeed}

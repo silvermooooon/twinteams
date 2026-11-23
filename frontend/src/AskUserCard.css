@@ -1,3 +1,124 @@
-.ask-user-card{min-width:0;max-width:520px;display:flex;flex-direction:column;gap:10px}.ask-user-heading{display:flex;align-items:center;gap:7px;color:#616161;font-size:12px}.ask-user-heading strong{flex:1;font-weight:600}.ask-user-heading>.icon-button{width:25px;height:25px}.ask-user-card>.markdown-content{margin:0}.ask-user-origin{display:inline-flex;align-items:center;gap:5px;align-self:flex-start;max-width:100%;color:#505359;text-decoration:none;font-size:12px}.ask-user-origin span{overflow-wrap:anywhere}.ask-user-origin svg{flex-shrink:0}.ask-user-origin:hover{text-decoration:underline}.ask-user-options{display:flex;flex-wrap:wrap;gap:6px}.ask-user-options>.secondary-button{font-size:12px;padding:5px 9px;white-space:normal;text-align:left;overflow-wrap:anywhere}.ask-user-hint,.ask-user-saved-answer>small{font-size:11px;line-height:16px;color:#616161}.ask-user-saved-answer{border-left:2px solid #505359;padding-left:10px}.ask-user-saved-answer>p{margin:3px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:20px}.ask-user-error{margin:0;color:#a4262c;font-size:12px;line-height:18px;overflow-wrap:anywhere}.ask-user-card.answered>.ask-user-heading{color:#237b4b}
-
-.owner-reply-preview .detail-fields{font-size:13px;margin:8px 0}.owner-reply-preview ul{list-style:none;margin:0;padding:0}.owner-reply-preview dd{color:inherit}.ask-user-options>.primary-button{font-size:12px;padding:5px 9px}
+/* Ask user card: opaque content layer inside conversation (coverage §6.6) */
+.ask-user-card {
+  min-width: 0;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: var(--duet-r-bubble, 16px);
+  color: var(--duet-label);
+}
+.ask-user-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--duet-label-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+.ask-user-heading strong {
+  flex: 1;
+  font-weight: 600;
+  color: var(--duet-label-2);
+}
+.ask-user-heading > .icon-button {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+}
+.ask-user-card > .markdown-content {
+  margin: 0;
+  color: var(--duet-label);
+}
+.ask-user-origin {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  max-width: 100%;
+  color: var(--duet-label-2);
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 16px;
+}
+.ask-user-origin span { overflow-wrap: anywhere; }
+.ask-user-origin svg { flex-shrink: 0; }
+.ask-user-origin:hover {
+  color: var(--duet-label);
+  text-decoration: underline;
+}
+.ask-user-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ask-user-options > .secondary-button {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  min-height: 28px;
+  padding: 5px 12px;
+  border-radius: var(--duet-r-pill, 999px);
+  background: var(--duet-fill);
+  border: 0;
+  color: var(--duet-label);
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.ask-user-options > .secondary-button:hover:not(:disabled) {
+  background: var(--duet-fill-strong);
+}
+.ask-user-options > .primary-button {
+  font-size: 12px;
+  line-height: 16px;
+  min-height: 28px;
+  padding: 5px 13px;
+  border-radius: var(--duet-r-pill, 999px);
+}
+.ask-user-hint,
+.ask-user-saved-answer > small {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--duet-label-2);
+}
+.ask-user-saved-answer {
+  border-top: 0.5px solid var(--duet-separator);
+  border-left: 0;
+  padding: 8px 0 0;
+}
+.ask-user-saved-answer > p {
+  margin: 3px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--duet-label-2);
+}
+.ask-user-error {
+  margin: 0;
+  color: var(--duet-destructive);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.ask-user-card.answered > .ask-user-heading {
+  color: var(--duet-label-2);
+}
+.owner-reply-preview {
+  border-top: 0.5px solid var(--duet-separator);
+  padding-top: 10px;
+}
+.owner-reply-preview h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--duet-label);
+  margin: 0 0 6px;
+}
+.owner-reply-preview .detail-fields {
+  font-size: 12px;
+  margin: 6px 0;
+}
+.owner-reply-preview ul { list-style: none; margin: 0; padding: 0; }
+.owner-reply-preview dd { color: var(--duet-label); }

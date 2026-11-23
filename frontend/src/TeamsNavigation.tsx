@@ -45,6 +45,7 @@ export function ChatNavigation({
     }
   });
   const [menu, setMenu] = useState<{ chatId: string; left: number; top: number } | null>(null);
+  const [suppressedTooltipId, setSuppressedTooltipId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -131,9 +132,17 @@ export function ChatNavigation({
             type="button"
             className="icon-button"
             aria-label={t('shell.chatOptions')}
-            title={t('shell.chatOptions')}
+            title={menu || suppressedTooltipId === chat.id ? undefined : t('shell.chatOptions')}
             aria-expanded={menu?.chatId === chat.id}
+            onPointerDown={() => setSuppressedTooltipId(chat.id)}
+            onPointerLeave={() => {
+              if (menu?.chatId !== chat.id) setSuppressedTooltipId(prev => (prev === chat.id ? null : prev));
+            }}
+            onBlur={() => {
+              if (menu?.chatId !== chat.id) setSuppressedTooltipId(prev => (prev === chat.id ? null : prev));
+            }}
             onClick={event => {
+              setSuppressedTooltipId(chat.id);
               if (menu?.chatId === chat.id) {
                 setMenu(null);
                 return;
