@@ -97,7 +97,7 @@ export function MyTwinPage({ api, account, actor, tab, revision, credentials, re
   useEffect(() => { if (profile.value) onActor(profile.value.actor); }, [profile.value, onActor]);
   const ownTwin = actor || profile.value?.actor;
   return <main className="my-twin-page settings-shell">
-    <aside className="twin-settings-nav duet-glass" data-duet-refract="0.55" aria-label={t('twin.title')}>
+    <aside className="twin-settings-nav duet-glass" data-duet-refract="0.65" aria-label={t('twin.title')}>
       <div className="settings-nav-top">
         <button type="button" className="settings-back-button" onClick={onBack}>
           <Icon name="reply" size={15} />

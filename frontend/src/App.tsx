@@ -792,7 +792,7 @@ export default function App() {
           <>
             <aside
               className={`sidebar duet-glass ${showSidebarColumn ? '' : 'collapsed'}`}
-              data-duet-refract="0.55"
+              data-duet-refract="0.65"
               inert={!showSidebarColumn}
               aria-hidden={!showSidebarColumn}
               style={{ width: showSidebarColumn ? (isNarrow ? '100%' : paneWidth) : 0 }}
@@ -924,7 +924,7 @@ export default function App() {
         <div className={`workspace-stage ${showMainStage ? '' : 'narrow-list-only'}`}>
           <div className="window-utility-row">
             {isMainShell && !isNarrow && !sidebarVisible && (
-              <div className="floating-nav-pill duet-glass" data-duet-refract="0.5">
+              <div className="floating-nav-pill duet-glass" data-duet-refract="0.78">
                 <IconButton
                   icon="panel-left"
                   size={16}
@@ -965,7 +965,7 @@ export default function App() {
                 <span>{t('nav.reminders')}</span>
               </button>
             )}
-            <div className="utility-cluster duet-glass" ref={utilityClusterRef} data-duet-refract="0.55">
+            <div className="utility-cluster duet-glass" ref={utilityClusterRef} data-duet-refract="0.8">
               <div className="search-wrap" ref={searchWrap}>
                 <div className="global-search">
                   <Icon name="search" size={15} />
@@ -1133,7 +1133,7 @@ export default function App() {
             ) : newChat ? (
               <main className="chat-main new-chat-main">
                 {isNarrow && (
-                  <header className="chat-header duet-glass" data-duet-refract="0.55">
+                  <header className="chat-header duet-glass" data-duet-refract="0.8">
                     <IconButton icon="reply" size={16} label={t('shell.backToChats')} onClick={() => { setNewChat(false); setNarrowShowingChat(false); }} />
                     <div className="chat-header-copy">
                       <h2>{t('shell.newMessage')}</h2>
@@ -1147,7 +1147,7 @@ export default function App() {
                   <p>{t('shell.newDetail')}</p>
                 </div>
                 <div className="composer-area new-chat-composer" aria-label={t('chat.message')}>
-                  <div className="composer duet-glass is-disabled" data-duet-refract="0.55">
+                  <div className="composer duet-glass is-disabled" data-duet-refract="0.8">
                     <textarea disabled rows={1} aria-label={t('chat.message')} placeholder={t('shell.typeMessage')} />
                     <div className="composer-tools">
                       <IconButton icon="smile" label={t('chat.emoji')} disabled />
@@ -1184,7 +1184,7 @@ export default function App() {
                   <div className="duet-scroll-edge-top" aria-hidden="true" />
                   <div className="duet-scroll-edge-bottom" aria-hidden="true" />
 
-                  <header className="chat-header duet-glass" data-duet-refract="0.55">
+                  <header className="chat-header duet-glass" data-duet-refract="0.8">
                     {isNarrow && (
                       <IconButton
                         icon="reply"
@@ -1484,7 +1484,7 @@ export default function App() {
                       <RoomRecipients members={roomMembers} selected={selectedRecipients} onChange={ids => setRoomRecipients(previous => ({ ...previous, [selected]: ids }))} />
                     )}
                     <DraftAttachmentList items={attachmentDrafts.items} error={attachmentDrafts.error} onRemove={attachmentDrafts.remove} onRetry={attachmentDrafts.retry} onDismissError={attachmentDrafts.dismissError} />
-                    <div className={`composer duet-glass ${expandedComposer ? 'expanded' : ''}`} data-duet-refract="0.6">
+                    <div className={`composer duet-glass ${expandedComposer ? 'expanded' : ''}`} data-duet-refract="0.85">
                       <textarea
                         ref={input}
                         rows={1}

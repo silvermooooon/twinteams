@@ -230,7 +230,7 @@ summary:focus-visible {
 
 /* --- 3. Scheme A Shell: Floating Columns & Gutters (DESIGN.md §3.1) ------- */
 .app-shell {
-  background: var(--duet-canvas);
+  background: var(--duet-stage-bg);
   color: var(--duet-label);
   height: 100dvh;
   display: flex;
@@ -1257,7 +1257,7 @@ summary:focus-visible {
 
 .reaction-categories {
   border-top: 0.5px solid var(--duet-separator);
-  background: var(--duet-glass-overlay-fill);
+  background: transparent;
 }
 
 .reaction-categories > button[aria-selected="true"] {
@@ -1604,7 +1604,7 @@ summary:focus-visible {
   flex-shrink: 0;
   border: 0;
   border-radius: var(--duet-r-panel);
-  background: var(--duet-glass-chrome-fill);
+  background-color: var(--duet-glass-chrome-fill);
   color: var(--duet-label);
   display: flex;
   flex-direction: column;
@@ -1614,15 +1614,18 @@ summary:focus-visible {
   animation: duet-panel-enter var(--duet-dur-enter) var(--duet-ease);
 }
 
-.sidebar.is-duet-refracting,
-.detail-sidebar.detail-sidebar.is-duet-refracting,
-.chat-find-panel.is-duet-refracting,
 .chat-header.is-duet-refracting,
 .composer.is-duet-refracting,
 .utility-cluster.is-duet-refracting,
-.floating-nav-pill.is-duet-refracting,
+.floating-nav-pill.is-duet-refracting {
+  background-color: var(--duet-glass-refract-fill);
+}
+
+.sidebar.is-duet-refracting,
+.detail-sidebar.detail-sidebar.is-duet-refracting,
+.chat-find-panel.is-duet-refracting,
 .twin-settings-nav.is-duet-refracting {
-  background: var(--duet-glass-refract-fill);
+  background-color: var(--duet-glass-chrome-refract-fill);
 }
 
 .detail-sidebar .detail-heading,
@@ -2353,6 +2356,8 @@ summary:focus-visible {
 
 .people-picker-inline .people-suggestions {
   background: var(--duet-glass-overlay-fill);
+  -webkit-backdrop-filter: var(--duet-glass-overlay-blur);
+  backdrop-filter: var(--duet-glass-overlay-blur);
   border: 0.5px solid var(--duet-separator-strong);
   border-radius: var(--duet-r-menu);
   box-shadow: var(--duet-overlay-shadow);
@@ -2626,6 +2631,10 @@ summary:focus-visible {
   flex-direction: column;
   gap: 12px;
   overflow: auto;
+}
+
+.twin-settings-nav:not(.is-duet-refracting) {
+  background-color: var(--duet-glass-chrome-fill);
 }
 
 .settings-nav-top {
@@ -3405,10 +3414,40 @@ summary:focus-visible {
   .duet-glass::before,
   .duet-glass::after,
   .duet-glass-overlay::before,
+  .duet-glass-overlay::after,
   .duet-scroll-edge-top,
   .duet-scroll-edge-bottom {
     display: none !important;
   }
+}
+
+:root[data-reduced-transparency="true"] .duet-glass,
+:root[data-reduced-transparency="true"] .duet-glass-chrome,
+:root[data-reduced-transparency="true"] .duet-glass.is-duet-refracting,
+:root[data-reduced-transparency="true"] .duet-glass-overlay,
+:root[data-reduced-transparency="true"] .sidebar,
+:root[data-reduced-transparency="true"] .chat-header,
+:root[data-reduced-transparency="true"] .composer,
+:root[data-reduced-transparency="true"] .detail-sidebar.detail-sidebar,
+:root[data-reduced-transparency="true"] .chat-find-panel,
+:root[data-reduced-transparency="true"] .utility-cluster,
+:root[data-reduced-transparency="true"] .floating-nav-pill,
+:root[data-reduced-transparency="true"] .twin-settings-nav {
+  background-color: var(--duet-glass-solid) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow:
+    0 0 0 1px var(--duet-separator-strong),
+    0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+:root[data-reduced-transparency="true"] .duet-glass::before,
+:root[data-reduced-transparency="true"] .duet-glass::after,
+:root[data-reduced-transparency="true"] .duet-glass-overlay::before,
+:root[data-reduced-transparency="true"] .duet-glass-overlay::after,
+:root[data-reduced-transparency="true"] .duet-scroll-edge-top,
+:root[data-reduced-transparency="true"] .duet-scroll-edge-bottom {
+  display: none !important;
 }
 
 @media (prefers-contrast: more) {

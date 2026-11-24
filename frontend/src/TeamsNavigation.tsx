@@ -444,7 +444,7 @@ export function ChatSearchPanel({
   return (
     <aside
       className="chat-find-panel duet-glass"
-      data-duet-refract="0.55"
+      data-duet-refract="0.65"
       onKeyDown={event => {
         if (event.key === 'Escape') {
           event.stopPropagation();

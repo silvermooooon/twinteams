@@ -6,16 +6,29 @@
      Markdown previews, form groups, list rows. Never frosted.
    - Functional layer (Regular Liquid Glass): sidebar, conversation toolbar,
      composer capsule, inspector shell, top-right utility cluster, menus,
-     popovers, sheets. Thin neutral fill (~48–56%) + saturate + blur +
-     directional rim highlight + optional SVG rim refraction.
+     popovers, sheets. Thin neutral fill (0.28–0.34, 0.22–0.28 refracting;
+     0.90 on overlays) + saturate + blur + directional rim highlight +
+     optional SVG rim refraction.
    ========================================================================== */
 
 :root {
   color-scheme: light dark;
 
   /* --- Canvas & Opaque Content Surfaces (Light) --------------------------- */
-  --duet-canvas: #e9e9ee;
-  --duet-canvas-chat: #f5f5f8;
+  --duet-canvas: #cfd1da;
+  --duet-canvas-end: #dcdee6;
+  --duet-canvas-chat: #f1f1f5;
+  --duet-stage-bg:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--duet-canvas-chat) 45%, transparent) 12%,
+      var(--duet-canvas-chat) 25%,
+      var(--duet-canvas-chat) 75%,
+      color-mix(in srgb, var(--duet-canvas-chat) 45%, transparent) 88%,
+      transparent 100%
+    ),
+    linear-gradient(165deg, var(--duet-canvas) 0%, var(--duet-canvas-end) 100%);
   --duet-surface: #ffffff;
   --duet-surface-subtle: #f1f1f5;
   --duet-surface-elevated: #ffffff;
@@ -55,20 +68,22 @@
   --duet-destructive-hover: #a91b20;
   --duet-destructive-soft: rgba(196, 33, 38, 0.09);
 
-  /* --- Regular Liquid Glass (Light: genuinely thin neutral glass) --------- */
-  --duet-glass-fill: rgba(255, 255, 255, 0.42);
-  --duet-glass-chrome-fill: rgba(255, 255, 255, 0.44);
-  --duet-glass-refract-fill: rgba(255, 255, 255, 0.36);
-  --duet-glass-overlay-fill: rgba(253, 253, 255, 0.97);
+  /* --- Regular Liquid Glass (Light: translucent neutral Regular glass) ---- */
+  --duet-glass-fill: rgba(255, 255, 255, 0.28);
+  --duet-glass-chrome-fill: rgba(255, 255, 255, 0.34);
+  --duet-glass-refract-fill: rgba(255, 255, 255, 0.22);
+  --duet-glass-chrome-refract-fill: rgba(255, 255, 255, 0.28);
+  --duet-glass-overlay-fill: rgba(253, 253, 255, 0.90);
   --duet-glass-solid: #ffffff;
-  --duet-glass-blur: saturate(190%) blur(14px);
-  --duet-glass-rim-1: rgba(255, 255, 255, 0.96);
-  --duet-glass-rim-2: rgba(255, 255, 255, 0.22);
-  --duet-glass-rim-3: rgba(255, 255, 255, 0.68);
+  --duet-glass-blur: saturate(180%) blur(24px);
+  --duet-glass-overlay-blur: saturate(180%) blur(36px);
+  --duet-glass-rim-1: rgba(255, 255, 255, 0.94);
+  --duet-glass-rim-2: rgba(255, 255, 255, 0.20);
+  --duet-glass-rim-3: rgba(255, 255, 255, 0.64);
   --duet-glass-top-highlight: rgba(255, 255, 255, 0.95);
-  --duet-glass-inner-edge: rgba(60, 60, 67, 0.11);
-  --duet-glass-sheen: 0.22;
-  --duet-glass-text-halo: 0 0 10px rgba(255, 255, 255, 0.58);
+  --duet-glass-inner-edge: rgba(60, 60, 67, 0.14);
+  --duet-glass-sheen: 0.14;
+  --duet-glass-text-halo: 0 0 12px rgba(255, 255, 255, 0.68);
   --duet-glass-shadow:
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 8px 24px rgba(0, 0, 0, 0.08),
@@ -142,8 +157,9 @@
    ========================================================================== */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not(.light) {
-    --duet-canvas: #121215;
-    --duet-canvas-chat: #18181c;
+    --duet-canvas: #0c0c10;
+    --duet-canvas-end: #14141a;
+    --duet-canvas-chat: #1b1b22;
     --duet-surface: #222227;
     --duet-surface-subtle: #2a2a30;
     --duet-surface-elevated: #2a2a30;
@@ -179,17 +195,18 @@
     --duet-destructive-hover: #ff6961;
     --duet-destructive-soft: rgba(255, 69, 58, 0.16);
 
-    --duet-glass-fill: rgba(40, 40, 48, 0.44);
-    --duet-glass-chrome-fill: rgba(38, 38, 46, 0.48);
-    --duet-glass-refract-fill: rgba(36, 36, 44, 0.38);
-    --duet-glass-overlay-fill: rgba(34, 34, 40, 0.97);
+    --duet-glass-fill: rgba(40, 40, 48, 0.30);
+    --duet-glass-chrome-fill: rgba(38, 38, 46, 0.36);
+    --duet-glass-refract-fill: rgba(40, 40, 48, 0.22);
+    --duet-glass-chrome-refract-fill: rgba(38, 38, 46, 0.28);
+    --duet-glass-overlay-fill: rgba(34, 34, 40, 0.90);
     --duet-glass-solid: #232329;
-    --duet-glass-rim-1: rgba(255, 255, 255, 0.46);
-    --duet-glass-rim-2: rgba(255, 255, 255, 0.09);
-    --duet-glass-rim-3: rgba(255, 255, 255, 0.24);
-    --duet-glass-top-highlight: rgba(255, 255, 255, 0.30);
-    --duet-glass-inner-edge: rgba(255, 255, 255, 0.10);
-    --duet-glass-sheen: 0.12;
+    --duet-glass-rim-1: rgba(255, 255, 255, 0.52);
+    --duet-glass-rim-2: rgba(255, 255, 255, 0.12);
+    --duet-glass-rim-3: rgba(255, 255, 255, 0.30);
+    --duet-glass-top-highlight: rgba(255, 255, 255, 0.36);
+    --duet-glass-inner-edge: rgba(255, 255, 255, 0.14);
+    --duet-glass-sheen: 0.14;
     --duet-glass-text-halo: 0 1px 8px rgba(0, 0, 0, 0.45);
     --duet-glass-shadow:
       0 1px 2px rgba(0, 0, 0, 0.38),
@@ -213,8 +230,9 @@
 
 :root[data-theme="dark"],
 :root.dark {
-  --duet-canvas: #121215;
-  --duet-canvas-chat: #18181c;
+  --duet-canvas: #0c0c10;
+  --duet-canvas-end: #14141a;
+  --duet-canvas-chat: #1b1b22;
   --duet-surface: #222227;
   --duet-surface-subtle: #2a2a30;
   --duet-surface-elevated: #2a2a30;
@@ -250,17 +268,18 @@
   --duet-destructive-hover: #ff6961;
   --duet-destructive-soft: rgba(255, 69, 58, 0.16);
 
-  --duet-glass-fill: rgba(40, 40, 48, 0.44);
-  --duet-glass-chrome-fill: rgba(38, 38, 46, 0.48);
-  --duet-glass-refract-fill: rgba(36, 36, 44, 0.38);
-  --duet-glass-overlay-fill: rgba(34, 34, 40, 0.97);
+  --duet-glass-fill: rgba(40, 40, 48, 0.30);
+  --duet-glass-chrome-fill: rgba(38, 38, 46, 0.36);
+  --duet-glass-refract-fill: rgba(40, 40, 48, 0.22);
+  --duet-glass-chrome-refract-fill: rgba(38, 38, 46, 0.28);
+  --duet-glass-overlay-fill: rgba(34, 34, 40, 0.90);
   --duet-glass-solid: #232329;
-  --duet-glass-rim-1: rgba(255, 255, 255, 0.46);
-  --duet-glass-rim-2: rgba(255, 255, 255, 0.09);
-  --duet-glass-rim-3: rgba(255, 255, 255, 0.24);
-  --duet-glass-top-highlight: rgba(255, 255, 255, 0.30);
-  --duet-glass-inner-edge: rgba(255, 255, 255, 0.10);
-  --duet-glass-sheen: 0.12;
+  --duet-glass-rim-1: rgba(255, 255, 255, 0.52);
+  --duet-glass-rim-2: rgba(255, 255, 255, 0.12);
+  --duet-glass-rim-3: rgba(255, 255, 255, 0.30);
+  --duet-glass-top-highlight: rgba(255, 255, 255, 0.36);
+  --duet-glass-inner-edge: rgba(255, 255, 255, 0.14);
+  --duet-glass-sheen: 0.14;
   --duet-glass-text-halo: 0 1px 8px rgba(0, 0, 0, 0.45);
   --duet-glass-shadow:
     0 1px 2px rgba(0, 0, 0, 0.38),
@@ -305,14 +324,18 @@
   background-color: var(--duet-glass-refract-fill);
 }
 
-/* Menus, popovers, sheets: glass outer shell, solid legibility floor so
-   underlying messages are never readable through the surface. */
+.duet-glass.duet-glass-chrome.is-duet-refracting {
+  background-color: var(--duet-glass-chrome-refract-fill);
+}
+
+/* Menus, popovers, sheets: thicker glass outer shell (0.90 + 36px blur),
+   keeping underlying message sentences unreadable without looking like flat paper. */
 .duet-glass-overlay {
   position: relative;
   isolation: isolate;
   background-color: var(--duet-glass-overlay-fill);
-  -webkit-backdrop-filter: saturate(180%) blur(28px);
-  backdrop-filter: saturate(180%) blur(28px);
+  -webkit-backdrop-filter: var(--duet-glass-overlay-blur);
+  backdrop-filter: var(--duet-glass-overlay-blur);
   box-shadow:
     inset 0 1px 0 var(--duet-glass-top-highlight),
     inset 0 0 0 0.5px var(--duet-glass-inner-edge),
@@ -327,12 +350,12 @@
   inset: 0;
   z-index: 2;
   border-radius: inherit;
-  padding: 1.25px;
+  padding: 1.4px;
   pointer-events: none;
   background: linear-gradient(
     135deg,
     var(--duet-glass-rim-1) 0%,
-    var(--duet-glass-rim-2) 42%,
+    var(--duet-glass-rim-2) 44%,
     var(--duet-glass-rim-3) 100%
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -340,8 +363,9 @@
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 
-/* Subtle top specular sheen — sits behind children, above backdrop. */
-.duet-glass::after {
+/* Narrow top rim specular highlight (8–12px falloff) — never washes half the card. */
+.duet-glass::after,
+.duet-glass-overlay::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -350,9 +374,9 @@
   pointer-events: none;
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, var(--duet-glass-sheen)) 0%,
-    rgba(255, 255, 255, calc(var(--duet-glass-sheen) * 0.18)) 32%,
-    transparent 58%
+    rgba(255, 255, 255, var(--duet-glass-sheen)) 0px,
+    rgba(255, 255, 255, calc(var(--duet-glass-sheen) * 0.28)) 5px,
+    transparent 11px
   );
 }
 
@@ -377,22 +401,22 @@
 
 .duet-scroll-edge-top {
   top: 0;
-  height: 64px;
+  height: 52px;
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--duet-canvas) 44%, transparent) 0%,
-    color-mix(in srgb, var(--duet-canvas) 14%, transparent) 46%,
+    color-mix(in srgb, var(--duet-canvas-chat) 26%, transparent) 0%,
+    color-mix(in srgb, var(--duet-canvas-chat) 8%, transparent) 48%,
     transparent 100%
   );
 }
 
 .duet-scroll-edge-bottom {
   bottom: 0;
-  height: 64px;
+  height: 52px;
   background: linear-gradient(
     to top,
-    color-mix(in srgb, var(--duet-canvas) 44%, transparent) 0%,
-    color-mix(in srgb, var(--duet-canvas) 14%, transparent) 46%,
+    color-mix(in srgb, var(--duet-canvas-chat) 26%, transparent) 0%,
+    color-mix(in srgb, var(--duet-canvas-chat) 8%, transparent) 48%,
     transparent 100%
   );
 }
@@ -417,7 +441,8 @@
 
   .duet-glass::before,
   .duet-glass::after,
-  .duet-glass-overlay::before {
+  .duet-glass-overlay::before,
+  .duet-glass-overlay::after {
     display: none !important;
   }
 
@@ -450,6 +475,7 @@
 :root[data-reduced-transparency="true"] .duet-glass::before,
 :root[data-reduced-transparency="true"] .duet-glass::after,
 :root[data-reduced-transparency="true"] .duet-glass-overlay::before,
+:root[data-reduced-transparency="true"] .duet-glass-overlay::after,
 :root[data-reduced-transparency="true"] .duet-scroll-edge-top,
 :root[data-reduced-transparency="true"] .duet-scroll-edge-bottom {
   display: none !important;
@@ -469,6 +495,7 @@
     --duet-glass-fill: rgba(255, 255, 255, 0.92);
     --duet-glass-chrome-fill: rgba(255, 255, 255, 0.94);
     --duet-glass-refract-fill: rgba(255, 255, 255, 0.92);
+    --duet-glass-chrome-refract-fill: rgba(255, 255, 255, 0.94);
     --duet-glass-overlay-fill: #ffffff;
     --duet-glass-solid: #ffffff;
     --duet-red: #b51218;
@@ -489,6 +516,7 @@
       --duet-glass-fill: rgba(28, 28, 32, 0.94);
       --duet-glass-chrome-fill: rgba(28, 28, 32, 0.95);
       --duet-glass-refract-fill: rgba(28, 28, 32, 0.94);
+      --duet-glass-chrome-refract-fill: rgba(28, 28, 32, 0.95);
       --duet-glass-overlay-fill: #1c1c20;
       --duet-glass-solid: #1c1c20;
       --duet-red: #ff3b42;
