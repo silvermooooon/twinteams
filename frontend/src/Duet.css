@@ -230,7 +230,7 @@ summary:focus-visible {
 
 /* --- 3. Scheme A Shell: Floating Columns & Gutters (DESIGN.md §3.1) ------- */
 .app-shell {
-  background: var(--duet-stage-bg);
+  background: var(--duet-atmosphere);
   color: var(--duet-label);
   height: 100dvh;
   display: flex;
@@ -3017,9 +3017,9 @@ summary:focus-visible {
   color: var(--duet-green);
 }
 
-/* --- 11. Login Page (Quiet Canvas + Centered Opaque Card) ----------------- */
+/* --- 11. Login Page (Atmospheric Ground + Centered Opaque Card) ----------- */
 .login-page.login-page {
-  background: var(--duet-canvas);
+  background: var(--duet-atmosphere);
   color: var(--duet-label);
 }
 
@@ -3143,7 +3143,7 @@ summary:focus-visible {
 }
 
 .bot-install-page {
-  background: var(--duet-canvas);
+  background: var(--duet-atmosphere);
   border-radius: 0;
   color: var(--duet-label);
 }
@@ -3451,6 +3451,30 @@ summary:focus-visible {
 }
 
 @media (prefers-contrast: more) {
+  .duet-glass,
+  .duet-glass-chrome,
+  .duet-glass.is-duet-refracting,
+  .duet-glass-overlay,
+  .sidebar,
+  .chat-header,
+  .composer,
+  .detail-sidebar.detail-sidebar,
+  .chat-find-panel,
+  .utility-cluster,
+  .floating-nav-pill,
+  .twin-settings-nav {
+    background-color: var(--duet-glass-solid) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .duet-glass::before,
+  .duet-glass::after,
+  .duet-glass-overlay::before,
+  .duet-glass-overlay::after {
+    display: none !important;
+  }
+
   .sidebar,
   .chat-header,
   .composer,

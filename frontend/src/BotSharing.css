@@ -122,14 +122,14 @@
 }
 .bot-share-notice svg { flex-shrink: 0; margin-top: 1px; }
 
-/* Full-page BOT install surface (coverage §6.2: quiet canvas + opaque content panel) */
+/* Full-page BOT install surface (atmospheric ground + opaque content panel) */
 .bot-install-page {
   flex: 1;
   min-width: 0;
   min-height: 0;
   padding: 36px 24px;
   overflow: auto;
-  background: var(--duet-canvas);
+  background: var(--duet-atmosphere);
   color: var(--duet-label);
 }
 .bot-install-card {

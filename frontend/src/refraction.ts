@@ -57,12 +57,12 @@ function roundedRectField(x: number, y: number, hw: number, hh: number, r: numbe
 }
 
 function buildBezelMaps(w: number, h: number, radius: number, bezel: number): { dispHref: string; maskHref: string } | null {
-  // Scale down map generation for large surfaces while keeping smooth bezel fidelity.
-  const scaleFactor = Math.max(w, h) > 480 ? 0.5 : 1;
+  // Keep 1:1 fidelity on toolbars/composers; downscale only very large full-height panels.
+  const scaleFactor = w * h > 160000 ? 0.5 : 1;
   const mw = Math.max(16, Math.round(w * scaleFactor));
   const mh = Math.max(16, Math.round(h * scaleFactor));
   const mr = radius * scaleFactor;
-  const mb = Math.max(4, bezel * scaleFactor);
+  const mb = Math.max(5, bezel * scaleFactor);
 
   const dispCanvas = document.createElement('canvas');
   dispCanvas.width = mw;
@@ -95,10 +95,11 @@ function buildBezelMaps(w: number, h: number, radius: number, bezel: number): { 
       if (inside < mb && inside > -1) {
         const t = 1 - Math.max(0, inside) / mb;
         const smooth = t * t * (3 - 2 * t);
-        const m = Math.pow(smooth, 1.15);
+        // Steep lens slope near the outer bevel, decaying smoothly into the frosted interior.
+        const m = Math.pow(t, 1.55);
         vx = -field.nx * m;
         vy = -field.ny * m;
-        rimAlpha = smooth;
+        rimAlpha = Math.min(1, Math.pow(smooth, 0.65) * 1.15);
       }
       const idx = (py * mw + px) * 4;
       dData[idx] = Math.round(128 + Math.max(-1, Math.min(1, vx)) * 127);
@@ -145,10 +146,10 @@ function applyRefraction(el: HTMLElement) {
   const cs = getComputedStyle(el);
   const rawRadius = parseFloat(cs.borderTopLeftRadius) || 14;
   const radius = Math.min(rawRadius, w / 2, h / 2);
-  const bezel = Math.min(Math.max(11, Math.min(16, radius * 0.85)), Math.min(w, h) * 0.34);
+  const bezel = Math.min(Math.max(12, Math.min(16, radius * 0.9)), Math.min(w, h) * 0.34);
   const strength = Math.max(0.2, Math.min(1.5, parseFloat(el.getAttribute('data-duet-refract') || '0.8') || 0.8));
   const blur = Math.max(6, Math.min(36, parseFloat(el.getAttribute('data-duet-refract-blur') || '24') || 24));
-  const scale = Math.round(bezel * 2.8 * strength);
+  const scale = Math.round(bezel * 2.35 * strength);
 
   const key = `${w}|${h}|${Math.round(radius)}|${Math.round(bezel)}|${scale}|${blur}`;
   const prev = applied.get(el);
@@ -182,16 +183,19 @@ function applyRefraction(el: HTMLElement) {
 
   const feMidBlur = document.createElementNS(SVG_NS, 'feGaussianBlur');
   feMidBlur.setAttribute('in', 'sat');
-  feMidBlur.setAttribute('stdDeviation', (blur * 0.45).toFixed(1));
+  feMidBlur.setAttribute('stdDeviation', (blur * 0.42).toFixed(1));
   feMidBlur.setAttribute('edgeMode', 'duplicate');
   feMidBlur.setAttribute('result', 'mid');
 
+  // Light pre-blur on the rim path preserves crisp bubble/text curvature at the 10–16px bevel.
   const feRimSrcBlur = document.createElementNS(SVG_NS, 'feGaussianBlur');
   feRimSrcBlur.setAttribute('in', 'sat');
-  feRimSrcBlur.setAttribute('stdDeviation', '2.8');
+  feRimSrcBlur.setAttribute('stdDeviation', '1.0');
   feRimSrcBlur.setAttribute('edgeMode', 'duplicate');
   feRimSrcBlur.setAttribute('result', 'rimSrc');
 
+  // Feed the smooth analytic SDF map directly (no feGaussianBlur across transparent edges,
+  // which would otherwise average G=255 with G=0 and cancel displacement at the top/left rim).
   const feDispImg = document.createElementNS(SVG_NS, 'feImage');
   feDispImg.setAttribute('href', maps.dispHref);
   feDispImg.setAttribute('x', '0');
@@ -199,12 +203,7 @@ function applyRefraction(el: HTMLElement) {
   feDispImg.setAttribute('width', String(w));
   feDispImg.setAttribute('height', String(h));
   feDispImg.setAttribute('preserveAspectRatio', 'none');
-  feDispImg.setAttribute('result', 'rawMap');
-
-  const feMapBlur = document.createElementNS(SVG_NS, 'feGaussianBlur');
-  feMapBlur.setAttribute('in', 'rawMap');
-  feMapBlur.setAttribute('stdDeviation', Math.max(1.0, bezel * 0.12).toFixed(1));
-  feMapBlur.setAttribute('result', 'map');
+  feDispImg.setAttribute('result', 'map');
 
   const feDisp = document.createElementNS(SVG_NS, 'feDisplacementMap');
   feDisp.setAttribute('in', 'rimSrc');
@@ -244,7 +243,7 @@ function applyRefraction(el: HTMLElement) {
   feFuncA.setAttribute('intercept', '1');
   feOpaque.appendChild(feFuncA);
 
-  filter.append(feSat, feMidBlur, feRimSrcBlur, feDispImg, feMapBlur, feDisp, feMaskImg, feRimOnly, feMerge, feOpaque);
+  filter.append(feSat, feMidBlur, feRimSrcBlur, feDispImg, feDisp, feMaskImg, feRimOnly, feMerge, feOpaque);
   ensureDefs().appendChild(filter);
 
   const filterVal = `url(#${id})`;

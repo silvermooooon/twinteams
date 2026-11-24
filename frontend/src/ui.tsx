@@ -519,6 +519,51 @@ export function Popover({
   );
 }
 
+/** Portaled dropdown menu so backdrop-filter blurs content behind glass toolbar ancestors. */
+export function AnchoredMenuPortal({
+  anchorRef,
+  className,
+  gap = 6,
+  children,
+}: {
+  anchorRef: { current: HTMLElement | null };
+  className: string;
+  gap?: number;
+  children: ReactNode;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<CSSProperties>({ position: 'fixed', top: 0, left: 0, right: 'auto', visibility: 'hidden' });
+
+  useLayoutEffect(() => {
+    const update = () => {
+      const anchor = anchorRef.current;
+      const el = menuRef.current;
+      if (!anchor || !el) return;
+      const a = anchor.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      const vh = window.innerHeight;
+      const w = el.offsetWidth || 220;
+      const h = el.offsetHeight || 140;
+      const margin = 8;
+      const left = Math.max(margin, Math.min(a.right - w, vw - w - margin));
+      const top = a.bottom + gap + h > vh - margin && a.top - gap - h >= margin
+        ? a.top - gap - h
+        : Math.max(margin, Math.min(a.bottom + gap, vh - h - margin));
+      setPos({ position: 'fixed', top: `${Math.round(top)}px`, left: `${Math.round(left)}px`, right: 'auto', visibility: 'visible' });
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [anchorRef, gap]);
+
+  return createPortal(
+    <div ref={menuRef} className={className} role="menu" data-floating-menu style={pos}>
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
 /** Human-readable technical error presentation with expandable raw details (DESIGN.md §6). */
 export function TechnicalError({ error, className = '' }: { error: string; className?: string }) {
   const formatted = humanizeTechnicalError(error);

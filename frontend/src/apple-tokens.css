@@ -6,29 +6,25 @@
      Markdown previews, form groups, list rows. Never frosted.
    - Functional layer (Regular Liquid Glass): sidebar, conversation toolbar,
      composer capsule, inspector shell, top-right utility cluster, menus,
-     popovers, sheets. Thin neutral fill (0.28–0.34, 0.22–0.28 refracting;
-     0.90 on overlays) + saturate + blur + directional rim highlight +
-     optional SVG rim refraction.
+     popovers, sheets. Thin neutral fill (0.22–0.24, 0.16–0.18 refracting;
+     0.86 on overlays) + saturate + blur + directional rim highlight +
+     optional SVG rim refraction over a restrained atmospheric backdrop.
    ========================================================================== */
 
 :root {
   color-scheme: light dark;
 
-  /* --- Canvas & Opaque Content Surfaces (Light) --------------------------- */
-  --duet-canvas: #cfd1da;
-  --duet-canvas-end: #dcdee6;
+  /* --- Atmospheric Window Ground & Opaque Content Surfaces (Light) -------- */
+  --duet-canvas: #e6e8ee;
+  --duet-canvas-end: #d8dfe8;
   --duet-canvas-chat: #f1f1f5;
-  --duet-stage-bg:
-    linear-gradient(
-      90deg,
-      transparent 0%,
-      color-mix(in srgb, var(--duet-canvas-chat) 45%, transparent) 12%,
-      var(--duet-canvas-chat) 25%,
-      var(--duet-canvas-chat) 75%,
-      color-mix(in srgb, var(--duet-canvas-chat) 45%, transparent) 88%,
-      transparent 100%
-    ),
-    linear-gradient(165deg, var(--duet-canvas) 0%, var(--duet-canvas-end) 100%);
+  --duet-atmosphere:
+    radial-gradient(560px 420px at 8% 8%, rgba(168, 122, 132, 0.28), transparent 64%),
+    radial-gradient(640px 480px at 92% 10%, rgba(118, 148, 186, 0.26), transparent 68%),
+    radial-gradient(520px 400px at 88% 78%, rgba(108, 140, 176, 0.20), transparent 70%),
+    radial-gradient(480px 520px at 12% 70%, rgba(150, 132, 148, 0.16), transparent 68%),
+    radial-gradient(900px 700px at 50% 42%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.05) 54%, transparent 74%),
+    linear-gradient(165deg, #e7e4e8 0%, #e6e8ee 42%, #d8dfe8 100%);
   --duet-surface: #ffffff;
   --duet-surface-subtle: #f1f1f5;
   --duet-surface-elevated: #ffffff;
@@ -69,29 +65,31 @@
   --duet-destructive-soft: rgba(196, 33, 38, 0.09);
 
   /* --- Regular Liquid Glass (Light: translucent neutral Regular glass) ---- */
-  --duet-glass-fill: rgba(255, 255, 255, 0.28);
-  --duet-glass-chrome-fill: rgba(255, 255, 255, 0.34);
-  --duet-glass-refract-fill: rgba(255, 255, 255, 0.22);
-  --duet-glass-chrome-refract-fill: rgba(255, 255, 255, 0.28);
-  --duet-glass-overlay-fill: rgba(253, 253, 255, 0.90);
+  --duet-glass-fill: rgba(255, 255, 255, 0.24);
+  --duet-glass-chrome-fill: rgba(255, 255, 255, 0.22);
+  --duet-glass-refract-fill: rgba(255, 255, 255, 0.18);
+  --duet-glass-chrome-refract-fill: rgba(255, 255, 255, 0.16);
+  --duet-glass-overlay-fill: rgba(253, 253, 255, 0.86);
   --duet-glass-solid: #ffffff;
   --duet-glass-blur: saturate(180%) blur(24px);
   --duet-glass-overlay-blur: saturate(180%) blur(36px);
-  --duet-glass-rim-1: rgba(255, 255, 255, 0.94);
-  --duet-glass-rim-2: rgba(255, 255, 255, 0.20);
-  --duet-glass-rim-3: rgba(255, 255, 255, 0.64);
-  --duet-glass-top-highlight: rgba(255, 255, 255, 0.95);
-  --duet-glass-inner-edge: rgba(60, 60, 67, 0.14);
-  --duet-glass-sheen: 0.14;
-  --duet-glass-text-halo: 0 0 12px rgba(255, 255, 255, 0.68);
+  --duet-glass-rim-1: rgba(255, 255, 255, 0.96);
+  --duet-glass-rim-2: rgba(255, 255, 255, 0.22);
+  --duet-glass-rim-3: rgba(255, 255, 255, 0.72);
+  --duet-glass-top-highlight: rgba(255, 255, 255, 0.96);
+  --duet-glass-inner-edge: rgba(60, 60, 67, 0.16);
+  --duet-glass-bottom-shade: rgba(30, 34, 44, 0.08);
+  --duet-glass-sheen: 0.22;
+  --duet-glass-text-halo: 0 0 12px rgba(255, 255, 255, 0.72);
   --duet-glass-shadow:
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 8px 24px rgba(0, 0, 0, 0.08),
-    inset 0 -0.5px 0 rgba(0, 0, 0, 0.05);
+    inset 0 -1px 2px var(--duet-glass-bottom-shade);
   --duet-overlay-shadow:
     0 2px 6px rgba(0, 0, 0, 0.08),
-    0 16px 40px rgba(0, 0, 0, 0.14);
-  --duet-backdrop: rgba(18, 18, 22, 0.26);
+    0 16px 40px rgba(0, 0, 0, 0.14),
+    inset 0 -1px 2px var(--duet-glass-bottom-shade);
+  --duet-backdrop: rgba(20, 22, 28, 0.30);
   --duet-card-shadow:
     0 0.5px 1px rgba(0, 0, 0, 0.04),
     0 2px 8px rgba(0, 0, 0, 0.04);
@@ -157,9 +155,16 @@
    ========================================================================== */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not(.light) {
-    --duet-canvas: #0c0c10;
-    --duet-canvas-end: #14141a;
+    --duet-canvas: #1a1b22;
+    --duet-canvas-end: #161820;
     --duet-canvas-chat: #1b1b22;
+    --duet-atmosphere:
+      radial-gradient(560px 420px at 8% 8%, rgba(160, 110, 120, 0.18), transparent 64%),
+      radial-gradient(640px 480px at 92% 10%, rgba(80, 110, 160, 0.22), transparent 68%),
+      radial-gradient(520px 400px at 88% 78%, rgba(72, 102, 148, 0.18), transparent 70%),
+      radial-gradient(480px 520px at 12% 70%, rgba(132, 102, 122, 0.14), transparent 68%),
+      radial-gradient(900px 700px at 50% 42%, rgba(255, 255, 255, 0.04), transparent 70%),
+      linear-gradient(165deg, #1a1b22 0%, #181a22 48%, #161820 100%);
     --duet-surface: #222227;
     --duet-surface-subtle: #2a2a30;
     --duet-surface-elevated: #2a2a30;
@@ -195,26 +200,29 @@
     --duet-destructive-hover: #ff6961;
     --duet-destructive-soft: rgba(255, 69, 58, 0.16);
 
-    --duet-glass-fill: rgba(40, 40, 48, 0.30);
-    --duet-glass-chrome-fill: rgba(38, 38, 46, 0.36);
-    --duet-glass-refract-fill: rgba(40, 40, 48, 0.22);
-    --duet-glass-chrome-refract-fill: rgba(38, 38, 46, 0.28);
-    --duet-glass-overlay-fill: rgba(34, 34, 40, 0.90);
+    --duet-glass-fill: rgba(40, 40, 48, 0.26);
+    --duet-glass-chrome-fill: rgba(38, 38, 46, 0.28);
+    --duet-glass-refract-fill: rgba(40, 40, 48, 0.18);
+    --duet-glass-chrome-refract-fill: rgba(38, 38, 46, 0.20);
+    --duet-glass-overlay-fill: rgba(34, 34, 40, 0.86);
     --duet-glass-solid: #232329;
     --duet-glass-rim-1: rgba(255, 255, 255, 0.52);
     --duet-glass-rim-2: rgba(255, 255, 255, 0.12);
-    --duet-glass-rim-3: rgba(255, 255, 255, 0.30);
+    --duet-glass-rim-3: rgba(255, 255, 255, 0.32);
     --duet-glass-top-highlight: rgba(255, 255, 255, 0.36);
-    --duet-glass-inner-edge: rgba(255, 255, 255, 0.14);
-    --duet-glass-sheen: 0.14;
+    --duet-glass-inner-edge: rgba(255, 255, 255, 0.16);
+    --duet-glass-bottom-shade: rgba(0, 0, 0, 0.28);
+    --duet-glass-sheen: 0.16;
     --duet-glass-text-halo: 0 1px 8px rgba(0, 0, 0, 0.45);
     --duet-glass-shadow:
       0 1px 2px rgba(0, 0, 0, 0.38),
-      0 10px 30px rgba(0, 0, 0, 0.44);
+      0 10px 30px rgba(0, 0, 0, 0.44),
+      inset 0 -1px 2px var(--duet-glass-bottom-shade);
     --duet-overlay-shadow:
       0 2px 8px rgba(0, 0, 0, 0.48),
-      0 20px 50px rgba(0, 0, 0, 0.62);
-    --duet-backdrop: rgba(0, 0, 0, 0.52);
+      0 20px 50px rgba(0, 0, 0, 0.62),
+      inset 0 -1px 2px var(--duet-glass-bottom-shade);
+    --duet-backdrop: rgba(20, 22, 28, 0.30);
     --duet-card-shadow:
       0 0.5px 1px rgba(0, 0, 0, 0.32),
       0 2px 10px rgba(0, 0, 0, 0.28);
@@ -230,9 +238,16 @@
 
 :root[data-theme="dark"],
 :root.dark {
-  --duet-canvas: #0c0c10;
-  --duet-canvas-end: #14141a;
+  --duet-canvas: #1a1b22;
+  --duet-canvas-end: #161820;
   --duet-canvas-chat: #1b1b22;
+  --duet-atmosphere:
+    radial-gradient(560px 420px at 8% 8%, rgba(160, 110, 120, 0.18), transparent 64%),
+    radial-gradient(640px 480px at 92% 10%, rgba(80, 110, 160, 0.22), transparent 68%),
+    radial-gradient(520px 400px at 88% 78%, rgba(72, 102, 148, 0.18), transparent 70%),
+    radial-gradient(480px 520px at 12% 70%, rgba(132, 102, 122, 0.14), transparent 68%),
+    radial-gradient(900px 700px at 50% 42%, rgba(255, 255, 255, 0.04), transparent 70%),
+    linear-gradient(165deg, #1a1b22 0%, #181a22 48%, #161820 100%);
   --duet-surface: #222227;
   --duet-surface-subtle: #2a2a30;
   --duet-surface-elevated: #2a2a30;
@@ -268,26 +283,29 @@
   --duet-destructive-hover: #ff6961;
   --duet-destructive-soft: rgba(255, 69, 58, 0.16);
 
-  --duet-glass-fill: rgba(40, 40, 48, 0.30);
-  --duet-glass-chrome-fill: rgba(38, 38, 46, 0.36);
-  --duet-glass-refract-fill: rgba(40, 40, 48, 0.22);
-  --duet-glass-chrome-refract-fill: rgba(38, 38, 46, 0.28);
-  --duet-glass-overlay-fill: rgba(34, 34, 40, 0.90);
+  --duet-glass-fill: rgba(40, 40, 48, 0.26);
+  --duet-glass-chrome-fill: rgba(38, 38, 46, 0.28);
+  --duet-glass-refract-fill: rgba(40, 40, 48, 0.18);
+  --duet-glass-chrome-refract-fill: rgba(38, 38, 46, 0.20);
+  --duet-glass-overlay-fill: rgba(34, 34, 40, 0.86);
   --duet-glass-solid: #232329;
   --duet-glass-rim-1: rgba(255, 255, 255, 0.52);
   --duet-glass-rim-2: rgba(255, 255, 255, 0.12);
-  --duet-glass-rim-3: rgba(255, 255, 255, 0.30);
+  --duet-glass-rim-3: rgba(255, 255, 255, 0.32);
   --duet-glass-top-highlight: rgba(255, 255, 255, 0.36);
-  --duet-glass-inner-edge: rgba(255, 255, 255, 0.14);
-  --duet-glass-sheen: 0.14;
+  --duet-glass-inner-edge: rgba(255, 255, 255, 0.16);
+  --duet-glass-bottom-shade: rgba(0, 0, 0, 0.28);
+  --duet-glass-sheen: 0.16;
   --duet-glass-text-halo: 0 1px 8px rgba(0, 0, 0, 0.45);
   --duet-glass-shadow:
     0 1px 2px rgba(0, 0, 0, 0.38),
-    0 10px 30px rgba(0, 0, 0, 0.44);
+    0 10px 30px rgba(0, 0, 0, 0.44),
+    inset 0 -1px 2px var(--duet-glass-bottom-shade);
   --duet-overlay-shadow:
     0 2px 8px rgba(0, 0, 0, 0.48),
-    0 20px 50px rgba(0, 0, 0, 0.62);
-  --duet-backdrop: rgba(0, 0, 0, 0.52);
+    0 20px 50px rgba(0, 0, 0, 0.62),
+    inset 0 -1px 2px var(--duet-glass-bottom-shade);
+  --duet-backdrop: rgba(20, 22, 28, 0.30);
   --duet-card-shadow:
     0 0.5px 1px rgba(0, 0, 0, 0.32),
     0 2px 10px rgba(0, 0, 0, 0.28);
@@ -328,7 +346,7 @@
   background-color: var(--duet-glass-chrome-refract-fill);
 }
 
-/* Menus, popovers, sheets: thicker glass outer shell (0.90 + 36px blur),
+/* Menus, popovers, sheets: thicker glass outer shell (0.86 + 36px blur),
    keeping underlying message sentences unreadable without looking like flat paper. */
 .duet-glass-overlay {
   position: relative;
@@ -375,7 +393,7 @@
   background: linear-gradient(
     180deg,
     rgba(255, 255, 255, var(--duet-glass-sheen)) 0px,
-    rgba(255, 255, 255, calc(var(--duet-glass-sheen) * 0.28)) 5px,
+    rgba(255, 255, 255, calc(var(--duet-glass-sheen) * 0.30)) 5px,
     transparent 11px
   );
 }
@@ -384,12 +402,20 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .duet-glass,
   .duet-glass-chrome,
+  .duet-glass.is-duet-refracting,
   .duet-glass-overlay {
     background-color: var(--duet-glass-solid);
   }
+
+  .duet-glass::before,
+  .duet-glass::after,
+  .duet-glass-overlay::before,
+  .duet-glass-overlay::after {
+    display: none;
+  }
 }
 
-/* Subtle scroll-edge feathering so messages visibly pass under floating glass */
+/* Keep scroll edges unobstructed so bubbles reach the floating glass rim at full contrast */
 .duet-scroll-edge-top,
 .duet-scroll-edge-bottom {
   position: absolute;
@@ -397,28 +423,16 @@
   right: 0;
   pointer-events: none;
   z-index: 12;
+  height: 0;
+  background: none;
 }
 
 .duet-scroll-edge-top {
   top: 0;
-  height: 52px;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--duet-canvas-chat) 26%, transparent) 0%,
-    color-mix(in srgb, var(--duet-canvas-chat) 8%, transparent) 48%,
-    transparent 100%
-  );
 }
 
 .duet-scroll-edge-bottom {
   bottom: 0;
-  height: 52px;
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--duet-canvas-chat) 26%, transparent) 0%,
-    color-mix(in srgb, var(--duet-canvas-chat) 8%, transparent) 48%,
-    transparent 100%
-  );
 }
 
 /* ============================================================================
@@ -481,7 +495,7 @@
   display: none !important;
 }
 
-/* 2. Increase Contrast: stronger strokes, fills, and higher-contrast secondary labels */
+/* 2. Increase Contrast: solid functional chrome, stronger strokes, no refraction/highlights */
 @media (prefers-contrast: more) {
   :root {
     --duet-label: #000000;
@@ -492,11 +506,11 @@
     --duet-border-input: rgba(0, 0, 0, 0.48);
     --duet-row-selected: rgba(0, 0, 0, 0.14);
     --duet-fill: rgba(0, 0, 0, 0.14);
-    --duet-glass-fill: rgba(255, 255, 255, 0.92);
-    --duet-glass-chrome-fill: rgba(255, 255, 255, 0.94);
-    --duet-glass-refract-fill: rgba(255, 255, 255, 0.92);
-    --duet-glass-chrome-refract-fill: rgba(255, 255, 255, 0.94);
-    --duet-glass-overlay-fill: #ffffff;
+    --duet-glass-fill: var(--duet-glass-solid);
+    --duet-glass-chrome-fill: var(--duet-glass-solid);
+    --duet-glass-refract-fill: var(--duet-glass-solid);
+    --duet-glass-chrome-refract-fill: var(--duet-glass-solid);
+    --duet-glass-overlay-fill: var(--duet-glass-solid);
     --duet-glass-solid: #ffffff;
     --duet-red: #b51218;
     --duet-red-hover: #960e13;
@@ -513,16 +527,32 @@
       --duet-border-input: rgba(255, 255, 255, 0.52);
       --duet-row-selected: rgba(255, 255, 255, 0.22);
       --duet-fill: rgba(255, 255, 255, 0.22);
-      --duet-glass-fill: rgba(28, 28, 32, 0.94);
-      --duet-glass-chrome-fill: rgba(28, 28, 32, 0.95);
-      --duet-glass-refract-fill: rgba(28, 28, 32, 0.94);
-      --duet-glass-chrome-refract-fill: rgba(28, 28, 32, 0.95);
-      --duet-glass-overlay-fill: #1c1c20;
+      --duet-glass-fill: var(--duet-glass-solid);
+      --duet-glass-chrome-fill: var(--duet-glass-solid);
+      --duet-glass-refract-fill: var(--duet-glass-solid);
+      --duet-glass-chrome-refract-fill: var(--duet-glass-solid);
+      --duet-glass-overlay-fill: var(--duet-glass-solid);
       --duet-glass-solid: #1c1c20;
       --duet-red: #ff3b42;
       --duet-bubble-in: #26262c;
       --duet-bubble-out: #3c3c46;
     }
+  }
+
+  .duet-glass,
+  .duet-glass-chrome,
+  .duet-glass.is-duet-refracting,
+  .duet-glass-overlay {
+    background-color: var(--duet-glass-solid) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .duet-glass::before,
+  .duet-glass::after,
+  .duet-glass-overlay::before,
+  .duet-glass-overlay::after {
+    display: none !important;
   }
 
   .duet-glass,

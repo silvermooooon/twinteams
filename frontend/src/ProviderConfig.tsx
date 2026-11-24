@@ -92,7 +92,7 @@ export function ProviderConfigPage({ allowed, onBack }: { allowed: boolean; onBa
   }
 
   return <main className="provider-config-page settings-shell">
-    <aside className="twin-settings-nav duet-glass" data-duet-refract="0.65" aria-label={t('providerConfig.title')}>
+    <aside className="twin-settings-nav duet-glass" data-duet-refract="0.8" aria-label={t('providerConfig.title')}>
       <div className="settings-nav-top">
         <button type="button" className="settings-back-button" onClick={onBack}>
           <Icon name="reply" size={15} />

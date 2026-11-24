@@ -213,7 +213,7 @@ export function DetailSidebar({ api, detail, duetTarget, actors, version, tracki
     catch (error) { onError(error); } finally { setUploading(false); if (uploadInput.current) uploadInput.current.value = ''; }
   }
   const members = detail.members.filter(a => a.kind === 'human');
-  return <aside className="detail-sidebar duet-glass" data-duet-refract="0.65" aria-label={chatTitle(detail.chat, actors, ownerId)}>
+  return <aside className="detail-sidebar duet-glass" data-duet-refract="0.8" aria-label={chatTitle(detail.chat, actors, ownerId)}>
     <div className="detail-heading">
       <ChatAvatar chat={detail.chat} actors={actors} ownerId={ownerId} size={36} />
       <div>

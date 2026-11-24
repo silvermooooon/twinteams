@@ -31,7 +31,7 @@ import type { Credential, CredentialRequest } from './api/twin';
 import { getLocalProviderConfig } from './api/provider-config';
 import type { AuthSession } from './Auth';
 import { PeoplePicker, PeopleDialog, RenameChatDialog, ReminderDialog, RemindersPage } from './Dialogs';
-import { Avatar, BrandMark, ChatAvatar, chatTitle, FixtureBanner, Icon, IconButton, Modal, useMenuBehavior, useSegmentedIconFallback, dateTime, time } from './ui';
+import { AnchoredMenuPortal, Avatar, BrandMark, ChatAvatar, chatTitle, FixtureBanner, Icon, IconButton, Modal, useMenuBehavior, useSegmentedIconFallback, dateTime, time } from './ui';
 import { t, formatDate } from './i18n';
 import { DraftAttachmentList, MessageAttachments, useAttachmentDrafts } from './Attachments';
 import { ChatNavigation, ChatSearchPanel } from './TeamsNavigation';
@@ -140,6 +140,9 @@ export default function App() {
   const [narrowShowingChat, setNarrowShowingChat] = useState(false);
   const [narrowInspectorExplicit, setNarrowInspectorExplicit] = useState(false);
   const utilityClusterRef = useRef<HTMLDivElement>(null);
+  const appMenuWrapRef = useRef<HTMLDivElement>(null);
+  const accountMenuWrapRef = useRef<HTMLDivElement>(null);
+  const chatMoreWrapRef = useRef<HTMLDivElement>(null);
   const sidebarBrandBarRef = useRef<HTMLDivElement>(null);
   const purposeSegmentedRef = useRef<HTMLDivElement>(null);
   const openPersonCard = useCallback((actor: Actor, anchor?: DOMRect | null) => {
@@ -792,7 +795,7 @@ export default function App() {
           <>
             <aside
               className={`sidebar duet-glass ${showSidebarColumn ? '' : 'collapsed'}`}
-              data-duet-refract="0.65"
+              data-duet-refract="0.8"
               inert={!showSidebarColumn}
               aria-hidden={!showSidebarColumn}
               style={{ width: showSidebarColumn ? (isNarrow ? '100%' : paneWidth) : 0 }}
@@ -924,7 +927,7 @@ export default function App() {
         <div className={`workspace-stage ${showMainStage ? '' : 'narrow-list-only'}`}>
           <div className="window-utility-row">
             {isMainShell && !isNarrow && !sidebarVisible && (
-              <div className="floating-nav-pill duet-glass" data-duet-refract="0.78">
+              <div className="floating-nav-pill duet-glass" data-duet-refract="0.95">
                 <IconButton
                   icon="panel-left"
                   size={16}
@@ -965,7 +968,7 @@ export default function App() {
                 <span>{t('nav.reminders')}</span>
               </button>
             )}
-            <div className="utility-cluster duet-glass" ref={utilityClusterRef} data-duet-refract="0.8">
+            <div className="utility-cluster duet-glass" ref={utilityClusterRef} data-duet-refract="1.0">
               <div className="search-wrap" ref={searchWrap}>
                 <div className="global-search">
                   <Icon name="search" size={15} />
@@ -1018,7 +1021,7 @@ export default function App() {
 
               <span className="utility-divider" aria-hidden="true" />
 
-              <div className="app-menu-wrap" data-floating-menu>
+              <div className="app-menu-wrap" ref={appMenuWrapRef} data-floating-menu>
                 <IconButton
                   icon="more"
                   size={16}
@@ -1028,7 +1031,7 @@ export default function App() {
                   onClick={() => { setAppMenuOpen(previous => !previous); setAccountOpen(false); setChatMoreOpen(false); }}
                 />
                 {appMenuOpen && (
-                  <div className="fluent-menu duet-glass-overlay app-options-menu" role="menu">
+                  <AnchoredMenuPortal anchorRef={appMenuWrapRef} className="fluent-menu duet-glass-overlay app-options-menu" gap={8}>
                     <button type="button" role="menuitem" onClick={openNotificationsPopover}>
                       <Icon name="bell" size={16} />
                       <span>{t('notifications.title')}</span>
@@ -1038,11 +1041,11 @@ export default function App() {
                       <span>{t('shell.keyboard')}</span>
                       <kbd className="menu-shortcut">⌘/</kbd>
                     </button>
-                  </div>
+                  </AnchoredMenuPortal>
                 )}
               </div>
 
-              <div className="account-menu-wrap" data-floating-menu>
+              <div className="account-menu-wrap" ref={accountMenuWrapRef} data-floating-menu>
                 <button
                   type="button"
                   className="account-button"
@@ -1055,7 +1058,7 @@ export default function App() {
                   <Avatar actor={owner} size={28} />
                 </button>
                 {accountOpen && (
-                  <div className="account-menu duet-glass-overlay" role="menu">
+                  <AnchoredMenuPortal anchorRef={accountMenuWrapRef} className="account-menu duet-glass-overlay" gap={8}>
                     <div className="account-menu-header">
                       <Avatar actor={owner} size={34} />
                       <div>
@@ -1115,7 +1118,7 @@ export default function App() {
                     >
                       <span>{t('auth.signOut')}</span>
                     </button>
-                  </div>
+                  </AnchoredMenuPortal>
                 )}
               </div>
             </div>
@@ -1133,7 +1136,7 @@ export default function App() {
             ) : newChat ? (
               <main className="chat-main new-chat-main">
                 {isNarrow && (
-                  <header className="chat-header duet-glass" data-duet-refract="0.8">
+                  <header className="chat-header duet-glass" data-duet-refract="1.05">
                     <IconButton icon="reply" size={16} label={t('shell.backToChats')} onClick={() => { setNewChat(false); setNarrowShowingChat(false); }} />
                     <div className="chat-header-copy">
                       <h2>{t('shell.newMessage')}</h2>
@@ -1147,7 +1150,7 @@ export default function App() {
                   <p>{t('shell.newDetail')}</p>
                 </div>
                 <div className="composer-area new-chat-composer" aria-label={t('chat.message')}>
-                  <div className="composer duet-glass is-disabled" data-duet-refract="0.8">
+                  <div className="composer duet-glass is-disabled" data-duet-refract="1.0">
                     <textarea disabled rows={1} aria-label={t('chat.message')} placeholder={t('shell.typeMessage')} />
                     <div className="composer-tools">
                       <IconButton icon="smile" label={t('chat.emoji')} disabled />
@@ -1184,7 +1187,7 @@ export default function App() {
                   <div className="duet-scroll-edge-top" aria-hidden="true" />
                   <div className="duet-scroll-edge-bottom" aria-hidden="true" />
 
-                  <header className="chat-header duet-glass" data-duet-refract="0.8">
+                  <header className="chat-header duet-glass" data-duet-refract="1.05">
                     {isNarrow && (
                       <IconButton
                         icon="reply"
@@ -1253,7 +1256,7 @@ export default function App() {
                         active={inspectorOpen && !findOpen}
                         onClick={toggleInspectorPane}
                       />
-                      <div className="chat-more-wrap" data-floating-menu>
+                      <div className="chat-more-wrap" ref={chatMoreWrapRef} data-floating-menu>
                         <IconButton
                           icon="more"
                           size={16}
@@ -1263,7 +1266,7 @@ export default function App() {
                           onClick={() => { setChatMoreOpen(previous => !previous); setAccountOpen(false); setAppMenuOpen(false); }}
                         />
                         {chatMoreOpen && (
-                          <div className="fluent-menu duet-glass-overlay chat-more-menu" role="menu">
+                          <AnchoredMenuPortal anchorRef={chatMoreWrapRef} className="fluent-menu duet-glass-overlay chat-more-menu" gap={6}>
                             {activeChat.chat.kind === 'private' && (
                               <>
                                 <button type="button" role="menuitem" onClick={() => { setChatMoreOpen(false); setBotDialog({ mode: 'dispatch' }); }}>
@@ -1361,7 +1364,7 @@ export default function App() {
                                 )}
                               </>
                             )}
-                          </div>
+                          </AnchoredMenuPortal>
                         )}
                       </div>
                     </div>
@@ -1484,7 +1487,7 @@ export default function App() {
                       <RoomRecipients members={roomMembers} selected={selectedRecipients} onChange={ids => setRoomRecipients(previous => ({ ...previous, [selected]: ids }))} />
                     )}
                     <DraftAttachmentList items={attachmentDrafts.items} error={attachmentDrafts.error} onRemove={attachmentDrafts.remove} onRetry={attachmentDrafts.retry} onDismissError={attachmentDrafts.dismissError} />
-                    <div className={`composer duet-glass ${expandedComposer ? 'expanded' : ''}`} data-duet-refract="0.85">
+                    <div className={`composer duet-glass ${expandedComposer ? 'expanded' : ''}`} data-duet-refract="1.05">
                       <textarea
                         ref={input}
                         rows={1}
