@@ -175,10 +175,11 @@ function applyRefraction(el: HTMLElement) {
 
   // Run saturate + blur INSIDE the SVG filter BEFORE displacement so Chromium never drops
   // CSS blur over scrolling layers, while keeping a crisp optical bend in the 10–16px rim.
+  // Keep saturation calibrated (~1.32) so bright blue atmosphere tones stay smooth without B=255 clipping.
   const feSat = document.createElementNS(SVG_NS, 'feColorMatrix');
   feSat.setAttribute('in', 'SourceGraphic');
   feSat.setAttribute('type', 'saturate');
-  feSat.setAttribute('values', '1.8');
+  feSat.setAttribute('values', '1.32');
   feSat.setAttribute('result', 'sat');
 
   const feMidBlur = document.createElementNS(SVG_NS, 'feGaussianBlur');
@@ -234,9 +235,17 @@ function applyRefraction(el: HTMLElement) {
   feMerge.setAttribute('operator', 'over');
   feMerge.setAttribute('result', 'merged');
 
-  // Ensure output alpha stays 1.0 so unblurred DOM pixels never bleed through the glass middle.
+  // Subtle Fresnel transmission (~0.92) keeps glass interior calm so near-white lips pop,
+  // and pins output alpha to 1.0 so unblurred DOM pixels never bleed through the middle.
   const feOpaque = document.createElementNS(SVG_NS, 'feComponentTransfer');
   feOpaque.setAttribute('in', 'merged');
+  for (const tag of ['feFuncR', 'feFuncG', 'feFuncB']) {
+    const fn = document.createElementNS(SVG_NS, tag);
+    fn.setAttribute('type', 'linear');
+    fn.setAttribute('slope', '0.92');
+    fn.setAttribute('intercept', '0');
+    feOpaque.appendChild(fn);
+  }
   const feFuncA = document.createElementNS(SVG_NS, 'feFuncA');
   feFuncA.setAttribute('type', 'linear');
   feFuncA.setAttribute('slope', '0');
